@@ -22,7 +22,7 @@ Para cada mudança, localizar o invariante aplicável, implementar na camada ind
 | PER-02 | Permissões | Auxiliar de setor cria para si e usuários dentro do próprio setor. | Policy por setor principal. | Mesmo setor permitido; outro negado. | Crit. 11.2 |
 | PER-03 | Permissões | Chefe autoriza só beneficiários do próprio setor. | Policy por setor responsável. | Próprio setor permitido; outro negado. | Crit. 2.1 |
 | PER-04 | Permissões | Almoxarifado cria em nome de qualquer usuário de qualquer setor. | Policy de papel operacional. | Criar para setores distintos. | Crit. 1.1 |
-| PER-05 | Permissões | Superusuário é suporte/admin, não operador cotidiano de estoque. | Policy/admin. | Permitir importação/cadastros; negar retirada/devolução/saída/estorno. | Crit. 11.6 |
+| PER-05 | Permissões | Superusuário tem permissões totais, incluindo administração, consulta ampla e operações de negócio/estoque. | Policy/admin/service. | Permitir ação técnica; permitir ação operacional; permitir consulta ampla. | Crit. 11.6 |
 | PER-06 | Permissões | Requisição pertence ao setor do beneficiário, não do criador. | Service/model snapshot. | Almoxarifado cria para Obras e vai ao chefe de Obras. | Crit. 1.2 |
 | PER-08 | Permissões | Views e services chamam a mesma policy contextual. | `policies.py` ou equivalente. | View e service negam mesmo escopo. | CodeRabbit |
 | REQ-01 | Requisições | Toda requisição começa em rascunho. | Service/model default. | Criação gera `rascunho`. | Crit. 1.1 |
@@ -33,17 +33,17 @@ Para cada mudança, localizar o invariante aplicável, implementar na camada ind
 | REQ-06 | Requisições | Após envio, não há edição direta de itens. | Máquina de estados/service. | Bloquear edição; permitir retorno para rascunho. | Crit. 1.8 |
 | REQ-07 | Requisições | Registrar criador, beneficiário e setor do beneficiário. | Campos obrigatórios/snapshots. | Criar em nome de terceiro preservando papéis. | Crit. 1.1 |
 | REQ-08 | Requisições | Timeline registra eventos principais e é visível a autorizados. | Service/policy. | Eventos do ciclo; autorizado vê completa; fora de escopo não vê. | Modelo 2.1 |
-| REQ-09 | Requisições | Cópia recalcula saldo e não copia autorizado/entregue. | Service de cópia. | Copiar atendida/parcial; bloquear item sem saldo/divergente. | Crit. 1.13 |
-| ITEM-01 | Itens | Quantidade autorizada nunca maior que solicitada. | Service/constraint. | Bloquear autorização acima. | Crit. 2 |
+| REQ-09 | Requisições | Cópia recalcula saldo e não copia autorizado/entregue. | Service de cópia. | Copiar atendida; bloquear item sem saldo/divergente. | Crit. 1.13 |
+| ITEM-01 | Itens | Na autorização, quantidade autorizada deve ser igual à quantidade solicitada para todos os itens. | Service/constraint. | Autorizar integralmente; bloquear autorização parcial, zero ou acima do solicitado. | Crit. 2 |
 | ITEM-02 | Itens | Quantidade entregue nunca maior que autorizada. | Service/constraint. | Bloquear entrega acima. | Crit. 3 |
 | ITEM-03 | Itens | Atendimento parcial exige justificativa. | Service | Menor com justificativa; sem justificativa negado. | Crit. 3.3 |
-| ITEM-04 | Itens | Item autorizado com zero exige justificativa. | Service | Zero com justificativa; sem justificativa negado. | Crit. 2.4 |
+| ITEM-04 | Itens | Item autorizado com zero não é permitido. | Service | Bloquear item autorizado com zero; orientar recusa inteira ou resolução da indisponibilidade. | Crit. 2.4 |
 | ITEM-05 | Itens | Entrega zero exige justificativa | Service | Zero com justificativa | Crit. 3.4 |
-| ITEM-06 | Itens | Requisição atendida/parcial precisa de item entregue > 0. | Regra agregada no service. | Bloquear finalização sem entrega; orientar cancelamento. | Crit. 3.6 |
+| ITEM-06 | Itens | Requisição atendida precisa de ao menos um item entregue > 0. | Regra agregada no service. | Bloquear finalização sem entrega; orientar cancelamento. | Crit. 3.6 |
 | EST-01 | Estoque | Físico e reservado são armazenados; disponível = físico - reservado. | Model/service; disponível calculado. | Cálculo após reserva, retirada e liberação. | Crit. 7.2 |
-| EST-02 | Estoque | Autorização reserva, mas não baixa físico. | Service + movimentação de reserva. | Reservado aumenta; físico mantém. | Crit. 2.2 |
-| EST-03 | Estoque | Retirada consome reserva e baixa físico. | Service transacional. | Atendimento reduz físico e reservado. | Crit. 3.2 |
-| EST-04 | Estoque | Reserva não entregue deve ser liberada. | Service transacional. | Atendimento parcial/cancelamento libera reserva. | Crit. 3.3 |
+| EST-02 | Estoque | Autorização reserva integralmente o solicitado, mas não baixa físico. | Service + movimentação de reserva. | Reservado aumenta pelo total solicitado/autorizado; físico mantém. | Crit. 2.2 |
+| EST-03 | Estoque | Atendimento a partir de `pronta_para_retirada` consome reserva e baixa físico. | Service transacional. | Atendimento total/parcial reduz físico do entregue e consome/libera reserva. | Crit. 3.2 |
+| EST-04 | Estoque | Reserva não entregue deve ser liberada. | Service transacional. | Atendimento parcial finalizado como `atendida` libera reserva não entregue; cancelamento antes da retirada libera toda reserva. | Crit. 3.3 |
 | EST-05 | Estoque | Não pode reservar acima do disponível. | Recalcular dentro do lock. | Bloqueio e concorrência entre autorizações. | Crit. 2.8-2.10 |
 | EST-06 | Estoque | Operações críticas usam transação e lock. | `atomic()`, `select_for_update()`, locks determinísticos. | Teste PostgreSQL de concorrência/idempotência. | CodeRabbit |
 | EST-07 | Estoque | Divergência crítica: físico < reservado. | Marcador/recalculo no service. | Importação reduz físico e marca divergência. | Crit. 7.3 |
