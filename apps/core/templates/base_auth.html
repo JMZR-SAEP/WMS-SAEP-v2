@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block body %}
+  <header class="mx-auto max-w-5xl p-6">
+    {% if user.is_authenticated %}
+      <span>{{ user.nome }} ({{ user.matricula }})</span>
+      <form method="post" action="{% url 'accounts:logout' %}">
+        {% csrf_token %}
+        <button type="submit">Sair</button>
+      </form>
+    {% else %}
+      <a href="{% url 'accounts:login' %}">Entrar</a>
+    {% endif %}
+  </header>
+  <main class="mx-auto max-w-5xl p-6">
+    {% include "core/partials/_messages.html" %}
+    {% block content %}{% endblock %}
+  </main>
+{% endblock %}

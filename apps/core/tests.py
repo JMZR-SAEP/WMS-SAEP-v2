@@ -5,11 +5,33 @@ import pytest
 from django.contrib.auth import authenticate, get_user_model
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.urls import reverse
 from django.utils import timezone
 
 from apps.accounts.models import Setor, SetorClassificacao, VinculoAuxiliar
 from apps.estoque.models import Estoque, Material, SaldoEstoque, UnidadeMedida
 from apps.requisicoes.models import SequenciaRequisicao
+
+
+@pytest.mark.django_db
+def test_home_usa_layout_autenticado(client):
+    User = get_user_model()
+    usuario = User.objects.create_user(
+        matricula='HOME-001',
+        password='senha-forte-123',
+        nome='Operador Home',
+    )
+    client.force_login(usuario)
+
+    resposta = client.get(reverse('core:home'))
+    conteudo = resposta.content.decode()
+
+    assert resposta.status_code == 200
+    assert '<header' in conteudo
+    assert '<main' in conteudo
+    assert 'max-w-5xl' in conteudo
+    assert 'p-6' in conteudo
+    assert 'Operador Home (HOME-001)' in conteudo
 
 
 def test_seed_dev_exige_flag_de_ambiente_local(settings, monkeypatch):

@@ -6,24 +6,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}WMS-SAEP{% endblock %}</title>
   <link rel="stylesheet" href="{% static 'core/css/app.css' %}">
+  {% block extra_head %}{% endblock %}
 </head>
 <body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
-  <header class="mx-auto max-w-5xl p-6">
-    {% if user.is_authenticated %}
-      <span>{{ user.nome }} ({{ user.matricula }})</span>
-      <form method="post" action="{% url 'accounts:logout' %}">
-        {% csrf_token %}
-        <button type="submit">Sair</button>
-      </form>
-    {% else %}
-      <a href="{% url 'accounts:login' %}">Entrar</a>
-    {% endif %}
-  </header>
-  <main class="mx-auto max-w-5xl p-6">
-    {% include "core/partials/_messages.html" %}
-    {% block content %}{% endblock %}
-  </main>
+  {% block body %}{% endblock %}
   <script src="{% static 'core/vendor/htmx.min.js' %}" defer></script>
   <script src="{% static 'core/vendor/alpine.min.js' %}" defer></script>
+  {% block extra_scripts %}{% endblock %}
 </body>
 </html>
