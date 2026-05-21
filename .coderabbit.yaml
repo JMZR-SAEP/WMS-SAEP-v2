@@ -1,0 +1,229 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+
+language: pt-BR
+
+reviews:
+  profile: chill
+  request_changes_workflow: false
+
+  high_level_summary: true
+  high_level_summary_instructions: >
+    Resuma o PR em bullets curtos com:
+    - objetivo da mudança
+    - apps Django impactados
+    - risco funcional
+    - impacto em regras de negócio do almoxarifado, requisições, autorização, atendimento e estoque
+    - impacto em autenticação por matrícula, sessão Django, papéis efetivos, escopo por setor e visibilidade
+    - impacto em templates Django, Tailwind, HTMX, Alpine.js, acessibilidade, mensagens e redirects
+    - impacto em integridade de dados, constraints, snapshots, timeline, auditoria e rastreabilidade
+    - impacto em transações, concorrência, idempotência, saldo físico, saldo reservado e saldo disponível
+    - impacto em seed_dev, dados canônicos, ambiente efêmero, Makefile, CI, dependências, lint ou testes
+    - como validar manualmente via tela, admin, comando ou teste automatizado
+
+    Priorize apontamentos sobre:
+    - regra de negócio, autorização contextual, transições de estado, side effects ou transações fora de services.py
+    - divergências entre implementação, CONTEXT.md, docs/CONVENTIONS.md, docs/matriz-permissoes.md, docs/matriz-invariantes.md e ADRs aceitas
+    - risco de inconsistência de dados, saldo negativo, reserva acima do disponível ou reprocessamento indevido por retry
+    - falhas de autorização por papel efetivo, setor, beneficiário, chefe responsável ou acesso indevido entre setores
+    - superusuário sendo usado como ator operacional de estoque/requisição em vez de suporte técnico/admin
+    - mudanças que quebrem timeline, auditoria por models de domínio, snapshot histórico ou número público anual
+    - violação da arquitetura em camadas: models orquestrando, views gordas, policies duplicadas, selectors ausentes
+    - N+1 queries, select_related/prefetch_related ausentes onde houver impacto real
+    - exigência indevida de migrations versionadas no contexto efêmero atual
+
+  auto_review:
+    enabled: true
+    drafts: true
+    auto_incremental_review: true
+    auto_pause_after_reviewed_commits: 10
+    ignore_title_keywords:
+      - wip
+      - draft
+      - do not review
+      - poc
+    labels:
+      - "!wip"
+      - "!skip-coderabbit"
+    base_branches:
+      - "^main$"
+
+  path_instructions:
+    - path: "apps/**/services.py"
+      instructions: >
+        Services são o único ponto de mutação de domínio. Revise com rigor
+        máximo regra de negócio, transaction.atomic(), select_for_update()
+        quando houver concorrência, idempotência, integridade de dados, timeline,
+        notificações via transaction.on_commit e aderência a ADR-0004/ADR-0011.
+        Services públicos devem usar assinatura keyword-only, receber IDs
+        (ex.: ator_id), carregar entidades internamente, chamar exigir_pode_* da
+        policy e lançar exceções de apps.core.exceptions, nunca exceções HTTP.
+
+    - path: "apps/**/policies.py"
+      instructions: >
+        Policies são a fonte central de autorização contextual. Cada operação
+        deve ter pode_* e exigir_pode_* em PT-BR; exigir_pode_* sempre delega
+        para pode_*. Priorize brechas de autorização, IDOR, acesso cruzado entre
+        setores, papel efetivo calculado errado, chefe autorizando setor errado
+        e divergência com docs/matriz-permissoes.md.
+
+    - path: "apps/**/selectors.py"
+      instructions: >
+        Selectors concentram leituras não triviais: filas, escopo de visibilidade,
+        listagens filtradas e consultas por papel/setor. Revise vazamento de
+        dados entre setores, filtros públicos que substituem policy/selector,
+        N+1 relevante e ausência de testes comparando conjuntos de IDs.
+
+    - path: "apps/accounts/**/*.py"
+      instructions: >
+        Foque em Usuário, Setor, VinculoAuxiliar, autenticação por matrícula,
+        usuário inativo, chefia derivada e vínculo auxiliar ativo. Regras
+        estáveis: Usuário pertence a exatamente um Setor; Setor tem exatamente
+        um Chefe de setor; um chefe responde por no máximo um Setor; Solicitante
+        é capacidade implícita de usuário ativo; superusuário é suporte técnico,
+        não operador cotidiano.
+
+    - path: "apps/estoque/**/*.py"
+      instructions: >
+        Foque em Material, Estoque, SaldoEstoque, saldo_fisico, saldo_reservado,
+        saldo_disponivel e divergência. Regra estável: saldo_disponivel =
+        saldo_fisico - saldo_reservado. Mutação operacional de saldo deve passar
+        por services do domínio com transação e locking quando houver risco de
+        corrida. Sinalize saldo negativo, reserva acima do disponível, ajuste
+        manual perigoso via admin/view e bypass de material inativo.
+
+    - path: "apps/requisicoes/**/*.py"
+      instructions: >
+        Revise contra CONTEXT.md, docs/estado-transicoes-requisicao.md,
+        docs/matriz-invariantes.md, docs/matriz-permissoes.md, ADR-0003,
+        ADR-0005, ADR-0006 e ADR-0007. Foque em rascunho, envio, autorização,
+        recusa, cancelamento, atendimento, beneficiário, criador, retirante,
+        snapshot do setor do beneficiário, número público anual, consistência
+        entre requisição e itens, reserva/baixa/liberação de estoque e
+        TimelineRequisicao. Não aceitar transições espalhadas em if/elif por
+        views, admin, forms ou models.
+
+    - path: "apps/notificacoes/**/*.py"
+      instructions: >
+        Notificações não são pré-condição para transição de domínio. Revise para
+        garantir que side effects sejam disparados após commit, não revertam
+        mutações de domínio quando falharem e não dupliquem regras de autorização
+        ou estado que pertencem aos services/policies do app dono do caso de uso.
+
+    - path: "apps/core/management/commands/seed_dev.py"
+      instructions: >
+        seed_dev é a fonte de verdade dos dados canônicos locais e deve ser
+        declarativo, convergente, idempotente e protegido por DEBUG=True mais
+        SEED_DEV_HABILITADO=true. Use update_or_create para entidades canônicas,
+        exceto SequenciaRequisicao com get_or_create. Não criar Requisicao,
+        TimelineRequisicao, movimentação artificial nem incrementar número
+        público. A escrita direta em SaldoEstoque só é aceitável como bootstrap
+        exception documentada.
+
+    - path: "apps/**/models.py"
+      instructions: >
+        Revise nullability, defaults, constraints, indexes, related_name,
+        on_delete, unicidade, choices, validação estrutural, verbose_name e
+        verbose_name_plural em PT-BR. Models guardam schema, constraints, choices
+        e properties simples; não devem orquestrar casos de uso, importar services,
+        disparar timeline por signals ou concentrar regra complexa em save(),
+        clean(), managers ou properties.
+
+    - path: "apps/**/views.py"
+      instructions: >
+        Views devem ser finas: ler input, chamar selector/service/policy,
+        traduzir exceção de domínio para HTTP/mensagem e renderizar ou redirecionar.
+        Em mutação, passar request.user.id para service, nunca request.user.
+        Não aceitar regra central de autorização, transição de estado, mutação de
+        saldo/reserva, timeline ou side effect dentro da view. Para POST com HTMX,
+        sucesso deve usar HX-Redirect em vez de swap parcial de escrita.
+
+    - path: "apps/**/forms.py"
+      instructions: >
+        Forms validam input HTTP: tipo, obrigatoriedade, choices, queryset e UX.
+        Não devem virar service layer nem conter autorização contextual, side
+        effects ou invariantes críticas que precisam ser revalidadas no momento
+        da escrita pelo service.
+
+    - path: "apps/**/admin.py"
+      instructions: >
+        Revise segurança operacional do Django Admin. Admin não deve virar fluxo
+        cotidiano de estoque/requisição nem permitir ações perigosas em massa que
+        bypassam services, timeline, policies ou invariantes de saldo. Campos
+        derivados, snapshots e dados auditáveis devem ser read-only quando
+        aplicável.
+
+    - path: "apps/**/templates/**/*.html"
+      instructions: >
+        Revise aderência ao design system pragmático: Django templates, Tailwind,
+        HTMX e Alpine.js. Componentes globais ficam em apps/core/templates/components/
+        e não conhecem semântica de negócio; partials de domínio ficam no app dono.
+        Verifique acessibilidade, foco, contraste, ARIA, mensagens com role
+        correto, ausência de texto técnico ao usuário e URLs PT-BR.
+
+    - path: "apps/**/migrations/*.py"
+      instructions: >
+        Migrations locais de apps são efêmeras neste estágio e normalmente não
+        devem ser versionadas nem exigidas em PR. Não peça para editar/commitar
+        migrations geradas para ambiente local. Foque no model, constraints,
+        índices, domínio e testes. Exceção: PR explicitamente de preparação para
+        staging/produção ou migração real.
+
+    - path: "apps/**/tests/**/*.py"
+      instructions: >
+        Foque na camada certa: models para constraints/properties; policies para
+        matriz de autorização; selectors para visibilidade; services para
+        orquestração, atomicidade, efeitos e timeline; views para contrato HTTP.
+        Não duplicar matrix de policy em service tests nem matrix de selector em
+        view tests. Não usar factory_boy nesta fase. Não usar seed_dev como
+        pré-condição de teste.
+
+    - path: "apps/**/tests.py"
+      instructions: >
+        Enquanto houver testes em arquivo único, aplique a mesma estratégia de
+        camadas da ADR-0010. Quando o app precisar de 2+ módulos de teste, prefira
+        pacote tests/ com test_models.py, test_policies.py, test_selectors.py,
+        test_services.py e test_views.py conforme necessário.
+
+    - path: "config/**/*.py"
+      instructions: >
+        Revise settings, URLs raiz, ASGI/WSGI e apps com foco em segurança,
+        ambiente, autenticação por sessão, CSRF, templates, static files,
+        DATABASE_URL, settings dev/test e consistência de INSTALLED_APPS.
+        Secrets não devem ser versionados.
+
+    - path: "docs/**/*.md"
+      instructions: >
+        Docs usam PT-BR e são fonte de contrato para agentes. Verifique conflito
+        com CONTEXT.md, ADRs aceitas, docs/CONVENTIONS.md, matriz de permissões,
+        matriz de invariantes, transições de requisição e design-system. Se docs
+        e código divergem, sinalize explicitamente em vez de normalizar silêncio.
+
+    - path: "pyproject.toml"
+      instructions: >
+        Revise impacto em dependências, ruff, pytest, marcadores, Django settings
+        de teste e tooling uv. O fluxo de validação deve permanecer alinhado ao
+        comando de teste do AGENTS.md e ao ambiente efêmero.
+
+    - path: "uv.lock"
+      instructions: >
+        Revise mudanças de lockfile junto com pyproject.toml. Sinalize upgrades
+        incompatíveis, remoções perigosas e drift de dependências sem justificativa.
+
+    - path: "package.json"
+      instructions: >
+        Revise scripts e dependências frontend apenas quando houver impacto real
+        em Tailwind, build CSS, HTMX/Alpine ou pipeline local. Não sugerir SPA nem
+        tooling pesado sem decisão arquitetural nova.
+
+    - path: "package-lock.json"
+      instructions: >
+        Revise lockfile junto com package.json. Sinalize drift sem mudança
+        correspondente ou upgrade incompatível com o setup Tailwind atual.
+
+    - path: "Makefile"
+      instructions: >
+        Revise comandos como contrato operacional do ambiente efêmero. make init
+        cria .venv e instala dependências; make setup materializa DB/migrations
+        locais e seed quando existir; make seed-dev executa seed_dev; make test
+        deve refletir gates reais. Não exigir migrations versionadas como parte do
+        fluxo normal atual.
