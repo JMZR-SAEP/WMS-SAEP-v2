@@ -17,6 +17,7 @@ def test_ci_workflow_declara_gates_do_issue_16():
     assert 'ruff format --check .' in conteudo
     assert 'ruff check .' in conteudo
     assert 'mypy apps' in conteudo
+    assert conteudo.count('needs: [ruff-format, ruff-check, mypy]') == 2
     assert 'postgres:16' in conteudo
     assert 'pg_isready' in conteudo
     assert 'python manage.py makemigrations\n' in conteudo

@@ -52,7 +52,7 @@ Alguns erros exigem correção manual. Confira output de `uv run ruff check .` p
 Type hints são obrigatórios em `services.py`, `policies.py`, `selectors.py`, `transitions.py`.
 
 Exemplo erro:
-```
+```text
 apps/requisicoes/services.py:42: error: Argument 1 to "criar_requisicao" has incompatible type
 ```
 
@@ -147,7 +147,7 @@ git add uv.lock
 
 Não commita `pyproject.toml` e `uv.lock` separadamente. Se divergirem, CI falha com:
 
-```
+```text
 uv sync --frozen
 error: the lock file is out of date
 ```
@@ -193,7 +193,7 @@ Se CI falha e local falha:
 
 Em `main`, esses checks são obrigatórios:
 
-```
+```text
 - ruff format
 - ruff check
 - mypy

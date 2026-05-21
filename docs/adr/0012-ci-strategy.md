@@ -21,14 +21,14 @@ Riscos sem CI:
 ### Triggers
 
 CI roda em:
-- `pull_request` para `main` (obrigatório pra merge)
+- `pull_request` para `main` (obrigatório para merge)
 - `push` para `main` (rede de segurança + status oficial)
 
 Não roda em: `push` para branches `feat/*`, `fix/*` (ponto de controle é PR); `schedule` (sem necessidade atual).
 
 ### Jobs e ordem (fail-fast)
 
-```
+```text
 Setup/Cache
   ↓
 Quality gates baratos (paralelo):
@@ -46,19 +46,19 @@ Qualquer falha em quality → não roda backend. Falha em lint poupa tempo rodan
 ### Quality checks
 
 **Formatter + Linter:**
-```
+```bash
 ruff format --check .
 ruff check .
 ```
 
 **Type checker:**
-```
+```bash
 mypy apps
 ```
 
 Policy de tipagem: gradual. Obrigatório em `services.py`, `policies.py`, `selectors.py`, `transitions.py`. Opcional em models/views/forms/testes.
 
-Sem auto-commit de formatação. CI falha; dev arruma localmente (`ruff format . && ruff check . --fix`).
+Sem autocommit de formatação. CI falha; dev arruma localmente (`ruff format . && ruff check . --fix`).
 
 ### Stack
 
@@ -109,7 +109,7 @@ Se `seed_dev` não existir, pulá-lo nesta fase.
 
 Configuração em `main`:
 
-```
+```text
 ✓ Require a pull request before merging
 ✓ Require status checks to pass before merging
   (ruff format, ruff check, mypy, tests, migrations)
