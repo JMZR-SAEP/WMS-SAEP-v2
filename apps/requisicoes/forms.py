@@ -15,6 +15,7 @@ class CriarRascunhoRequisicaoForm(forms.Form):
     beneficiario = forms.ModelChoiceField(
         label='Beneficiário',
         queryset=User.objects.none(),
+        required=False,
     )
     observacao_geral = forms.CharField(
         label='Observação geral',
@@ -25,12 +26,14 @@ class CriarRascunhoRequisicaoForm(forms.Form):
     def __init__(self, *args, **kwargs):
         self.ator = kwargs.pop('ator', None)
         super().__init__(*args, **kwargs)
+        self.beneficiario_padrao = self.ator
         beneficiarios = User.objects.filter(is_active=True).select_related('setor')
         if self.ator is not None:
             beneficiarios = [
                 usuario
                 for usuario in beneficiarios
-                if pode_criar_requisicao_para(self.ator, usuario)
+                if usuario.id != self.ator.id
+                and pode_criar_requisicao_para(self.ator, usuario)
             ]
             self.fields['beneficiario'].queryset = User.objects.filter(
                 id__in=[usuario.id for usuario in beneficiarios],

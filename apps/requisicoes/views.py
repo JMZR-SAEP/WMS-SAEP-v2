@@ -26,8 +26,10 @@ class NovaRequisicaoView(LoginRequiredMixin, View):
     def post(self, request):
         form = self.form_class(request.POST, ator=request.user)
         beneficiario_id = request.POST.get('beneficiario')
+        criar_para_terceiro = request.POST.get('criar_para_terceiro') == 'on'
         if (
-            beneficiario_id
+            criar_para_terceiro
+            and beneficiario_id
             and beneficiario_id.isdecimal()
             and not form.fields['beneficiario']
             .queryset.filter(
@@ -40,11 +42,14 @@ class NovaRequisicaoView(LoginRequiredMixin, View):
             )
         if not form.is_valid():
             return render(request, self.template_name, {'form': form})
+        beneficiario = (
+            form.cleaned_data['beneficiario'] if criar_para_terceiro else request.user
+        )
 
         try:
             requisicao = criar_rascunho_requisicao(
                 ator_id=request.user.id,
-                beneficiario_id=form.cleaned_data['beneficiario'].id,
+                beneficiario_id=beneficiario.id,
                 itens=form.itens_limpos,
                 observacao_geral=form.cleaned_data['observacao_geral'],
             )

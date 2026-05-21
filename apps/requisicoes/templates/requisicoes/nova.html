@@ -3,11 +3,25 @@
 {% block title %}Nova requisição — WMS-SAEP{% endblock %}
 
 {% block content %}
-  <section class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm sm:p-8" aria-labelledby="nova-requisicao-title">
-    <div class="mb-8">
+  <section
+    class="space-y-6"
+    aria-labelledby="nova-requisicao-title"
+    x-data="{
+      criarParaTerceiro: false,
+      submitting: false,
+      itensVisiveis: 1,
+      mostrarProximo(indice) {
+        if (this.itensVisiveis === indice && this.$refs[`material${indice}`]?.value && this.$refs[`quantidade${indice}`]?.value) {
+          this.itensVisiveis = Math.min(indice + 1, 5)
+        }
+      }
+    }"
+    x-init="criarParaTerceiro = Boolean($refs.beneficiario?.value)"
+  >
+    <div class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
       <p class="text-xs font-semibold uppercase tracking-wide text-blue-700">Rascunho</p>
       <h1 id="nova-requisicao-title" class="mt-2 text-2xl font-semibold text-slate-900">Nova requisição</h1>
-      <p class="mt-2 text-sm text-slate-600">Crie uma requisição em rascunho com beneficiário e item inicial.</p>
+      <p class="mt-2 max-w-2xl text-sm text-slate-600">Comece com você como beneficiário, informe o primeiro material e adicione novos itens conforme necessário.</p>
     </div>
 
     {% if form.non_field_errors %}
@@ -18,100 +32,67 @@
       </div>
     {% endif %}
 
-    <form method="post" class="space-y-5">
+    <form
+      method="post"
+      class="space-y-6"
+      x-on:submit="submitting = true"
+    >
       {% csrf_token %}
 
-      <div>
-        <label for="{{ form.beneficiario.id_for_label }}" class="block text-sm font-medium text-slate-800">{{ form.beneficiario.label }}</label>
-        {{ form.beneficiario }}
-        {% for error in form.beneficiario.errors %}
-          <p class="mt-2 text-sm text-red-700" role="alert">{{ error }}</p>
-        {% endfor %}
+      <div class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+        <div>
+          <p class="text-sm font-medium text-slate-900">Beneficiário</p>
+          <p class="mt-1 text-sm text-slate-700">
+            {{ form.beneficiario_padrao.nome }} ({{ form.beneficiario_padrao.matricula }})
+          </p>
+          <p class="mt-1 text-xs text-slate-500">Toda nova requisição começa para você.</p>
+        </div>
+        {% if form.fields.beneficiario.queryset %}
+          <label class="mt-5 flex items-center gap-2 text-sm font-medium text-slate-800">
+            <input
+              type="checkbox"
+              name="criar_para_terceiro"
+              x-model="criarParaTerceiro"
+              class="h-4 w-4 rounded border-slate-300 text-blue-600 focus-visible:ring-2 focus-visible:ring-blue-500"
+            >
+            Criar para outra pessoa
+          </label>
+          <div class="mt-4" x-cloak x-show="criarParaTerceiro">
+            <label for="{{ form.beneficiario.id_for_label }}" class="block text-sm font-medium text-slate-800">{{ form.beneficiario.label }}</label>
+            <select
+              name="{{ form.beneficiario.html_name }}"
+              id="{{ form.beneficiario.id_for_label }}"
+              x-ref="beneficiario"
+              class="mt-2 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus-visible:border-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            >
+              <option value="">Selecione um beneficiário do seu escopo</option>
+              {% for beneficiario in form.fields.beneficiario.queryset %}
+                <option value="{{ beneficiario.id }}" {% if form.beneficiario.value|stringformat:"s" == beneficiario.id|stringformat:"s" %}selected{% endif %}>
+                  {{ beneficiario.nome }} ({{ beneficiario.matricula }})
+                </option>
+              {% endfor %}
+            </select>
+            {% for error in form.beneficiario.errors %}
+              <p class="mt-2 text-sm text-red-700" role="alert">{{ error }}</p>
+            {% endfor %}
+          </div>
+        {% endif %}
       </div>
 
-      <datalist id="materiais-disponiveis">
-        {% for material_label in form.material_choices_datalist %}
-          <option value="{{ material_label }}"></option>
-        {% endfor %}
-      </datalist>
+      <fieldset class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+        <legend class="px-1 text-sm font-medium text-slate-900">Itens</legend>
+        <p class="mt-1 text-sm text-slate-600">Preencha material e quantidade; o próximo item aparece automaticamente.</p>
 
-      <fieldset class="space-y-5">
-        <legend class="text-sm font-medium text-slate-900">Itens</legend>
-        <div class="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label for="{{ form.material_1.id_for_label }}" class="block text-sm font-medium text-slate-800">{{ form.material_1.label }}</label>
-            {{ form.material_1 }}
-            {% for error in form.material_1.errors %}
-              <p class="mt-2 text-sm text-red-700" role="alert">{{ error }}</p>
-            {% endfor %}
-          </div>
-          <div>
-            <label for="{{ form.quantidade_solicitada_1.id_for_label }}" class="block text-sm font-medium text-slate-800">{{ form.quantidade_solicitada_1.label }}</label>
-            {{ form.quantidade_solicitada_1 }}
-            {% for error in form.quantidade_solicitada_1.errors %}
-              <p class="mt-2 text-sm text-red-700" role="alert">{{ error }}</p>
-            {% endfor %}
-          </div>
-          <div>
-            <label for="{{ form.material_2.id_for_label }}" class="block text-sm font-medium text-slate-800">{{ form.material_2.label }}</label>
-            {{ form.material_2 }}
-            {% for error in form.material_2.errors %}
-              <p class="mt-2 text-sm text-red-700" role="alert">{{ error }}</p>
-            {% endfor %}
-          </div>
-          <div>
-            <label for="{{ form.quantidade_solicitada_2.id_for_label }}" class="block text-sm font-medium text-slate-800">{{ form.quantidade_solicitada_2.label }}</label>
-            {{ form.quantidade_solicitada_2 }}
-            {% for error in form.quantidade_solicitada_2.errors %}
-              <p class="mt-2 text-sm text-red-700" role="alert">{{ error }}</p>
-            {% endfor %}
-          </div>
-          <div>
-            <label for="{{ form.material_3.id_for_label }}" class="block text-sm font-medium text-slate-800">{{ form.material_3.label }}</label>
-            {{ form.material_3 }}
-            {% for error in form.material_3.errors %}
-              <p class="mt-2 text-sm text-red-700" role="alert">{{ error }}</p>
-            {% endfor %}
-          </div>
-          <div>
-            <label for="{{ form.quantidade_solicitada_3.id_for_label }}" class="block text-sm font-medium text-slate-800">{{ form.quantidade_solicitada_3.label }}</label>
-            {{ form.quantidade_solicitada_3 }}
-            {% for error in form.quantidade_solicitada_3.errors %}
-              <p class="mt-2 text-sm text-red-700" role="alert">{{ error }}</p>
-            {% endfor %}
-          </div>
-          <div>
-            <label for="{{ form.material_4.id_for_label }}" class="block text-sm font-medium text-slate-800">{{ form.material_4.label }}</label>
-            {{ form.material_4 }}
-            {% for error in form.material_4.errors %}
-              <p class="mt-2 text-sm text-red-700" role="alert">{{ error }}</p>
-            {% endfor %}
-          </div>
-          <div>
-            <label for="{{ form.quantidade_solicitada_4.id_for_label }}" class="block text-sm font-medium text-slate-800">{{ form.quantidade_solicitada_4.label }}</label>
-            {{ form.quantidade_solicitada_4 }}
-            {% for error in form.quantidade_solicitada_4.errors %}
-              <p class="mt-2 text-sm text-red-700" role="alert">{{ error }}</p>
-            {% endfor %}
-          </div>
-          <div>
-            <label for="{{ form.material_5.id_for_label }}" class="block text-sm font-medium text-slate-800">{{ form.material_5.label }}</label>
-            {{ form.material_5 }}
-            {% for error in form.material_5.errors %}
-              <p class="mt-2 text-sm text-red-700" role="alert">{{ error }}</p>
-            {% endfor %}
-          </div>
-          <div>
-            <label for="{{ form.quantidade_solicitada_5.id_for_label }}" class="block text-sm font-medium text-slate-800">{{ form.quantidade_solicitada_5.label }}</label>
-            {{ form.quantidade_solicitada_5 }}
-            {% for error in form.quantidade_solicitada_5.errors %}
-              <p class="mt-2 text-sm text-red-700" role="alert">{{ error }}</p>
-            {% endfor %}
-          </div>
+        <div class="mt-5 space-y-4">
+          {% include "requisicoes/partials/_linha_item_form.html" with indice=1 material=form.material_1 quantidade=form.quantidade_solicitada_1 proximo=2 sempre_visivel=True %}
+          {% include "requisicoes/partials/_linha_item_form.html" with indice=2 material=form.material_2 quantidade=form.quantidade_solicitada_2 proximo=3 %}
+          {% include "requisicoes/partials/_linha_item_form.html" with indice=3 material=form.material_3 quantidade=form.quantidade_solicitada_3 proximo=4 %}
+          {% include "requisicoes/partials/_linha_item_form.html" with indice=4 material=form.material_4 quantidade=form.quantidade_solicitada_4 proximo=5 %}
+          {% include "requisicoes/partials/_linha_item_form.html" with indice=5 material=form.material_5 quantidade=form.quantidade_solicitada_5 %}
         </div>
       </fieldset>
 
-      <div>
+      <div class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
         <label for="{{ form.observacao_geral.id_for_label }}" class="block text-sm font-medium text-slate-800">{{ form.observacao_geral.label }}</label>
         {{ form.observacao_geral }}
         {% for error in form.observacao_geral.errors %}
@@ -121,9 +102,11 @@
 
       <button
         type="submit"
-        class="inline-flex w-full items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 sm:w-auto"
+        class="inline-flex w-full items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 active:bg-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-75 sm:w-auto"
+        x-bind:disabled="submitting"
       >
-        Criar rascunho
+        <span x-show="!submitting">Criar rascunho</span>
+        <span x-cloak x-show="submitting">Criando rascunho…</span>
       </button>
     </form>
   </section>
