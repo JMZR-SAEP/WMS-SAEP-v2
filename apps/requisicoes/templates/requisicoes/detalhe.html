@@ -1,0 +1,26 @@
+{% extends "base_auth.html" %}
+
+{% block title %}Requisição — WMS-SAEP{% endblock %}
+
+{% block content %}
+  <section class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm sm:p-8" aria-labelledby="detalhe-requisicao-title">
+    <p class="text-xs font-semibold uppercase tracking-wide text-blue-700">{{ requisicao.get_estado_display }}</p>
+    <h1 id="detalhe-requisicao-title" class="mt-2 text-2xl font-semibold text-slate-900">
+      {{ requisicao.numero_publico|default:"Rascunho" }}
+    </h1>
+    <dl class="mt-6 grid gap-4 text-sm text-slate-700 sm:grid-cols-2">
+      <div>
+        <dt class="font-medium text-slate-900">Beneficiário</dt>
+        <dd>{{ requisicao.beneficiario.nome }} ({{ requisicao.beneficiario.matricula }})</dd>
+      </div>
+      <div>
+        <dt class="font-medium text-slate-900">Setor</dt>
+        <dd>{{ requisicao.setor_beneficiario.nome }}</dd>
+      </div>
+      <div>
+        <dt class="font-medium text-slate-900">Criado por</dt>
+        <dd>{{ requisicao.criador.nome }} ({{ requisicao.criador.matricula }})</dd>
+      </div>
+    </dl>
+  </section>
+{% endblock %}

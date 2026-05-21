@@ -1,0 +1,64 @@
+{% extends "base_auth.html" %}
+
+{% block title %}Nova requisição — WMS-SAEP{% endblock %}
+
+{% block content %}
+  <section class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm sm:p-8" aria-labelledby="nova-requisicao-title">
+    <div class="mb-8">
+      <p class="text-xs font-semibold uppercase tracking-wide text-blue-700">Rascunho</p>
+      <h1 id="nova-requisicao-title" class="mt-2 text-2xl font-semibold text-slate-900">Nova requisição</h1>
+      <p class="mt-2 text-sm text-slate-600">Crie uma requisição em rascunho com beneficiário e item inicial.</p>
+    </div>
+
+    {% if form.non_field_errors %}
+      <div class="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
+        {% for error in form.non_field_errors %}
+          <p>{{ error }}</p>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <form method="post" class="space-y-5">
+      {% csrf_token %}
+
+      <div>
+        <label for="{{ form.beneficiario.id_for_label }}" class="block text-sm font-medium text-slate-800">{{ form.beneficiario.label }}</label>
+        {{ form.beneficiario }}
+        {% for error in form.beneficiario.errors %}
+          <p class="mt-2 text-sm text-red-700" role="alert">{{ error }}</p>
+        {% endfor %}
+      </div>
+
+      <div>
+        <label for="{{ form.material.id_for_label }}" class="block text-sm font-medium text-slate-800">{{ form.material.label }}</label>
+        {{ form.material }}
+        {% for error in form.material.errors %}
+          <p class="mt-2 text-sm text-red-700" role="alert">{{ error }}</p>
+        {% endfor %}
+      </div>
+
+      <div>
+        <label for="{{ form.quantidade_solicitada.id_for_label }}" class="block text-sm font-medium text-slate-800">{{ form.quantidade_solicitada.label }}</label>
+        {{ form.quantidade_solicitada }}
+        {% for error in form.quantidade_solicitada.errors %}
+          <p class="mt-2 text-sm text-red-700" role="alert">{{ error }}</p>
+        {% endfor %}
+      </div>
+
+      <div>
+        <label for="{{ form.observacao_geral.id_for_label }}" class="block text-sm font-medium text-slate-800">{{ form.observacao_geral.label }}</label>
+        {{ form.observacao_geral }}
+        {% for error in form.observacao_geral.errors %}
+          <p class="mt-2 text-sm text-red-700" role="alert">{{ error }}</p>
+        {% endfor %}
+      </div>
+
+      <button
+        type="submit"
+        class="inline-flex w-full items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 sm:w-auto"
+      >
+        Criar rascunho
+      </button>
+    </form>
+  </section>
+{% endblock %}

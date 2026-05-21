@@ -1,19 +1,27 @@
 {% extends "base.html" %}
 
 {% block body %}
-  <header class="mx-auto max-w-5xl p-6">
-    {% if user.is_authenticated %}
-      <span>{{ user.nome }} ({{ user.matricula }})</span>
-      <form method="post" action="{% url 'accounts:logout' %}">
-        {% csrf_token %}
-        <button type="submit">Sair</button>
-      </form>
-    {% else %}
-      <a href="{% url 'accounts:login' %}">Entrar</a>
-    {% endif %}
-  </header>
-  <main class="mx-auto max-w-5xl p-6">
-    {% include "core/partials/_messages.html" %}
-    {% block content %}{% endblock %}
-  </main>
+  <div class="min-h-screen bg-slate-50">
+    <header class="border-b border-slate-200 bg-white">
+      <div class="mx-auto flex max-w-5xl items-center justify-between px-4 py-4 sm:px-6">
+        <a href="/" class="text-sm font-semibold tracking-wide text-slate-900">WMS SAEP</a>
+        {% if user.is_authenticated %}
+          <div class="flex items-center gap-4 text-sm text-slate-700">
+            <a href="{% url 'requisicoes:nova' %}" class="font-medium text-blue-700 hover:text-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">Nova requisição</a>
+            <span>{{ user.nome }} ({{ user.matricula }})</span>
+            <form method="post" action="{% url 'accounts:logout' %}">
+              {% csrf_token %}
+              <button type="submit" class="font-medium text-slate-700 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">Sair</button>
+            </form>
+          </div>
+        {% else %}
+          <a href="{% url 'accounts:login' %}" class="text-sm font-medium text-blue-700">Entrar</a>
+        {% endif %}
+      </div>
+    </header>
+    <main class="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+      {% include "core/partials/_messages.html" %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
 {% endblock %}

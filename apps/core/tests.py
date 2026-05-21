@@ -31,7 +31,8 @@ def test_home_usa_layout_autenticado(client):
     assert '<header' in conteudo
     assert '<main' in conteudo
     assert 'max-w-5xl' in conteudo
-    assert 'p-6' in conteudo
+    assert 'bg-slate-50' in conteudo
+    assert 'border-b border-slate-200 bg-white' in conteudo
     assert 'Operador Home (HOME-001)' in conteudo
 
 
