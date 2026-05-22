@@ -6,14 +6,14 @@ Views e services chamam as mesmas funções — sem duplicação de lógica.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from django.db.models import QuerySet
 
 from apps.accounts.models import SetorClassificacao, VinculoAuxiliar
 from apps.core.exceptions import PermissaoNegada
-from apps.requisicoes.models import EstadoRequisicao, Requisicao
+from apps.requisicoes.models import Requisicao
 
 if TYPE_CHECKING:
     from apps.accounts.models import User
@@ -88,7 +88,7 @@ class EscopoCriacaoRequisicao:
     modo_beneficiario: str  # "proprio" | "setor" | "qualquer"
     pode_criar_para_si: bool
     setores_escopo_ids: list[int]
-    beneficiarios: QuerySet = field(default=None)  # type: ignore[assignment]
+    beneficiarios: QuerySet | None = None
 
 
 def resolver_escopo_criacao_requisicao(ator: User) -> EscopoCriacaoRequisicao:
