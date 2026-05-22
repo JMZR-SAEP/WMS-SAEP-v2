@@ -8,6 +8,8 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.db.models import DecimalField, ExpressionWrapper, F, Sum
+from django.forms import BooleanField
+from django.forms.formsets import DELETION_FIELD_NAME
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_http_methods
@@ -209,13 +211,13 @@ def nova_linha_item(request):
     except (ValueError, TypeError):
         index = 0
 
-    # Usa o empty_form do formset para garantir prefixo correto
-    fs = ItemRequisicaoFormSet(prefix='itens')
+    form = ItemRequisicaoFormSet.form(prefix=f'itens-{index}')
+    form.fields[DELETION_FIELD_NAME] = BooleanField(label='Deletar', required=False)
     return render(
         request,
         'requisicoes/partials/_item_form_row.html',
         {
-            'form': fs.empty_form,
+            'form': form,
             'form_index': index,
             'prefix': f'itens-{index}',
         },

@@ -83,7 +83,7 @@
           {% endif %}
 
           {# Dropdown de terceiros (só quando "other") #}
-          <div x-show="modoCriacao === 'other'" x-cloak>
+          <div x-show="modoCriacao === 'outro'" x-cloak>
             <label class="block text-xs font-medium text-slate-600 mb-1" for="{{ form.beneficiario_id.id_for_label }}">
               Selecione o beneficiário
             </label>
@@ -112,7 +112,7 @@
     {# --- Seção: Itens --- #}
     <section class="mb-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <h2 class="text-base font-medium text-slate-800 mb-1">Itens</h2>
-      <p class="text-xs text-slate-500 mb-4">Adicione ao menos um material com quantidade solicitada.</p>
+      <p class="aviso_quantidade text-xs text-slate-500 mb-4">Adicione ao menos um material com quantidade solicitada.</p>
 
       {# Management form do formset — obrigatório #}
       {{ formset.management_form }}
