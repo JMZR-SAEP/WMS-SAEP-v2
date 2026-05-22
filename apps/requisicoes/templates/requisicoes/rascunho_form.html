@@ -1,0 +1,273 @@
+{% extends "base_auth.html" %}
+{% load static %}
+
+{% block title %}{% if modo == 'criar' %}Nova Requisição{% else %}Editar Rascunho{% endif %} — WMS-SAEP{% endblock %}
+
+{% block extra_head %}
+<style>
+  [x-cloak] { display: none !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+
+  {# Cabeçalho da página #}
+  <div class="mb-6">
+    <h1 class="text-2xl font-semibold text-slate-900">
+      {% if modo == 'criar' %}Nova Requisição{% else %}Editar Rascunho{% endif %}
+    </h1>
+    {% if modo == 'editar' and requisicao %}
+      <p class="mt-1 text-sm text-slate-500">
+        {{ requisicao }}
+        &nbsp;·&nbsp;
+        Criada em {{ requisicao.criado_em|date:"d/m/Y \à\s H:i" }}
+      </p>
+    {% endif %}
+  </div>
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+
+    {# --- Seção: Beneficiário --- #}
+    <section class="mb-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h2 class="text-base font-medium text-slate-800 mb-4">Beneficiário</h2>
+
+      {% if modo == 'editar' and requisicao %}
+        {# Edição: beneficiário é imutável — exibir como texto #}
+        <div class="flex items-start gap-6 text-sm text-slate-700">
+          <div>
+            <span class="block text-xs font-medium text-slate-500 mb-0.5">Beneficiário</span>
+            <span class="font-medium">{{ requisicao.beneficiario.nome }}</span>
+            <span class="text-slate-500">({{ requisicao.beneficiario.matricula }})</span>
+          </div>
+          <div>
+            <span class="block text-xs font-medium text-slate-500 mb-0.5">Setor</span>
+            <span>{{ requisicao.setor_beneficiario.nome }}</span>
+          </div>
+        </div>
+
+      {% elif escopo.modo_beneficiario == 'proprio' %}
+        {# Solicitante puro: sem seleção #}
+        <div class="text-sm text-slate-700">
+          <span class="block text-xs font-medium text-slate-500 mb-0.5">Beneficiário</span>
+          <span class="font-medium">{{ request.user.nome }}</span>
+          <span class="text-slate-500">({{ request.user.matricula }})</span>
+          {% if request.user.setor %}
+            &nbsp;·&nbsp;{{ request.user.setor.nome }}
+          {% endif %}
+        </div>
+
+      {% else %}
+        {# Escopo ampliado: escolha explícita self / other #}
+        <div x-data="{ modoCriacao: '{{ form.modo_criacao.value|default:'' }}' }">
+
+          {# Radio: para mim / para outro #}
+          <div class="flex gap-6 mb-4">
+            {% for radio in form.modo_criacao %}
+              <label class="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                <input
+                  type="radio"
+                  name="{{ form.modo_criacao.html_name }}"
+                  value="{{ radio.data.value }}"
+                  {% if radio.data.selected %}checked{% endif %}
+                  x-model="modoCriacao"
+                  class="accent-blue-600"
+                >
+                {{ radio.choice_label }}
+              </label>
+            {% endfor %}
+          </div>
+          {% if form.modo_criacao.errors %}
+            <p class="mb-3 text-xs text-red-600" role="alert">{{ form.modo_criacao.errors|join:", " }}</p>
+          {% endif %}
+
+          {# Dropdown de terceiros (só quando "other") #}
+          <div x-show="modoCriacao === 'other'" x-cloak>
+            <label class="block text-xs font-medium text-slate-600 mb-1" for="{{ form.beneficiario_id.id_for_label }}">
+              Selecione o beneficiário
+            </label>
+            <select
+              name="{{ form.beneficiario_id.html_name }}"
+              id="{{ form.beneficiario_id.id_for_label }}"
+              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            >
+              <option value="">— Selecione —</option>
+              {% for opt_value, opt_label in form.beneficiario_id.field.choices %}
+                {% if opt_value %}
+                  <option value="{{ opt_value }}" {% if form.beneficiario_id.value == opt_value|stringformat:"s" %}selected{% endif %}>
+                    {{ opt_label }}
+                  </option>
+                {% endif %}
+              {% endfor %}
+            </select>
+            {% if form.beneficiario_id.errors %}
+              <p class="mt-1 text-xs text-red-600" role="alert">{{ form.beneficiario_id.errors|join:", " }}</p>
+            {% endif %}
+          </div>
+        </div>
+      {% endif %}
+    </section>
+
+    {# --- Seção: Itens --- #}
+    <section class="mb-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h2 class="text-base font-medium text-slate-800 mb-1">Itens</h2>
+      <p class="text-xs text-slate-500 mb-4">Adicione ao menos um material com quantidade solicitada.</p>
+
+      {# Management form do formset — obrigatório #}
+      {{ formset.management_form }}
+
+      {# Erros gerais do formset #}
+      {% if formset.non_form_errors %}
+        <div class="mb-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700" role="alert">
+          {% for erro in formset.non_form_errors %}
+            <p>{{ erro }}</p>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      {# Container de linhas — alvo do HTMX swap #}
+      <div id="itens-container" class="flex flex-col gap-3">
+        {% for item_form in formset %}
+          {% include "requisicoes/partials/_item_form_row.html" with form=item_form form_index=forloop.counter0 prefix="itens-"|add:forloop.counter0|stringformat:"s" %}
+        {% endfor %}
+      </div>
+
+      {# Botão adicionar item via HTMX #}
+      <button
+        type="button"
+        class="mt-4 flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors"
+        hx-get="{% url 'requisicoes:nova_linha_item' %}"
+        hx-target="#itens-container"
+        hx-swap="beforeend"
+        hx-include="#id_itens-TOTAL_FORMS"
+        hx-vals='js:{"index": document.querySelectorAll(".item-form-row").length}'
+        @htmx:after-request="incrementarTotalForms()"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+          <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/>
+        </svg>
+        Adicionar material
+      </button>
+    </section>
+
+    {# --- Seção: Observação geral --- #}
+    <section class="mb-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h2 class="text-base font-medium text-slate-800 mb-3">Observação geral</h2>
+      <label class="sr-only" for="{{ form.observacao_geral.id_for_label }}">Observação geral</label>
+      <textarea
+        name="{{ form.observacao_geral.html_name }}"
+        id="{{ form.observacao_geral.id_for_label }}"
+        rows="3"
+        class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+        placeholder="Opcional — contexto adicional sobre esta requisição"
+      >{{ form.observacao_geral.value|default:'' }}</textarea>
+      {% if form.observacao_geral.errors %}
+        <p class="mt-1 text-xs text-red-600" role="alert">{{ form.observacao_geral.errors|join:", " }}</p>
+      {% endif %}
+    </section>
+
+    {# --- Ações --- #}
+    <div class="flex items-center gap-3">
+      <button
+        type="submit"
+        class="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition-colors"
+      >
+        {% if modo == 'criar' %}Criar rascunho{% else %}Salvar rascunho{% endif %}
+      </button>
+      <a href="{% url 'core:home' %}" class="text-sm text-slate-500 hover:text-slate-700 transition-colors">
+        Cancelar
+      </a>
+    </div>
+
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  // Incrementa TOTAL_FORMS após adicionar nova linha via HTMX
+  function incrementarTotalForms() {
+    const input = document.getElementById('id_itens-TOTAL_FORMS');
+    if (input) {
+      input.value = parseInt(input.value, 10) + 1;
+    }
+  }
+
+  // Alpine component: autocomplete de material por linha
+  function materialAutocomplete(index) {
+    return {
+      query: '',
+      resultados: [],
+      aberto: false,
+      buscando: false,
+      ativo: -1,
+      materialIdInput: null,
+
+      init() {
+        // Associar ao campo hidden do material_id desta linha
+        this.materialIdInput = this.$el.closest('.item-form-row').querySelector('.material-id-input');
+        // Preencher query com valor já existente (edição)
+        const labelInput = this.$el.querySelector('input[type="text"]');
+        if (labelInput && labelInput.value) {
+          this.query = labelInput.value;
+        }
+      },
+
+      async buscar(event) {
+        this.query = event.target.value;
+        if (this.query.length < 2) {
+          this.fecharDropdown();
+          return;
+        }
+        this.buscando = true;
+        try {
+          const res = await fetch(`{% url 'requisicoes:buscar_materiais' %}?q=${encodeURIComponent(this.query)}`, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+          });
+          const data = await res.json();
+          this.resultados = data.resultados || [];
+          this.aberto = true;
+          this.ativo = -1;
+        } catch (e) {
+          this.resultados = [];
+        } finally {
+          this.buscando = false;
+        }
+      },
+
+      selecionar(item) {
+        this.$el.querySelector('input[type="text"]').value = item.label;
+        this.query = item.label;
+        if (this.materialIdInput) {
+          this.materialIdInput.value = item.id;
+        }
+        this.fecharDropdown();
+      },
+
+      abrirDropdown() {
+        if (this.resultados.length > 0) this.aberto = true;
+      },
+
+      fecharDropdown() {
+        this.aberto = false;
+        this.ativo = -1;
+      },
+
+      selecionarProximo() {
+        if (this.ativo < this.resultados.length - 1) this.ativo++;
+      },
+
+      selecionarAnterior() {
+        if (this.ativo > 0) this.ativo--;
+      },
+
+      confirmarSelecao() {
+        if (this.ativo >= 0 && this.resultados[this.ativo]) {
+          this.selecionar(this.resultados[this.ativo]);
+        }
+      },
+    };
+  }
+</script>
+{% endblock %}
