@@ -20,8 +20,8 @@ class RequisicaoForm(forms.Form):
 
 
 MODO_CRIACAO_CHOICES = [
-    ('self', 'Mim mesmo'),
-    ('other', 'Outro beneficiário'),
+    ('proprio', 'Mim mesmo'),
+    ('outro', 'Outro beneficiário'),
 ]
 
 
@@ -77,7 +77,7 @@ class RequisicaoCriacaoForm(RequisicaoForm):
             self.add_error('modo_criacao', 'Selecione para quem criar a requisição.')
             return cleaned_data
 
-        if modo == 'other':
+        if modo == 'outro':
             beneficiario_id = cleaned_data.get('beneficiario_id')
             if not beneficiario_id:
                 self.add_error('beneficiario_id', 'Selecione o beneficiário.')

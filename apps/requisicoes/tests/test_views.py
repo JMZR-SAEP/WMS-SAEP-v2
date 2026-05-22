@@ -113,7 +113,7 @@ def test_nova_requisicao_post_forjado_beneficiario_fora_escopo(
     data = _formset_post(
         material_disponivel.pk,
         extra={
-            'modo_criacao': 'other',
+            'modo_criacao': 'outro',
             'beneficiario_id': str(usuario_ti.pk),
         },
     )
@@ -137,7 +137,7 @@ def test_nova_requisicao_post_chefe_cria_para_outro_setor_falha(
     data = _formset_post(
         material_disponivel.pk,
         extra={
-            'modo_criacao': 'other',
+            'modo_criacao': 'outro',
             'beneficiario_id': str(usuario_ti.pk),
         },
     )

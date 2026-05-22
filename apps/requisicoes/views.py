@@ -64,7 +64,7 @@ def nova_requisicao(request):
                 beneficiario_id = request.user.pk
             else:
                 modo = form.cleaned_data.get('modo_criacao')
-                if modo == 'self':
+                if modo == 'proprio':
                     beneficiario_id = request.user.pk
                 else:
                     beneficiario_id = int(form.cleaned_data['beneficiario_id'])

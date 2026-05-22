@@ -11,7 +11,7 @@
 
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING
 
 from django.db import transaction
@@ -206,7 +206,13 @@ def _validar_itens(itens: list[ItemInput]) -> None:
                 code='material_nao_encontrado',
             )
 
-        quantidade = Decimal(str(item['quantidade_solicitada']))
+        try:
+            quantidade = Decimal(str(item['quantidade_solicitada']))
+        except (InvalidOperation, ValueError, TypeError):
+            raise DadosInvalidos(
+                f"Quantidade solicitada de '{material.nome}' é inválida.",
+                code='quantidade_invalida',
+            )
         if quantidade <= 0:
             raise DadosInvalidos(
                 f"Quantidade solicitada de '{material.nome}' deve ser maior que zero.",
