@@ -66,11 +66,15 @@ def criar_requisicao(
     try:
         ator = User.objects.get(pk=ator_id)
     except User.DoesNotExist:
-        raise DadosInvalidos('Ator não encontrado.', code='ator_nao_encontrado') from None
+        raise DadosInvalidos(
+            'Ator não encontrado.', code='ator_nao_encontrado'
+        ) from None
     try:
         beneficiario = User.objects.select_related('setor').get(pk=beneficiario_id)
     except User.DoesNotExist:
-        raise DadosInvalidos('Beneficiário não encontrado.', code='beneficiario_nao_encontrado') from None
+        raise DadosInvalidos(
+            'Beneficiário não encontrado.', code='beneficiario_nao_encontrado'
+        ) from None
 
     # Autorização
     exigir_pode_criar_para_beneficiario(ator, beneficiario)
@@ -148,11 +152,15 @@ def editar_rascunho(
     try:
         ator = User.objects.get(pk=ator_id)
     except User.DoesNotExist:
-        raise DadosInvalidos('Ator não encontrado.', code='ator_nao_encontrado') from None
+        raise DadosInvalidos(
+            'Ator não encontrado.', code='ator_nao_encontrado'
+        ) from None
     try:
         requisicao = Requisicao.objects.select_for_update().get(pk=requisicao_id)
     except Requisicao.DoesNotExist:
-        raise DadosInvalidos('Requisição não encontrada.', code='requisicao_nao_encontrada') from None
+        raise DadosInvalidos(
+            'Requisição não encontrada.', code='requisicao_nao_encontrada'
+        ) from None
 
     # Autorização
     exigir_pode_editar_rascunho(ator, requisicao)
