@@ -45,10 +45,7 @@ def _eh_almoxarifado(ator: User) -> bool:
     """True se o ator tem papel ativo de chefe ou auxiliar de almoxarifado."""
     try:
         setor = ator.setor_chefiado
-        if (
-            setor.ativo
-            and setor.classificacao == SetorClassificacao.ALMOXARIFADO
-        ):
+        if setor.ativo and setor.classificacao == SetorClassificacao.ALMOXARIFADO:
             return True
     except Exception:
         pass

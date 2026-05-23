@@ -361,7 +361,9 @@ def test_minhas_exclui_rascunho_de_terceiro(
     _login(client, solicitante)
     response = client.get(reverse('requisicoes:minhas'))
     assert response.status_code == 200
-    assert req_rascunho_aux_para_solicitante not in list(response.context['requisicoes'])
+    assert req_rascunho_aux_para_solicitante not in list(
+        response.context['requisicoes']
+    )
 
 
 @pytest.mark.django_db
@@ -413,9 +415,7 @@ def test_detalhe_rascunho_de_terceiro_para_beneficiario_404(
 
 
 @pytest.mark.django_db
-def test_detalhe_outro_setor_sem_papel_404(
-    client, solicitante, req_outro_setor_view
-):
+def test_detalhe_outro_setor_sem_papel_404(client, solicitante, req_outro_setor_view):
     _login(client, solicitante)
     response = client.get(
         reverse('requisicoes:detalhe', kwargs={'pk': req_outro_setor_view.pk})
@@ -446,9 +446,7 @@ def test_detalhe_chefe_setor_nao_ve_rascunho_de_terceiro(
 
 
 @pytest.mark.django_db
-def test_detalhe_almox_ve_outro_setor(
-    client, aux_almoxarifado, req_outro_setor_view
-):
+def test_detalhe_almox_ve_outro_setor(client, aux_almoxarifado, req_outro_setor_view):
     _login(client, aux_almoxarifado)
     response = client.get(
         reverse('requisicoes:detalhe', kwargs={'pk': req_outro_setor_view.pk})
@@ -465,7 +463,10 @@ def test_detalhe_renderiza_timeline_e_itens(
         ator_id=solicitante.pk,
         beneficiario_id=solicitante.pk,
         itens=[
-            {'material_id': material_disponivel.pk, 'quantidade_solicitada': Decimal('3')}
+            {
+                'material_id': material_disponivel.pk,
+                'quantidade_solicitada': Decimal('3'),
+            }
         ],
     )
     response = client.get(reverse('requisicoes:detalhe', kwargs={'pk': req.pk}))
