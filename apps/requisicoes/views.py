@@ -12,6 +12,8 @@ from django.forms import BooleanField
 from django.forms.formsets import DELETION_FIELD_NAME
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_GET, require_http_methods
 
 from apps.core.exceptions import DadosInvalidos, EstadoInvalido, PermissaoNegada
@@ -321,6 +323,13 @@ def detalhe_requisicao_view(request, pk: int):
     eventos = list(
         requisicao.eventos.select_related('ator').order_by('-criado_em', '-id')
     )
+
+    next_url = request.GET.get('next', '')
+    if not url_has_allowed_host_and_scheme(
+        next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        next_url = reverse('requisicoes:minhas')
+
     return render(
         request,
         'requisicoes/detalhe.html',
@@ -328,5 +337,6 @@ def detalhe_requisicao_view(request, pk: int):
             'requisicao': requisicao,
             'itens': itens,
             'eventos': eventos,
+            'voltar_url': next_url,
         },
     )
