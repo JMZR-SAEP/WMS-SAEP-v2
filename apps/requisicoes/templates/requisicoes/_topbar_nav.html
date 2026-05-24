@@ -1,0 +1,25 @@
+{% with current=request.resolver_match.view_name %}
+  <nav class="app-bar__menu-section" aria-label="Navegação principal">
+    <p class="app-bar__menu-heading">Navegação</p>
+    <a
+      href="{% url 'requisicoes:minhas' %}"
+      class="app-bar__menu-item"
+      {% if current == 'requisicoes:minhas' %}aria-current="page"{% endif %}
+    >
+      <svg class="app-bar__menu-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
+      </svg>
+      Minhas requisições
+    </a>
+    <a
+      href="{% url 'requisicoes:nova_requisicao' %}"
+      class="app-bar__menu-item"
+      {% if current == 'requisicoes:nova_requisicao' %}aria-current="page"{% endif %}
+    >
+      <svg class="app-bar__menu-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+      </svg>
+      Nova requisição
+    </a>
+  </nav>
+{% endwith %}
