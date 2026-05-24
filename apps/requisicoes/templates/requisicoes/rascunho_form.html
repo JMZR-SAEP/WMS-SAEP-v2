@@ -176,10 +176,19 @@
       {% endif %}
     </section>
 
-    {# --- Ações — sticky no mobile, static no sm+. Hierarquia: envio = primário, rascunho = secundário.
-         DOM: rascunho vem antes do envio para que Enter em campos não promova
-         acidentalmente o rascunho para autorização (o primeiro submit no DOM é o
-         default ao pressionar Enter). Visualmente, envio fica à direita via flex order. --- #}
+    {% comment %}
+
+      --- Ações — sticky no mobile, static no sm+.
+
+      Hierarquia: envio = primário, rascunho = secundário.
+
+      DOM: rascunho vem antes do envio para que Enter em campos não promova
+
+      acidentalmente o rascunho para autorização, já que o primeiro submit no DOM é o
+
+      default ao pressionar Enter. Visualmente, envio fica à direita via flex order.
+
+{% endcomment %}
     <div class="fixed bottom-0 inset-x-0 z-30 bg-white border-t border-slate-200 px-6 py-3 flex flex-wrap items-center gap-3 sm:static sm:z-auto sm:border-0 sm:bg-transparent sm:px-0 sm:py-0">
       {% if modo == 'criar' %}
         <button
