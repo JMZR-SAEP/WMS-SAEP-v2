@@ -7,6 +7,7 @@ Nenhuma regra de domínio, query de escopo ou decisão de autorização própria
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
+from django.db import transaction
 from django.db.models import DecimalField, ExpressionWrapper, F, Sum
 from django.forms import BooleanField
 from django.forms.formsets import DELETION_FIELD_NAME
@@ -83,17 +84,32 @@ def nova_requisicao(request):
                     beneficiario_id = int(form.cleaned_data['beneficiario_id'])
 
             itens = formset.linhas_validas()
+            acao = request.POST.get('acao', 'rascunho')
 
             try:
-                req = criar_requisicao(
-                    ator_id=request.user.pk,
-                    beneficiario_id=beneficiario_id,
-                    itens=itens,
-                    observacao_geral=form.cleaned_data.get('observacao_geral', ''),
-                )
+                with transaction.atomic():
+                    req = criar_requisicao(
+                        ator_id=request.user.pk,
+                        beneficiario_id=beneficiario_id,
+                        itens=itens,
+                        observacao_geral=form.cleaned_data.get('observacao_geral', ''),
+                    )
+                    if acao == 'enviar':
+                        req = enviar_para_autorizacao(
+                            ator_id=request.user.pk,
+                            requisicao_id=req.pk,
+                        )
             except (PermissaoNegada, DadosInvalidos) as exc:
                 messages.error(request, str(exc))
+            except EstadoInvalido as exc:
+                messages.warning(request, str(exc))
             else:
+                if acao == 'enviar':
+                    messages.success(
+                        request,
+                        f'Requisição enviada para autorização. Número {req.numero_publico}.',
+                    )
+                    return redirect('requisicoes:detalhe', pk=req.pk)
                 messages.success(
                     request,
                     'Rascunho criado com sucesso. Você pode continuar editando antes de enviar para autorização.',

@@ -82,6 +82,46 @@ def test_nova_requisicao_post_valido_cria_e_redireciona(
 
 
 @pytest.mark.django_db
+def test_nova_requisicao_post_acao_enviar_cria_e_envia(
+    client, solicitante, material_disponivel
+):
+    """Botão 'Criar e enviar' cria rascunho + envia para autorização atomicamente."""
+    _login(client, solicitante)
+    data = _formset_post(material_disponivel.pk, extra={'acao': 'enviar'})
+    resp = client.post(reverse('requisicoes:nova_requisicao'), data)
+
+    req = Requisicao.objects.filter(criador=solicitante).first()
+    assert req is not None
+    assert req.estado == EstadoRequisicao.AGUARDANDO_AUTORIZACAO
+    assert req.numero_publico is not None
+    assert resp.status_code == 302
+    assert reverse('requisicoes:detalhe', kwargs={'pk': req.pk}) in resp['Location']
+
+    eventos = list(req.eventos.values_list('evento', flat=True))
+    assert 'criacao' in eventos
+    assert 'envio_autorizacao' in eventos
+
+
+@pytest.mark.django_db
+def test_nova_requisicao_post_acao_rascunho_explicito(
+    client, solicitante, material_disponivel
+):
+    """acao='rascunho' mantém comportamento padrão (cria e vai para edição)."""
+    _login(client, solicitante)
+    data = _formset_post(material_disponivel.pk, extra={'acao': 'rascunho'})
+    resp = client.post(reverse('requisicoes:nova_requisicao'), data)
+
+    req = Requisicao.objects.filter(criador=solicitante).first()
+    assert req.estado == EstadoRequisicao.RASCUNHO
+    assert req.numero_publico is None
+    assert resp.status_code == 302
+    assert (
+        reverse('requisicoes:editar_rascunho', kwargs={'pk': req.pk})
+        in resp['Location']
+    )
+
+
+@pytest.mark.django_db
 def test_nova_requisicao_post_sem_itens_retorna_form(client, solicitante):
     _login(client, solicitante)
     data = {
