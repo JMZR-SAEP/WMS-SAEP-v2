@@ -3,11 +3,11 @@ Feed de timeline da requisição. Mais recente primeiro.
 Parâmetro: eventos (lista de TimelineRequisicao com select_related('ator')).
 {% endcomment %}
 {% if eventos %}
-  <ol class="relative space-y-5 sm:space-y-4" aria-label="Histórico da requisição">
+  <div class="relative">
     {# linha vertical da timeline (apenas sm+) #}
     <span class="hidden sm:absolute sm:left-[5.25rem] sm:top-1 sm:bottom-1 sm:block sm:w-px sm:bg-slate-200" aria-hidden="true"></span>
-
-    {% for evento in eventos %}
+    <ol class="relative space-y-5 sm:space-y-4" aria-label="Histórico da requisição">
+      {% for evento in eventos %}
       <li class="relative grid grid-cols-1 gap-1 sm:grid-cols-[5rem_auto_1fr] sm:items-baseline sm:gap-x-4 sm:gap-y-0">
 
         {# coluna 1: timestamp compacto #}
@@ -42,7 +42,8 @@ Parâmetro: eventos (lista de TimelineRequisicao com select_related('ator')).
         </div>
       </li>
     {% endfor %}
-  </ol>
+    </ol>
+  </div>
 {% else %}
   <p class="text-sm text-slate-500">Sem eventos registrados.</p>
 {% endif %}
