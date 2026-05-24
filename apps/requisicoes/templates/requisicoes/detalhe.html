@@ -202,9 +202,12 @@
         if (btn.dataset.submitting === '1') return;
         btn.dataset.submitting = '1';
         btn.setAttribute('aria-busy', 'true');
-        const textNode = btn.querySelector('[data-submit-text]');
         const loading = btn.dataset.submitLoadingLabel;
-        if (textNode && loading) textNode.textContent = loading;
+        if (loading) {
+          btn.querySelectorAll('[data-submit-text]').forEach((node) => {
+            node.textContent = loading;
+          });
+        }
       });
       setTimeout(() => {
         targets.forEach((btn) => {
