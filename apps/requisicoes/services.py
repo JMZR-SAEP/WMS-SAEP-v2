@@ -18,7 +18,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.accounts.models import User
-from apps.core.exceptions import DadosInvalidos
+from apps.core.exceptions import DadosInvalidos, EstadoInvalido
 from apps.estoque.models import Material
 from apps.requisicoes.models import (
     EstadoRequisicao,
@@ -32,6 +32,8 @@ from apps.requisicoes.policies import (
     exigir_pode_criar_para_beneficiario,
     exigir_pode_editar_rascunho,
     exigir_pode_enviar_rascunho,
+    exigir_pode_recusar_requisicao,
+    exigir_pode_retornar_para_rascunho,
     pode_ser_beneficiario,
 )
 from apps.requisicoes.selectors import material_eh_elegivel
@@ -169,6 +171,11 @@ def editar_rascunho(
     exigir_pode_editar_rascunho(ator, requisicao)
 
     # Valida transição de estado
+    if requisicao.estado != EstadoRequisicao.RASCUNHO:
+        raise EstadoInvalido(
+            'Esta requisição não está em rascunho.',
+            code='estado_origem_invalido',
+        )
     verificar_transicao_valida(requisicao.estado, EstadoRequisicao.RASCUNHO)
 
     # Validar itens
@@ -266,6 +273,99 @@ def enviar_para_autorizacao(
         evento=EventoTimeline.ENVIO_AUTORIZACAO,
         ator=ator,
         estado_resultante=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+    )
+
+    return requisicao
+
+
+# ---------------------------------------------------------------------------
+# TR-006 / TR-011: retorno para rascunho e recusa
+# ---------------------------------------------------------------------------
+
+
+@transaction.atomic
+def retornar_para_rascunho(
+    *,
+    ator_id: int,
+    requisicao_id: int,
+    observacao: str = '',
+) -> Requisicao:
+    """Retorna requisição aguardando autorização para rascunho (TR-006)."""
+    try:
+        ator = User.objects.get(pk=ator_id)
+    except User.DoesNotExist:
+        raise DadosInvalidos(
+            'Ator não encontrado.', code='ator_nao_encontrado'
+        ) from None
+    try:
+        requisicao = Requisicao.objects.select_for_update().get(pk=requisicao_id)
+    except Requisicao.DoesNotExist:
+        raise DadosInvalidos(
+            'Requisição não encontrada.', code='requisicao_nao_encontrada'
+        ) from None
+
+    exigir_pode_retornar_para_rascunho(ator, requisicao)
+    if requisicao.estado != EstadoRequisicao.AGUARDANDO_AUTORIZACAO:
+        raise EstadoInvalido(
+            'Esta requisição não está aguardando autorização.',
+            code='estado_origem_invalido',
+        )
+    verificar_transicao_valida(requisicao.estado, EstadoRequisicao.RASCUNHO)
+
+    requisicao.estado = EstadoRequisicao.RASCUNHO
+    requisicao.save(update_fields=['estado', 'atualizado_em'])
+
+    TimelineRequisicao.objects.create(
+        requisicao=requisicao,
+        evento=EventoTimeline.RETORNO_RASCUNHO,
+        ator=ator,
+        estado_resultante=EstadoRequisicao.RASCUNHO,
+        justificativa=(observacao or '').strip(),
+    )
+
+    return requisicao
+
+
+@transaction.atomic
+def recusar_requisicao(
+    *,
+    ator_id: int,
+    requisicao_id: int,
+    motivo: str,
+) -> Requisicao:
+    """Recusa integralmente uma requisição aguardando autorização (TR-011)."""
+    try:
+        ator = User.objects.get(pk=ator_id)
+    except User.DoesNotExist:
+        raise DadosInvalidos(
+            'Ator não encontrado.', code='ator_nao_encontrado'
+        ) from None
+    try:
+        requisicao = Requisicao.objects.select_for_update().get(pk=requisicao_id)
+    except Requisicao.DoesNotExist:
+        raise DadosInvalidos(
+            'Requisição não encontrada.', code='requisicao_nao_encontrada'
+        ) from None
+
+    exigir_pode_recusar_requisicao(ator, requisicao)
+    verificar_transicao_valida(requisicao.estado, EstadoRequisicao.RECUSADA)
+
+    motivo_limpo = (motivo or '').strip()
+    if not motivo_limpo:
+        raise DadosInvalidos(
+            'Informe o motivo da recusa.',
+            code='motivo_recusa_obrigatorio',
+        )
+
+    requisicao.estado = EstadoRequisicao.RECUSADA
+    requisicao.save(update_fields=['estado', 'atualizado_em'])
+
+    TimelineRequisicao.objects.create(
+        requisicao=requisicao,
+        evento=EventoTimeline.RECUSA,
+        ator=ator,
+        estado_resultante=EstadoRequisicao.RECUSADA,
+        justificativa=motivo_limpo,
     )
 
     return requisicao

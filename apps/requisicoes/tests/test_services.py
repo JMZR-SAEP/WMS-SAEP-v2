@@ -8,7 +8,12 @@ from decimal import Decimal
 
 from apps.core.exceptions import DadosInvalidos, EstadoInvalido, PermissaoNegada
 from apps.requisicoes.models import EstadoRequisicao, EventoTimeline, Requisicao
-from apps.requisicoes.services import criar_requisicao, editar_rascunho
+from apps.requisicoes.services import (
+    criar_requisicao,
+    editar_rascunho,
+    recusar_requisicao,
+    retornar_para_rascunho,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -493,6 +498,178 @@ def test_enviar_nao_reserva_estoque(rascunho, solicitante, material_disponivel):
     fisico_antes = saldo_antes.saldo_fisico
 
     enviar_para_autorizacao(ator_id=solicitante.pk, requisicao_id=rascunho.pk)
+
+    saldo_depois = SaldoEstoque.objects.get(material=material_disponivel)
+    assert saldo_depois.saldo_reservado == reservado_antes
+    assert saldo_depois.saldo_fisico == fisico_antes
+
+
+# ---------------------------------------------------------------------------
+# TR-006 / TR-011: retorno para rascunho e recusa
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def requisicao_aguardando(solicitante, material_disponivel):
+    from apps.requisicoes.services import enviar_para_autorizacao
+
+    req = criar_requisicao(
+        ator_id=solicitante.pk,
+        beneficiario_id=solicitante.pk,
+        itens=[
+            {
+                'material_id': material_disponivel.pk,
+                'quantidade_solicitada': Decimal('2'),
+            }
+        ],
+    )
+    return enviar_para_autorizacao(ator_id=solicitante.pk, requisicao_id=req.pk)
+
+
+@pytest.mark.django_db
+def test_retornar_para_rascunho_preserva_numero_publico_e_registra_timeline(
+    requisicao_aguardando, solicitante
+):
+    numero_original = requisicao_aguardando.numero_publico
+
+    req = retornar_para_rascunho(
+        ator_id=solicitante.pk,
+        requisicao_id=requisicao_aguardando.pk,
+        observacao='Corrigir quantidade.',
+    )
+
+    assert req.estado == EstadoRequisicao.RASCUNHO
+    assert req.numero_publico == numero_original
+    evento = req.eventos.filter(evento=EventoTimeline.RETORNO_RASCUNHO).get()
+    assert evento.ator_id == solicitante.pk
+    assert evento.estado_resultante == EstadoRequisicao.RASCUNHO
+    assert evento.justificativa == 'Corrigir quantidade.'
+
+
+@pytest.mark.django_db
+def test_retornar_para_rascunho_restaura_visibilidade_creator_only(
+    aux_obras, solicitante, material_disponivel
+):
+    from apps.requisicoes.selectors import requisicoes_visiveis_para
+    from apps.requisicoes.services import enviar_para_autorizacao
+
+    req = criar_requisicao(
+        ator_id=aux_obras.pk,
+        beneficiario_id=solicitante.pk,
+        itens=[
+            {
+                'material_id': material_disponivel.pk,
+                'quantidade_solicitada': Decimal('2'),
+            }
+        ],
+    )
+    req = enviar_para_autorizacao(ator_id=aux_obras.pk, requisicao_id=req.pk)
+
+    retornar_para_rascunho(ator_id=solicitante.pk, requisicao_id=req.pk)
+
+    assert req not in list(requisicoes_visiveis_para(solicitante.pk))
+    assert req in list(requisicoes_visiveis_para(aux_obras.pk))
+
+
+@pytest.mark.django_db
+def test_retornar_para_rascunho_estado_invalido(solicitante, material_disponivel):
+    req = criar_requisicao(
+        ator_id=solicitante.pk,
+        beneficiario_id=solicitante.pk,
+        itens=[
+            {
+                'material_id': material_disponivel.pk,
+                'quantidade_solicitada': Decimal('2'),
+            }
+        ],
+    )
+
+    with pytest.raises(EstadoInvalido):
+        retornar_para_rascunho(ator_id=solicitante.pk, requisicao_id=req.pk)
+
+
+@pytest.mark.django_db
+def test_retornar_para_rascunho_terceiro_sem_permissao(
+    requisicao_aguardando, usuario_ti
+):
+    with pytest.raises(PermissaoNegada):
+        retornar_para_rascunho(
+            ator_id=usuario_ti.pk,
+            requisicao_id=requisicao_aguardando.pk,
+        )
+
+
+@pytest.mark.django_db
+def test_recusar_requisicao_aplica_estado_e_registra_timeline(
+    requisicao_aguardando, chefe_obras
+):
+    req = recusar_requisicao(
+        ator_id=chefe_obras.pk,
+        requisicao_id=requisicao_aguardando.pk,
+        motivo='Material solicitado precisa de revisão.',
+    )
+
+    assert req.estado == EstadoRequisicao.RECUSADA
+    evento = req.eventos.filter(evento=EventoTimeline.RECUSA).get()
+    assert evento.ator_id == chefe_obras.pk
+    assert evento.estado_resultante == EstadoRequisicao.RECUSADA
+    assert evento.justificativa == 'Material solicitado precisa de revisão.'
+
+
+@pytest.mark.django_db
+def test_recusar_requisicao_exige_motivo(requisicao_aguardando, chefe_obras):
+    with pytest.raises(DadosInvalidos, match='motivo'):
+        recusar_requisicao(
+            ator_id=chefe_obras.pk,
+            requisicao_id=requisicao_aguardando.pk,
+            motivo='  ',
+        )
+    requisicao_aguardando.refresh_from_db()
+    assert requisicao_aguardando.estado == EstadoRequisicao.AGUARDANDO_AUTORIZACAO
+
+
+@pytest.mark.django_db
+def test_recusar_requisicao_estado_invalido(requisicao_aguardando, chefe_obras):
+    retornar_para_rascunho(
+        ator_id=requisicao_aguardando.criador_id,
+        requisicao_id=requisicao_aguardando.pk,
+    )
+
+    with pytest.raises(EstadoInvalido):
+        recusar_requisicao(
+            ator_id=chefe_obras.pk,
+            requisicao_id=requisicao_aguardando.pk,
+            motivo='Não aprovado.',
+        )
+
+
+@pytest.mark.django_db
+def test_recusar_requisicao_outro_setor_sem_permissao(
+    requisicao_aguardando, chefe_almoxarifado
+):
+    with pytest.raises(PermissaoNegada):
+        recusar_requisicao(
+            ator_id=chefe_almoxarifado.pk,
+            requisicao_id=requisicao_aguardando.pk,
+            motivo='Não aprovado.',
+        )
+
+
+@pytest.mark.django_db
+def test_recusar_requisicao_nao_altera_estoque(
+    requisicao_aguardando, chefe_obras, material_disponivel
+):
+    from apps.estoque.models import SaldoEstoque
+
+    saldo_antes = SaldoEstoque.objects.get(material=material_disponivel)
+    reservado_antes = saldo_antes.saldo_reservado
+    fisico_antes = saldo_antes.saldo_fisico
+
+    recusar_requisicao(
+        ator_id=chefe_obras.pk,
+        requisicao_id=requisicao_aguardando.pk,
+        motivo='Não aprovado.',
+    )
 
     saldo_depois = SaldoEstoque.objects.get(material=material_disponivel)
     assert saldo_depois.saldo_reservado == reservado_antes
