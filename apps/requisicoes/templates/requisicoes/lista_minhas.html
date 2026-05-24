@@ -2,23 +2,29 @@
 
 {% block title %}Minhas requisições — WMS-SAEP{% endblock %}
 
+{% block topbar_leading %}
+  <h1 class="app-bar__title">Minhas requisições</h1>
+{% endblock %}
+
+{% block topbar_actions %}
+  <a
+    href="{% url 'requisicoes:nova_requisicao' %}"
+    class="app-bar__action-icon"
+    aria-label="Nova requisição"
+    title="Nova requisição"
+  >
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+    </svg>
+  </a>
+{% endblock %}
+
 {% block content %}
 <div class="max-w-screen-xl mx-auto">
 
-  <div class="mb-6 flex items-end justify-between flex-wrap gap-3">
-    <div>
-      <h1 class="text-2xl font-semibold text-slate-900">Minhas requisições</h1>
-      <p class="mt-1 text-sm text-slate-500">
-        Requisições onde você é criador ou beneficiário.
-      </p>
-    </div>
-    <a
-      href="{% url 'requisicoes:nova_requisicao' %}"
-      class="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-    >
-      Nova requisição
-    </a>
-  </div>
+  <p class="mb-6 text-sm text-slate-500">
+    Requisições onde você é criador ou beneficiário.
+  </p>
 
   {% if requisicoes %}
     <div class="space-y-3 sm:hidden">

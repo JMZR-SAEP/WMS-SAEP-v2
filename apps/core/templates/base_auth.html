@@ -1,86 +1,126 @@
 {% extends "base.html" %}
 
 {% block body %}
-  <header class="site-header" role="banner" x-data="{ open: false }">
-    <div class="site-header-inner">
+  {% comment %}
+    Top App Bar (Material Design 2 — variant regular, behavior pinned).
+    Spec: .design/topbar/DESIGN_BRIEF.md
 
-      {# Leading area: brand por padrão; páginas contextuais sobrescrevem com back + título. #}
-      <div class="site-header-leading">
+    Slots para sobrescrita por template filho:
+      - topbar_menu: hamburger + drawer (Navegação + Conta).
+        Default renderiza para usuário autenticado. Subpáginas com nav-icon
+        contextual (back/close) sobrescrevem vazio para esconder o hamburger.
+      - topbar_leading: brand (default em telas principais) OU
+        nav-icon + título (em subpáginas).
+      - topbar_actions: ações principais da tela (botões/ícones).
+      - topbar_overflow: reservado; sem UI default (impl. futura).
+  {% endcomment %}
+  <header class="app-bar" role="banner" x-data="{ menuOpen: false }" @keydown.escape.window="menuOpen = false">
+    <div class="app-bar__inner">
+
+      {% block topbar_menu %}
+      {% if user.is_authenticated %}
+        <div class="app-bar__menu-wrap app-bar__menu-wrap--start" @click.outside="menuOpen = false">
+          <button
+            type="button"
+            class="app-bar__nav-toggle app-bar__nav-toggle--start"
+            aria-label="Abrir menu"
+            :aria-expanded="menuOpen ? 'true' : 'false'"
+            aria-controls="app-bar-menu"
+            aria-haspopup="true"
+            @click="menuOpen = !menuOpen"
+          >
+            <svg x-show="!menuOpen" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h18v2H3v-2z"/>
+            </svg>
+            <svg x-show="menuOpen" x-cloak xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+            </svg>
+          </button>
+
+          <div
+            id="app-bar-menu"
+            class="app-bar__menu app-bar__menu--start"
+            role="menu"
+            x-show="menuOpen"
+            x-cloak
+            x-transition.opacity.duration.150ms
+          >
+            {% with current=request.resolver_match.view_name %}
+              <nav class="app-bar__menu-section" aria-label="Navegação principal">
+                <p class="app-bar__menu-heading">Navegação</p>
+                <a
+                  href="{% url 'requisicoes:minhas' %}"
+                  class="app-bar__menu-item"
+                  role="menuitem"
+                  {% if current == 'requisicoes:minhas' %}aria-current="page"{% endif %}
+                >
+                  <svg class="app-bar__menu-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
+                  </svg>
+                  Minhas requisições
+                </a>
+                <a
+                  href="{% url 'requisicoes:nova_requisicao' %}"
+                  class="app-bar__menu-item"
+                  role="menuitem"
+                  {% if current == 'requisicoes:nova_requisicao' %}aria-current="page"{% endif %}
+                >
+                  <svg class="app-bar__menu-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                  </svg>
+                  Nova requisição
+                </a>
+              </nav>
+            {% endwith %}
+
+            <div class="app-bar__menu-divider" role="separator"></div>
+
+            <section class="app-bar__menu-section" aria-label="Conta">
+              <p class="app-bar__menu-heading">Conta</p>
+              <div class="app-bar__menu-user">
+                <div class="app-bar__menu-avatar" aria-hidden="true">{{ user.nome|first|upper }}</div>
+                <div class="app-bar__menu-user-info">
+                  <p class="app-bar__menu-user-name">{{ user.nome }}</p>
+                  <p class="app-bar__menu-user-meta">Matrícula {{ user.matricula }}</p>
+                </div>
+              </div>
+              <form method="post" action="{% url 'accounts:logout' %}" class="app-bar__menu-form">
+                {% csrf_token %}
+                <button type="submit" class="app-bar__menu-item app-bar__menu-item--danger" role="menuitem">
+                  <svg class="app-bar__menu-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
+                  </svg>
+                  Sair
+                </button>
+              </form>
+            </section>
+          </div>
+        </div>
+      {% endif %}
+      {% endblock %}
+
+      <div class="app-bar__leading">
         {% block topbar_leading %}
-          <div class="site-header-brand">
-            <div class="site-header-logo" aria-hidden="true">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 20 20" fill="white" aria-hidden="true">
+          <a href="{% url 'requisicoes:minhas' %}" class="app-bar__brand">
+            <span class="app-bar__logo" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 20 20" fill="white" aria-hidden="true">
                 <path d="M4 3a2 2 0 100 4h12a2 2 0 100-4H4z"/>
                 <path fill-rule="evenodd" d="M3 8h14v7a2 2 0 01-2 2H5a2 2 0 01-2-2V8zm5 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" clip-rule="evenodd"/>
               </svg>
-            </div>
-            <span class="site-header-name" translate="no">WMS-SAEP</span>
-          </div>
+            </span>
+            <span class="app-bar__brand-name" translate="no">WMS-SAEP</span>
+          </a>
         {% endblock %}
       </div>
 
-      {# Toggle mobile #}
-      {% if user.is_authenticated %}
-        <button
-          type="button"
-          class="site-nav-toggle"
-          aria-label="Abrir menu de navegação"
-          :aria-expanded="open ? 'true' : 'false'"
-          aria-controls="site-nav-menu"
-          @click="open = !open"
-        >
-          <svg x-show="!open" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-            <path fill-rule="evenodd" d="M3 5h14a1 1 0 010 2H3a1 1 0 010-2zm0 4h14a1 1 0 010 2H3a1 1 0 010-2zm0 4h14a1 1 0 010 2H3a1 1 0 010-2z" clip-rule="evenodd"/>
-          </svg>
-          <svg x-show="open" x-cloak xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
-          </svg>
-        </button>
-      {% endif %}
+      <div class="app-bar__actions">
+        {% block topbar_actions %}{% endblock %}
+        {% block topbar_overflow %}{% endblock %}
 
-      {# Navegação principal #}
-      {% if user.is_authenticated %}
-        {% with current=request.resolver_match.view_name %}
-          <nav
-            id="site-nav-menu"
-            class="site-nav"
-            :class="open ? 'site-nav--open' : ''"
-            aria-label="Navegação principal"
-          >
-            <a
-              href="{% url 'requisicoes:minhas' %}"
-              class="site-nav-link"
-              {% if current == 'requisicoes:minhas' %}aria-current="page"{% endif %}
-            >
-              Minhas requisições
-            </a>
-            <a
-              href="{% url 'requisicoes:nova_requisicao' %}"
-              class="site-nav-link"
-              {% if current == 'requisicoes:nova_requisicao' %}aria-current="page"{% endif %}
-            >
-              Nova requisição
-            </a>
-          </nav>
-        {% endwith %}
-      {% endif %}
-
-      {# Contexto de sessão #}
-      {% if user.is_authenticated %}
-        <div class="site-header-user">
-          <div class="site-header-avatar" aria-hidden="true">{{ user.nome|first|upper }}</div>
-          <span class="site-header-username hidden sm:block">
-            {{ user.nome }}<span class="text-slate-500 ml-1">({{ user.matricula }})</span>
-          </span>
-          <div class="site-header-sep hidden sm:block" aria-hidden="true"></div>
-          <form method="post" action="{% url 'accounts:logout' %}">
-            {% csrf_token %}
-            <button type="submit" class="site-header-logout">Sair</button>
-          </form>
-        </div>
-      {% else %}
-        <a href="{% url 'accounts:login' %}" class="site-header-username hover:text-slate-100 transition-colors">Entrar</a>
-      {% endif %}
+        {% if not user.is_authenticated %}
+          <a href="{% url 'accounts:login' %}" class="app-bar__action">Entrar</a>
+        {% endif %}
+      </div>
     </div>
   </header>
 
