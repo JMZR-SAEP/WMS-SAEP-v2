@@ -77,8 +77,8 @@ CSS custom property `--app-bar-height` permite que `<main>` calcule offset e que
 
 | Breakpoint | Comportamento |
 |---|---|
-| `< 640px` | `.app-bar__nav` colapsa em menu toggleável (Alpine `open` state); ações inline limitadas |
-| `≥ 640px` | Nav inline; toggle escondido; user block completo (avatar + nome + matrícula) |
+| `< 640px` | Toggle abre drawer lateral (popover) com seções Navegação e Conta; ações inline limitadas |
+| `≥ 640px` | Toggle escondido; drawer inacessível via teclado; user block completo (avatar + nome + matrícula) |
 
 `flex-wrap` permite que o nav vá para baixo quando aberto no mobile sem quebrar o leading/user.
 
