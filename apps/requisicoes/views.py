@@ -26,6 +26,7 @@ from apps.requisicoes.forms import (
 from apps.requisicoes.models import Requisicao
 from apps.requisicoes.policies import (
     exigir_pode_editar_rascunho,
+    pode_enviar_rascunho,
     resolver_escopo_criacao_requisicao,
 )
 from apps.requisicoes.selectors import (
@@ -33,7 +34,11 @@ from apps.requisicoes.selectors import (
     minhas_requisicoes,
     requisicoes_visiveis_para,
 )
-from apps.requisicoes.services import criar_requisicao, editar_rascunho
+from apps.requisicoes.services import (
+    criar_requisicao,
+    editar_rascunho,
+    enviar_para_autorizacao,
+)
 
 
 def _htmx_redirect(request, url: str) -> HttpResponse:
@@ -338,5 +343,43 @@ def detalhe_requisicao_view(request, pk: int):
             'itens': itens,
             'eventos': eventos,
             'voltar_url': next_url,
+            'pode_enviar': (
+                requisicao.estado == 'rascunho'
+                and pode_enviar_rascunho(request.user, requisicao)
+            ),
         },
+    )
+
+
+
+# ---------------------------------------------------------------------------
+# Enviar rascunho para autorização — TR-005
+# ---------------------------------------------------------------------------
+
+
+@login_required
+@require_http_methods(['POST'])
+def enviar_rascunho_view(request, pk: int):
+    """Envia rascunho para autorização e redireciona para o detalhe.
+
+    A view não verifica estado nem ator: o service revalida sob lock
+    (ADR-0005) e lança PermissaoNegada / EstadoInvalido / DadosInvalidos.
+    """
+    try:
+        requisicao = enviar_para_autorizacao(
+            ator_id=request.user.pk,
+            requisicao_id=pk,
+        )
+    except PermissaoNegada as exc:
+        raise PermissionDenied(str(exc))
+    except (EstadoInvalido, DadosInvalidos) as exc:
+        messages.error(request, str(exc))
+        return _htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
+
+    messages.success(
+        request,
+        f'Requisição enviada para autorização. Número {requisicao.numero_publico}.',
+    )
+    return _htmx_redirect(
+        request, reverse('requisicoes:detalhe', args=[requisicao.pk])
     )
