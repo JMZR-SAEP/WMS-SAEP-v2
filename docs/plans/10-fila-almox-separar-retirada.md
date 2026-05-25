@@ -26,7 +26,6 @@
   - botão POST direto `Separar para retirada` com `data-confirm-message`.
 - Flag `pode_separar_retirada` em `_detalhe_context`.
 - Atualização de `_topbar_nav.html` para incluir link `Atendimento` para almoxarifado/superuser (alinhado ao brief de telas operacionais).
-- Atualização do redirect pós-login em `apps/core/views.py::home` para enviar almoxarifado a `requisicoes:atendimentos`, conforme `.design/INFORMATION_ARCHITECTURE.md`.
 - Testes por camada (ADR-0010):
   - `test_policies.py`: visibilidade da fila e permissão de separação, papel correto e negação.
   - `test_selectors.py`: composição da fila por papel (almox, chefe-almox, superuser, chefe-setor negado, usuário inativo), inclui `autorizada` e `pronta_para_retirada`, exclui demais estados.
@@ -53,8 +52,7 @@
 | `apps/requisicoes/urls.py` | Rotas `atendimentos/` e `<int:pk>/separar-retirada/` |
 | `apps/requisicoes/templates/requisicoes/fila_atendimento.html` | Template novo da fila |
 | `apps/requisicoes/templates/requisicoes/detalhe.html` | Bloco da ação `Separar para retirada` |
-| `apps/requisicoes/templates/requisicoes/partials/_topbar_nav.html` | Link `Atendimento` para almoxarifado/superuser |
-| `apps/core/views.py` | Redirect pós-login do almoxarifado para `requisicoes:atendimentos` |
+| `apps/requisicoes/templates/requisicoes/_topbar_nav.html` | Link `Atendimento` para almoxarifado/superuser |
 | `apps/requisicoes/tests/test_policies.py` | Permissão da fila e da separação |
 | `apps/requisicoes/tests/test_selectors.py` | Composição da fila de atendimento |
 | `apps/requisicoes/tests/test_services.py` | Caminho feliz, falhas, timeline, idempotência da reserva |
@@ -78,9 +76,8 @@ Regras aplicadas:
 3. GREEN service: implementação atômica com `select_for_update` e timeline.
 4. RED `views`/`urls`/`templates`: GET da fila por papel, POST do detalhe, botão visível, contrato HTTP.
 5. GREEN views/templates/topbar.
-6. Atualização do redirect pós-login do almoxarifado.
-7. Revisão a11y/UX da fila e do botão do detalhe.
-8. `rtk make test`.
+6. Revisão a11y/UX da fila e do botão do detalhe.
+7. `rtk make test`.
 
 ## Test Strategy
 
@@ -128,7 +125,7 @@ Pontos relevantes do `docs/design-acesso-rapido/matriz-invariantes.md`:
 - **Concorrência**: dois almoxarifados separando a mesma requisição simultaneamente — mitigado por `select_for_update` e revalidação de estado sob lock.
 - **OpenAPI/contrato HTTP**: nenhuma mudança em endpoints JSON; rotas novas seguem o padrão PRG/HTMX existente.
 - **Reservas**: ação não toca em estoque; risco de regressão se alguém alterar o helper de reserva em paralelo. Mitigação: teste asserta `saldo_fisico` e `saldo_reservado` imutáveis antes/depois.
-- **Redirect pós-login**: ajustar `core.views.home` mantendo prioridades documentadas em `.design/INFORMATION_ARCHITECTURE.md` para evitar regressão em outros papéis.
+- **Redirect pós-login**: fora desta slice (próxima issue). Mantemos apenas a navegação por topbar para acessar a fila.
 
 ## Open Questions
 
