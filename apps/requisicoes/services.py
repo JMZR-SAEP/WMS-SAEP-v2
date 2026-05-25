@@ -12,7 +12,7 @@
 from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict
 
 from django.db import transaction
 from django.utils import timezone
@@ -49,7 +49,9 @@ if TYPE_CHECKING:
 # Tipos auxiliares
 # ---------------------------------------------------------------------------
 
-ItemInput = dict  # {'material_id': int, 'quantidade_solicitada': Decimal}
+class ItemInput(TypedDict):
+    material_id: int
+    quantidade_solicitada: Decimal
 
 
 # ---------------------------------------------------------------------------

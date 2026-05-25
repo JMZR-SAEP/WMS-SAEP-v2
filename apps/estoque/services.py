@@ -4,6 +4,7 @@ Toda mutação de ``SaldoEstoque`` passa por este módulo.
 """
 
 from decimal import Decimal
+from typing import TypedDict
 
 from django.db import transaction
 
@@ -11,8 +12,15 @@ from apps.core.exceptions import ConflitoDominio, DadosInvalidos
 from apps.estoque.models import SaldoEstoque
 
 
+class ItemReservaEstoque(TypedDict):
+    material_id: int
+    quantidade_solicitada: Decimal
+
+
 @transaction.atomic
-def reservar_saldos_para_autorizacao(*, itens: list[dict[str, object]]) -> None:
+def reservar_saldos_para_autorizacao(
+    *, itens: list[ItemReservaEstoque]
+) -> None:
     """Reserva saldo integral para autorização de requisição.
 
     ``itens`` deve conter ``material_id`` e ``quantidade_solicitada`` por item.
@@ -58,25 +66,25 @@ def reservar_saldos_para_autorizacao(*, itens: list[dict[str, object]]) -> None:
         saldo_por_material.setdefault(saldo.material_id, saldo)
 
     for material_id, quantidade in quantidade_por_material.items():
-        saldo = saldo_por_material.get(material_id)
-        if saldo is None:
+        saldo_existente = saldo_por_material.get(material_id)
+        if saldo_existente is None:
             raise ConflitoDominio(
                 'Saldo de estoque não encontrado para um dos materiais.',
                 code='saldo_nao_encontrado',
             )
-        if not saldo.material.ativo:
+        if not saldo_existente.material.ativo:
             raise ConflitoDominio(
-                f"Material '{saldo.material.nome}' está inativo.",
+                f"Material '{saldo_existente.material.nome}' está inativo.",
                 code='material_inativo',
             )
-        if saldo.divergente:
+        if saldo_existente.divergente:
             raise ConflitoDominio(
-                f"Saldo de estoque divergente para '{saldo.material.nome}'.",
+                f"Saldo de estoque divergente para '{saldo_existente.material.nome}'.",
                 code='saldo_divergente',
             )
-        if saldo.saldo_disponivel < quantidade:
+        if saldo_existente.saldo_disponivel < quantidade:
             raise ConflitoDominio(
-                f"Saldo insuficiente para reservar '{saldo.material.nome}'.",
+                f"Saldo insuficiente para reservar '{saldo_existente.material.nome}'.",
                 code='saldo_insuficiente',
             )
 
