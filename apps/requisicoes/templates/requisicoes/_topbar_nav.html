@@ -21,7 +21,7 @@
       </svg>
       Nova requisição
     </a>
-    {% if user.is_superuser or user.setor_chefiado %}
+    {% if user.is_superuser or user.setor_chefiado and user.setor_chefiado.ativo %}
       <a
         href="{% url 'requisicoes:autorizacoes' %}"
         class="app-bar__menu-item"

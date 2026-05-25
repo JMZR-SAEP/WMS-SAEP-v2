@@ -413,6 +413,27 @@ def test_minhas_get_autenticado_200(client, solicitante, req_enviada_solicitante
 
 
 @pytest.mark.django_db
+def test_minhas_exibe_autorizacoes_para_chefe_ativo(client, chefe_obras):
+    _login(client, chefe_obras)
+    response = client.get(reverse('requisicoes:minhas'))
+    assert response.status_code == 200
+    html = response.content.decode('utf-8')
+    assert reverse('requisicoes:autorizacoes') in html
+
+
+@pytest.mark.django_db
+def test_minhas_oculta_autorizacoes_para_chefe_inativo(client, chefe_obras):
+    chefe_obras.setor.ativo = False
+    chefe_obras.setor.save(update_fields=['ativo'])
+
+    _login(client, chefe_obras)
+    response = client.get(reverse('requisicoes:minhas'))
+    assert response.status_code == 200
+    html = response.content.decode('utf-8')
+    assert reverse('requisicoes:autorizacoes') not in html
+
+
+@pytest.mark.django_db
 def test_minhas_exclui_rascunho_de_terceiro(
     client, solicitante, req_rascunho_aux_para_solicitante
 ):
