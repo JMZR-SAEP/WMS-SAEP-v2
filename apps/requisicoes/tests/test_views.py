@@ -410,6 +410,17 @@ def req_enviada_solicitante(db, solicitante, setor_obras):
 
 
 @pytest.fixture
+def req_enviada_beneficiario(db, solicitante, outro_usuario_obras, setor_obras):
+    return Requisicao.objects.create(
+        estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+        numero_publico='REQ-2026-0012',
+        criador=solicitante,
+        beneficiario=outro_usuario_obras,
+        setor_beneficiario=setor_obras,
+    )
+
+
+@pytest.fixture
 def req_rascunho_aux_para_solicitante(db, aux_obras, solicitante, setor_obras):
     return Requisicao.objects.create(
         estado=EstadoRequisicao.RASCUNHO,
@@ -907,6 +918,26 @@ def test_retornar_rascunho_post_criador_redireciona_e_muda_estado(
     )
     req_enviada_solicitante.refresh_from_db()
     assert req_enviada_solicitante.estado == EstadoRequisicao.RASCUNHO
+
+
+@pytest.mark.django_db
+def test_retornar_rascunho_beneficiario_redireciona_e_muda_estado(
+    client, outro_usuario_obras, req_enviada_beneficiario
+):
+    _login(client, outro_usuario_obras)
+    response = client.post(
+        reverse(
+            'requisicoes:retornar_rascunho', kwargs={'pk': req_enviada_beneficiario.pk}
+        ),
+        {'observacao': 'Corrigir item.'},
+    )
+
+    assert response.status_code == 302
+    assert response.url == reverse(
+        'requisicoes:detalhe', kwargs={'pk': req_enviada_beneficiario.pk}
+    )
+    req_enviada_beneficiario.refresh_from_db()
+    assert req_enviada_beneficiario.estado == EstadoRequisicao.RASCUNHO
 
 
 @pytest.mark.django_db

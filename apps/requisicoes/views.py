@@ -60,7 +60,7 @@ def _htmx_redirect(request, url: str) -> HttpResponse:
 
 
 def _voltar_url(request) -> str:
-    next_url = request.GET.get('next', '')
+    next_url = request.POST.get('next') or request.GET.get('next', '')
     if not url_has_allowed_host_and_scheme(
         next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()
     ):
@@ -122,21 +122,21 @@ def _render_detalhe(request, requisicao: Requisicao, **contexto_extra):
 @require_GET
 def home(request):
     """Landing page do módulo de requisições."""
-    can_create_requisicao = False
+    pode_criar_requisicao = False
     try:
         resolver_escopo_criacao_requisicao(request.user)
     except PermissaoNegada:
         pass
     else:
-        can_create_requisicao = True
+        pode_criar_requisicao = True
 
     return render(
         request,
         'requisicoes/home.html',
         {
-            'can_view_minhas': True,
-            'can_create_requisicao': can_create_requisicao,
-            'can_view_fila': pode_ver_fila_autorizacao(request.user),
+            'pode_ver_minhas': True,
+            'pode_criar_requisicao': pode_criar_requisicao,
+            'pode_ver_fila': pode_ver_fila_autorizacao(request.user),
         },
     )
 

@@ -202,6 +202,7 @@
             class="rounded-lg border border-amber-200 bg-amber-50 p-4"
           >
             {% csrf_token %}
+            <input type="hidden" name="next" value="{{ voltar_url }}">
             <label for="observacao-retorno" class="block text-sm font-medium text-amber-950">
               Observação do retorno
             </label>
@@ -232,6 +233,7 @@
             class="rounded-lg border border-red-200 bg-red-50 p-4"
           >
             {% csrf_token %}
+            <input type="hidden" name="next" value="{{ voltar_url }}">
             <label for="motivo-recusa" class="block text-sm font-medium text-red-950">
               Motivo da recusa <span aria-hidden="true">*</span>
             </label>
