@@ -286,10 +286,11 @@ def exigir_pode_ver_fila_autorizacao(ator: User) -> None:
 
 def pode_retornar_para_rascunho(ator: User, requisicao: Requisicao) -> bool:
     """True se o ator é criador ou beneficiário ativo da requisição."""
-    return bool(
-        ator.is_active
-        and (ator.pk == requisicao.criador_id or ator.pk == requisicao.beneficiario_id)
-    )
+    if not ator.is_active:
+        return False
+    if ator.is_superuser:
+        return True
+    return ator.pk == requisicao.criador_id or ator.pk == requisicao.beneficiario_id
 
 
 def exigir_pode_retornar_para_rascunho(ator: User, requisicao: Requisicao) -> None:
