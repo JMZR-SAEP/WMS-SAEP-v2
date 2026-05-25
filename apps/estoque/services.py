@@ -23,7 +23,8 @@ def reservar_saldos_para_autorizacao(*, itens: list[ItemReservaEstoque]) -> None
 
     ``itens`` deve conter ``material_id`` e ``quantidade_solicitada`` por item.
     A função trava saldos afetados em ordem determinística e só grava após
-    validar todos os itens.
+    validar todos os itens. Se houver mais de um saldo para o mesmo material,
+    falha antes de mutar qualquer linha.
     """
     if not itens:
         raise DadosInvalidos(
@@ -49,8 +50,11 @@ def reservar_saldos_para_autorizacao(*, itens: list[ItemReservaEstoque]) -> None
                 code='quantidade_invalida',
             )
 
-        material_ids.append(material_id)
-        quantidade_por_material[material_id] = quantidade
+        if material_id in quantidade_por_material:
+            quantidade_por_material[material_id] += quantidade
+        else:
+            material_ids.append(material_id)
+            quantidade_por_material[material_id] = quantidade
 
     saldos = list(
         SaldoEstoque.objects.select_for_update()
@@ -59,17 +63,26 @@ def reservar_saldos_para_autorizacao(*, itens: list[ItemReservaEstoque]) -> None
         .order_by('estoque_id', 'material_id', 'id')
     )
 
-    saldo_por_material: dict[int, SaldoEstoque] = {}
+    saldos_por_material: dict[int, list[SaldoEstoque]] = {}
     for saldo in saldos:
-        saldo_por_material.setdefault(saldo.material_id, saldo)
+        saldos_por_material.setdefault(saldo.material_id, []).append(saldo)
 
     for material_id, quantidade in quantidade_por_material.items():
-        saldo_existente = saldo_por_material.get(material_id)
-        if saldo_existente is None:
+        saldos_do_material = saldos_por_material.get(material_id)
+        if saldos_do_material is None:
             raise ConflitoDominio(
                 'Saldo de estoque não encontrado para um dos materiais.',
                 code='saldo_nao_encontrado',
             )
+        if len(saldos_do_material) > 1:
+            raise ConflitoDominio(
+                (
+                    f'Mais de um saldo encontrado para o material '
+                    f"'{saldos_do_material[0].material.nome}'."
+                ),
+                code='saldo_ambiguo',
+            )
+        saldo_existente = saldos_do_material[0]
         if not saldo_existente.material.ativo:
             raise ConflitoDominio(
                 f"Material '{saldo_existente.material.nome}' está inativo.",
@@ -87,6 +100,6 @@ def reservar_saldos_para_autorizacao(*, itens: list[ItemReservaEstoque]) -> None
             )
 
     for material_id, quantidade in quantidade_por_material.items():
-        saldo = saldo_por_material[material_id]
+        saldo = saldos_por_material[material_id][0]
         saldo.saldo_reservado = saldo.saldo_reservado + quantidade
         saldo.save(update_fields=['saldo_reservado'])

@@ -21,6 +21,7 @@ from apps.requisicoes.services import (
     recusar_requisicao,
     retornar_para_rascunho,
 )
+from apps.estoque.services import reservar_saldos_para_autorizacao
 
 
 # ---------------------------------------------------------------------------
@@ -807,5 +808,147 @@ def test_autorizar_requisicao_bloqueia_estoque_sem_efeitos_parciais(
 
     assert requisicao_aguardando.estado == EstadoRequisicao.AGUARDANDO_AUTORIZACAO
     assert item.quantidade_autorizada is None
+    assert not requisicao_aguardando.eventos.filter(
+        evento=EventoTimeline.AUTORIZACAO_TOTAL
+    ).exists()
     assert saldo.saldo_reservado == reservado_antes
     assert saldo.saldo_fisico == fisico_antes
+
+
+@pytest.mark.django_db
+def test_autorizar_requisicao_bloqueia_multiplos_itens_sem_efeitos_parciais(
+    chefe_obras, material_disponivel, material_disponivel_2
+):
+    from apps.estoque.models import SaldoEstoque
+    from apps.requisicoes.services import enviar_para_autorizacao
+
+    req = criar_requisicao(
+        ator_id=chefe_obras.pk,
+        beneficiario_id=chefe_obras.pk,
+        itens=[
+            {
+                'material_id': material_disponivel.pk,
+                'quantidade_solicitada': Decimal('2'),
+            },
+            {
+                'material_id': material_disponivel_2.pk,
+                'quantidade_solicitada': Decimal('3'),
+            },
+        ],
+    )
+    req = enviar_para_autorizacao(ator_id=chefe_obras.pk, requisicao_id=req.pk)
+
+    saldo_disponivel = SaldoEstoque.objects.get(material=material_disponivel)
+    saldo_insuficiente = SaldoEstoque.objects.get(material=material_disponivel_2)
+    saldo_disponivel_antes = (
+        saldo_disponivel.saldo_fisico,
+        saldo_disponivel.saldo_reservado,
+    )
+
+    saldo_insuficiente.saldo_fisico = saldo_insuficiente.saldo_reservado + Decimal('1')
+    saldo_insuficiente.save(update_fields=['saldo_fisico'])
+    saldo_insuficiente.refresh_from_db()
+    saldo_insuficiente_antes = (
+        saldo_insuficiente.saldo_fisico,
+        saldo_insuficiente.saldo_reservado,
+    )
+
+    with pytest.raises(ConflitoDominio):
+        autorizar_requisicao(ator_id=chefe_obras.pk, requisicao_id=req.pk)
+
+    req.refresh_from_db()
+    itens = list(req.itens.order_by('id'))
+    saldo_disponivel.refresh_from_db()
+    saldo_insuficiente.refresh_from_db()
+
+    assert req.estado == EstadoRequisicao.AGUARDANDO_AUTORIZACAO
+    assert all(item.quantidade_autorizada is None for item in itens)
+    assert not req.eventos.filter(evento=EventoTimeline.AUTORIZACAO_TOTAL).exists()
+    assert (
+        saldo_disponivel.saldo_fisico,
+        saldo_disponivel.saldo_reservado,
+    ) == saldo_disponivel_antes
+    assert (
+        saldo_insuficiente.saldo_fisico,
+        saldo_insuficiente.saldo_reservado,
+    ) == saldo_insuficiente_antes
+
+
+@pytest.mark.django_db
+def test_reservar_saldos_para_autorizacao_acumula_itens_do_mesmo_material(
+    material_disponivel,
+):
+    from apps.estoque.models import SaldoEstoque
+
+    saldo = SaldoEstoque.objects.get(material=material_disponivel)
+    reservado_antes = saldo.saldo_reservado
+    fisico_antes = saldo.saldo_fisico
+
+    reservar_saldos_para_autorizacao(
+        itens=[
+            {
+                'material_id': material_disponivel.pk,
+                'quantidade_solicitada': Decimal('2'),
+            },
+            {
+                'material_id': material_disponivel.pk,
+                'quantidade_solicitada': Decimal('3'),
+            },
+        ],
+    )
+
+    saldo.refresh_from_db()
+
+    assert saldo.saldo_reservado == reservado_antes + Decimal('5')
+    assert saldo.saldo_fisico == fisico_antes
+
+
+@pytest.mark.django_db
+def test_reservar_saldos_para_autorizacao_rejeita_saldo_ambiguo(
+    material_disponivel, estoque_principal
+):
+    from apps.estoque.models import Estoque, SaldoEstoque
+
+    estoque_secundario = Estoque.objects.create(
+        codigo='EST02',
+        nome='Estoque Secundario',
+    )
+    saldo_principal = SaldoEstoque.objects.get(
+        material=material_disponivel, estoque=estoque_principal
+    )
+    saldo_secundario = SaldoEstoque.objects.create(
+        estoque=estoque_secundario,
+        material=material_disponivel,
+        saldo_fisico=20,
+        saldo_reservado=0,
+    )
+    saldo_principal_antes = (
+        saldo_principal.saldo_fisico,
+        saldo_principal.saldo_reservado,
+    )
+    saldo_secundario_antes = (
+        saldo_secundario.saldo_fisico,
+        saldo_secundario.saldo_reservado,
+    )
+
+    with pytest.raises(ConflitoDominio):
+        reservar_saldos_para_autorizacao(
+            itens=[
+                {
+                    'material_id': material_disponivel.pk,
+                    'quantidade_solicitada': Decimal('2'),
+                }
+            ],
+        )
+
+    saldo_principal.refresh_from_db()
+    saldo_secundario.refresh_from_db()
+
+    assert (
+        saldo_principal.saldo_fisico,
+        saldo_principal.saldo_reservado,
+    ) == saldo_principal_antes
+    assert (
+        saldo_secundario.saldo_fisico,
+        saldo_secundario.saldo_reservado,
+    ) == saldo_secundario_antes
