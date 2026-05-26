@@ -105,7 +105,7 @@
                     <div class="text-xs text-slate-500">{{ item.material.codigo }}</div>
                     {{ form.item_id }}
                   </td>
-                  <td class="px-3 py-3 text-right text-slate-700 tabular-nums">{{ item.quantidade_autorizada }}</td>
+                  <td class="px-3 py-3 text-right text-slate-700 tabular-nums" translate="no">{{ item.quantidade_autorizada }}</td>
                   <td class="px-3 py-3 text-right">
                     <label class="sr-only" for="{{ form.quantidade_entregue.id_for_label }}">
                       Quantidade entregue para {{ item.material.nome }}
@@ -120,8 +120,9 @@
                       id="{{ form.quantidade_entregue.id_for_label }}"
                       value="{{ form.quantidade_entregue.value|default_if_none:'' }}"
                       x-model="entregue"
-                      class="w-32 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      class="w-32 rounded-lg border border-slate-300 px-3 py-2 text-sm tabular-nums focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       aria-describedby="hint-{{ form.quantidade_entregue.id_for_label }}"
+                      autocomplete="off"
                       required
                     />
                     {% if form.quantidade_entregue.errors %}
@@ -139,7 +140,8 @@
                       name="{{ form.justificativa.html_name }}"
                       id="{{ form.justificativa.id_for_label }}"
                       value="{{ form.justificativa.value|default_if_none:'' }}"
-                      placeholder="Obrigatória quando entregue menor que autorizada"
+                      placeholder="Obrigatória quando entregue menor que autorizada…"
+                      autocomplete="off"
                       x-bind:required="parcial"
                       x-bind:aria-required="parcial"
                       class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
@@ -149,6 +151,7 @@
                       class="mt-1 text-xs text-amber-700"
                       x-show="parcial"
                       x-cloak
+                      aria-live="polite"
                     >
                       Entrega menor que autorizada — justificativa obrigatória.
                     </p>
