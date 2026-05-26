@@ -1452,9 +1452,12 @@ def test_separar_retirada_estado_invalido_avisa(
 ):
     _login(client, aux_almoxarifado)
     response = client.post(
-        reverse('requisicoes:separar_retirada', kwargs={'pk': req_pronta_view.pk})
+        reverse('requisicoes:separar_retirada', kwargs={'pk': req_pronta_view.pk}),
+        follow=True,
     )
-    assert response.status_code == 403
+    assert response.status_code == 200
+    messages_list = list(response.context['messages'])
+    assert any('warning' in m.tags for m in messages_list)
 
 
 @pytest.mark.django_db
