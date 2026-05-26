@@ -369,3 +369,21 @@ def exigir_pode_separar_para_retirada(ator: User, requisicao: Requisicao) -> Non
             'Você não tem permissão para separar esta requisição para retirada.',
             code='separar_retirada_negada',
         )
+
+
+
+def pode_atender_retirada(ator: User, requisicao: Requisicao) -> bool:
+    """True se o ator está ativo e é almoxarifado (chefe/auxiliar) ou superusuário."""
+    if not ator.is_active:
+        return False
+    if ator.is_superuser:
+        return True
+    return _eh_almoxarifado(ator)
+
+
+def exigir_pode_atender_retirada(ator: User, requisicao: Requisicao) -> None:
+    if not pode_atender_retirada(ator, requisicao):
+        raise PermissaoNegada(
+            'Você não tem permissão para registrar o atendimento desta requisição.',
+            code='atender_retirada_negada',
+        )

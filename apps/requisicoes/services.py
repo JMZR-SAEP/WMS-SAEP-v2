@@ -18,9 +18,12 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.accounts.models import User
-from apps.core.exceptions import DadosInvalidos, EstadoInvalido
+from apps.core.exceptions import ConflitoDominio, DadosInvalidos, EstadoInvalido
 from apps.estoque.models import Material
-from apps.estoque.services import reservar_saldos_para_autorizacao
+from apps.estoque.services import (
+    consumir_e_liberar_reservas_para_atendimento,
+    reservar_saldos_para_autorizacao,
+)
 from apps.requisicoes.models import (
     EstadoRequisicao,
     EventoTimeline,
@@ -36,6 +39,7 @@ from apps.requisicoes.policies import (
     exigir_pode_enviar_rascunho,
     exigir_pode_recusar_requisicao,
     exigir_pode_retornar_para_rascunho,
+    exigir_pode_atender_retirada,
     exigir_pode_separar_para_retirada,
     pode_ser_beneficiario,
 )
@@ -497,6 +501,173 @@ def separar_para_retirada(
         ator=ator,
         estado_resultante=EstadoRequisicao.PRONTA_PARA_RETIRADA,
     )
+
+    return requisicao
+
+
+
+class ItemAtendimentoInput(TypedDict):
+    item_id: int
+    quantidade_entregue: Decimal
+    justificativa: str
+
+
+@transaction.atomic
+def registrar_atendimento(
+    *,
+    ator_id: int,
+    requisicao_id: int,
+    itens: list[ItemAtendimentoInput],
+    retirante_nome: str,
+    observacao: str = '',
+) -> Requisicao:
+    """Registra atendimento total ou parcial (TR-016 / TR-017 / TR-018).
+
+    PRONTA_PARA_RETIRADA -> ATENDIDA. Baixa físico apenas do entregue; consome
+    reserva entregue e libera reserva não entregue. Atendimento sem nenhuma
+    entrega é bloqueado (TR-018). Entrega menor que autorizada (incluindo
+    zero) exige justificativa por item.
+    """
+    try:
+        ator = User.objects.get(pk=ator_id)
+    except User.DoesNotExist:
+        raise DadosInvalidos(
+            'Ator não encontrado.', code='ator_nao_encontrado'
+        ) from None
+    try:
+        requisicao = Requisicao.objects.select_for_update().get(pk=requisicao_id)
+    except Requisicao.DoesNotExist:
+        raise DadosInvalidos(
+            'Requisição não encontrada.', code='requisicao_nao_encontrada'
+        ) from None
+
+    exigir_pode_atender_retirada(ator, requisicao)
+
+    if requisicao.estado != EstadoRequisicao.PRONTA_PARA_RETIRADA:
+        raise EstadoInvalido(
+            'Esta requisição não está pronta para retirada.',
+            code='estado_origem_invalido',
+        )
+    verificar_transicao_valida(requisicao.estado, EstadoRequisicao.ATENDIDA)
+
+    retirante = (retirante_nome or '').strip()
+    if not retirante:
+        raise DadosInvalidos(
+            'Informe o nome do retirante.',
+            code='retirante_obrigatorio',
+        )
+
+    itens_autorizados = list(
+        requisicao.itens.select_related('material')
+        .filter(quantidade_autorizada__gt=0)
+        .order_by('id')
+    )
+    if not itens_autorizados:
+        raise EstadoInvalido(
+            'Esta requisição não possui itens com quantidade autorizada.',
+            code='itens_autorizados_insuficientes',
+        )
+
+    payload_por_item: dict[int, ItemAtendimentoInput] = {}
+    for entrada in itens:
+        try:
+            item_id = int(entrada['item_id'])
+            entregue = Decimal(str(entrada['quantidade_entregue']))
+        except (KeyError, TypeError, InvalidOperation, ValueError) as exc:
+            raise DadosInvalidos(
+                'Item de atendimento inválido.',
+                code='item_invalido',
+            ) from exc
+        if item_id in payload_por_item:
+            raise DadosInvalidos(
+                'Item duplicado no atendimento.',
+                code='item_duplicado',
+            )
+        payload_por_item[item_id] = {
+            'item_id': item_id,
+            'quantidade_entregue': entregue,
+            'justificativa': str(entrada.get('justificativa') or '').strip(),
+        }
+
+    ids_autorizados = {item.id for item in itens_autorizados}
+    if set(payload_por_item.keys()) != ids_autorizados:
+        raise DadosInvalidos(
+            'Atendimento deve cobrir exatamente os itens autorizados.',
+            code='itens_atendimento_incompletos',
+        )
+
+    total_entregue = Decimal('0')
+    houve_liberacao = False
+    eh_total = True
+    for item in itens_autorizados:
+        entrada = payload_por_item[item.id]
+        entregue = entrada['quantidade_entregue']
+        autorizada = item.quantidade_autorizada
+        if entregue < 0 or entregue > autorizada:
+            raise DadosInvalidos(
+                'Quantidade entregue inválida.',
+                code='quantidade_entregue_invalida',
+            )
+        if entregue < autorizada:
+            eh_total = False
+            houve_liberacao = True
+            if not entrada['justificativa']:
+                raise DadosInvalidos(
+                    'Justificativa obrigatória para entrega menor que autorizada.',
+                    code='justificativa_obrigatoria',
+                )
+        total_entregue += entregue
+
+    if total_entregue == 0:
+        raise EstadoInvalido(
+            'Atendimento exige ao menos um item entregue maior que zero.',
+            code='atendimento_sem_entrega',
+        )
+
+    consumir_e_liberar_reservas_para_atendimento(
+        itens=[
+            {
+                'material_id': item.material_id,
+                'quantidade_autorizada': item.quantidade_autorizada,
+                'quantidade_entregue': payload_por_item[item.id]['quantidade_entregue'],
+            }
+            for item in itens_autorizados
+        ]
+    )
+
+    for item in itens_autorizados:
+        entrada = payload_por_item[item.id]
+        item.quantidade_entregue = entrada['quantidade_entregue']
+        item.justificativa_entrega = entrada['justificativa']
+        item.save(update_fields=['quantidade_entregue', 'justificativa_entrega'])
+
+    requisicao.estado = EstadoRequisicao.ATENDIDA
+    requisicao.save(update_fields=['estado', 'atualizado_em'])
+
+    observacao_limpa = (observacao or '').strip()
+    metadata_principal: dict[str, object] = {'retirante': retirante}
+    if observacao_limpa:
+        metadata_principal['observacao'] = observacao_limpa
+
+    TimelineRequisicao.objects.create(
+        requisicao=requisicao,
+        evento=(
+            EventoTimeline.ATENDIMENTO_TOTAL
+            if eh_total
+            else EventoTimeline.ATENDIMENTO_PARCIAL
+        ),
+        ator=ator,
+        estado_resultante=EstadoRequisicao.ATENDIDA,
+        metadata=metadata_principal,
+    )
+    if houve_liberacao:
+        TimelineRequisicao.objects.create(
+            requisicao=requisicao,
+            evento=EventoTimeline.LIBERACAO_RESERVA,
+            ator=ator,
+            estado_resultante=EstadoRequisicao.ATENDIDA,
+            metadata={'origem': 'atendimento_parcial'},
+        )
 
     return requisicao
 

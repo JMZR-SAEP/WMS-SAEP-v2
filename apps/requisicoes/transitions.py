@@ -26,6 +26,9 @@ TRANSICOES_VALIDAS: dict[str, set[str]] = {
     EstadoRequisicao.AUTORIZADA: {
         EstadoRequisicao.PRONTA_PARA_RETIRADA,  # TR-015: separar para retirada
     },
+    EstadoRequisicao.PRONTA_PARA_RETIRADA: {
+        EstadoRequisicao.ATENDIDA,  # TR-016/TR-017: registrar atendimento total/parcial
+    },
 }
 
 
