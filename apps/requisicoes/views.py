@@ -579,6 +579,8 @@ def registrar_atendimento_view(request, pk: int):
             status=status,
         )
 
+    item_ids_permitidos = [item.id for item in itens_autorizados]
+
     if request.method == 'GET':
         cabecalho = RegistrarAtendimentoCabecalhoForm()
         formset = ItemAtendimentoFormSet(
@@ -591,11 +593,16 @@ def registrar_atendimento_view(request, pk: int):
                 for item in itens_autorizados
             ],
             prefix='itens',
+            item_ids_permitidos=item_ids_permitidos,
         )
         return _render(cabecalho, formset)
 
     cabecalho = RegistrarAtendimentoCabecalhoForm(request.POST)
-    formset = ItemAtendimentoFormSet(request.POST, prefix='itens')
+    formset = ItemAtendimentoFormSet(
+        request.POST,
+        prefix='itens',
+        item_ids_permitidos=item_ids_permitidos,
+    )
 
     cabecalho_valido = cabecalho.is_valid()
     formset_valido = formset.is_valid()

@@ -290,8 +290,37 @@ class ItemAtendimentoForm(forms.Form):
     )
 
 
+class BaseItemAtendimentoFormSet(BaseFormSet):
+    """Valida pertencimento e unicidade de item_id contra conjunto permitido."""
+
+    def __init__(self, *args, item_ids_permitidos=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.item_ids_permitidos = {int(i) for i in (item_ids_permitidos or [])}
+
+    def clean(self):
+        if any(self.errors):
+            return
+        if not self.item_ids_permitidos:
+            return
+        vistos: set[int] = set()
+        for form in self.forms:
+            if not form.cleaned_data:
+                continue
+            item_id = form.cleaned_data.get('item_id')
+            if item_id is None:
+                continue
+            if item_id not in self.item_ids_permitidos:
+                form.add_error('item_id', 'Item inválido para esta requisição.')
+                raise forms.ValidationError('Item inválido para esta requisição.')
+            if item_id in vistos:
+                form.add_error('item_id', 'Item duplicado no atendimento.')
+                raise forms.ValidationError('Item duplicado no atendimento.')
+            vistos.add(item_id)
+
+
 ItemAtendimentoFormSet = formset_factory(
     ItemAtendimentoForm,
+    formset=BaseItemAtendimentoFormSet,
     extra=0,
     can_delete=False,
 )
