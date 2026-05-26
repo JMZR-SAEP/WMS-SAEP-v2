@@ -5,6 +5,7 @@ import pytest
 from apps.accounts.models import User
 from apps.requisicoes.models import EstadoRequisicao, Requisicao
 from apps.requisicoes.selectors import (
+    fila_atendimento,
     fila_autorizacao,
     material_eh_elegivel,
     materiais_para_requisicao,
@@ -338,4 +339,116 @@ def test_fila_autorizacao_anota_quantidade_itens(
         quantidade_solicitada=1,
     )
     req = fila_autorizacao(chefe_obras.pk).get(pk=req_solicitante_enviada.pk)
+    assert req.quantidade_itens == 1
+
+
+# ---------------------------------------------------------------------------
+# fila_atendimento
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def req_autorizada_obras(db, solicitante, setor_obras):
+    return Requisicao.objects.create(
+        estado=EstadoRequisicao.AUTORIZADA,
+        numero_publico='REQ-2026-0100',
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+    )
+
+
+@pytest.fixture
+def req_pronta_obras(db, solicitante, setor_obras):
+    return Requisicao.objects.create(
+        estado=EstadoRequisicao.PRONTA_PARA_RETIRADA,
+        numero_publico='REQ-2026-0101',
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+    )
+
+
+@pytest.fixture
+def req_atendida_obras(db, solicitante, setor_obras):
+    return Requisicao.objects.create(
+        estado=EstadoRequisicao.ATENDIDA,
+        numero_publico='REQ-2026-0102',
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+    )
+
+
+@pytest.mark.django_db
+def test_fila_atendimento_aux_almox_ve_autorizada_e_pronta(
+    aux_almoxarifado, req_autorizada_obras, req_pronta_obras
+):
+    fila = list(fila_atendimento(aux_almoxarifado.pk))
+    assert req_autorizada_obras in fila
+    assert req_pronta_obras in fila
+
+
+@pytest.mark.django_db
+def test_fila_atendimento_chefe_almox_ve_autorizada_e_pronta(
+    chefe_almoxarifado, req_autorizada_obras, req_pronta_obras
+):
+    fila = list(fila_atendimento(chefe_almoxarifado.pk))
+    assert req_autorizada_obras in fila
+    assert req_pronta_obras in fila
+
+
+@pytest.mark.django_db
+def test_fila_atendimento_exclui_outros_estados(
+    aux_almoxarifado,
+    req_solicitante_enviada,
+    req_atendida_obras,
+):
+    fila = list(fila_atendimento(aux_almoxarifado.pk))
+    assert req_solicitante_enviada not in fila
+    assert req_atendida_obras not in fila
+
+
+@pytest.mark.django_db
+def test_fila_atendimento_chefe_setor_vazia(
+    chefe_obras, req_autorizada_obras, req_pronta_obras
+):
+    assert list(fila_atendimento(chefe_obras.pk)) == []
+
+
+@pytest.mark.django_db
+def test_fila_atendimento_solicitante_vazia(
+    solicitante, req_autorizada_obras, req_pronta_obras
+):
+    assert list(fila_atendimento(solicitante.pk)) == []
+
+
+@pytest.mark.django_db
+def test_fila_atendimento_superuser_ve_tudo(
+    superuser, req_autorizada_obras, req_pronta_obras
+):
+    fila = list(fila_atendimento(superuser.pk))
+    assert req_autorizada_obras in fila
+    assert req_pronta_obras in fila
+
+
+@pytest.mark.django_db
+def test_fila_atendimento_inativo_vazia(usuario_inativo, req_autorizada_obras):
+    assert list(fila_atendimento(usuario_inativo.pk)) == []
+
+
+@pytest.mark.django_db
+def test_fila_atendimento_ator_inexistente_vazia(req_autorizada_obras):
+    assert list(fila_atendimento(999_999)) == []
+
+
+@pytest.mark.django_db
+def test_fila_atendimento_anota_quantidade_itens(
+    aux_almoxarifado, req_autorizada_obras, material_disponivel
+):
+    req_autorizada_obras.itens.create(
+        material=material_disponivel,
+        quantidade_solicitada=1,
+    )
+    req = fila_atendimento(aux_almoxarifado.pk).get(pk=req_autorizada_obras.pk)
     assert req.quantidade_itens == 1

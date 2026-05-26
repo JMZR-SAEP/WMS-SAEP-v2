@@ -20,6 +20,7 @@ from apps.requisicoes.services import (
     autorizar_requisicao,
     recusar_requisicao,
     retornar_para_rascunho,
+    separar_para_retirada,
 )
 from apps.estoque.services import reservar_saldos_para_autorizacao
 
@@ -952,3 +953,148 @@ def test_reservar_saldos_para_autorizacao_rejeita_saldo_ambiguo(
         saldo_secundario.saldo_fisico,
         saldo_secundario.saldo_reservado,
     ) == saldo_secundario_antes
+
+
+# ---------------------------------------------------------------------------
+# TR-009: separar_para_retirada — autorizada -> pronta_para_retirada
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def requisicao_autorizada(requisicao_aguardando, chefe_obras):
+    return autorizar_requisicao(
+        ator_id=chefe_obras.pk,
+        requisicao_id=requisicao_aguardando.pk,
+    )
+
+
+@pytest.mark.django_db
+def test_separar_para_retirada_aplica_estado_e_registra_timeline(
+    requisicao_autorizada, aux_almoxarifado, material_disponivel
+):
+    from apps.estoque.models import SaldoEstoque
+
+    saldo_antes = SaldoEstoque.objects.get(material=material_disponivel)
+    reservado_antes = saldo_antes.saldo_reservado
+    fisico_antes = saldo_antes.saldo_fisico
+
+    req = separar_para_retirada(
+        ator_id=aux_almoxarifado.pk,
+        requisicao_id=requisicao_autorizada.pk,
+    )
+
+    req.refresh_from_db()
+    saldo_depois = SaldoEstoque.objects.get(material=material_disponivel)
+    evento = req.eventos.filter(evento=EventoTimeline.SEPARACAO_RETIRADA).get()
+
+    assert req.estado == EstadoRequisicao.PRONTA_PARA_RETIRADA
+    assert saldo_depois.saldo_reservado == reservado_antes
+    assert saldo_depois.saldo_fisico == fisico_antes
+    assert evento.ator_id == aux_almoxarifado.pk
+    assert evento.estado_resultante == EstadoRequisicao.PRONTA_PARA_RETIRADA
+    assert evento.metadata == {}
+
+
+@pytest.mark.django_db
+def test_separar_para_retirada_aceita_chefe_almox(
+    requisicao_autorizada, chefe_almoxarifado
+):
+    req = separar_para_retirada(
+        ator_id=chefe_almoxarifado.pk,
+        requisicao_id=requisicao_autorizada.pk,
+    )
+    assert req.estado == EstadoRequisicao.PRONTA_PARA_RETIRADA
+
+
+@pytest.mark.django_db
+def test_separar_para_retirada_aceita_superuser(requisicao_autorizada, superuser):
+    req = separar_para_retirada(
+        ator_id=superuser.pk,
+        requisicao_id=requisicao_autorizada.pk,
+    )
+    assert req.estado == EstadoRequisicao.PRONTA_PARA_RETIRADA
+
+
+@pytest.mark.django_db
+def test_separar_para_retirada_permissao_negada_chefe_setor(
+    requisicao_autorizada, chefe_obras
+):
+    with pytest.raises(PermissaoNegada):
+        separar_para_retirada(
+            ator_id=chefe_obras.pk,
+            requisicao_id=requisicao_autorizada.pk,
+        )
+
+
+@pytest.mark.django_db
+def test_separar_para_retirada_permissao_negada_solicitante(
+    requisicao_autorizada, solicitante
+):
+    with pytest.raises(PermissaoNegada):
+        separar_para_retirada(
+            ator_id=solicitante.pk,
+            requisicao_id=requisicao_autorizada.pk,
+        )
+
+
+@pytest.mark.django_db
+def test_separar_para_retirada_estado_invalido(requisicao_aguardando, aux_almoxarifado):
+    with pytest.raises(EstadoInvalido):
+        separar_para_retirada(
+            ator_id=aux_almoxarifado.pk,
+            requisicao_id=requisicao_aguardando.pk,
+        )
+
+
+@pytest.mark.django_db
+def test_separar_para_retirada_sem_itens_autorizados(
+    aux_almoxarifado, solicitante, setor_obras
+):
+    req = Requisicao.objects.create(
+        estado=EstadoRequisicao.AUTORIZADA,
+        numero_publico='REQ-2026-TST-001',
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+    )
+    with pytest.raises(EstadoInvalido):
+        separar_para_retirada(
+            ator_id=aux_almoxarifado.pk,
+            requisicao_id=req.pk,
+        )
+
+
+@pytest.mark.django_db
+def test_separar_para_retirada_ator_inexistente(requisicao_autorizada):
+    with pytest.raises(DadosInvalidos) as excinfo:
+        separar_para_retirada(
+            ator_id=999_999,
+            requisicao_id=requisicao_autorizada.pk,
+        )
+    assert excinfo.value.code == 'ator_nao_encontrado'
+
+
+@pytest.mark.django_db
+def test_separar_para_retirada_requisicao_inexistente(aux_almoxarifado):
+    with pytest.raises(DadosInvalidos) as excinfo:
+        separar_para_retirada(
+            ator_id=aux_almoxarifado.pk,
+            requisicao_id=999_999,
+        )
+    assert excinfo.value.code == 'requisicao_nao_encontrada'
+
+
+@pytest.mark.django_db
+def test_separar_para_retirada_idempotencia_bloqueia_segunda_execucao(
+    requisicao_autorizada, aux_almoxarifado
+):
+    """Após separar, repetir falha com EstadoInvalido (estado origem inválido)."""
+    separar_para_retirada(
+        ator_id=aux_almoxarifado.pk,
+        requisicao_id=requisicao_autorizada.pk,
+    )
+    with pytest.raises(EstadoInvalido):
+        separar_para_retirada(
+            ator_id=aux_almoxarifado.pk,
+            requisicao_id=requisicao_autorizada.pk,
+        )

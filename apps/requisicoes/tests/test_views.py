@@ -9,7 +9,7 @@ from decimal import Decimal
 import pytest
 from django.urls import reverse
 
-from apps.requisicoes.models import EstadoRequisicao, Requisicao
+from apps.requisicoes.models import EstadoRequisicao, ItemRequisicao, Requisicao
 from apps.requisicoes.services import criar_requisicao
 
 
@@ -1283,3 +1283,252 @@ def test_recusar_requisicao_htmx_superuser_retorna_hx_redirect(
     assert response['HX-Redirect'] == reverse(
         'requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk}
     )
+
+
+# ---------------------------------------------------------------------------
+# Fila de atendimento + separar para retirada (TR-009)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def req_autorizada_view(db, solicitante, setor_obras, material_disponivel):
+    req = Requisicao.objects.create(
+        estado=EstadoRequisicao.AUTORIZADA,
+        numero_publico='REQ-2026-9001',
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+    )
+    ItemRequisicao.objects.create(
+        requisicao=req,
+        material=material_disponivel,
+        quantidade_solicitada=1,
+        quantidade_autorizada=1,
+    )
+    return req
+
+
+@pytest.fixture
+def req_pronta_view(db, solicitante, setor_obras):
+    return Requisicao.objects.create(
+        estado=EstadoRequisicao.PRONTA_PARA_RETIRADA,
+        numero_publico='REQ-2026-9002',
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+    )
+
+
+@pytest.mark.django_db
+def test_fila_atendimento_sem_login_redireciona(client):
+    response = client.get(reverse('requisicoes:atendimentos'))
+    assert response.status_code == 302
+    assert response.url.startswith(reverse('accounts:login'))
+
+
+@pytest.mark.django_db
+def test_fila_atendimento_aux_almox_renderiza_autorizada_e_pronta(
+    client, aux_almoxarifado, req_autorizada_view, req_pronta_view
+):
+    _login(client, aux_almoxarifado)
+    response = client.get(reverse('requisicoes:atendimentos'))
+
+    assert response.status_code == 200
+    requisicoes = list(response.context['requisicoes'])
+    assert req_autorizada_view in requisicoes
+    assert req_pronta_view in requisicoes
+    html = response.content.decode('utf-8')
+    assert 'Fila de atendimento' in html
+    assert 'Atender' in html
+
+
+@pytest.mark.django_db
+def test_fila_atendimento_chefe_almox_200(
+    client, chefe_almoxarifado, req_autorizada_view
+):
+    _login(client, chefe_almoxarifado)
+    response = client.get(reverse('requisicoes:atendimentos'))
+    assert response.status_code == 200
+    assert req_autorizada_view in list(response.context['requisicoes'])
+
+
+@pytest.mark.django_db
+def test_fila_atendimento_superuser_200(
+    client, superuser, req_autorizada_view, req_pronta_view
+):
+    _login(client, superuser)
+    response = client.get(reverse('requisicoes:atendimentos'))
+    assert response.status_code == 200
+    requisicoes = list(response.context['requisicoes'])
+    assert req_autorizada_view in requisicoes
+    assert req_pronta_view in requisicoes
+
+
+@pytest.mark.django_db
+def test_fila_atendimento_chefe_setor_403(client, chefe_obras):
+    _login(client, chefe_obras)
+    response = client.get(reverse('requisicoes:atendimentos'))
+    assert response.status_code == 403
+
+
+@pytest.mark.django_db
+def test_fila_atendimento_solicitante_403(client, solicitante):
+    _login(client, solicitante)
+    response = client.get(reverse('requisicoes:atendimentos'))
+    assert response.status_code == 403
+
+
+@pytest.mark.django_db
+def test_fila_atendimento_vazia_renderiza_empty_state(client, aux_almoxarifado):
+    _login(client, aux_almoxarifado)
+    response = client.get(reverse('requisicoes:atendimentos'))
+    assert response.status_code == 200
+    html = response.content.decode('utf-8')
+    assert 'Nenhuma requisição aguardando atendimento' in html
+
+
+@pytest.mark.django_db
+def test_separar_retirada_post_aux_almox_redireciona_e_muda_estado(
+    client, aux_almoxarifado, req_autorizada_view
+):
+    _login(client, aux_almoxarifado)
+    response = client.post(
+        reverse('requisicoes:separar_retirada', kwargs={'pk': req_autorizada_view.pk})
+    )
+
+    assert response.status_code == 302
+    assert response.url == reverse(
+        'requisicoes:detalhe', kwargs={'pk': req_autorizada_view.pk}
+    )
+    req_autorizada_view.refresh_from_db()
+    assert req_autorizada_view.estado == EstadoRequisicao.PRONTA_PARA_RETIRADA
+
+
+@pytest.mark.django_db
+def test_separar_retirada_post_mensagem_sucesso_com_numero(
+    client, aux_almoxarifado, req_autorizada_view
+):
+    _login(client, aux_almoxarifado)
+    response = client.post(
+        reverse('requisicoes:separar_retirada', kwargs={'pk': req_autorizada_view.pk}),
+        follow=True,
+    )
+
+    mensagens = [str(m) for m in response.context['messages']]
+    assert any('REQ-2026-9001' in m and 'pronta para retirada' in m for m in mensagens)
+
+
+@pytest.mark.django_db
+def test_separar_retirada_htmx_retorna_hx_redirect(
+    client, aux_almoxarifado, req_autorizada_view
+):
+    _login(client, aux_almoxarifado)
+    response = client.post(
+        reverse('requisicoes:separar_retirada', kwargs={'pk': req_autorizada_view.pk}),
+        HTTP_HX_REQUEST='true',
+    )
+    assert response.status_code == 204
+    assert response['HX-Redirect'] == reverse(
+        'requisicoes:detalhe', kwargs={'pk': req_autorizada_view.pk}
+    )
+
+
+@pytest.mark.django_db
+def test_separar_retirada_get_retorna_405(
+    client, aux_almoxarifado, req_autorizada_view
+):
+    _login(client, aux_almoxarifado)
+    response = client.get(
+        reverse('requisicoes:separar_retirada', kwargs={'pk': req_autorizada_view.pk})
+    )
+    assert response.status_code == 405
+
+
+@pytest.mark.django_db
+def test_separar_retirada_chefe_setor_403(client, chefe_obras, req_autorizada_view):
+    _login(client, chefe_obras)
+    response = client.post(
+        reverse('requisicoes:separar_retirada', kwargs={'pk': req_autorizada_view.pk})
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.django_db
+def test_separar_retirada_estado_invalido_avisa(
+    client, aux_almoxarifado, req_pronta_view
+):
+    _login(client, aux_almoxarifado)
+    url = reverse('requisicoes:separar_retirada', kwargs={'pk': req_pronta_view.pk})
+    # PRG: sem follow, deve retornar 302 para o detalhe
+    response = client.post(url)
+    assert response.status_code == 302
+    assert response.url == reverse('requisicoes:detalhe', args=[req_pronta_view.pk])
+    # Follow e verificar mensagem de warning com texto do EstadoInvalido
+    response = client.post(url, follow=True)
+    assert response.status_code == 200
+    messages_list = list(response.context['messages'])
+    assert any('warning' in m.tags and 'autorizada' in m.message for m in messages_list)
+
+
+@pytest.mark.django_db
+def test_separar_retirada_rascunho_404_pois_fora_de_escopo(
+    client, aux_almoxarifado, solicitante, setor_obras
+):
+    req = Requisicao.objects.create(
+        estado=EstadoRequisicao.RASCUNHO,
+        numero_publico=None,
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+    )
+    _login(client, aux_almoxarifado)
+    response = client.post(
+        reverse('requisicoes:separar_retirada', kwargs={'pk': req.pk})
+    )
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_detalhe_exibe_botao_separar_para_aux_almox(
+    client, aux_almoxarifado, req_autorizada_view
+):
+    _login(client, aux_almoxarifado)
+    response = client.get(
+        reverse('requisicoes:detalhe', kwargs={'pk': req_autorizada_view.pk})
+    )
+    assert response.status_code == 200
+    html = response.content.decode('utf-8')
+    assert 'Separar para retirada' in html
+    assert response.context['pode_separar_retirada'] is True
+
+
+@pytest.mark.django_db
+def test_detalhe_nao_exibe_botao_separar_para_solicitante(
+    client, solicitante, req_autorizada_view
+):
+    _login(client, solicitante)
+    response = client.get(
+        reverse('requisicoes:detalhe', kwargs={'pk': req_autorizada_view.pk})
+    )
+    assert response.status_code == 200
+    assert response.context['pode_separar_retirada'] is False
+    html = response.content.decode('utf-8')
+    assert 'Separar para retirada' not in html
+
+
+@pytest.mark.django_db
+def test_topbar_exibe_link_atendimento_para_almox(client, aux_almoxarifado):
+    _login(client, aux_almoxarifado)
+    response = client.get(reverse('requisicoes:minhas'))
+    assert response.status_code == 200
+    html = response.content.decode('utf-8')
+    assert 'Fila de Atendimento' in html
+
+
+@pytest.mark.django_db
+def test_topbar_nao_exibe_link_atendimento_para_solicitante(client, solicitante):
+    _login(client, solicitante)
+    response = client.get(reverse('requisicoes:minhas'))
+    assert response.status_code == 200
+    html = response.content.decode('utf-8')
+    assert 'Fila de Atendimento' not in html

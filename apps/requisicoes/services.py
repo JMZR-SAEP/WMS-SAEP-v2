@@ -36,6 +36,7 @@ from apps.requisicoes.policies import (
     exigir_pode_enviar_rascunho,
     exigir_pode_recusar_requisicao,
     exigir_pode_retornar_para_rascunho,
+    exigir_pode_separar_para_retirada,
     pode_ser_beneficiario,
 )
 from apps.requisicoes.selectors import material_eh_elegivel
@@ -444,6 +445,57 @@ def autorizar_requisicao(
         ator=ator,
         estado_resultante=EstadoRequisicao.AUTORIZADA,
         metadata=metadata,
+    )
+
+    return requisicao
+
+
+@transaction.atomic
+def separar_para_retirada(
+    *,
+    ator_id: int,
+    requisicao_id: int,
+) -> Requisicao:
+    """Separa para retirada uma requisição já autorizada (TR-015).
+
+    AUTORIZADA -> PRONTA_PARA_RETIRADA. Mantém o saldo reservado da
+    autorização e não toca em saldo físico.
+    """
+    try:
+        ator = User.objects.get(pk=ator_id)
+    except User.DoesNotExist:
+        raise DadosInvalidos(
+            'Ator não encontrado.', code='ator_nao_encontrado'
+        ) from None
+    try:
+        requisicao = Requisicao.objects.select_for_update().get(pk=requisicao_id)
+    except Requisicao.DoesNotExist:
+        raise DadosInvalidos(
+            'Requisição não encontrada.', code='requisicao_nao_encontrada'
+        ) from None
+
+    exigir_pode_separar_para_retirada(ator, requisicao)
+
+    if requisicao.estado != EstadoRequisicao.AUTORIZADA:
+        raise EstadoInvalido(
+            'Esta requisição não está autorizada para separação.',
+            code='estado_origem_invalido',
+        )
+    if not requisicao.itens.filter(quantidade_autorizada__gt=0).exists():
+        raise EstadoInvalido(
+            'Esta requisição não possui itens com quantidade autorizada.',
+            code='itens_autorizados_insuficientes',
+        )
+    verificar_transicao_valida(requisicao.estado, EstadoRequisicao.PRONTA_PARA_RETIRADA)
+
+    requisicao.estado = EstadoRequisicao.PRONTA_PARA_RETIRADA
+    requisicao.save(update_fields=['estado', 'atualizado_em'])
+
+    TimelineRequisicao.objects.create(
+        requisicao=requisicao,
+        evento=EventoTimeline.SEPARACAO_RETIRADA,
+        ator=ator,
+        estado_resultante=EstadoRequisicao.PRONTA_PARA_RETIRADA,
     )
 
     return requisicao

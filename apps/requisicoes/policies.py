@@ -330,3 +330,42 @@ def exigir_pode_autorizar_requisicao(ator: User, requisicao: Requisicao) -> None
             'Você não tem permissão para autorizar esta requisição.',
             code='autorizar_requisicao_negada',
         )
+
+
+# ---------------------------------------------------------------------------
+# pode_ver_fila_atendimento / pode_separar_para_retirada
+# ---------------------------------------------------------------------------
+
+
+def pode_ver_fila_atendimento(ator: User) -> bool:
+    """True se o ator tem papel operacional de almoxarifado."""
+    if not ator.is_active:
+        return False
+    if ator.is_superuser:
+        return True
+    return _eh_almoxarifado(ator)
+
+
+def exigir_pode_ver_fila_atendimento(ator: User) -> None:
+    if not pode_ver_fila_atendimento(ator):
+        raise PermissaoNegada(
+            'Você não tem permissão para acessar a fila de atendimento.',
+            code='ver_fila_atendimento_negada',
+        )
+
+
+def pode_separar_para_retirada(ator: User, requisicao: Requisicao) -> bool:
+    """True se o ator estiver ativo e for almoxarifado (chefe/auxiliar) ou superusuário."""
+    if not ator.is_active:
+        return False
+    if ator.is_superuser:
+        return True
+    return _eh_almoxarifado(ator)
+
+
+def exigir_pode_separar_para_retirada(ator: User, requisicao: Requisicao) -> None:
+    if not pode_separar_para_retirada(ator, requisicao):
+        raise PermissaoNegada(
+            'Você não tem permissão para separar esta requisição para retirada.',
+            code='separar_retirada_negada',
+        )

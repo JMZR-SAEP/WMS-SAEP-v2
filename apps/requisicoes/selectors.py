@@ -141,6 +141,38 @@ def fila_autorizacao(ator_id: int) -> QuerySet[Requisicao]:
     return base_qs.filter(setor_beneficiario_id=setor_chefiado.pk)
 
 
+def fila_atendimento(ator_id: int) -> QuerySet[Requisicao]:
+    """Fila de requisições prontas para separação/retirada pelo almoxarifado."""
+    base_qs = (
+        Requisicao.objects.select_related(
+            'criador', 'beneficiario', 'setor_beneficiario'
+        )
+        .filter(
+            estado__in=[
+                EstadoRequisicao.AUTORIZADA,
+                EstadoRequisicao.PRONTA_PARA_RETIRADA,
+            ]
+        )
+        .annotate(quantidade_itens=Count('itens'))
+        .order_by('atualizado_em', 'criado_em', 'id')
+    )
+    try:
+        ator = User.objects.get(pk=ator_id)
+    except User.DoesNotExist:
+        return base_qs.none()
+
+    if not ator.is_active:
+        return base_qs.none()
+
+    if ator.is_superuser:
+        return base_qs
+
+    if _eh_almoxarifado(ator):
+        return base_qs
+
+    return base_qs.none()
+
+
 def material_eh_elegivel(material: Material) -> bool:
     """True se o material pode entrar em nova requisição agora.
 
