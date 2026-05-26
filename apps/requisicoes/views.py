@@ -29,7 +29,7 @@ from apps.requisicoes.forms import (
     RequisicaoCriacaoForm,
     RequisicaoForm,
 )
-from apps.requisicoes.models import Requisicao
+from apps.requisicoes.models import EstadoRequisicao, Requisicao
 from apps.requisicoes.policies import (
     exigir_pode_editar_rascunho,
     exigir_pode_ver_fila_atendimento,
@@ -117,7 +117,10 @@ def _detalhe_context(
             requisicao.estado == 'aguardando_autorizacao'
             and pode_recusar_requisicao(request.user, requisicao)
         ),
-        'pode_separar_retirada': pode_separar_para_retirada(request.user, requisicao),
+        'pode_separar_retirada': (
+            requisicao.estado == EstadoRequisicao.AUTORIZADA
+            and pode_separar_para_retirada(request.user, requisicao)
+        ),
         'recusa_erro': recusa_erro,
         'motivo_recusa': motivo_recusa,
     }
@@ -506,7 +509,7 @@ def fila_atendimento_view(request):
 @login_required
 @require_http_methods(['POST'])
 def separar_retirada_view(request, pk: int):
-    """Aplica TR-009 (autorizada -> pronta_para_retirada)."""
+    """Aplica TR-015 (autorizada -> pronta_para_retirada)."""
     get_object_or_404(requisicoes_visiveis_para(request.user.pk), pk=pk)
     try:
         requisicao = separar_para_retirada(

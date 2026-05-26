@@ -355,13 +355,9 @@ def exigir_pode_ver_fila_atendimento(ator: User) -> None:
 
 
 def pode_separar_para_retirada(ator: User, requisicao: Requisicao) -> bool:
-    """True se o ator é almoxarifado e a requisição está autorizada."""
+    """True se o ator é almoxarifado (chefe ou auxiliar) e está ativo."""
     if not ator.is_active:
         return False
-    if requisicao.estado != 'autorizada':
-        return False
-    if ator.is_superuser:
-        return True
     return _eh_almoxarifado(ator)
 
 
