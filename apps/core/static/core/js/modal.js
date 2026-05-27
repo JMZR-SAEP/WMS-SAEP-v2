@@ -16,7 +16,7 @@
 (function () {
   'use strict';
 
-  function controller(options) {
+  function controller(options = {}) {
     return {
       id: options.id,
       abrirAoCarregar: Boolean(options.abrirAoCarregar),

@@ -1093,6 +1093,8 @@ def test_recusar_requisicao_sem_motivo_via_htmx_retorna_422_fragment(
     assert 'Informe o motivo da recusa.' in html
     assert 'modal-recusar-motivo' in html
     assert '<!DOCTYPE html>' not in html
+    req_enviada_solicitante.refresh_from_db()
+    assert req_enviada_solicitante.estado == EstadoRequisicao.AGUARDANDO_AUTORIZACAO
 
 
 @pytest.mark.django_db
