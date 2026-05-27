@@ -198,6 +198,9 @@ def _detalhe_context(
         'cancelamento_modal_aberto': cancelamento_modal_aberto or bool(cancelacao_erro),
         'recusa_erro': recusa_erro,
         'motivo_recusa': motivo_recusa,
+        'cancelamento_hidden_inputs': {'next': _voltar_url(request)},
+        'recusar_hidden_inputs': {'next': _voltar_url(request)},
+        'retornar_hidden_inputs': {'next': _voltar_url(request)},
     }
 
 
@@ -207,6 +210,47 @@ def _render_detalhe(request, requisicao: Requisicao, **contexto_extra):
         'requisicoes/detalhe.html',
         _detalhe_context(request, requisicao, **contexto_extra),
     )
+
+
+def _render_modal_erro(
+    request,
+    *,
+    modal_id: str,
+    titulo: str,
+    descricao: str,
+    erro: str,
+    form_body_template: str,
+    confirm_label: str,
+    confirm_variant: str,
+    cancel_label: str = 'Voltar',
+    icon_variant: str = 'danger',
+    contexto_form: dict | None = None,
+) -> HttpResponse:
+    """Renderiza o fragment de corpo do modal com erros e retorna HTTP 422.
+
+    Permite que o cliente HTMX troque apenas o conteúdo do modal mantendo-o aberto.
+    Fallback (sem HTMX) ainda retorna 422 — caller pode redirecionar se preferir.
+    """
+    contexto = {
+        'id': modal_id,
+        'titulo': titulo,
+        'descricao': descricao,
+        'erro': erro,
+        'form_body_template': form_body_template,
+        'confirm_label': confirm_label,
+        'confirm_variant': confirm_variant,
+        'cancel_label': cancel_label,
+        'icon_variant': icon_variant,
+    }
+    if contexto_form:
+        contexto.update(contexto_form)
+    response = render(
+        request,
+        'requisicoes/partials/_modal_body_fragment.html',
+        contexto,
+    )
+    response.status_code = 422
+    return response
 
 
 # ---------------------------------------------------------------------------
@@ -830,6 +874,27 @@ def cancelar_requisicao_view(request, pk: int):
         raise PermissionDenied(str(exc))
     except DadosInvalidos as exc:
         if exc.code == 'justificativa_cancelamento_obrigatoria':
+            if request.headers.get('HX-Request') == 'true':
+                return _render_modal_erro(
+                    request,
+                    modal_id='confirmar-cancelar',
+                    titulo='Cancelar requisição',
+                    descricao=(
+                        'A requisição será encerrada e as reservas voltam '
+                        'ao saldo disponível.'
+                    ),
+                    erro=str(exc),
+                    form_body_template=(
+                        'requisicoes/partials/_modal_form_cancelar.html'
+                    ),
+                    confirm_label='Confirmar cancelamento',
+                    confirm_variant='danger',
+                    icon_variant='danger',
+                    contexto_form={
+                        'justificativa_cancelamento': justificativa,
+                        'cancelamento_requer_justificativa': True,
+                    },
+                )
             return _render_detalhe(
                 request,
                 requisicao,
@@ -885,6 +950,21 @@ def recusar_requisicao_view(request, pk: int):
             requisicoes_visiveis_para(request.user.pk),
             pk=pk,
         )
+        if request.headers.get('HX-Request') == 'true':
+            return _render_modal_erro(
+                request,
+                modal_id='confirmar-recusar',
+                titulo='Recusar requisição',
+                descricao=(
+                    'A recusa encerra a requisição sem reservar ou baixar estoque.'
+                ),
+                erro=str(exc),
+                form_body_template='requisicoes/partials/_modal_form_recusar.html',
+                confirm_label='Confirmar recusa',
+                confirm_variant='danger',
+                icon_variant='danger',
+                contexto_form={'motivo_recusa': motivo},
+            )
         return _render_detalhe(
             request,
             requisicao,
