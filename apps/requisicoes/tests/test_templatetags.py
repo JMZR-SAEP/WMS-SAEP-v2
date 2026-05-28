@@ -14,6 +14,7 @@ from apps.requisicoes.templatetags.requisicoes_tags import (
 # Helpers para testar get_choice_label sem instanciar Form completo
 # ---------------------------------------------------------------------------
 
+
 class _FakeInnerField:
     def __init__(self, choices):
         self.choices = choices
