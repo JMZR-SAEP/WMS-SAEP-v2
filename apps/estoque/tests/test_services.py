@@ -57,7 +57,10 @@ class TestRegistrarSaidaExcepcional:
         from django.utils import timezone
 
         m2 = Material.objects.create(
-            codigo='MAT002', nome='Parafuso M8', unidade=UnidadeMedida.UNIDADE, ativo=True
+            codigo='MAT002',
+            nome='Parafuso M8',
+            unidade=UnidadeMedida.UNIDADE,
+            ativo=True,
         )
         SaldoEstoque.objects.create(
             estoque=estoque_principal, material=m2, saldo_fisico=50, saldo_reservado=0
@@ -93,7 +96,7 @@ class TestRegistrarSaidaExcepcional:
                 ator_id=chefe_almoxarifado.pk,
                 estoque_id=estoque_principal.pk,
                 motivo='Teste',
-                observacao='',
+                observacao='Teste válido',
                 itens=[],
             )
 
@@ -108,7 +111,7 @@ class TestRegistrarSaidaExcepcional:
                 ator_id=chefe_almoxarifado.pk,
                 estoque_id=estoque_principal.pk,
                 motivo='Duplicado',
-                observacao='',
+                observacao='Teste válido',
                 itens=[
                     {'material_id': material_disponivel.pk, 'quantidade': '5'},
                     {'material_id': material_disponivel.pk, 'quantidade': '3'},
@@ -131,7 +134,7 @@ class TestRegistrarSaidaExcepcional:
                 ator_id=chefe_almoxarifado.pk,
                 estoque_id=estoque_principal.pk,
                 motivo='Sem saldo',
-                observacao='',
+                observacao='Teste válido',
                 itens=[{'material_id': m.pk, 'quantidade': '1'}],
             )
 
@@ -146,7 +149,7 @@ class TestRegistrarSaidaExcepcional:
                 ator_id=chefe_almoxarifado.pk,
                 estoque_id=estoque_principal.pk,
                 motivo='Qtd zero',
-                observacao='',
+                observacao='Teste válido',
                 itens=[{'material_id': material_disponivel.pk, 'quantidade': '0'}],
             )
 
@@ -162,8 +165,27 @@ class TestRegistrarSaidaExcepcional:
                 ator_id=chefe_almoxarifado.pk,
                 estoque_id=estoque_principal.pk,
                 motivo='Muito',
-                observacao='',
+                observacao='Teste válido',
                 itens=[{'material_id': material_disponivel.pk, 'quantidade': '9999'}],
             )
 
         assert not SaidaExcepcional.objects.exists()
+
+
+class TestRegistrarSaidaExcepcionalAuth:
+    def test_ator_nao_autorizado_lanca_permissao_negada(
+        self, aux_almoxarifado, estoque_principal, material_disponivel
+    ):
+        import pytest
+
+        from apps.core.exceptions import PermissaoNegada
+        from apps.estoque.services import registrar_saida_excepcional
+
+        with pytest.raises(PermissaoNegada):
+            registrar_saida_excepcional(
+                ator_id=aux_almoxarifado.pk,
+                estoque_id=estoque_principal.pk,
+                motivo='Avaria',
+                observacao='Teste válido',
+                itens=[{'material_id': material_disponivel.pk, 'quantidade': '1'}],
+            )

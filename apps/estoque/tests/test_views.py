@@ -69,12 +69,12 @@ URL_BUSCAR = reverse('estoque:buscar_materiais_saida_excepcional')
 
 
 class TestNovaSaidaExcepcionalView:
-    def test_chefe_acessa_formulario(self, client, chefe_almoxarifado):
+    def test_chefe_acessa_formulario(self, client, chefe_almoxarifado, estoque_principal):
         client.force_login(chefe_almoxarifado)
         response = client.get(URL_NOVA)
         assert response.status_code == 200
 
-    def test_superuser_acessa_formulario(self, client, superuser):
+    def test_superuser_acessa_formulario(self, client, superuser, estoque_principal):
         client.force_login(superuser)
         response = client.get(URL_NOVA)
         assert response.status_code == 200
@@ -126,7 +126,7 @@ class TestNovaSaidaExcepcionalView:
             URL_NOVA,
             data={
                 'motivo': '',
-                'observacao': '',
+                'observacao': 'obs válida',
                 'itens-TOTAL_FORMS': '1',
                 'itens-INITIAL_FORMS': '0',
                 'itens-MIN_NUM_FORMS': '0',
@@ -136,6 +136,7 @@ class TestNovaSaidaExcepcionalView:
             },
         )
         assert response.status_code == 200
+        assert 'motivo' in response.context['erros']
 
     def test_post_sem_itens_retorna_form_com_erro(
         self, client, chefe_almoxarifado, estoque_principal
@@ -144,8 +145,8 @@ class TestNovaSaidaExcepcionalView:
         response = client.post(
             URL_NOVA,
             data={
-                'motivo': 'Teste',
-                'observacao': '',
+                'motivo': 'avaria',
+                'observacao': 'obs válida',
                 'itens-TOTAL_FORMS': '0',
                 'itens-INITIAL_FORMS': '0',
                 'itens-MIN_NUM_FORMS': '0',
@@ -153,6 +154,73 @@ class TestNovaSaidaExcepcionalView:
             },
         )
         assert response.status_code == 200
+        assert 'itens' in response.context['erros']
+
+    def test_post_aux_recebe_403_sem_persistencia(
+        self, client, aux_almoxarifado, estoque_principal, material_disponivel
+    ):
+        from apps.estoque.models import SaidaExcepcional
+
+        client.force_login(aux_almoxarifado)
+        response = client.post(
+            URL_NOVA,
+            data={
+                'motivo': 'avaria',
+                'observacao': 'Teste',
+                'itens-TOTAL_FORMS': '1',
+                'itens-INITIAL_FORMS': '0',
+                'itens-MIN_NUM_FORMS': '0',
+                'itens-MAX_NUM_FORMS': '1000',
+                'itens-0-material_id': str(material_disponivel.pk),
+                'itens-0-quantidade': '5',
+            },
+        )
+        assert response.status_code == 403
+        assert SaidaExcepcional.objects.count() == 0
+
+    def test_post_solicitante_recebe_403_sem_persistencia(
+        self, client, solicitante, estoque_principal, material_disponivel
+    ):
+        from apps.estoque.models import SaidaExcepcional
+
+        client.force_login(solicitante)
+        response = client.post(
+            URL_NOVA,
+            data={
+                'motivo': 'avaria',
+                'observacao': 'Teste',
+                'itens-TOTAL_FORMS': '1',
+                'itens-INITIAL_FORMS': '0',
+                'itens-MIN_NUM_FORMS': '0',
+                'itens-MAX_NUM_FORMS': '1000',
+                'itens-0-material_id': str(material_disponivel.pk),
+                'itens-0-quantidade': '5',
+            },
+        )
+        assert response.status_code == 403
+        assert SaidaExcepcional.objects.count() == 0
+
+    def test_post_anonimo_redireciona_sem_persistencia(
+        self, client, material_disponivel
+    ):
+        from apps.estoque.models import SaidaExcepcional
+
+        response = client.post(
+            URL_NOVA,
+            data={
+                'motivo': 'avaria',
+                'observacao': 'Teste',
+                'itens-TOTAL_FORMS': '1',
+                'itens-INITIAL_FORMS': '0',
+                'itens-MIN_NUM_FORMS': '0',
+                'itens-MAX_NUM_FORMS': '1000',
+                'itens-0-material_id': str(material_disponivel.pk),
+                'itens-0-quantidade': '5',
+            },
+        )
+        assert response.status_code == 302
+        assert 'login' in response['Location']
+        assert SaidaExcepcional.objects.count() == 0
 
 
 class TestBuscarMateriasSaidaExcepcionalView:

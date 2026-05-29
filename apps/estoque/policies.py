@@ -55,4 +55,6 @@ def pode_registrar_saida_excepcional(ator: User) -> bool:
 
 def exigir_pode_registrar_saida_excepcional(ator: User) -> None:
     if not pode_registrar_saida_excepcional(ator):
-        raise PermissaoNegada('Apenas chefe de almoxarifado pode registrar saídas excepcionais.')
+        raise PermissaoNegada(
+            'Apenas chefe de almoxarifado pode registrar saídas excepcionais.'
+        )

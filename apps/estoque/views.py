@@ -19,7 +19,7 @@ from apps.estoque.selectors import (
 )
 from apps.estoque.services import registrar_saida_excepcional
 
-MOTIVO_SAIDA_CHOICES = [
+MOTIVO_SAIDA_OPCOES = [
     ('avaria', 'Avaria / Deterioração'),
     ('vencimento', 'Vencimento / Prazo expirado'),
     ('obsolescencia', 'Descarte por obsolescência'),
@@ -29,7 +29,7 @@ MOTIVO_SAIDA_CHOICES = [
     ('outro', 'Outro'),
 ]
 
-_MOTIVO_VALORES = {v for v, _ in MOTIVO_SAIDA_CHOICES}
+_MOTIVO_SAIDA_VALORES = {v for v, _ in MOTIVO_SAIDA_OPCOES}
 
 
 @login_required
@@ -61,7 +61,19 @@ def nova_saida_excepcional_view(request):
 
     estoque = Estoque.objects.filter(ativo=True).first()
 
-    ctx_base = {'estoque': estoque, 'motivo_choices': MOTIVO_SAIDA_CHOICES}
+    if estoque is None:
+        return render(
+            request,
+            'estoque/nova_saida_excepcional.html',
+            {
+                'estoque': None,
+                'motivo_choices': MOTIVO_SAIDA_OPCOES,
+                'erro_geral': 'Não há estoque ativo configurado.',
+            },
+            status=409,
+        )
+
+    ctx_base = {'estoque': estoque, 'motivo_choices': MOTIVO_SAIDA_OPCOES}
 
     if request.method == 'GET':
         return render(request, 'estoque/nova_saida_excepcional.html', ctx_base)
@@ -70,20 +82,31 @@ def nova_saida_excepcional_view(request):
     observacao = request.POST.get('observacao', '').strip()
 
     erros = {}
-    if not motivo or motivo not in _MOTIVO_VALORES:
+    if not motivo or motivo not in _MOTIVO_SAIDA_VALORES:
         erros['motivo'] = 'Selecione um motivo válido.'
     if not observacao:
         erros['observacao'] = 'A observação é obrigatória.'
 
-    total_forms = int(request.POST.get('itens-TOTAL_FORMS', 0))
+    try:
+        total_forms = int(request.POST.get('itens-TOTAL_FORMS', 0))
+        if total_forms < 0:
+            total_forms = 0
+    except (TypeError, ValueError):
+        total_forms = 0
+        erros['itens'] = 'Estrutura de itens inválida.'
+
     itens_raw = []
     for i in range(total_forms):
         mid = request.POST.get(f'itens-{i}-material_id', '').strip()
         qtd = request.POST.get(f'itens-{i}-quantidade', '').strip()
-        if mid and qtd:
+        if bool(mid) ^ bool(qtd):
+            erros['itens'] = (
+                'Preencha material e quantidade para cada linha adicionada.'
+            )
+        elif mid and qtd:
             itens_raw.append({'material_id': mid, 'quantidade': qtd})
 
-    if not itens_raw:
+    if not itens_raw and 'itens' not in erros:
         erros['itens'] = 'Adicione ao menos um material.'
 
     def _render_erro(extra=None):

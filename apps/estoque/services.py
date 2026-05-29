@@ -6,10 +6,19 @@ Toda mutação de ``SaldoEstoque`` passa por este módulo.
 from decimal import Decimal
 from typing import TypedDict
 
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
+from django.utils import timezone
 
+from apps.accounts.models import User
 from apps.core.exceptions import ConflitoDominio, DadosInvalidos
-from apps.estoque.models import SaldoEstoque
+from apps.estoque.models import (
+    Estoque,
+    ItemSaidaExcepcional,
+    SaidaExcepcional,
+    SaldoEstoque,
+    SequenciaSaidaExcepcional,
+)
 
 
 class ItemReservaEstoque(TypedDict):
@@ -314,20 +323,23 @@ def registrar_saida_excepcional(
     motivo: str,
     observacao: str,
     itens: list[dict],
-) -> 'SaidaExcepcional':
+) -> SaidaExcepcional:
     """Registra baixa administrativa direta de materiais no estoque.
 
     Cria SaidaExcepcional + ItemSaidaExcepcional, baixa saldo_fisico e emite
     SXP-AAAA-NNNNNN. Totalmente atômico (EST-saida-01).
     """
-    from django.utils import timezone
+    from apps.estoque.policies import exigir_pode_registrar_saida_excepcional
 
-    from apps.estoque.models import (
-        Estoque,
-        ItemSaidaExcepcional,
-        SaidaExcepcional,
-        SequenciaSaidaExcepcional,
-    )
+    try:
+        ator = User.objects.get(pk=ator_id)
+        estoque = Estoque.objects.get(pk=estoque_id)
+    except ObjectDoesNotExist as exc:
+        raise DadosInvalidos(
+            'Ator ou estoque inválido.', code='referencia_invalida'
+        ) from exc
+
+    exigir_pode_registrar_saida_excepcional(ator)
 
     if not itens:
         raise DadosInvalidos('A saída precisa ter ao menos um item.', code='sem_itens')
@@ -369,18 +381,14 @@ def registrar_saida_excepcional(
             )
         if not saldo.material.ativo:
             raise ConflitoDominio(
-                f"Material '{saldo.material.nome}' está inativo.", code='material_inativo'
+                f"Material '{saldo.material.nome}' está inativo.",
+                code='material_inativo',
             )
         if saldo.saldo_fisico < quantidade:
             raise ConflitoDominio(
                 f"Saldo físico insuficiente para '{saldo.material.nome}'.",
                 code='saldo_insuficiente',
             )
-
-    from apps.accounts.models import User
-
-    ator = User.objects.get(pk=ator_id)
-    estoque = Estoque.objects.get(pk=estoque_id)
 
     saida = SaidaExcepcional.objects.create(
         motivo=motivo,
