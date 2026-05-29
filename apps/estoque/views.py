@@ -177,7 +177,10 @@ def buscar_materiais_saida_excepcional_view(request):
 @login_required
 @require_http_methods(['GET', 'POST'])
 def detalhe_saida_excepcional_view(request, pk: int):
-    from apps.estoque.policies import pode_estornar_saida_excepcional
+    from apps.estoque.policies import (
+        exigir_pode_estornar_saida_excepcional,
+        pode_estornar_saida_excepcional,
+    )
     from apps.estoque.selectors import buscar_detalhe_saida_excepcional
     from apps.estoque.services import estornar_saida_excepcional
 
@@ -206,7 +209,7 @@ def detalhe_saida_excepcional_view(request, pk: int):
 
     # POST — ação de estorno
     try:
-        exigir_pode_registrar_saida_excepcional(request.user)
+        exigir_pode_estornar_saida_excepcional(request.user)
     except PermissaoNegada as exc:
         raise PermissionDenied(str(exc))
 

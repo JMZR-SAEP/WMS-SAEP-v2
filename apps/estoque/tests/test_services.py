@@ -201,9 +201,13 @@ class TestEstornarSaidaExcepcional:
     ):
         from apps.estoque.services import estornar_saida_excepcional
 
-        saldo_antes = SaldoEstoque.objects.get(
+        saldo_obj_antes = SaldoEstoque.objects.get(
             estoque=estoque_principal, material=material_disponivel
-        ).saldo_fisico
+        )
+        saldo_fisico_antes = saldo_obj_antes.saldo_fisico
+        saldo_reservado_antes = saldo_obj_antes.saldo_reservado
+
+        quantidade_estornada = saida_registrada.itens.first().quantidade
 
         saida = estornar_saida_excepcional(
             ator_id=chefe_almoxarifado.pk,
@@ -216,10 +220,17 @@ class TestEstornarSaidaExcepcional:
         assert saida.estornado_em is not None
         assert saida.justificativa_estorno == 'Registro equivocado.'
 
-        saldo_depois = SaldoEstoque.objects.get(
+        saldo_obj_depois = SaldoEstoque.objects.get(
             estoque=estoque_principal, material=material_disponivel
-        ).saldo_fisico
-        assert saldo_depois == saldo_antes + 5
+        )
+        assert (
+            saldo_obj_depois.saldo_fisico == saldo_fisico_antes + quantidade_estornada
+        )
+        assert saldo_obj_depois.saldo_reservado == saldo_reservado_antes
+        assert (
+            saldo_obj_depois.saldo_fisico - saldo_obj_depois.saldo_reservado
+            == saldo_obj_depois.saldo_disponivel
+        )
 
     def test_estorno_duplo_lanca_conflito(self, chefe_almoxarifado, saida_registrada):
         import pytest

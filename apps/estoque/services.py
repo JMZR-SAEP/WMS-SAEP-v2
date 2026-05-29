@@ -430,6 +430,7 @@ def estornar_saida_excepcional(
 
     Operação total e atômica (EST-saida-02). Sem estorno parcial.
     """
+    from apps.estoque.models import EstadoSaidaExcepcional
     from apps.estoque.policies import exigir_pode_estornar_saida_excepcional
 
     try:
@@ -451,8 +452,6 @@ def estornar_saida_excepcional(
             'Saída excepcional não encontrada.', code='nao_encontrada'
         ) from exc
 
-    from apps.estoque.models import EstadoSaidaExcepcional
-
     if saida.estado == EstadoSaidaExcepcional.ESTORNADA:
         raise ConflitoDominio(
             'Esta saída já estornada não pode ser estornada novamente.',
@@ -471,9 +470,13 @@ def estornar_saida_excepcional(
 
     for item in itens:
         saldo = saldos_por_material.get(item.material_id)
-        if saldo is not None:
-            saldo.saldo_fisico = saldo.saldo_fisico + item.quantidade
-            saldo.save(update_fields=['saldo_fisico'])
+        if saldo is None:
+            raise ConflitoDominio(
+                f"Saldo não encontrado para material '{item.material.nome}' no estorno.",
+                code='saldo_nao_encontrado_estorno',
+            )
+        saldo.saldo_fisico = saldo.saldo_fisico + item.quantidade
+        saldo.save(update_fields=['saldo_fisico'])
 
     saida.estado = EstadoSaidaExcepcional.ESTORNADA
     saida.estornado_em = timezone.now()

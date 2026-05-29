@@ -73,6 +73,11 @@ class TestPodeEstornarSaidaExcepcional:
 
         assert pode_estornar_saida_excepcional(aux_almoxarifado) is False
 
+    def test_solicitante_nao_pode(self, solicitante):
+        from apps.estoque.policies import pode_estornar_saida_excepcional
+
+        assert pode_estornar_saida_excepcional(solicitante) is False
+
     def test_inativo_nao_pode(self, usuario_inativo):
         from apps.estoque.policies import pode_estornar_saida_excepcional
 
@@ -85,6 +90,11 @@ class TestExigirPodeEstornarSaidaExcepcional:
 
         exigir_pode_estornar_saida_excepcional(chefe_almoxarifado)
 
+    def test_superuser_nao_lanca(self, superuser):
+        from apps.estoque.policies import exigir_pode_estornar_saida_excepcional
+
+        exigir_pode_estornar_saida_excepcional(superuser)
+
     def test_aux_almox_lanca_permissao_negada(self, aux_almoxarifado):
         import pytest
 
@@ -93,3 +103,12 @@ class TestExigirPodeEstornarSaidaExcepcional:
 
         with pytest.raises(PermissaoNegada):
             exigir_pode_estornar_saida_excepcional(aux_almoxarifado)
+
+    def test_inativo_lanca_permissao_negada(self, usuario_inativo):
+        import pytest
+
+        from apps.core.exceptions import PermissaoNegada
+        from apps.estoque.policies import exigir_pode_estornar_saida_excepcional
+
+        with pytest.raises(PermissaoNegada):
+            exigir_pode_estornar_saida_excepcional(usuario_inativo)

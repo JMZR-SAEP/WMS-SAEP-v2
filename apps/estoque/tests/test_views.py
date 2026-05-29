@@ -283,6 +283,14 @@ class TestDetalheSaidaExcepcionalView:
         assert response.status_code == 302
         assert 'login' in response['Location']
 
+    def test_usuario_inativo_redirecionado_para_login(
+        self, client, usuario_inativo, saida_registrada
+    ):
+        client.force_login(usuario_inativo)
+        response = client.get(self._url(saida_registrada.pk))
+        assert response.status_code == 302
+        assert 'login' in response['Location']
+
     def test_pk_inexistente_retorna_404(self, client, chefe_almoxarifado):
         client.force_login(chefe_almoxarifado)
         response = client.get(self._url(999999))
