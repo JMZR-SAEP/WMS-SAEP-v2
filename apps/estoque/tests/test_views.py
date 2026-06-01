@@ -415,8 +415,12 @@ class TestPreviewImportacaoScpiView:
 
     URL = '/estoque/importacao-scpi/pre-visualizacao/'
 
-    def _csv_valido(self, codigo: str = 'MAT001', quantidade: str = '10.000') -> bytes:
-        return f'CADPRO;QUANTIDADE\n{codigo};{quantidade}\n'.encode('utf-8')
+    def _csv_valido(
+        self, codigo: str = '000.000.001', quantidade: str = '10.000'
+    ) -> bytes:
+        return f'CADPRO;DENOMINACAO;QUAN3\n{codigo};Teste;{quantidade}\n'.encode(
+            'utf-8'
+        )
 
     def test_nao_autenticado_redireciona_para_login(self, client):
         resp = client.get(self.URL)
@@ -434,18 +438,17 @@ class TestPreviewImportacaoScpiView:
         assert resp.status_code == 200
 
     def test_post_csv_valido_retorna_200_com_preview(
-        self, client, superuser, estoque_principal, material_disponivel
+        self, client, superuser, estoque_principal, material_scpi
     ):
         from django.core.files.uploadedfile import SimpleUploadedFile
 
         client.force_login(superuser)
-        csv_bytes = self._csv_valido(material_disponivel.codigo, '100.000')
+        csv_bytes = self._csv_valido(material_scpi.codigo, '100.000')
         arquivo = SimpleUploadedFile('teste.csv', csv_bytes, content_type='text/csv')
         resp = client.post(self.URL, {'arquivo': arquivo})
         assert resp.status_code == 200
         assert (
-            b'CADPRO' in resp.content
-            or material_disponivel.codigo.encode() in resp.content
+            b'CADPRO' in resp.content or material_scpi.codigo.encode() in resp.content
         )
 
     def test_post_sem_arquivo_retorna_200_com_erro(self, client, superuser):

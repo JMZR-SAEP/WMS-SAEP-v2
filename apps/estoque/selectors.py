@@ -57,6 +57,8 @@ class LinhaPreviewSCPI:
 
 
 def _normalizar_csv_scpi(conteudo_bytes: bytes) -> str:
+    import re
+
     from apps.core.exceptions import DadosInvalidos
 
     try:
@@ -66,7 +68,32 @@ def _normalizar_csv_scpi(conteudo_bytes: bytes) -> str:
             'Arquivo deve estar em UTF-8 (BOM opcional).',
             code='csv_codificacao_invalida',
         )
-    return texto.replace('\r\n', '\n').replace('\r', '\n')
+
+    cadpro_re = re.compile(r'^\d{3}\.\d{3}\.\d{3};')
+    linhas_raw = texto.splitlines()
+
+    registros: list[str] = []
+    buffer: list[str] = []
+
+    for linha in linhas_raw:
+        linha = linha.rstrip('\r')
+        if cadpro_re.match(linha) or (
+            not registros and not buffer and linha.startswith('CADPRO')
+        ):
+            if buffer:
+                registros.append(' '.join(buffer))
+                buffer = []
+            buffer.append(linha)
+        else:
+            if buffer:
+                buffer.append(linha.strip())
+            else:
+                registros.append(linha)
+
+    if buffer:
+        registros.append(' '.join(buffer))
+
+    return '\n'.join(registros)
 
 
 def _parse_linhas_csv_scpi(conteudo: str) -> list[dict]:
@@ -79,7 +106,7 @@ def _parse_linhas_csv_scpi(conteudo: str) -> list[dict]:
             code='csv_coluna_ausente',
         )
     colunas_quantidade = [
-        f for f in reader.fieldnames if 'QUANTIDADE' in f.upper() or f.upper() == 'QT'
+        f for f in reader.fieldnames if 'QUAN3' in f.upper() or f.upper() == 'QT'
     ]
     if not colunas_quantidade:
         raise DadosInvalidos(
@@ -97,7 +124,7 @@ def _parse_linhas_csv_scpi(conteudo: str) -> list[dict]:
             quantidade = Decimal(qtd_raw)
         except (InvalidOperation, ValueError):
             raise DadosInvalidos(
-                f'Quantidade inválida na linha {i}: "{qtd_raw}".',
+                f'Quantidade inválida no produto {cadpro} (linha {i}): "{qtd_raw}".',
                 code='csv_quantidade_invalida',
             )
         linhas.append({'cadpro': cadpro, 'quantidade': quantidade})

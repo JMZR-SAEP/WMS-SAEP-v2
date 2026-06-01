@@ -111,3 +111,20 @@ def saida_registrada(db, chefe_almoxarifado, estoque_principal, material_disponi
         observacao='Itens danificados',
         itens=[{'material_id': material_disponivel.pk, 'quantidade': '5'}],
     )
+
+
+@pytest.fixture
+def material_scpi(db, estoque_principal):
+    """Material com código no formato real SCPI (000.000.000) para testes de preview."""
+    from apps.estoque.models import Material, SaldoEstoque, UnidadeMedida
+
+    m = Material.objects.create(
+        codigo='000.000.001',
+        nome='Parafuso M6',
+        unidade=UnidadeMedida.UNIDADE,
+        ativo=True,
+    )
+    SaldoEstoque.objects.create(
+        estoque=estoque_principal, material=m, saldo_fisico=100, saldo_reservado=0
+    )
+    return m
