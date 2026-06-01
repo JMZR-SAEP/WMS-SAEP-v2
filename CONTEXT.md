@@ -81,6 +81,38 @@ estornada por estorno explícito.
 Cada material aparece uma única vez por documento; a quantidade da linha é
 canônica e não deve ser somada silenciosamente com duplicatas.
 
+**Importação SCPI**:
+Carga inicial de estoque vinda do SCPI, em CSV normalizado antes da leitura.
+WMS é a fonte da verdade do saldo. Não sobrescreve saldo; registra alertas de
+divergência para ajuste manual posterior no SCPI.
+`CADPRO` do arquivo SCPI corresponde ao `codigo` de **Material**.
+Material novo pode nascer da própria importação SCPI.
+Quando o material é novo, o `SaldoEstoque` do estoque principal nasce com a
+quantidade trazida pelo SCPI.
+
+**Alerta de importação**:
+Aviso não bloqueante identificado no preview da importação SCPI. Alerta não
+impede o processamento, mas exige confirmação explícita antes de gravar o
+ajuste.
+
+**Pré-visualização de importação SCPI**:
+Leitura do CSV normalizado antes de qualquer persistência. Mostra diagnóstico
+e impacto estimado, mas não altera estoque nem grava ajuste.
+
+**Histórico de importação SCPI**:
+Registro só de metadados da importação: arquivo, hash, usuário, data/hora,
+status, contagens e resumo. Não guarda snapshot do preview nem do conteúdo
+importado.
+
+**Divergência SCPI**:
+Diferença entre a quantidade do arquivo SCPI e o `saldo_fisico` atual do
+WMS para o mesmo `CADPRO`. O preview mostra o delta para permitir
+conferência antes de confirmar a importação.
+
+**Resumo de importação SCPI**:
+Resumo textual mínimo do resultado da importação: quantos materiais novos
+foram criados, quantas linhas divergiram e quantos alertas foram gerados.
+
 ### Quantidades
 
 **Entregue líquida**:
@@ -101,6 +133,23 @@ quantidade entregue menos o que voltou por **Devolução** ou **Estorno**.
   Beneficiário**.
 - **Saída excepcional** é independente do ciclo de vida de **Requisição** e
   não usa reserva, autorização de setor, separação nem atendimento.
+- **Importação SCPI** é um fluxo de estoque próprio, fora de **Requisição**,
+  e altera o estoque por ajuste auditável, não por escrita direta de saldo.
+- Reimportação exata da mesma carga SCPI deve ser bloqueada.
+- `Confirmar importação com alertas` significa assumir conscientemente os
+  alertas de preview e persistir o ajuste.
+- `Pré-visualizar importação` é sempre read-only.
+- O histórico da importação guarda só metadados.
+- O campo `CADPRO` da carga SCPI identifica unicamente o `Material`.
+- Importação SCPI pode criar **Material** novo quando o código ainda não
+  existir no catálogo.
+- Material novo importado já recebe `SaldoEstoque` inicial igual à quantidade
+  do SCPI no estoque principal.
+- O preview da importação compara `CADPRO` x `saldo_fisico` e evidencia
+  divergências por delta.
+- Divergência SCPI gera alerta; nunca altera `saldo_fisico`.
+- O resumo da importação informa criação de materiais, divergências e
+  alertas.
 - **Doação** e **empréstimo** são fluxos distintos de estoque, com regras
   próprias, e não fazem parte do MVP de **Saída excepcional**.
 - O estado da **Saída excepcional** não se confunde com seus eventos de
