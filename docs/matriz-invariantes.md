@@ -48,7 +48,7 @@ Para cada mudança, localizar o invariante aplicável, implementar na camada ind
 | EST-05 | Estoque | Não pode reservar acima do disponível. | Recalcular dentro do lock. | Bloqueio e concorrência entre autorizações. | Crit. 2.8-2.10 |
 | EST-06 | Estoque | Operações críticas usam transação e lock. | `atomic()`, `select_for_update()`, locks determinísticos. | Teste PostgreSQL de concorrência/idempotência. | CodeRabbit |
 | EST-07 | Estoque | Divergência crítica: físico < reservado. | Marcador/recalculo no service. | Importação reduz físico e marca divergência. | Crit. 7.3 |
-| EST-08 | Estoque | Material divergente bloqueia novas requisições e autorizações. | Policy/service. | Bloquear criação e autorização. | Crit. 1.5, 2.11 |
+| EST-08 | Estoque | Material divergente bloqueia novas requisições, autorizações e separação para retirada (TR-015B). | Policy/service. | Bloquear criação, autorização e separação. | Crit. 1.5, 2.11; TR-015B |
 | EST-09 | Estoque | Divergência resolve quando físico >= reservado. | Recalcular após operação/importação. | Remover alerta e liberar se houver disponível. | Crit. 7.4 |
 | EST-10 | Estoque | Material inativo não entra em nova requisição. | Queryset/service. | Bloquear seleção; histórico preservado. | Crit. 7.1 |
 | EST-11 | Estoque | Material só inativa com físico e reservado zerados. | Service/policy. | Permitir zerado; bloquear com saldo. | Crit. 7.5-7.6 |
