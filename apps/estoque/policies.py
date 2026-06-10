@@ -100,3 +100,25 @@ def exigir_pode_confirmar_importacao_scpi(ator: 'User') -> None:
             'Apenas superusuários podem confirmar importações SCPI.',
             code='permissao_negada',
         )
+
+
+def pode_consultar_historico_scpi(ator: 'User') -> bool:
+    if not ator.is_active:
+        return False
+    if ator.is_superuser:
+        return True
+    try:
+        setor = ator.setor_chefiado
+        return setor.classificacao == SetorClassificacao.ALMOXARIFADO and setor.ativo
+    except (AttributeError, ObjectDoesNotExist):
+        return False
+
+
+def exigir_pode_consultar_historico_scpi(ator: 'User') -> None:
+    if not pode_consultar_historico_scpi(ator):
+        from apps.core.exceptions import PermissaoNegada
+
+        raise PermissaoNegada(
+            'Apenas superusuários e chefes de almoxarifado podem consultar o histórico de importações SCPI.',
+            code='permissao_negada',
+        )

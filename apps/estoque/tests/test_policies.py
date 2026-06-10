@@ -1,5 +1,7 @@
 """Testes de policy para estoque.saidas_excepcionais."""
 
+import pytest
+
 from apps.estoque.policies import pode_consultar_saidas_excepcionais
 
 
@@ -155,3 +157,49 @@ class TestExigirPodeEstornarSaidaExcepcional:
 
         with pytest.raises(PermissaoNegada):
             exigir_pode_estornar_saida_excepcional(usuario_inativo)
+
+
+class TestPodeConsultarHistoricoScpi:
+    def test_superuser_pode(self, superuser):
+        from apps.estoque.policies import pode_consultar_historico_scpi
+
+        assert pode_consultar_historico_scpi(superuser) is True
+
+    def test_chefe_almoxarifado_pode(self, chefe_almoxarifado):
+        from apps.estoque.policies import pode_consultar_historico_scpi
+
+        assert pode_consultar_historico_scpi(chefe_almoxarifado) is True
+
+    def test_inativo_nao_pode(self, usuario_inativo):
+        from apps.estoque.policies import pode_consultar_historico_scpi
+
+        assert pode_consultar_historico_scpi(usuario_inativo) is False
+
+    def test_aux_almoxarifado_nao_pode(self, aux_almoxarifado):
+        from apps.estoque.policies import pode_consultar_historico_scpi
+
+        assert pode_consultar_historico_scpi(aux_almoxarifado) is False
+
+    def test_solicitante_nao_pode(self, solicitante):
+        from apps.estoque.policies import pode_consultar_historico_scpi
+
+        assert pode_consultar_historico_scpi(solicitante) is False
+
+
+class TestExigirPodeConsultarHistoricoScpi:
+    def test_levanta_quando_negada(self, solicitante):
+        from apps.core.exceptions import PermissaoNegada
+        from apps.estoque.policies import exigir_pode_consultar_historico_scpi
+
+        with pytest.raises(PermissaoNegada):
+            exigir_pode_consultar_historico_scpi(solicitante)
+
+    def test_nao_levanta_quando_superuser(self, superuser):
+        from apps.estoque.policies import exigir_pode_consultar_historico_scpi
+
+        exigir_pode_consultar_historico_scpi(superuser)
+
+    def test_nao_levanta_quando_chefe_almoxarifado(self, chefe_almoxarifado):
+        from apps.estoque.policies import exigir_pode_consultar_historico_scpi
+
+        exigir_pode_consultar_historico_scpi(chefe_almoxarifado)
