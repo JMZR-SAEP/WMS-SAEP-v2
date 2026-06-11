@@ -508,9 +508,7 @@ def _registrar_atualizacao_estoque_relevante(*, linhas, estoque, importacao, ato
 
     # Todos os materiais existentes no import (excluir 'novo' — ainda sem material_id)
     existing_material_ids = [
-        linha.material_id
-        for linha in linhas
-        if linha.material_id is not None
+        linha.material_id for linha in linhas if linha.material_id is not None
     ]
     if not existing_material_ids:
         return
