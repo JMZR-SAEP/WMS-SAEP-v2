@@ -508,7 +508,9 @@ def _registrar_atualizacao_estoque_relevante(*, linhas, estoque, importacao, ato
 
     # Todos os materiais existentes no import (excluir 'novo' — ainda sem material_id)
     existing_material_ids = [
-        linha.material_id for linha in linhas if linha.material_id is not None
+        linha.material_id
+        for linha in linhas
+        if linha.material_id is not None
     ]
     if not existing_material_ids:
         return
@@ -533,28 +535,29 @@ def _registrar_atualizacao_estoque_relevante(*, linhas, estoque, importacao, ato
         if linha.material_id in saldos_criticos
     }
 
-    itens = ItemRequisicao.objects.filter(
-        material_id__in=saldos_criticos.keys(),
-        requisicao__estado=EstadoRequisicao.AUTORIZADA,
-        quantidade_autorizada__gt=0,
-    ).select_related('requisicao')
+    itens = list(
+        ItemRequisicao.objects.filter(
+            material_id__in=saldos_criticos.keys(),
+            requisicao__estado=EstadoRequisicao.AUTORIZADA,
+            quantidade_autorizada__gt=0,
+        ).select_related('requisicao')
+    )
+    if not itens:
+        return
 
     req_materiais: dict[int, list[dict]] = {}
-    req_obj: dict[int, object] = {}
     for item in itens:
         req_id = item.requisicao_id
         if req_id not in req_materiais:
             req_materiais[req_id] = []
-            req_obj[req_id] = item.requisicao
         req_materiais[req_id].append(material_info[item.material_id])
 
-    if not req_materiais:
-        return
+    req_por_id = {item.requisicao_id: item.requisicao for item in itens}
 
     TimelineRequisicao.objects.bulk_create(
         [
             TimelineRequisicao(
-                requisicao=req_obj[req_id],
+                requisicao=req_por_id[req_id],
                 evento=EventoTimeline.ATUALIZACAO_ESTOQUE_RELEVANTE,
                 ator=ator,
                 estado_resultante=None,
