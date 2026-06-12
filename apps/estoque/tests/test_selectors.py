@@ -330,3 +330,86 @@ class TestListarHistoricoImportacoesScpi:
         qs = listar_historico_importacoes_scpi()
         item = qs.first()
         assert not hasattr(item, 'conteudo_csv')
+
+
+class TestListarMateriaisComSaldo:
+    def test_retorna_saldos_do_estoque(
+        self, chefe_almoxarifado, material_disponivel, estoque_principal
+    ):
+        from apps.estoque.selectors import listar_materiais_com_saldo
+
+        resultado = listar_materiais_com_saldo()
+        assert resultado.count() == 1
+        saldo = resultado.first()
+        assert saldo.material == material_disponivel
+
+    def test_saldo_disponivel_e_fisico_menos_reservado(
+        self, chefe_almoxarifado, material_disponivel, estoque_principal
+    ):
+        from apps.estoque.selectors import listar_materiais_com_saldo
+
+        resultado = listar_materiais_com_saldo()
+        saldo = resultado.get(material=material_disponivel)
+        # material_disponivel: fisico=100, reservado=10 → disponivel=90
+        assert saldo.saldo_disponivel_calculado == 90
+
+    def test_divergente_true_quando_fisico_menor_que_reservado(
+        self, chefe_almoxarifado, material_scpi_critico, estoque_principal
+    ):
+        from apps.estoque.selectors import listar_materiais_com_saldo
+
+        resultado = listar_materiais_com_saldo()
+        saldo = resultado.get(material=material_scpi_critico)
+        assert saldo.divergente_calculado is True
+
+    def test_divergente_false_quando_fisico_maior_que_reservado(
+        self, chefe_almoxarifado, material_disponivel, estoque_principal
+    ):
+        from apps.estoque.selectors import listar_materiais_com_saldo
+
+        resultado = listar_materiais_com_saldo()
+        saldo = resultado.get(material=material_disponivel)
+        assert saldo.divergente_calculado is False
+
+    def test_busca_por_codigo_filtra_resultado(
+        self,
+        chefe_almoxarifado,
+        material_disponivel,
+        material_scpi_critico,
+        estoque_principal,
+    ):
+        from apps.estoque.selectors import listar_materiais_com_saldo
+
+        resultado = listar_materiais_com_saldo(busca='MAT001')
+        assert set(resultado.values_list('material__pk', flat=True)) == {
+            material_disponivel.pk
+        }
+
+    def test_busca_por_nome_filtra_resultado(
+        self,
+        chefe_almoxarifado,
+        material_disponivel,
+        material_scpi_critico,
+        estoque_principal,
+    ):
+        from apps.estoque.selectors import listar_materiais_com_saldo
+
+        resultado = listar_materiais_com_saldo(busca='Tinta')
+        assert set(resultado.values_list('material__pk', flat=True)) == {
+            material_scpi_critico.pk
+        }
+
+    def test_busca_vazia_retorna_todos(
+        self,
+        chefe_almoxarifado,
+        material_disponivel,
+        material_scpi_critico,
+        estoque_principal,
+    ):
+        from apps.estoque.selectors import listar_materiais_com_saldo
+
+        resultado = listar_materiais_com_saldo(busca='')
+        assert set(resultado.values_list('material__pk', flat=True)) == {
+            material_disponivel.pk,
+            material_scpi_critico.pk,
+        }

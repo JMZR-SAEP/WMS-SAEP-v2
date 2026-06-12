@@ -220,3 +220,40 @@ def listar_historico_importacoes_scpi():
     return ImportacaoSCPI.objects.select_related('importado_por', 'estoque').order_by(
         '-importado_em'
     )
+
+
+def listar_materiais_com_saldo(*, busca: str = ''):
+    from django.db.models import (
+        BooleanField,
+        Case,
+        DecimalField,
+        ExpressionWrapper,
+        F,
+        Q,
+        When,
+    )
+
+    from apps.estoque.models import SaldoEstoque
+
+    qs = (
+        SaldoEstoque.objects.select_related('material', 'estoque')
+        .annotate(
+            saldo_disponivel_calculado=ExpressionWrapper(
+                F('saldo_fisico') - F('saldo_reservado'),
+                output_field=DecimalField(max_digits=12, decimal_places=3),
+            ),
+            divergente_calculado=Case(
+                When(saldo_fisico__lt=F('saldo_reservado'), then=True),
+                default=False,
+                output_field=BooleanField(),
+            ),
+        )
+        .order_by('material__nome')
+    )
+
+    if busca:
+        qs = qs.filter(
+            Q(material__codigo__icontains=busca) | Q(material__nome__icontains=busca)
+        )
+
+    return qs

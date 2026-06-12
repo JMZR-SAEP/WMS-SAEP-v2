@@ -425,3 +425,24 @@ def historico_importacoes_scpi_view(request):
         'estoque/historico_importacoes_scpi.html',
         {'importacoes': importacoes},
     )
+
+
+@login_required
+@require_GET
+def lista_materiais_view(request):
+    from apps.core.exceptions import PermissaoNegada
+    from apps.estoque.policies import exigir_pode_consultar_catalogo_estoque
+    from apps.estoque.selectors import listar_materiais_com_saldo
+
+    try:
+        exigir_pode_consultar_catalogo_estoque(request.user)
+    except PermissaoNegada as exc:
+        raise PermissionDenied(str(exc))
+
+    busca = request.GET.get('busca', '').strip()
+    saldos = listar_materiais_com_saldo(busca=busca)
+    return render(
+        request,
+        'estoque/lista_materiais.html',
+        {'saldos': saldos, 'busca': busca},
+    )

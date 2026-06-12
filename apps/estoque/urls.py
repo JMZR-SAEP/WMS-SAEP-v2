@@ -6,6 +6,11 @@ app_name = 'estoque'
 
 urlpatterns = [
     path(
+        'materiais/',
+        views.lista_materiais_view,
+        name='lista_materiais',
+    ),
+    path(
         'saidas-excepcionais/',
         views.listar_saidas_excepcionais_view,
         name='listar_saidas_excepcionais',

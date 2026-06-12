@@ -619,3 +619,78 @@ class TestHistoricoImportacoesScpiView:
         client.force_login(superuser)
         resp = client.get(self.URL)
         assert b'conteudo_csv' not in resp.content
+
+
+URL_MATERIAIS = reverse('estoque:lista_materiais')
+
+
+class TestListaMateriaisView:
+    def test_chefe_almox_acessa_lista(self, client, chefe_almoxarifado):
+        client.force_login(chefe_almoxarifado)
+        response = client.get(URL_MATERIAIS)
+        assert response.status_code == 200
+
+    def test_aux_almox_acessa_lista(self, client, aux_almoxarifado):
+        client.force_login(aux_almoxarifado)
+        response = client.get(URL_MATERIAIS)
+        assert response.status_code == 200
+
+    def test_superuser_acessa_lista(self, client, superuser):
+        client.force_login(superuser)
+        response = client.get(URL_MATERIAIS)
+        assert response.status_code == 200
+
+    def test_solicitante_acessa_lista(self, client, solicitante):
+        # Consultar materiais é permitido para todos os papéis ativos (matriz-permissoes.md).
+        client.force_login(solicitante)
+        response = client.get(URL_MATERIAIS)
+        assert response.status_code == 200
+
+    def test_usuario_inativo_redirecionado_para_login(self, client, usuario_inativo):
+        # Django ModelBackend trata is_active=False como não-autenticado;
+        # @login_required redireciona para login (USR-01).
+        client.force_login(usuario_inativo)
+        response = client.get(URL_MATERIAIS)
+        assert response.status_code == 302
+        assert 'login' in response['Location']
+
+    def test_anonimo_redirecionado_para_login(self, client):
+        response = client.get(URL_MATERIAIS)
+        assert response.status_code == 302
+        assert 'login' in response['Location']
+
+    def test_contexto_contem_saldos(
+        self, client, chefe_almoxarifado, material_disponivel, estoque_principal
+    ):
+        client.force_login(chefe_almoxarifado)
+        response = client.get(URL_MATERIAIS)
+        assert 'saldos' in response.context
+
+    def test_contexto_contem_busca_vazia_por_padrao(self, client, chefe_almoxarifado):
+        client.force_login(chefe_almoxarifado)
+        response = client.get(URL_MATERIAIS)
+        assert response.context['busca'] == ''
+
+    def test_busca_filtra_por_codigo(
+        self,
+        client,
+        chefe_almoxarifado,
+        material_disponivel,
+        material_scpi_critico,
+        estoque_principal,
+    ):
+        client.force_login(chefe_almoxarifado)
+        response = client.get(URL_MATERIAIS, {'busca': 'MAT001'})
+        assert response.status_code == 200
+        saldos = list(response.context['saldos'])
+        assert len(saldos) == 1
+        assert saldos[0].material.codigo == 'MAT001'
+
+    def test_flag_divergente_visivel_no_contexto(
+        self, client, chefe_almoxarifado, material_scpi_critico, estoque_principal
+    ):
+        client.force_login(chefe_almoxarifado)
+        response = client.get(URL_MATERIAIS)
+        saldos = list(response.context['saldos'])
+        critico = next(s for s in saldos if s.material == material_scpi_critico)
+        assert critico.divergente_calculado is True
