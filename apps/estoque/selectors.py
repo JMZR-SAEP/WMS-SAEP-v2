@@ -222,7 +222,7 @@ def listar_historico_importacoes_scpi():
     )
 
 
-def listar_materiais_com_saldo(ator_id: int, *, busca: str = ''):
+def listar_materiais_com_saldo(*, busca: str = ''):
     from django.db.models import (
         BooleanField,
         Case,

@@ -440,7 +440,7 @@ def lista_materiais_view(request):
         raise PermissionDenied(str(exc))
 
     busca = request.GET.get('busca', '').strip()
-    saldos = listar_materiais_com_saldo(request.user.pk, busca=busca)
+    saldos = listar_materiais_com_saldo(busca=busca)
     return render(
         request,
         'estoque/lista_materiais.html',

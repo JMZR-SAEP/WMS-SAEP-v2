@@ -338,7 +338,7 @@ class TestListarMateriaisComSaldo:
     ):
         from apps.estoque.selectors import listar_materiais_com_saldo
 
-        resultado = listar_materiais_com_saldo(chefe_almoxarifado.pk)
+        resultado = listar_materiais_com_saldo()
         assert resultado.count() == 1
         saldo = resultado.first()
         assert saldo.material == material_disponivel
@@ -348,7 +348,7 @@ class TestListarMateriaisComSaldo:
     ):
         from apps.estoque.selectors import listar_materiais_com_saldo
 
-        resultado = listar_materiais_com_saldo(chefe_almoxarifado.pk)
+        resultado = listar_materiais_com_saldo()
         saldo = resultado.get(material=material_disponivel)
         # material_disponivel: fisico=100, reservado=10 → disponivel=90
         assert saldo.saldo_disponivel_calculado == 90
@@ -358,7 +358,7 @@ class TestListarMateriaisComSaldo:
     ):
         from apps.estoque.selectors import listar_materiais_com_saldo
 
-        resultado = listar_materiais_com_saldo(chefe_almoxarifado.pk)
+        resultado = listar_materiais_com_saldo()
         saldo = resultado.get(material=material_scpi_critico)
         assert saldo.divergente_calculado is True
 
@@ -367,7 +367,7 @@ class TestListarMateriaisComSaldo:
     ):
         from apps.estoque.selectors import listar_materiais_com_saldo
 
-        resultado = listar_materiais_com_saldo(chefe_almoxarifado.pk)
+        resultado = listar_materiais_com_saldo()
         saldo = resultado.get(material=material_disponivel)
         assert saldo.divergente_calculado is False
 
@@ -380,7 +380,7 @@ class TestListarMateriaisComSaldo:
     ):
         from apps.estoque.selectors import listar_materiais_com_saldo
 
-        resultado = listar_materiais_com_saldo(chefe_almoxarifado.pk, busca='MAT001')
+        resultado = listar_materiais_com_saldo(busca='MAT001')
         assert set(resultado.values_list('material__pk', flat=True)) == {
             material_disponivel.pk
         }
@@ -394,7 +394,7 @@ class TestListarMateriaisComSaldo:
     ):
         from apps.estoque.selectors import listar_materiais_com_saldo
 
-        resultado = listar_materiais_com_saldo(chefe_almoxarifado.pk, busca='Tinta')
+        resultado = listar_materiais_com_saldo(busca='Tinta')
         assert set(resultado.values_list('material__pk', flat=True)) == {
             material_scpi_critico.pk
         }
@@ -408,7 +408,7 @@ class TestListarMateriaisComSaldo:
     ):
         from apps.estoque.selectors import listar_materiais_com_saldo
 
-        resultado = listar_materiais_com_saldo(chefe_almoxarifado.pk, busca='')
+        resultado = listar_materiais_com_saldo(busca='')
         assert set(resultado.values_list('material__pk', flat=True)) == {
             material_disponivel.pk,
             material_scpi_critico.pk,
