@@ -57,7 +57,7 @@ Fluxo interno:
 7. `entregue_liquida = entregue_liquida_por_item(requisicao_id, item_id)` — DadosInvalidos se item não pertence
 8. Valida `quantidade <= entregue_liquida` → ConflitoDominio (código `quantidade_excede_entregue_liquida`)
 9. `ItemRequisicao.objects.get(pk=item_id)` para obter `material_id`
-10. `SaldoEstoque.objects.select_for_update().get(material_id=..., estoque__classificacao=ALMOXARIFADO)` — ConflitoDominio se não encontrado
+10. `SaldoEstoque.objects.select_for_update().select_related('estoque', 'material').filter(material_id=material_id).order_by('estoque_id', 'id')` — `Estoque` não tem campo `classificacao` nem FK para `Setor`; filtra por `material_id` seguindo padrão de `consumir_e_liberar_reservas_para_atendimento`. Se nenhum resultado → ConflitoDominio `saldo_nao_encontrado`; se mais de um → ConflitoDominio `saldo_ambiguo`. Usa `saldo.estoque_id` obtido para `_registrar_movimentacao`.
 11. Valida `material.ativo` → ConflitoDominio
 12. `saldo.saldo_fisico += quantidade; saldo.save(update_fields=[...])`
 13. `_registrar_movimentacao(tipo=DEVOLUCAO, delta_fisico=+quantidade, delta_reservado=0, origem=OrigemMovimentacaoEstoque.de_requisicao(requisicao), ator_id=ator_id)`
@@ -84,9 +84,10 @@ Fluxo interno:
 - `pode_registrar_devolucao`: aux_almoxarifado → True, chefe_almoxarifado → True, superuser → True, solicitante → False, inativo → False
 
 ### test_views.py
-- POST com dados válidos → redirect detalhe + mensagem success
-- POST com quantidade > entregue_liquida → warning + redirect
-- POST ator sem permissão → PermissionDenied 403
+- POST com dados válidos (cliente normal) → redirect detalhe + mensagem success
+- POST com dados válidos + HX-Request header → resposta contém HX-Redirect header (caminho HTMX)
+- POST com quantidade > entregue_liquida → warning + redirect detalhe
+- POST ator sem permissão → `raise PermissionDenied` → 403 (padrão do repo: todos os views usam `raise PermissionDenied(str(exc))` para `PermissaoNegada`)
 - GET não permitido → 405
 
 ## Invariants (ADR-0005, EST-01, EST-06)
