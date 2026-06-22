@@ -13,6 +13,8 @@
 
 Rationale: esses são os usuários cujo interesse operacional é diretamente afetado pelo evento. O chefe do setor e o almoxarifado acompanham pela fila e timeline; não recebem notificação in-app nesta fase MVP.
 
+> **PER-02/PER-03/PER-06**: `criar_notificacoes_para` lê `criador` e `beneficiario` diretamente dos campos FK da `Requisicao` (já persistidos e imutáveis após envio). Nenhuma validação adicional de setor é necessária para roteamento de notificações — o campo `setor_beneficiario` da requisição continua sendo o snapshot autoritativo para filas de autorização (PER-06); o roteamento de notificações é independente da hierarquia de setor.
+
 ---
 
 ## Escopo
@@ -78,13 +80,20 @@ Sem FK para `Requisicao` — `requisicao_id` é inteiro bruto para evitar CASCAD
 
 ---
 
-## Arquitetura de geração (hook dentro da transação)
+## Arquitetura de geração (via `transaction.on_commit`)
 
-Notificações são criadas **dentro do `@transaction.atomic`** do service, logo após `TimelineRequisicao.objects.create`. Isso garante rollback conjunto.
+Conforme CONVENTIONS.md linha 55: **notificações são disparadas exclusivamente via `transaction.on_commit`** — nunca inline dentro do `@transaction.atomic`. Isso garante que notificações só são persistidas se a transação principal commitar com sucesso; se o service lançar exceção, o rollback desfaz tudo e o callback nunca é chamado.
 
-Helper `criar_notificacoes_para(requisicao, tipo)` deduplica `criador` e `beneficiario` (mesmo usuário → uma notificação só).
+```python
+# padrão nos services de requisicoes
+transaction.on_commit(
+    lambda: criar_notificacoes_para(requisicao=requisicao, tipo=TipoNotificacao.AUTORIZACAO)
+)
+```
 
-Para `_registrar_atualizacao_estoque_relevante`: `Notificacao.objects.bulk_create` após o `TimelineRequisicao.objects.bulk_create`, iterando sobre `req_por_id.values()`.
+Helper `criar_notificacoes_para(requisicao, tipo)` deduplica `criador` e `beneficiario` (mesmo usuário → uma notificação só) via `bulk_create` com lista deduplicada por `destinatario_id`.
+
+Para `_registrar_atualizacao_estoque_relevante`: `transaction.on_commit` após o `TimelineRequisicao.objects.bulk_create`, passando snapshot dos `req_por_id.values()` capturado antes do commit (lambda não deve capturar variáveis mutáveis).
 
 ---
 
@@ -117,7 +126,8 @@ Para `_registrar_atualizacao_estoque_relevante`: `Notificacao.objects.bulk_creat
 3. `recusar_requisicao` → cria notificações para criador e beneficiário
 4. `registrar_atendimento` → cria notificações para criador e beneficiário
 5. `_registrar_atualizacao_estoque_relevante` → cria notificações para criador e beneficiário das requisições afetadas
-6. Rollback: service levanta exceção após `TimelineRequisicao.create` → sem notificações no DB
+5b. `_registrar_atualizacao_estoque_relevante` com 2+ requisições de mesmo criador/beneficiário → cria **uma** notificação por destinatário único (deduplicação via dict de `destinatario_id`)
+6. Rollback: service levanta exceção antes de commitar → `on_commit` nunca dispara → sem notificações no DB
 
 ### `test_policies.py` — notificacoes
 
@@ -141,12 +151,14 @@ Para `_registrar_atualizacao_estoque_relevante`: `Notificacao.objects.bulk_creat
 | ID | Aplicação |
 |---|---|
 | PER-08 | `pode_ver_notificacao` usada tanto na view quanto no service marcar_lida |
-| REQ-08 | Timeline e notificação gerados no mesmo atomic; rollback conjunto |
+| REQ-08 | Timeline gerado dentro do `atomic`; notificação via `on_commit` só dispara se o atomic commitar |
+| EST-06 | `bulk_create` de notificações em `_registrar_atualizacao_estoque_relevante` ocorre via `on_commit`; COUNT do context processor protegido por index `(destinatario, lida)` |
 
 ---
 
 ## Riscos
 
-- `_registrar_atualizacao_estoque_relevante` usa `bulk_create` de timeline; seguir com `bulk_create` de notificações para manter performance
-- Context processor executa **em todo request** de usuário autenticado — usar `select` simples com `COUNT` filtrado (não carregar objetos); adicionar index `(destinatario, lida)` no model
-- Sem FK para `Requisicao`: link no template usa `requisicao_id` raw para construir URL `{% url 'requisicoes:detalhe' pk=n.requisicao_id %}`
+- **bulk_create + concorrência**: sem `UniqueConstraint` em `(destinatario, tipo, requisicao_id)`, dois threads simultâneos chamando `on_commit` com mesma combinação podem gerar duplicatas. Mitigação primária: `on_commit` em thread único (garantido pelo Django por connection); mitigação adicional avaliada na implementação: `update_or_create` por linha ou `UniqueConstraint` no model.
+- **`_registrar_atualizacao_estoque_relevante`**: capturar snapshot de `req_por_id.values()` ANTES do `on_commit` (evitar captura de variável mutável na lambda); usar `bulk_create` de notificações no callback.
+- **Context processor em todo request**: usar `COUNT` filtrado com `Notificacao.objects.filter(destinatario=user, lida=False).count()` — não carregar objetos. Index `(destinatario, lida)` no model cobre este query. Implementar fallback gracioso: `try/except Exception` retornando `{'notificacoes_nao_lidas': 0}` para não quebrar render de página em caso de falha transiente.
+- **Sem FK para `Requisicao`**: link no template usa `requisicao_id` raw para construir URL `{% url 'requisicoes:detalhe' pk=n.requisicao_id %}` — template deve guard `{% if n.requisicao_id %}` para evitar erro se `null`.
