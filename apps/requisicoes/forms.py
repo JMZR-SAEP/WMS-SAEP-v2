@@ -359,6 +359,31 @@ class RegistrarDevolucaoForm(forms.Form):
         return quantidade
 
 
+class EstornarRequisicaoForm(forms.Form):
+    """Formulário de estorno de requisição atendida (TR-021)."""
+
+    justificativa = forms.CharField(
+        label='Justificativa',
+        widget=forms.Textarea(
+            attrs={
+                'rows': 3,
+                'class': (
+                    'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm '
+                    'focus:border-blue-500 focus:ring-2 focus:ring-blue-500 '
+                    'focus:outline-none'
+                ),
+                'placeholder': 'Motivo obrigatório do estorno',
+            }
+        ),
+    )
+
+    def clean_justificativa(self):
+        justificativa = self.cleaned_data.get('justificativa', '').strip()
+        if not justificativa:
+            raise forms.ValidationError('A justificativa é obrigatória.')
+        return justificativa
+
+
 ItemAtendimentoFormSet = formset_factory(
     ItemAtendimentoForm,
     formset=BaseItemAtendimentoFormSet,

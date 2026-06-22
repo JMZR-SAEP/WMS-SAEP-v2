@@ -2459,3 +2459,290 @@ def test_registrar_devolucao_requisicao_inexistente(aux_almoxarifado):
             quantidade=Decimal('1'),
         )
     assert excinfo.value.code == 'requisicao_nao_encontrada'
+
+
+# ---------------------------------------------------------------------------
+# TR-021: estornar_requisicao
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def requisicao_atendida_para_estorno(requisicao_pronta_retirada, aux_almoxarifado):
+    """Requisição atendida total pronta para receber estorno."""
+    item = requisicao_pronta_retirada.itens.first()
+    return registrar_atendimento(
+        ator_id=aux_almoxarifado.pk,
+        requisicao_id=requisicao_pronta_retirada.pk,
+        itens=[
+            {
+                'item_id': item.pk,
+                'quantidade_entregue': item.quantidade_autorizada,
+                'justificativa': '',
+            }
+        ],
+        retirante_nome='Carlos',
+    )
+
+
+@pytest.mark.django_db
+def test_estornar_requisicao_caminho_feliz(
+    requisicao_atendida_para_estorno, chefe_almoxarifado
+):
+    """Estorno reverte saldo físico, transita para ESTORNADA e emite ledger + timeline."""
+    from apps.estoque.models import MovimentacaoEstoque, TipoMovimentacaoEstoque
+    from apps.estoque.selectors import entregue_liquida_por_item
+    from apps.requisicoes.services import estornar_requisicao
+
+    req = requisicao_atendida_para_estorno
+    item = req.itens.first()
+    saldo = item.material.saldos.get()
+    saldo_fisico_antes = saldo.saldo_fisico
+
+    resultado = estornar_requisicao(
+        ator_id=chefe_almoxarifado.pk,
+        requisicao_id=req.pk,
+        justificativa='Estorno por teste.',
+    )
+
+    saldo.refresh_from_db()
+    assert saldo.saldo_fisico == saldo_fisico_antes + item.quantidade_entregue
+    resultado.refresh_from_db()
+    assert resultado.estado == EstadoRequisicao.ESTORNADA
+
+    mov = MovimentacaoEstoque.objects.get(
+        requisicao=req,
+        material=item.material,
+        tipo=TipoMovimentacaoEstoque.ESTORNO_REQUISICAO,
+    )
+    assert mov.delta_fisico == item.quantidade_entregue
+    assert mov.delta_reservado == Decimal('0')
+
+    evento = resultado.eventos.filter(evento=EventoTimeline.ESTORNO).get()
+    assert evento.ator == chefe_almoxarifado
+
+    liquida = entregue_liquida_por_item(requisicao_id=req.pk, item_id=item.pk)
+    assert liquida == Decimal('0')
+
+
+@pytest.mark.django_db
+def test_estornar_requisicao_respeita_liquida_pos_devolucao(
+    requisicao_atendida_para_estorno, chefe_almoxarifado, aux_almoxarifado
+):
+    """Estorno opera sobre entregue líquida, não entregue bruta (não double-count com devolução)."""
+    from apps.estoque.selectors import entregue_liquida_por_item
+    from apps.requisicoes.services import estornar_requisicao, registrar_devolucao
+
+    req = requisicao_atendida_para_estorno
+    item = req.itens.first()
+    devolvida = Decimal('1')
+
+    registrar_devolucao(
+        ator_id=aux_almoxarifado.pk,
+        requisicao_id=req.pk,
+        item_id=item.pk,
+        quantidade=devolvida,
+    )
+
+    saldo = item.material.saldos.get()
+    saldo_fisico_antes_estorno = saldo.saldo_fisico
+    liquida_esperada = entregue_liquida_por_item(requisicao_id=req.pk, item_id=item.pk)
+
+    resultado = estornar_requisicao(
+        ator_id=chefe_almoxarifado.pk,
+        requisicao_id=req.pk,
+        justificativa='Estorno pós-devolução.',
+    )
+
+    saldo.refresh_from_db()
+    assert saldo.saldo_fisico == saldo_fisico_antes_estorno + liquida_esperada
+    resultado.refresh_from_db()
+    assert resultado.estado == EstadoRequisicao.ESTORNADA
+
+
+@pytest.mark.django_db
+def test_estornar_requisicao_ja_estornada_levanta_estado_invalido(
+    requisicao_atendida_para_estorno, chefe_almoxarifado
+):
+    """Estornar já estornada → EstadoInvalido (TR-022)."""
+    from apps.requisicoes.services import estornar_requisicao
+
+    req = requisicao_atendida_para_estorno
+    estornar_requisicao(
+        ator_id=chefe_almoxarifado.pk,
+        requisicao_id=req.pk,
+        justificativa='Primeiro estorno.',
+    )
+
+    with pytest.raises(EstadoInvalido) as excinfo:
+        estornar_requisicao(
+            ator_id=chefe_almoxarifado.pk,
+            requisicao_id=req.pk,
+            justificativa='Segundo estorno.',
+        )
+    assert excinfo.value.code == 'estado_origem_invalido'
+
+
+@pytest.mark.django_db
+def test_registrar_devolucao_em_estornada_levanta_estado_invalido(
+    requisicao_atendida_para_estorno, chefe_almoxarifado, aux_almoxarifado
+):
+    """Devolver em estornada → EstadoInvalido (TR-022)."""
+    from apps.requisicoes.services import estornar_requisicao, registrar_devolucao
+
+    req = requisicao_atendida_para_estorno
+    item = req.itens.first()
+    estornar_requisicao(
+        ator_id=chefe_almoxarifado.pk,
+        requisicao_id=req.pk,
+        justificativa='Estorno.',
+    )
+
+    with pytest.raises(EstadoInvalido):
+        registrar_devolucao(
+            ator_id=aux_almoxarifado.pk,
+            requisicao_id=req.pk,
+            item_id=item.pk,
+            quantidade=Decimal('1'),
+        )
+
+
+@pytest.mark.django_db
+def test_cancelar_requisicao_em_estornada_levanta_estado_invalido(
+    requisicao_atendida_para_estorno, chefe_almoxarifado
+):
+    """Cancelar estornada → EstadoInvalido (TR-019)."""
+    from apps.requisicoes.services import cancelar_requisicao, estornar_requisicao
+
+    req = requisicao_atendida_para_estorno
+    estornar_requisicao(
+        ator_id=chefe_almoxarifado.pk,
+        requisicao_id=req.pk,
+        justificativa='Estorno.',
+    )
+
+    with pytest.raises(EstadoInvalido):
+        cancelar_requisicao(
+            ator_id=chefe_almoxarifado.pk,
+            requisicao_id=req.pk,
+            justificativa='Tentar cancelar.',
+        )
+
+
+@pytest.mark.django_db
+def test_estornar_requisicao_auxiliar_almox_negado(
+    requisicao_atendida_para_estorno, aux_almoxarifado
+):
+    """Auxiliar almox não pode estornar (só chefe)."""
+    from apps.requisicoes.services import estornar_requisicao
+
+    with pytest.raises(PermissaoNegada) as excinfo:
+        estornar_requisicao(
+            ator_id=aux_almoxarifado.pk,
+            requisicao_id=requisicao_atendida_para_estorno.pk,
+            justificativa='Tentativa.',
+        )
+    assert excinfo.value.code == 'estornar_requisicao_negada'
+
+
+@pytest.mark.django_db
+def test_estornar_requisicao_criador_negado(
+    requisicao_atendida_para_estorno, solicitante
+):
+    """Criador não pode estornar."""
+    from apps.requisicoes.services import estornar_requisicao
+
+    with pytest.raises(PermissaoNegada):
+        estornar_requisicao(
+            ator_id=solicitante.pk,
+            requisicao_id=requisicao_atendida_para_estorno.pk,
+            justificativa='Tentativa.',
+        )
+
+
+@pytest.mark.django_db
+def test_estornar_requisicao_aceita_chefe_almox(
+    requisicao_atendida_para_estorno, chefe_almoxarifado
+):
+    """Chefe de almoxarifado pode estornar."""
+    from apps.requisicoes.services import estornar_requisicao
+
+    resultado = estornar_requisicao(
+        ator_id=chefe_almoxarifado.pk,
+        requisicao_id=requisicao_atendida_para_estorno.pk,
+        justificativa='Justificativa válida.',
+    )
+    assert resultado.estado == EstadoRequisicao.ESTORNADA
+
+
+@pytest.mark.django_db
+def test_estornar_requisicao_aceita_superuser(
+    requisicao_atendida_para_estorno, superuser
+):
+    """Superusuário pode estornar."""
+    from apps.requisicoes.services import estornar_requisicao
+
+    resultado = estornar_requisicao(
+        ator_id=superuser.pk,
+        requisicao_id=requisicao_atendida_para_estorno.pk,
+        justificativa='Justificativa válida.',
+    )
+    assert resultado.estado == EstadoRequisicao.ESTORNADA
+
+
+@pytest.mark.django_db
+def test_estornar_requisicao_sem_justificativa_levanta_dados_invalidos(
+    requisicao_atendida_para_estorno, chefe_almoxarifado
+):
+    """Justificativa vazia → DadosInvalidos."""
+    from apps.requisicoes.services import estornar_requisicao
+
+    for vazio in ('', '   ', None):
+        with pytest.raises(DadosInvalidos) as excinfo:
+            estornar_requisicao(
+                ator_id=chefe_almoxarifado.pk,
+                requisicao_id=requisicao_atendida_para_estorno.pk,
+                justificativa=vazio,
+            )
+        assert excinfo.value.code == 'justificativa_vazia'
+
+
+@pytest.mark.django_db
+def test_estornar_requisicao_estado_invalido(requisicao_autorizada, chefe_almoxarifado):
+    """Estornar em estado não atendida → EstadoInvalido."""
+    from apps.requisicoes.services import estornar_requisicao
+
+    with pytest.raises(EstadoInvalido) as excinfo:
+        estornar_requisicao(
+            ator_id=chefe_almoxarifado.pk,
+            requisicao_id=requisicao_autorizada.pk,
+            justificativa='Inválido.',
+        )
+    assert excinfo.value.code == 'estado_origem_invalido'
+
+
+@pytest.mark.django_db
+def test_estornar_requisicao_ator_inexistente(requisicao_atendida_para_estorno):
+    """Ator inexistente → DadosInvalidos."""
+    from apps.requisicoes.services import estornar_requisicao
+
+    with pytest.raises(DadosInvalidos) as excinfo:
+        estornar_requisicao(
+            ator_id=999_999,
+            requisicao_id=requisicao_atendida_para_estorno.pk,
+            justificativa='Justificativa.',
+        )
+    assert excinfo.value.code == 'ator_nao_encontrado'
+
+
+@pytest.mark.django_db
+def test_estornar_requisicao_requisicao_inexistente(chefe_almoxarifado):
+    """Requisição inexistente → DadosInvalidos."""
+    from apps.requisicoes.services import estornar_requisicao
+
+    with pytest.raises(DadosInvalidos) as excinfo:
+        estornar_requisicao(
+            ator_id=chefe_almoxarifado.pk,
+            requisicao_id=999_999,
+            justificativa='Justificativa.',
+        )
+    assert excinfo.value.code == 'requisicao_nao_encontrada'

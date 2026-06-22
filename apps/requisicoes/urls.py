@@ -31,6 +31,7 @@ urlpatterns = [
     ),
     path('<int:pk>/recusar/', views.recusar_requisicao_view, name='recusar'),
     path('<int:pk>/copiar/', views.copiar_requisicao_view, name='copiar'),
+    path('<int:pk>/estornar/', views.estornar_requisicao_view, name='estornar'),
     path(
         '<int:pk>/devolver/<int:item_pk>/',
         views.registrar_devolucao_view,

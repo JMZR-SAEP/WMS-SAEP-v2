@@ -791,3 +791,52 @@ def test_inativo_nao_pode_registrar_devolucao(
 
     req = _req_atendida_stub(solicitante, setor_obras)
     assert pode_registrar_devolucao(usuario_inativo, req) is False
+
+
+# ---------------------------------------------------------------------------
+# pode_estornar_requisicao
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_chefe_almoxarifado_pode_estornar(chefe_almoxarifado, solicitante, setor_obras):
+    from apps.requisicoes.policies import pode_estornar_requisicao
+
+    req = _req_atendida_stub(solicitante, setor_obras)
+    assert pode_estornar_requisicao(chefe_almoxarifado, req) is True
+
+
+@pytest.mark.django_db
+def test_aux_almox_nao_pode_estornar(aux_almoxarifado, solicitante, setor_obras):
+    from apps.requisicoes.policies import pode_estornar_requisicao
+
+    req = _req_atendida_stub(solicitante, setor_obras)
+    assert pode_estornar_requisicao(aux_almoxarifado, req) is False
+
+
+@pytest.mark.django_db
+def test_superuser_pode_estornar(superuser, solicitante, setor_obras):
+    from apps.requisicoes.policies import pode_estornar_requisicao
+
+    req = _req_atendida_stub(solicitante, setor_obras)
+    assert pode_estornar_requisicao(superuser, req) is True
+
+
+@pytest.mark.django_db
+def test_inativo_nao_pode_estornar(usuario_inativo, solicitante, setor_obras):
+    from apps.requisicoes.policies import pode_estornar_requisicao
+
+    req = _req_atendida_stub(solicitante, setor_obras)
+    assert pode_estornar_requisicao(usuario_inativo, req) is False
+
+
+@pytest.mark.django_db
+def test_exigir_pode_estornar_levanta_permissao_negada(
+    aux_almoxarifado, solicitante, setor_obras
+):
+    from apps.requisicoes.policies import exigir_pode_estornar_requisicao
+
+    req = _req_atendida_stub(solicitante, setor_obras)
+    with pytest.raises(PermissaoNegada) as excinfo:
+        exigir_pode_estornar_requisicao(aux_almoxarifado, req)
+    assert excinfo.value.code == 'estornar_requisicao_negada'

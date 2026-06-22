@@ -2430,3 +2430,75 @@ def test_registrar_devolucao_view_get_retorna_405(
     )
     response = client.get(url)
     assert response.status_code == 405
+
+
+# ---------------------------------------------------------------------------
+# estornar_requisicao_view
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_estornar_view_sucesso_redireciona(
+    client, chefe_almoxarifado, req_atendida_view
+):
+    """POST válido → redirect para detalhe + mensagem success."""
+    _login(client, chefe_almoxarifado)
+    url = reverse('requisicoes:estornar', kwargs={'pk': req_atendida_view.pk})
+    response = client.post(url, {'justificativa': 'Estorno por teste.'})
+    assert response.status_code == 302
+    assert response['Location'] == reverse(
+        'requisicoes:detalhe', args=[req_atendida_view.pk]
+    )
+    req_atendida_view.refresh_from_db()
+    assert req_atendida_view.estado == EstadoRequisicao.ESTORNADA
+
+
+@pytest.mark.django_db
+def test_estornar_view_htmx_retorna_hx_redirect(
+    client, chefe_almoxarifado, req_atendida_view
+):
+    """HTMX POST → 204 + HX-Redirect."""
+    _login(client, chefe_almoxarifado)
+    url = reverse('requisicoes:estornar', kwargs={'pk': req_atendida_view.pk})
+    response = client.post(
+        url,
+        {'justificativa': 'Estorno HTMX.'},
+        HTTP_HX_REQUEST='true',
+    )
+    assert response.status_code == 204
+    assert 'HX-Redirect' in response
+
+
+@pytest.mark.django_db
+def test_estornar_view_sem_justificativa_exibe_warning(
+    client, chefe_almoxarifado, req_atendida_view
+):
+    """POST sem justificativa → redirect + mensagem warning (form inválido)."""
+    _login(client, chefe_almoxarifado)
+    url = reverse('requisicoes:estornar', kwargs={'pk': req_atendida_view.pk})
+    response = client.post(url, {'justificativa': ''}, follow=True)
+    assert response.status_code == 200
+    msgs = [str(m) for m in response.context['messages']]
+    assert any('justificativa' in m.lower() or 'obrigat' in m.lower() for m in msgs)
+    req_atendida_view.refresh_from_db()
+    assert req_atendida_view.estado == EstadoRequisicao.ATENDIDA
+
+
+@pytest.mark.django_db
+def test_estornar_view_sem_permissao_retorna_403(
+    client, aux_almoxarifado, req_atendida_view
+):
+    """Auxiliar almox → 403."""
+    _login(client, aux_almoxarifado)
+    url = reverse('requisicoes:estornar', kwargs={'pk': req_atendida_view.pk})
+    response = client.post(url, {'justificativa': 'Tentativa.'})
+    assert response.status_code == 403
+
+
+@pytest.mark.django_db
+def test_estornar_view_get_nao_permitido(client, chefe_almoxarifado, req_atendida_view):
+    """GET → 405."""
+    _login(client, chefe_almoxarifado)
+    url = reverse('requisicoes:estornar', kwargs={'pk': req_atendida_view.pk})
+    response = client.get(url)
+    assert response.status_code == 405
