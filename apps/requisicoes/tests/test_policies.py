@@ -799,9 +799,7 @@ def test_inativo_nao_pode_registrar_devolucao(
 
 
 @pytest.mark.django_db
-def test_chefe_almoxarifado_pode_estornar(
-    chefe_almoxarifado, solicitante, setor_obras
-):
+def test_chefe_almoxarifado_pode_estornar(chefe_almoxarifado, solicitante, setor_obras):
     from apps.requisicoes.policies import pode_estornar_requisicao
 
     req = _req_atendida_stub(solicitante, setor_obras)

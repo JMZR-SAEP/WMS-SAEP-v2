@@ -2545,9 +2545,7 @@ def test_estornar_requisicao_respeita_liquida_pos_devolucao(
 
     saldo = item.material.saldos.get()
     saldo_fisico_antes_estorno = saldo.saldo_fisico
-    liquida_esperada = entregue_liquida_por_item(
-        requisicao_id=req.pk, item_id=item.pk
-    )
+    liquida_esperada = entregue_liquida_por_item(requisicao_id=req.pk, item_id=item.pk)
 
     resultado = estornar_requisicao(
         ator_id=chefe_almoxarifado.pk,
@@ -2709,9 +2707,7 @@ def test_estornar_requisicao_sem_justificativa_levanta_dados_invalidos(
 
 
 @pytest.mark.django_db
-def test_estornar_requisicao_estado_invalido(
-    requisicao_autorizada, chefe_almoxarifado
-):
+def test_estornar_requisicao_estado_invalido(requisicao_autorizada, chefe_almoxarifado):
     """Estornar em estado não atendida → EstadoInvalido."""
     from apps.requisicoes.services import estornar_requisicao
 

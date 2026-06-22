@@ -29,6 +29,7 @@ from apps.requisicoes.forms import (
     ItemAtendimentoFormSet,
     ItemRequisicaoFormSet,
     RegistrarAtendimentoCabecalhoForm,
+    EstornarRequisicaoForm,
     RegistrarDevolucaoForm,
     RequisicaoCriacaoForm,
     RequisicaoForm,
@@ -45,6 +46,7 @@ from apps.requisicoes.policies import (
     pode_editar_rascunho,
     pode_enviar_rascunho,
     pode_recusar_requisicao,
+    pode_estornar_requisicao,
     pode_registrar_devolucao,
     pode_retornar_para_rascunho,
     pode_separar_para_retirada,
@@ -68,6 +70,7 @@ from apps.requisicoes.services import (
     enviar_para_autorizacao,
     recusar_requisicao,
     registrar_atendimento,
+    estornar_requisicao,
     registrar_devolucao,
     retornar_para_rascunho,
     separar_para_retirada,
@@ -237,6 +240,11 @@ def _detalhe_context(
         'enviada_em': enviada_em,
         'pode_devolver': pode_devolver,
         'devolucao_form': RegistrarDevolucaoForm(),
+        'pode_estornar': (
+            requisicao.estado == EstadoRequisicao.ATENDIDA
+            and pode_estornar_requisicao(request.user, requisicao)
+        ),
+        'estorno_form': EstornarRequisicaoForm(),
     }
 
 
@@ -1101,4 +1109,28 @@ def registrar_devolucao_view(request, pk: int, item_pk: int) -> HttpResponse:
         messages.warning(request, str(exc))
     else:
         messages.success(request, 'Devolução registrada com sucesso.')
+    return _htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
+
+
+@login_required
+@require_http_methods(['POST'])
+def estornar_requisicao_view(request, pk: int) -> HttpResponse:
+    """Estorna requisição atendida (TR-021)."""
+    get_object_or_404(requisicoes_visiveis_para(request.user.pk), pk=pk)
+    form = EstornarRequisicaoForm(request.POST)
+    if not form.is_valid():
+        messages.warning(request, form.errors.as_text())
+        return _htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
+    try:
+        estornar_requisicao(
+            ator_id=request.user.pk,
+            requisicao_id=pk,
+            justificativa=form.cleaned_data['justificativa'],
+        )
+    except PermissaoNegada as exc:
+        raise PermissionDenied(str(exc))
+    except (ConflitoDominio, DadosInvalidos, EstadoInvalido) as exc:
+        messages.warning(request, str(exc))
+    else:
+        messages.success(request, 'Requisição estornada com sucesso.')
     return _htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
