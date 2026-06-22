@@ -55,12 +55,13 @@ def test_marcar_lida_marca_notificacao(client_logado, notificacao_nao_lida):
 
 
 @pytest.mark.django_db
-def test_marcar_lida_outro_usuario_retorna_403(
+def test_marcar_lida_outro_usuario_retorna_404(
     client, outro_solicitante, notificacao_nao_lida
 ):
+    """Query escopada por destinatario — notificação alheia não existe para este usuário."""
     client.force_login(outro_solicitante)
     resp = client.post(f'/notificacoes/{notificacao_nao_lida.pk}/lida/')
-    assert resp.status_code == 403
+    assert resp.status_code == 404
     notificacao_nao_lida.refresh_from_db()
     assert notificacao_nao_lida.lida is False
 

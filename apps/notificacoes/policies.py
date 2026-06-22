@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 
 def pode_ver_notificacao(usuario: 'User', notificacao: 'Notificacao') -> bool:
-    return notificacao.destinatario_id == usuario.pk
+    return usuario.is_active and notificacao.destinatario_id == usuario.pk
 
 
 def exigir_pode_ver_notificacao(usuario: 'User', notificacao: 'Notificacao') -> None:
