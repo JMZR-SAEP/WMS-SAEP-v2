@@ -24,4 +24,5 @@ urlpatterns = [
     path('', include('apps.core.urls')),
     path('requisicoes/', include('apps.requisicoes.urls')),
     path('estoque/', include('apps.estoque.urls')),
+    path('notificacoes/', include('apps.notificacoes.urls')),
 ]

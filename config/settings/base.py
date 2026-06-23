@@ -67,6 +67,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'apps.requisicoes.context_processors.flags_de_papel',
+                'apps.notificacoes.context_processors.notificacoes_ctx',
             ],
         },
     },

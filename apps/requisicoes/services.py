@@ -11,6 +11,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING, TypedDict
 
@@ -38,6 +40,8 @@ from apps.requisicoes.models import (
     SequenciaRequisicao,
     TimelineRequisicao,
 )
+from apps.notificacoes.models import TipoNotificacao
+from apps.notificacoes.services import criar_notificacoes_para
 from apps.requisicoes.policies import (
     exigir_pode_autorizar_requisicao,
     exigir_pode_cancelar_requisicao,
@@ -58,6 +62,31 @@ from apps.requisicoes.transitions import verificar_transicao_valida
 
 if TYPE_CHECKING:
     pass
+
+logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Helpers internos — notificações pós-commit
+# ---------------------------------------------------------------------------
+
+
+def _notificar_pos_commit(
+    criador_id: int, beneficiario_id: int, req_id: int, tipo: str
+) -> None:
+    try:
+        criar_notificacoes_para(
+            criador_id=criador_id,
+            beneficiario_id=beneficiario_id,
+            requisicao_id=req_id,
+            tipo=tipo,
+        )
+    except Exception:
+        logger.exception(
+            'Falha ao criar notificações pós-commit: tipo=%s requisicao_id=%s',
+            tipo,
+            req_id,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -618,6 +647,15 @@ def recusar_requisicao(
         justificativa=motivo_limpo,
     )
 
+    _criador_id = requisicao.criador_id
+    _beneficiario_id = requisicao.beneficiario_id
+    _req_id = requisicao.pk
+    transaction.on_commit(
+        lambda: _notificar_pos_commit(
+            _criador_id, _beneficiario_id, _req_id, TipoNotificacao.RECUSA
+        )
+    )
+
     return requisicao
 
 
@@ -691,6 +729,15 @@ def autorizar_requisicao(
         ator=ator,
         estado_resultante=EstadoRequisicao.AUTORIZADA,
         metadata=metadata,
+    )
+
+    _criador_id = requisicao.criador_id
+    _beneficiario_id = requisicao.beneficiario_id
+    _req_id = requisicao.pk
+    transaction.on_commit(
+        lambda: _notificar_pos_commit(
+            _criador_id, _beneficiario_id, _req_id, TipoNotificacao.AUTORIZACAO
+        )
     )
 
     return requisicao
@@ -964,6 +1011,15 @@ def registrar_atendimento(
         ator=ator,
         estado_resultante=EstadoRequisicao.ATENDIDA,
         metadata=metadata_principal,
+    )
+
+    _criador_id = requisicao.criador_id
+    _beneficiario_id = requisicao.beneficiario_id
+    _req_id = requisicao.pk
+    transaction.on_commit(
+        lambda: _notificar_pos_commit(
+            _criador_id, _beneficiario_id, _req_id, TipoNotificacao.ATENDIMENTO
+        )
     )
 
     return requisicao

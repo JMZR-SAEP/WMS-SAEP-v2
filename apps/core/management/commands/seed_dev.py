@@ -11,6 +11,7 @@ from django.utils import timezone
 
 from apps.accounts.models import Setor, SetorClassificacao, VinculoAuxiliar
 from apps.estoque.models import Estoque, Material, SaldoEstoque, UnidadeMedida
+from apps.notificacoes.models import Notificacao, TipoNotificacao
 from apps.requisicoes.models import SequenciaRequisicao
 
 
@@ -124,6 +125,7 @@ class Command(BaseCommand):
             estoque = _seed_estoque()
             _seed_saldos_iniciais_bootstrap_exception(estoque, materiais)
             _seed_sequencia_requisicao()
+            _seed_notificacoes_exemplo(usuarios)
 
         self.stdout.write(self.style.SUCCESS('Seed de desenvolvimento aplicado.'))
 
@@ -245,3 +247,34 @@ def _seed_saldos_iniciais_bootstrap_exception(estoque, materiais):
 
 def _seed_sequencia_requisicao():
     SequenciaRequisicao.objects.get_or_create(ano=timezone.localdate().year)
+
+
+def _seed_notificacoes_exemplo(usuarios):
+    # requisicao_id=None: seed_dev não cria Requisicao (proibido pela convenção).
+    notificacoes_canonicas = [
+        {
+            'destinatario': usuarios['OBRAS001'],
+            'tipo': TipoNotificacao.AUTORIZACAO,
+            'requisicao_id': None,
+            'lida': False,
+        },
+        {
+            'destinatario': usuarios['OBRAS001'],
+            'tipo': TipoNotificacao.ATENDIMENTO,
+            'requisicao_id': None,
+            'lida': True,
+        },
+        {
+            'destinatario': usuarios['OBRAS002'],
+            'tipo': TipoNotificacao.RECUSA,
+            'requisicao_id': None,
+            'lida': False,
+        },
+    ]
+    for payload in notificacoes_canonicas:
+        Notificacao.objects.update_or_create(
+            destinatario=payload['destinatario'],
+            tipo=payload['tipo'],
+            requisicao_id=payload['requisicao_id'],
+            defaults={'lida': payload['lida']},
+        )

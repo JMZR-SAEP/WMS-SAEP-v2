@@ -1,0 +1,49 @@
+{% extends "base_auth.html" %}
+
+{% block content %}
+<div class="space-y-4">
+  <div class="flex items-center justify-between">
+    <h1 class="text-xl font-semibold text-slate-800">Notificações</h1>
+    {% if notificacoes %}
+      <form method="post" action="{% url 'notificacoes:marcar_todas_lidas' %}">
+        {% csrf_token %}
+        <button type="submit" class="text-sm text-blue-600 hover:underline">
+          Marcar todas como lidas
+        </button>
+      </form>
+    {% endif %}
+  </div>
+
+  {% if not notificacoes %}
+    <p class="text-slate-500 text-sm">Nenhuma notificação.</p>
+  {% else %}
+    <ul class="divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white">
+      {% for notificacao in notificacoes %}
+        <li class="flex items-start gap-4 p-4 {% if not notificacao.lida %}bg-blue-50{% endif %}">
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium text-slate-800">{{ notificacao.get_tipo_display }}</p>
+            {% if notificacao.requisicao_id %}
+              <p class="text-xs text-slate-500">Requisição #{{ notificacao.requisicao_id }}</p>
+            {% endif %}
+            <p class="text-xs text-slate-400 mt-1">{{ notificacao.criado_em|date:"d/m/Y H:i" }}</p>
+          </div>
+          {% if not notificacao.lida %}
+            <form method="post" action="{% url 'notificacoes:marcar_lida' notificacao.pk %}">
+              {% csrf_token %}
+              <button
+                type="submit"
+                class="text-xs text-blue-600 hover:underline shrink-0"
+                hx-post="{% url 'notificacoes:marcar_lida' notificacao.pk %}"
+                hx-swap="outerHTML"
+                hx-target="closest li"
+              >
+                Marcar como lida
+              </button>
+            </form>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+</div>
+{% endblock %}
