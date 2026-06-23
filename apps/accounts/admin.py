@@ -118,6 +118,17 @@ class VinculoAuxiliarAdmin(admin.ModelAdmin):
                 code='vinculo_inativo_admin',
             )
 
+        if not change and obj.ativo:
+            from apps.accounts.services import ativar_vinculo_auxiliar
+
+            vinculo = ativar_vinculo_auxiliar(
+                ator_id=request.user.pk,
+                usuario_id=obj.usuario_id,
+                setor_id=obj.setor_id,
+            )
+            obj.pk = vinculo.pk
+            return  # service já persistiu; super causaria INSERT duplo
+
         if 'ativo' in form.changed_data:
             campos_identidade = {'usuario', 'setor'} & set(form.changed_data)
             if change and campos_identidade:
