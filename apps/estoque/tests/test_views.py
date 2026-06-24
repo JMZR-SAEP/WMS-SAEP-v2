@@ -969,3 +969,40 @@ class TestHistoricoMovimentacoesFiltros:
         assert f'setor={setor_obras.pk}' in url_chip
         assert 'tipos=consumo' in url_chip
         assert 'tipos=saida_excepcional' in url_chip
+
+
+class TestHistoricoMovimentacoesResponsivo:
+    """Testes de estrutura HTML responsiva e atributos de acessibilidade."""
+
+    def test_disclosure_nativo_presente_na_pagina(self, client, chefe_almoxarifado):
+        # A barra de filtros usa <details>/<summary> nativo para disclosure mobile
+        # — funciona sem JavaScript (progressive enhancement).
+        client.force_login(chefe_almoxarifado)
+        response = client.get(URL_MOVIMENTACOES)
+        assert response.status_code == 200
+        assert b'<details' in response.content
+        assert b'<summary' in response.content
+
+    def test_chip_so_saidas_visivel_fora_do_disclosure(
+        self, client, chefe_almoxarifado
+    ):
+        # O chip "só saídas" deve aparecer ANTES do <details> no HTML para
+        # garantir visibilidade permanente no mobile sem abrir o disclosure.
+        client.force_login(chefe_almoxarifado)
+        response = client.get(URL_MOVIMENTACOES)
+        content = response.content.decode()
+        pos_chip = content.find('id="chip-so-saidas"')
+        pos_details = content.find('<details')
+        assert pos_chip != -1, 'chip-so-saidas não encontrado'
+        assert pos_details != -1, '<details não encontrado'
+        assert pos_chip < pos_details, 'chip deve aparecer antes do <details>'
+
+    def test_aria_live_polite_no_conteiner_de_resultados(
+        self, client, chefe_almoxarifado
+    ):
+        # O wrapper #resultados-movimentacoes deve ter aria-live="polite" e
+        # aria-atomic="true" para anunciar swaps HTMX a tecnologias assistivas.
+        client.force_login(chefe_almoxarifado)
+        response = client.get(URL_MOVIMENTACOES)
+        assert b'aria-live="polite"' in response.content
+        assert b'aria-atomic="true"' in response.content

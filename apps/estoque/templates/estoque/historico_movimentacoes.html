@@ -19,14 +19,23 @@
 
   {% include 'estoque/partials/_chip_so_saidas.html' %}
 
-  {# Barra de filtros — GET + HTMX, troca só o bloco de resultados #}
+  {# Barra de filtros — disclosure nativo <details>/<summary> no mobile;
+     sm:!block força visibilidade no desktop sem JS (progressive enhancement). #}
+  <details class="mb-6">
+    <summary
+      class="sm:hidden mb-4 flex min-h-11 cursor-pointer list-none items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+    >
+      Filtros
+      <span aria-hidden="true" class="ml-2 text-slate-400">▼</span>
+    </summary>
+    <div class="sm:!block">
   <form
     method="get"
     action="{{ url_movimentacoes }}"
     hx-get="{{ url_movimentacoes }}"
     hx-target="#resultados-movimentacoes"
     hx-push-url="true"
-    class="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+    class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
   >
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <div>
@@ -132,6 +141,8 @@
       {% endif %}
     </div>
   </form>
+    </div>
+  </details>
 
   {# Wrapper estável do swap HTMX: alvo persistente (id + aria-live único). O partial entrega só o conteúdo interno. #}
   <div id="resultados-movimentacoes" aria-live="polite" aria-atomic="true">
