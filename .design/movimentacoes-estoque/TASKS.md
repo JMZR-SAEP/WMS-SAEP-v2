@@ -35,9 +35,12 @@ Date: 2026-06-24
   rota `movimentacoes/` (`name='historico_movimentacoes'`). Lê querystring → chama
   selectors → pagina (Paginator) → renderiza. Detecta `request.htmx` para devolver só o
   partial da tabela. Passa ao contexto: página, filtros ativos, flag `mostrar_filtro_setor`
-  (= `_eh_almoxarifado`). _New. Depends on: selectors._ **Done**: testes de view por
-  papel (status, queryset escopado, contexto), teste de request HTMX devolve partial,
-  teste de querystring inválida não quebra.
+  (= `_eh_almoxarifado`). _New. Depends on: selectors._ **Contrato (ADR-0011/CONVENTIONS.md)**:
+  a view chama os selectors por **ID** (`movimentacoes_visiveis_para(request.user.pk)`), não pelo
+  objeto `user`; traduz exceção de domínio `PermissaoNegada` → `PermissionDenied` (403) via
+  policy. **Done**: testes de view por papel (status, queryset escopado, contexto), teste de
+  request HTMX devolve partial, teste de querystring inválida não quebra, teste de que
+  solicitante recebe 403 (tradução de exceção).
 
 - [ ] **Template base `historico_movimentacoes.html` + tabela desktop**: estende
   `estoque/base.html`, `app-bar__title` "Movimentações". Tabela densa (`hidden sm:block`)
@@ -108,8 +111,9 @@ Date: 2026-06-24
 
 - [ ] **Pass de acessibilidade**: contraste AA dos badges; cor nunca único portador
   (rótulo de tipo + sinal de delta); teclado completo em filtros/chip/ordenação/paginação
-  com `focus-visible:ring-2 ring-blue-500`; `aria-live="polite"` no contêiner de
-  resultados p/ anunciar swap HTMX; `aria-sort` no header de data. _Checks do brief._
+  com `focus-visible:ring-2 ring-blue-500`; `aria-live="polite"` **e** `aria-atomic="true"`
+  no contêiner de resultados para anunciar swap HTMX (contrato de `docs/design-system.md`
+  linha 267); `aria-sort` no header de data. _Checks do brief._
 
 ## Review
 

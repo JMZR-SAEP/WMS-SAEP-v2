@@ -3,6 +3,13 @@
 > Origem: US-17 — "Como auditor interno, quero listar todas as movimentações de estoque
 > de um material em ordem cronológica". Ampliado em grill para servir também chefes e
 > auxiliares de setor (escopo do próprio setor) e o almoxarifado (escopo global).
+>
+> **Mapeamento RBAC**: "auditor interno" é um sinônimo de negócio (visão global do ledger),
+> **não** um papel próprio no modelo de acesso. O contrato de visibilidade em
+> `apps/estoque/selectors.py::movimentacoes_visiveis_para` reconhece apenas
+> **superuser / almoxarifado / setor**; a visão global do auditor é servida hoje por
+> `superuser` ou `almoxarifado`. Não há permissão nova nesta entrega — alinhado a CONTEXT.md
+> e à matriz de permissões. Se um papel "auditor" dedicado surgir, será decisão futura.
 
 ## Problem
 
@@ -87,7 +94,7 @@ Componentes e convenções já no código que esta tela respeita e estende:
 | Barra de filtros | New | Form GET: busca de material, multi-seleção de tipo, período (data ini/fim), setor (só almox). Submete via HTMX preservando querystring. |
 | Chip "só saídas" | New | Atalho que seta o filtro de tipo para `consumo` + `saida_excepcional`. |
 | Célula de delta assinado | New | Δfísico / Δreservado com `tabular-nums`; sinal +/− visível; zero atenuado (`text-slate-400`). |
-| Link de origem | New | Renderiza nº público da requisição **ou** da saída excepcional (exatamente uma origem por linha). |
+| Célula de origem | New | Renderiza **texto** com o nº público da requisição **ou** da saída excepcional (exatamente uma origem por linha). **Sem link nesta entrega** — deep-links de origem ficam em "Out of Scope". |
 | Paginação | New/Modify | Controle server-side; preserva querystring de filtros. Verificar se há partial de paginação reutilizável antes de criar. |
 | Empty state | Exists | Padrão `border-dashed` + ícone + mensagem; texto adaptado ("Nenhuma movimentação encontrada para este filtro"). |
 | Item de menu "Movimentações" | New | Entrada na navegação da área de estoque (`_topbar_nav.html`). Visível conforme RBAC. |
@@ -132,8 +139,9 @@ Componentes e convenções já no código que esta tela respeita e estende:
   operáveis; `focus-visible:ring-2 ring-blue-500`.
 - Tabela com `<caption class="sr-only">` descrevendo conteúdo e ordenação corrente;
   `scope="col"` nos headers; header de ordenação com `aria-sort`.
-- Região da tabela atualizada por HTMX anuncia mudança (ex.: `aria-live="polite"` no
-  contêiner de resultados) para leitores de tela.
+- Região da tabela atualizada por HTMX anuncia mudança para leitores de tela: contêiner de
+  resultados com `aria-live="polite"` **e** `aria-atomic="true"` — contrato completo de
+  `docs/design-system.md` (linha 267) para updates HTMX críticos.
 - Alvos de toque `min-h-11` em todos os controles.
 
 ## Out of Scope

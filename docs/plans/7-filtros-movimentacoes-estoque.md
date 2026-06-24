@@ -21,13 +21,20 @@
   devolver só o partial da tabela. Novas chaves de contexto: `filtros` (valores ativos),
   `mostrar_filtro_setor` (= `_eh_almoxarifado`), `setores_disponiveis`, `tipos_opcoes`,
   `ordem`, `tem_filtro_ativo`, `so_saidas_ativo`.
+  - **Contrato de chamada (ADR-0011/CONVENTIONS.md)**: a view chama o selector de
+    visibilidade por **ID** — `movimentacoes_visiveis_para(request.user.pk)` — e nunca passa
+    o objeto `user` ao selector. `mostrar_filtro_setor` deriva de `_eh_almoxarifado(request.user)`.
+    Policies (`exigir_pode_consultar_movimentacoes_estoque`) recebem o objeto `user` conforme
+    o padrão vigente do projeto; a view traduz `PermissaoNegada` → `PermissionDenied` (403).
+    Se a implementação divergir deste contrato, sinalizar explicitamente conforme CONVENTIONS.md.
 - **Ordenação**: tratada na **view** via querystring `?ordem=asc|desc` (default `desc`).
   Decisão: mantém a assinatura do selector exatamente como especificada na issue (sem
   `ordem`); ordenação é responsabilidade da view (`order_by`). Selector permanece filtro puro.
 - **Filtro de setor**: campo renderizado SOMENTE quando `mostrar_filtro_setor` (almoxarifado).
 - **Templates**:
   - Extrair tabela+paginação para `partials/_tabela_movimentacoes.html` (alvo do swap HTMX),
-    com `aria-live="polite"` no contêiner de resultados.
+    com `aria-live="polite" aria-atomic="true"` no contêiner de resultados — contrato completo
+    de `docs/design-system.md` (linha 267: updates HTMX críticos usam ambos os atributos).
   - Barra de filtros (form GET) em `historico_movimentacoes.html`: busca de material, multi-
     seleção de tipo, período (data ini/fim), setor (condicional). Submete via HTMX GET com
     `hx-push-url`, troca só o partial, reseta para página 1.
