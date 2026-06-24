@@ -926,7 +926,7 @@ class TestHistoricoMovimentacoesFiltros:
         ).content
         assert b'id="chip-so-saidas"' in parcial
         assert b'hx-swap-oob="true"' in parcial
-        assert b'aria-pressed="true"' in parcial
+        assert b'aria-current="true"' in parcial
 
     def test_chip_so_saidas_sem_oob_na_pagina_completa(
         self, client, superuser, requisicao_autorizada
