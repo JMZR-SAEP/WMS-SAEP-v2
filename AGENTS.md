@@ -79,7 +79,7 @@ The local environment is disposable in dev.
 - creating new migration files is not part of the normal delivery in this ephemeral context;
 - the source of truth for structural changes is `models`, constraints, indexes, domain rules, and tests; local migrations only materialize the local database;
 - tasks without structural changes may follow an incremental flow; a full reset is mandatory only for schema/model changes or when the local environment is inconsistent;
-- ADR-0009 defines `seed_dev`/`make seed-dev` as the intended local seed contract, but do not assume it is runnable until the Makefile and command exist in the live tree;
+- ADR-0009 define `seed_dev`/`make seed-dev` como contrato de seed local; o target existe no Makefile e pode ser executado.
 
 ## Language convention
 
