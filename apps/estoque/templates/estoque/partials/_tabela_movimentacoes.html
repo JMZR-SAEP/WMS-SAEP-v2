@@ -1,10 +1,10 @@
 {% comment %}
-Bloco tabela+paginação do ledger de movimentações — alvo do swap HTMX.
-Contexto: page_obj, tem_filtro_ativo, ordem, aria_sort, url_ordenacao,
-querystring_filtros. Atualizações anunciadas a leitores de tela via
-aria-live="polite" aria-atomic="true" (docs/design-system.md L267).
+Conteúdo do bloco tabela+paginação do ledger de movimentações — resposta do swap HTMX.
+O wrapper #resultados-movimentacoes (id + aria-live="polite" aria-atomic="true",
+docs/design-system.md L267) vive na página completa e é o alvo persistente do swap;
+este partial entrega apenas o conteúdo interno para evitar id duplicado / aria-live aninhado.
+Contexto: page_obj, tem_filtro_ativo, ordem, aria_sort, url_ordenacao, querystring_filtros.
 {% endcomment %}
-<div id="resultados-movimentacoes" aria-live="polite" aria-atomic="true">
 {% if page_obj.object_list %}
 
   {# Mobile: cards empilhados #}
@@ -59,7 +59,7 @@ aria-live="polite" aria-atomic="true" (docs/design-system.md L267).
               hx-get="{{ url_ordenacao }}"
               hx-target="#resultados-movimentacoes"
               hx-push-url="true"
-              class="inline-flex items-center gap-1 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              class="-my-1 inline-flex items-center gap-1 rounded py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               aria-label="Ordenar por data/hora, {% if ordem == 'asc' %}atualmente crescente{% else %}atualmente decrescente{% endif %}"
             >
               Data/hora
@@ -113,4 +113,11 @@ aria-live="polite" aria-atomic="true" (docs/design-system.md L267).
   </div>
 
 {% endif %}
-</div>
+
+{% comment %}
+Em respostas HTMX, reemite o chip "só saídas" como swap out-of-band: ele vive
+fora de #resultados-movimentacoes, então precisa ser atualizado à parte para
+refletir estado ativo/alternância da URL. No render da página completa (is_htmx
+falso) o chip é renderizado pelo próprio template-base — evita id duplicado.
+{% endcomment %}
+{% if is_htmx %}{% include 'estoque/partials/_chip_so_saidas.html' with oob_chip=True %}{% endif %}

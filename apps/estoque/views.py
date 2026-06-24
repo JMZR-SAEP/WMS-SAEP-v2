@@ -169,8 +169,10 @@ def historico_movimentacoes_view(request):
     params_chip_off.setlist('tipos', [])
     url_chip_sem_so_saidas = '?' + params_chip_off.urlencode()
 
+    is_htmx = request.headers.get('HX-Request') == 'true'
     contexto = {
         'page_obj': page_obj,
+        'is_htmx': is_htmx,
         'mostrar_filtro_setor': mostrar_filtro_setor,
         'setores_disponiveis': setores_disponiveis,
         'tipos_opcoes': TipoMovimentacaoEstoque.choices,
@@ -191,7 +193,7 @@ def historico_movimentacoes_view(request):
         'querystring_filtros': _querystring_sem_page(request.GET),
     }
 
-    if request.headers.get('HX-Request') == 'true':
+    if is_htmx:
         template = 'estoque/partials/_tabela_movimentacoes.html'
     else:
         template = 'estoque/historico_movimentacoes.html'

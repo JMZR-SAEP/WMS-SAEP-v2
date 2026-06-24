@@ -912,6 +912,31 @@ class TestHistoricoMovimentacoesFiltros:
         assert ativo.context['so_saidas_ativo'] is True
         assert inativo.context['so_saidas_ativo'] is False
 
+    def test_chip_so_saidas_reemitido_via_oob_no_swap_htmx(
+        self, client, superuser, requisicao_autorizada
+    ):
+        # Bug-regressão: o chip vive fora de #resultados-movimentacoes, então
+        # numa resposta HTMX precisa ser reemitido como out-of-band para o
+        # estado ativo e a URL de alternância refletirem o novo recorte.
+        client.force_login(superuser)
+        parcial = client.get(
+            URL_MOVIMENTACOES,
+            {'tipos': ['consumo', 'saida_excepcional']},
+            HTTP_HX_REQUEST='true',
+        ).content
+        assert b'id="chip-so-saidas"' in parcial
+        assert b'hx-swap-oob="true"' in parcial
+        assert b'aria-pressed="true"' in parcial
+
+    def test_chip_so_saidas_sem_oob_na_pagina_completa(
+        self, client, superuser, requisicao_autorizada
+    ):
+        # Render completo: chip único, sem atributo OOB (evita id duplicado).
+        client.force_login(superuser)
+        conteudo = client.get(URL_MOVIMENTACOES).content
+        assert conteudo.count(b'id="chip-so-saidas"') == 1
+        assert b'hx-swap-oob' not in conteudo
+
     def test_flag_tem_filtro_ativo(self, client, superuser, requisicao_autorizada):
         client.force_login(superuser)
         com = client.get(URL_MOVIMENTACOES, {'material': 'x'})
