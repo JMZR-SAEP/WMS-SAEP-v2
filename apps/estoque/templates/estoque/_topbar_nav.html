@@ -1,5 +1,5 @@
 {% with current=request.resolver_match.view_name %}
-  {% if pode_ver_fila_atendimento or pode_consultar_saidas_excepcionais or pode_visualizar_preview_scpi or pode_consultar_historico_scpi or pode_consultar_catalogo_estoque %}
+  {% if pode_ver_fila_atendimento or pode_consultar_saidas_excepcionais or pode_visualizar_preview_scpi or pode_consultar_historico_scpi or pode_consultar_catalogo_estoque or pode_consultar_movimentacoes_estoque %}
   <nav class="app-bar__menu-section" aria-label="Almoxarifado">
     <p class="app-bar__menu-heading">Almoxarifado</p>
 
@@ -39,6 +39,19 @@
           <path d="M20 3H4v2h16V3zm1 5H3l1 13h16l1-13zm-5 7h-3v3h-2v-3H8v-2h3V10h2v3h3v2z"/>
         </svg>
         Catálogo de materiais
+      </a>
+    {% endif %}
+
+    {% if pode_consultar_movimentacoes_estoque %}
+      <a
+        href="{% url 'estoque:historico_movimentacoes' %}"
+        class="app-bar__menu-item"
+        {% if current == 'estoque:historico_movimentacoes' %}aria-current="page"{% endif %}
+      >
+        <svg class="app-bar__menu-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
+        </svg>
+        Movimentações
       </a>
     {% endif %}
 

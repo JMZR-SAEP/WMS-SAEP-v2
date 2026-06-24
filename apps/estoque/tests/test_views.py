@@ -694,3 +694,107 @@ class TestListaMateriaisView:
         saldos = list(response.context['saldos'])
         critico = next(s for s in saldos if s.material == material_scpi_critico)
         assert critico.divergente_calculado is True
+
+
+URL_MOVIMENTACOES = reverse('estoque:historico_movimentacoes')
+
+
+class TestHistoricoMovimentacoesView:
+    def test_chefe_almox_acessa(self, client, chefe_almoxarifado):
+        client.force_login(chefe_almoxarifado)
+        response = client.get(URL_MOVIMENTACOES)
+        assert response.status_code == 200
+
+    def test_superuser_acessa(self, client, superuser):
+        client.force_login(superuser)
+        response = client.get(URL_MOVIMENTACOES)
+        assert response.status_code == 200
+
+    def test_solicitante_recebe_403(self, client, solicitante):
+        client.force_login(solicitante)
+        response = client.get(URL_MOVIMENTACOES)
+        assert response.status_code == 403
+
+    def test_anonimo_redirecionado_para_login(self, client):
+        response = client.get(URL_MOVIMENTACOES)
+        assert response.status_code == 302
+        assert 'login' in response['Location']
+
+    def test_contexto_tem_page_obj(self, client, chefe_almoxarifado):
+        client.force_login(chefe_almoxarifado)
+        response = client.get(URL_MOVIMENTACOES)
+        assert 'page_obj' in response.context
+
+    def test_view_alimenta_page_obj_com_selector_escopado(
+        self,
+        client,
+        chefe_obras,
+        requisicao_autorizada,
+        saida_registrada,
+        movimentacao_outro_setor,
+    ):
+        # Contrato HTTP/render: a view delega o escopo ao selector e pagina o
+        # resultado. A matriz de visibilidade em si é coberta em test_selectors.
+        from apps.estoque.selectors import movimentacoes_visiveis_para
+
+        client.force_login(chefe_obras)
+        response = client.get(URL_MOVIMENTACOES)
+        assert response.status_code == 200
+        assert 'estoque/historico_movimentacoes.html' in {
+            t.name for t in response.templates
+        }
+        esperado = movimentacoes_visiveis_para(chefe_obras.pk).count()
+        assert response.context['page_obj'].paginator.count == esperado
+
+    def test_paginacao_server_side(
+        self,
+        client,
+        superuser,
+        requisicao_autorizada,
+        material_disponivel,
+        estoque_principal,
+    ):
+        from decimal import Decimal
+
+        from apps.estoque.models import MovimentacaoEstoque, TipoMovimentacaoEstoque
+
+        req, _ = requisicao_autorizada
+        for _ in range(30):
+            MovimentacaoEstoque.objects.create(
+                tipo=TipoMovimentacaoEstoque.CONSUMO,
+                material=material_disponivel,
+                estoque=estoque_principal,
+                delta_fisico=Decimal('-1'),
+                delta_reservado=Decimal('-1'),
+                requisicao=req,
+                ator=superuser,
+            )
+        client.force_login(superuser)
+        page1 = client.get(URL_MOVIMENTACOES)
+        assert len(page1.context['page_obj'].object_list) == 25
+        assert page1.context['page_obj'].has_next() is True
+        page2 = client.get(URL_MOVIMENTACOES, {'page': 2})
+        assert page2.status_code == 200
+        assert len(page2.context['page_obj'].object_list) >= 1
+
+    def test_empty_state_quando_ledger_vazio(self, client, chefe_almoxarifado):
+        client.force_login(chefe_almoxarifado)
+        response = client.get(URL_MOVIMENTACOES)
+        assert response.context['page_obj'].paginator.count == 0
+        assert b'Nenhuma movimenta' in response.content
+
+    def test_menu_mostra_link_para_almox(self, client, chefe_almoxarifado):
+        client.force_login(chefe_almoxarifado)
+        response = client.get(URL_MOVIMENTACOES)
+        assert URL_MOVIMENTACOES.encode() in response.content
+
+    def test_comentarios_dos_partials_nao_vazam_para_a_tela(
+        self, client, superuser, requisicao_autorizada
+    ):
+        # Comentário multilinha precisa ser {% comment %}, não {# #} (que é
+        # single-line) — senão o texto do comentário renderiza como conteúdo.
+        client.force_login(superuser)
+        response = client.get(URL_MOVIMENTACOES)
+        assert 'Badge semântico'.encode() not in response.content
+        assert 'Célula de delta'.encode() not in response.content
+        assert 'Paginação server-side'.encode() not in response.content

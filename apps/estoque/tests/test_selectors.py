@@ -527,3 +527,122 @@ class TestListarMateriaisComSaldo:
             material_disponivel.pk,
             material_scpi_critico.pk,
         }
+
+
+class TestMovimentacoesVisiveisPara:
+    """RBAC do ledger (selector é a fronteira de segurança) — espelha
+    requisicoes/selectors.py::requisicoes_visiveis_para."""
+
+    @pytest.mark.django_db
+    def test_superuser_ve_requisicao_e_saida_excepcional(
+        self, superuser, requisicao_autorizada, saida_registrada
+    ):
+        from apps.estoque.selectors import movimentacoes_visiveis_para
+
+        visiveis = movimentacoes_visiveis_para(superuser.pk)
+
+        tipos_origem = {
+            ('requisicao' if m.requisicao_id else 'saida_excepcional') for m in visiveis
+        }
+        assert tipos_origem == {'requisicao', 'saida_excepcional'}
+
+    @pytest.mark.django_db
+    def test_chefe_almox_ve_tudo_incluindo_saida(
+        self, chefe_almoxarifado, requisicao_autorizada, saida_registrada
+    ):
+        from apps.estoque.selectors import movimentacoes_visiveis_para
+
+        visiveis = movimentacoes_visiveis_para(chefe_almoxarifado.pk)
+        assert visiveis.filter(saida_excepcional__isnull=False).exists()
+        assert visiveis.filter(requisicao__isnull=False).exists()
+
+    @pytest.mark.django_db
+    def test_aux_almox_ve_tudo_incluindo_saida(
+        self, aux_almoxarifado, requisicao_autorizada, saida_registrada
+    ):
+        from apps.estoque.selectors import movimentacoes_visiveis_para
+
+        visiveis = movimentacoes_visiveis_para(aux_almoxarifado.pk)
+        assert visiveis.filter(saida_excepcional__isnull=False).exists()
+        assert visiveis.filter(requisicao__isnull=False).exists()
+
+    @pytest.mark.django_db
+    def test_chefe_setor_ve_so_proprio_setor_sem_saida_nem_outro_setor(
+        self,
+        chefe_obras,
+        requisicao_autorizada,
+        saida_registrada,
+        movimentacao_outro_setor,
+    ):
+        from apps.estoque.selectors import movimentacoes_visiveis_para
+
+        visiveis = movimentacoes_visiveis_para(chefe_obras.pk)
+
+        # Vê movimentação da requisição do próprio setor (obras).
+        assert visiveis.filter(requisicao__isnull=False).exists()
+        # Não-vazamento: nenhuma saída excepcional.
+        assert not visiveis.filter(saida_excepcional__isnull=False).exists()
+        # Não-vazamento: nenhuma movimentação de outro setor.
+        assert not visiveis.filter(pk=movimentacao_outro_setor.pk).exists()
+
+    @pytest.mark.django_db
+    def test_aux_setor_ve_so_proprio_setor(
+        self, aux_obras, requisicao_autorizada, saida_registrada
+    ):
+        from apps.estoque.selectors import movimentacoes_visiveis_para
+
+        visiveis = movimentacoes_visiveis_para(aux_obras.pk)
+        assert visiveis.filter(requisicao__isnull=False).exists()
+        assert not visiveis.filter(saida_excepcional__isnull=False).exists()
+
+    @pytest.mark.django_db
+    def test_usuario_inativo_nao_ve_nada(
+        self, usuario_inativo, requisicao_autorizada, saida_registrada
+    ):
+        from apps.estoque.selectors import movimentacoes_visiveis_para
+
+        assert not movimentacoes_visiveis_para(usuario_inativo.pk).exists()
+
+    @pytest.mark.django_db
+    def test_usuario_inexistente_nao_ve_nada(
+        self, requisicao_autorizada, saida_registrada
+    ):
+        from apps.estoque.selectors import movimentacoes_visiveis_para
+
+        assert not movimentacoes_visiveis_para(999999).exists()
+
+    @pytest.mark.django_db
+    def test_solicitante_puro_nao_ve_nada(
+        self, solicitante, requisicao_autorizada, saida_registrada
+    ):
+        from apps.estoque.selectors import movimentacoes_visiveis_para
+
+        # Solicitante sem chefia nem vínculo de auxiliar não enxerga o ledger.
+        assert not movimentacoes_visiveis_para(solicitante.pk).exists()
+
+    @pytest.mark.django_db
+    def test_ordenacao_por_criado_em_decrescente(
+        self, superuser, requisicao_autorizada, material_disponivel, estoque_principal
+    ):
+        from decimal import Decimal
+
+        from apps.estoque.models import MovimentacaoEstoque, TipoMovimentacaoEstoque
+        from apps.estoque.selectors import movimentacoes_visiveis_para
+
+        req, _ = requisicao_autorizada
+        for _ in range(2):
+            MovimentacaoEstoque.objects.create(
+                tipo=TipoMovimentacaoEstoque.CONSUMO,
+                material=material_disponivel,
+                estoque=estoque_principal,
+                delta_fisico=Decimal('-1'),
+                delta_reservado=Decimal('-1'),
+                requisicao=req,
+                ator=superuser,
+            )
+
+        criados = [m.criado_em for m in movimentacoes_visiveis_para(superuser.pk)]
+        # Contrato order_by('-criado_em'): timestamps em ordem não-crescente,
+        # asseverado diretamente sobre criado_em (não via pk).
+        assert len(criados) >= 2
+        assert criados == sorted(criados, reverse=True)

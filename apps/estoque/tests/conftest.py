@@ -83,6 +83,63 @@ def usuario_inativo(db, setor_almoxarifado):
 
 
 @pytest.fixture
+def chefe_obras(db, setor_obras):
+    u = User.objects.create_user(
+        matricula='010',
+        nome='Carla Chefe Obras',
+        password='senha',
+        setor=setor_obras,
+    )
+    setor_obras.chefe = u
+    setor_obras.save(update_fields=['chefe'])
+    return u
+
+
+@pytest.fixture
+def aux_obras(db, setor_obras):
+    u = User.objects.create_user(
+        matricula='011',
+        nome='Bruno Aux Obras',
+        password='senha',
+        setor=setor_obras,
+    )
+    VinculoAuxiliar.objects.create(usuario=u, setor=setor_obras, ativo=True)
+    return u
+
+
+@pytest.fixture
+def movimentacao_outro_setor(
+    db, solicitante, material_disponivel, estoque_principal, chefe_almoxarifado
+):
+    """RESERVA de requisição de um setor distinto de obras (não-vazamento)."""
+    from decimal import Decimal
+
+    from apps.accounts.models import Setor, SetorClassificacao
+    from apps.estoque.models import MovimentacaoEstoque, TipoMovimentacaoEstoque
+    from apps.requisicoes.models import EstadoRequisicao, Requisicao
+
+    setor_ti = Setor.objects.create(
+        codigo='TI', nome='TI', classificacao=SetorClassificacao.COMUM
+    )
+    req = Requisicao.objects.create(
+        estado=EstadoRequisicao.AUTORIZADA,
+        numero_publico='REQ-2025-000099',
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_ti,
+    )
+    return MovimentacaoEstoque.objects.create(
+        tipo=TipoMovimentacaoEstoque.RESERVA,
+        material=material_disponivel,
+        estoque=estoque_principal,
+        delta_fisico=Decimal('0'),
+        delta_reservado=Decimal('3'),
+        requisicao=req,
+        ator=chefe_almoxarifado,
+    )
+
+
+@pytest.fixture
 def estoque_principal(db):
     return Estoque.objects.create(codigo='EST01', nome='Estoque Principal')
 

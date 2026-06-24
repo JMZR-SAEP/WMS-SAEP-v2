@@ -77,7 +77,7 @@ Valores: **Sim**, **Não**, **Apenas próprio setor**, **Qualquer setor**, **Ape
 | Consultar saídas excepcionais | Não | Não | Não | Sim | Sim | Sim | Lista e detalhe do documento. |
 | Registrar saída excepcional | Não | Não | Não | Não | Sim | Sim (override técnico) | Documento próprio, número `SXP-AAAA-NNNNNN`, baixa física direta, motivo fechado e observação obrigatória. |
 | Estornar saída excepcional | Não | Não | Não | Não | Sim | Sim (override técnico) | Estorno total only; justificativa obrigatória; não cria novo número. |
-| Consultar histórico de movimentações | Não | Não | Não | Sim | Sim | Sim | Timeline da requisição segue visibilidade da requisição. |
+| Consultar histórico de movimentações | Não | Apenas próprio setor | Apenas próprio setor | Sim | Sim | Sim | Chefe/aux de setor veem movimentações de requisições do próprio setor, **sem** saídas excepcionais; almoxarifado e superusuário veem tudo (US-17, ratificado em grill — `.design/movimentacoes-estoque/DESIGN_BRIEF.md`). Timeline da requisição segue visibilidade da requisição. |
 | Registrar devolução | Não | Não | Não | Sim | Sim | Sim | Vinculada a requisição `atendida`. |
 | Estornar requisição finalizada | Não | Não | Não | Não | Sim | Sim | Apenas chefe de Almoxarifado. |
 | Estornar devolução | Não | Não | Não | Não | Sim | Sim | Exige saldo disponível suficiente. |
@@ -103,6 +103,7 @@ Valores: **Sim**, **Não**, **Apenas próprio setor**, **Qualquer setor**, **Ape
 - Almoxarifado vê requisições de todos os setores fora de rascunhos e vê a fila de atendimento (estados `autorizada` e `pronta_para_retirada`).
 - Chefe de setor vê fila de autorização do próprio setor; chefe de Almoxarifado vê apenas setor Almoxarifado.
 - Saídas excepcionais são consultáveis por chefe de Almoxarifado, auxiliar de Almoxarifado e superuser; registro e estorno ficam restritos ao chefe de Almoxarifado e ao override técnico do superuser.
+- Histórico de movimentações de estoque (ledger `MovimentacaoEstoque`): almoxarifado (chefe/aux) e superusuário veem tudo, incluindo saídas excepcionais; chefe/aux de setor não-almox veem apenas movimentações de requisições do próprio setor (`requisicao__setor_beneficiario`), **sem** saídas excepcionais; solicitante e usuário inativo não veem. A fronteira de visibilidade vive em `estoque/selectors.py::movimentacoes_visiveis_para`.
 - Relatórios gerais: Almoxarifado e suporte/admin. Chefe de setor: apenas relatórios do próprio setor.
 - Superusuário vê todos os registros e pode executar ações administrativas, operacionais e de estoque.
 
@@ -123,4 +124,4 @@ Valores: **Sim**, **Não**, **Apenas próprio setor**, **Qualquer setor**, **Ape
 ## 7. Pontos a confirmar
 
 - Superfície da carga inicial SCPI: piloto pode usar script/modo técnico; MVP exige fluxo técnico controlado por superusuário.
-- Detalhe de material deve explicitar se histórico de movimentações completo é visível a todos os autenticados ou só a papéis operacionais/admin.
+- ~~Detalhe de material deve explicitar se histórico de movimentações completo é visível a todos os autenticados ou só a papéis operacionais/admin.~~ **Resolvido (US-17/#6):** histórico escopado por papel — almoxarifado/superusuário veem tudo; chefe/aux de setor veem só o próprio setor sem saídas excepcionais (ver §4 linha "Consultar histórico de movimentações" e §5).

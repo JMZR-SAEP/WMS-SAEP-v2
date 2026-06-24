@@ -5,7 +5,12 @@ from decimal import Decimal, InvalidOperation
 
 from django.db.models import Count, QuerySet
 
-from apps.estoque.models import SaidaExcepcional, TipoMovimentacaoEstoque
+from apps.accounts.models import SetorClassificacao, User, VinculoAuxiliar
+from apps.estoque.models import (
+    MovimentacaoEstoque,
+    SaidaExcepcional,
+    TipoMovimentacaoEstoque,
+)
 
 
 def listar_saidas_excepcionais(ator_id: int) -> QuerySet:
@@ -299,3 +304,78 @@ def entregue_liquida_por_item(*, requisicao_id: int, item_id: int) -> Decimal:
 
     total_delta_fisico = resultado['total'] or Decimal('0')
     return -total_delta_fisico
+
+
+def _eh_almoxarifado(ator: User) -> bool:
+    """True se o ator é chefe ou auxiliar ativo de um setor ALMOXARIFADO ativo."""
+    try:
+        setor = ator.setor_chefiado
+        if setor.ativo and setor.classificacao == SetorClassificacao.ALMOXARIFADO:
+            return True
+    except Exception:
+        pass
+    return VinculoAuxiliar.objects.filter(
+        usuario=ator,
+        ativo=True,
+        setor__ativo=True,
+        setor__classificacao=SetorClassificacao.ALMOXARIFADO,
+    ).exists()
+
+
+def _setores_visiveis_nao_almox(ator: User) -> list[int]:
+    """IDs de setores não-almox ativos onde o ator é chefe OU auxiliar ativo.
+
+    Cobre chefe e auxiliar (o helper análogo de requisicoes cobre só chefe).
+    """
+    setores: set[int] = set()
+    try:
+        setor = ator.setor_chefiado
+        if setor.ativo and setor.classificacao != SetorClassificacao.ALMOXARIFADO:
+            setores.add(setor.pk)
+    except Exception:
+        pass
+    vinculos = (
+        VinculoAuxiliar.objects.filter(usuario=ator, ativo=True, setor__ativo=True)
+        .exclude(setor__classificacao=SetorClassificacao.ALMOXARIFADO)
+        .values_list('setor_id', flat=True)
+    )
+    setores.update(vinculos)
+    return list(setores)
+
+
+def movimentacoes_visiveis_para(ator_id: int) -> QuerySet[MovimentacaoEstoque]:
+    """Queryset do ledger visível ao ator, ordenado por -criado_em.
+
+    RBAC (fronteira de segurança — nunca na view/template):
+    - superuser → tudo.
+    - almoxarifado (chefe ou auxiliar) → tudo, incluindo saídas excepcionais.
+    - chefe/aux de setor não-almox → só movimentações com
+      ``requisicao__setor_beneficiario`` nos setores do ator; saídas excepcionais
+      ficam de fora por construção (têm ``requisicao`` nulo).
+    - usuário inativo/inexistente → vazio.
+    """
+    base_qs = MovimentacaoEstoque.objects.select_related(
+        'material',
+        'estoque',
+        'ator',
+        'requisicao',
+        'requisicao__setor_beneficiario',
+        'saida_excepcional',
+    ).order_by('-criado_em')
+
+    try:
+        ator = User.objects.get(pk=ator_id)
+    except User.DoesNotExist:
+        return base_qs.none()
+
+    if not ator.is_active:
+        return base_qs.none()
+
+    if ator.is_superuser or _eh_almoxarifado(ator):
+        return base_qs
+
+    setores = _setores_visiveis_nao_almox(ator)
+    if setores:
+        return base_qs.filter(requisicao__setor_beneficiario_id__in=setores)
+
+    return base_qs.none()

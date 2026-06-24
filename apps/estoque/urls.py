@@ -11,6 +11,11 @@ urlpatterns = [
         name='lista_materiais',
     ),
     path(
+        'movimentacoes/',
+        views.historico_movimentacoes_view,
+        name='historico_movimentacoes',
+    ),
+    path(
         'saidas-excepcionais/',
         views.listar_saidas_excepcionais_view,
         name='listar_saidas_excepcionais',

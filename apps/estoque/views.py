@@ -1,6 +1,7 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
+from django.core.paginator import Paginator
 from django.db.models import DecimalField, ExpressionWrapper, F, Sum
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
@@ -9,6 +10,7 @@ from django.views.decorators.http import require_GET, require_http_methods
 from apps.core.exceptions import ConflitoDominio, DadosInvalidos, PermissaoNegada
 from apps.estoque.models import Estoque, SaldoEstoque
 from apps.estoque.policies import (
+    exigir_pode_consultar_movimentacoes_estoque,
     exigir_pode_consultar_saidas_excepcionais,
     exigir_pode_registrar_saida_excepcional,
     pode_registrar_saida_excepcional,
@@ -16,6 +18,7 @@ from apps.estoque.policies import (
 from apps.estoque.selectors import (
     buscar_materiais_saida_excepcional,
     listar_saidas_excepcionais,
+    movimentacoes_visiveis_para,
 )
 from apps.estoque.services import registrar_saida_excepcional
 
@@ -48,6 +51,28 @@ def listar_saidas_excepcionais_view(request):
             'saidas': saidas,
             'pode_registrar': pode_registrar_saida_excepcional(request.user),
         },
+    )
+
+
+PAGINA_MOVIMENTACOES_TAMANHO = 25
+
+
+@login_required
+@require_GET
+def historico_movimentacoes_view(request):
+    """Lista paginada do ledger de movimentações visível ao ator (RBAC no selector)."""
+    try:
+        exigir_pode_consultar_movimentacoes_estoque(request.user)
+    except PermissaoNegada as exc:
+        raise PermissionDenied(str(exc))
+
+    movimentacoes = movimentacoes_visiveis_para(request.user.pk)
+    paginator = Paginator(movimentacoes, PAGINA_MOVIMENTACOES_TAMANHO)
+    page_obj = paginator.get_page(request.GET.get('page'))
+    return render(
+        request,
+        'estoque/historico_movimentacoes.html',
+        {'page_obj': page_obj},
     )
 
 
