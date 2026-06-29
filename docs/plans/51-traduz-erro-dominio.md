@@ -5,7 +5,7 @@
 **O que muda:**
 - Novo arquivo `apps/core/presentation.py` com `ErroPresentation` (dataclass frozen) e `traduz_erro_dominio()`.
 - Views de `requisicoes` e `estoque` migradas ao tradutor.
-- 5 drifts confirmados como acidentais (HITL 2026-06-29) corrigidos.
+- 6 drifts confirmados como acidentais (HITL 2026-06-29) corrigidos.
 
 **O que NÃO muda:**
 - `apps/core/exceptions.py` — sem alterações nas classes de exceção.
@@ -119,6 +119,17 @@ Os opt-outs receberão comentário `# opt-out: <razão>` no bloco except, tornan
 
 Testes de integração das views (fixtures existentes) verificam indiretamente que os drifts foram corrigidos.
 
+**`apps/requisicoes/tests/` e `apps/estoque/tests/` — testes de contrato dos opt-outs:**
+
+| View | Cenário | Tipo |
+|---|---|---|
+| `buscar_materiais` | `PermissaoNegada` → `JsonResponse` com `status=403` (não `messages`) | opt-out contrato |
+| `buscar_materiais_saida_excepcional_view` | idem | opt-out contrato |
+| `nova_saida_excepcional_view` | `DadosInvalidos` → `render` com `{'erro_geral': ...}` (não redirect) | opt-out contrato |
+| `preview_importacao_scpi_view` | `DadosInvalidos` → `render` com `{'erro_arquivo': ...}` (não redirect) | opt-out contrato |
+
+Esses testes travam o comportamento atual de `JsonResponse`/`render` inline, impedindo que refatoração futura troque silenciosamente por `messages` + redirect.
+
 ---
 
 ## Invariantes
@@ -134,6 +145,6 @@ Da `docs/matriz-invariantes.md`:
 
 | Risco | Mitigação |
 |---|---|
-| Subtipo futuro de `ErroDominio` sem entrada no mapa | Fallback genérico (severity='error', status=500) com log implícito; detectado em testes quando novo subtipo é adicionado |
+| Subtipo futuro de `ErroDominio` sem entrada no mapa | Fallback genérico (severity='error', status=500); sem log no tradutor (puro). Detecção: o teste `test_presentation.py` inclui um subtipo-sentinela que deve cair no fallback — falha ao compilar se o mapa for expandido sem teste correspondente. Observabilidade em produção fica na camada de view (logging de exceção inesperada), fora do escopo deste módulo. |
 | Opt-out não documentado → silencioso | Checklist de revisão: todo `except` que diverge do padrão canônico deve ter comentário `# opt-out: <razão>` |
 | Migração parcial deixa drifts remanescentes | Grep final por `messages.warning.*DadosInvalidos\|messages.error.*EstadoInvalido\|messages.error.*Conflito` antes do PR delivery |
