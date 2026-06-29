@@ -449,6 +449,9 @@ class TestConfirmarImportacaoScpiTimelineRequisicoes:
         """Happy path: material crítico + requisição autorizada → evento criado com metadata correto."""
         from apps.estoque.services import confirmar_importacao_scpi
         from apps.requisicoes.models import EventoTimeline, TimelineRequisicao
+        from apps.requisicoes.services.ciclo_vida import (
+            registrar_timeline_divergencia_importacao,
+        )
 
         csv_bytes = self._csv(material_scpi_critico.codigo, 'Tinta Branca 18L', '1.000')
         importacao = confirmar_importacao_scpi(
@@ -456,6 +459,7 @@ class TestConfirmarImportacaoScpiTimelineRequisicoes:
             conteudo_bytes=csv_bytes,
             arquivo_nome='crit.csv',
             estoque_id=estoque_principal.pk,
+            _pos_importacao_hook=registrar_timeline_divergencia_importacao,
         )
 
         eventos = TimelineRequisicao.objects.filter(
@@ -606,11 +610,16 @@ class TestConfirmarImportacaoScpiTimelineRequisicoes:
             f'{m1.codigo};Material A;1.000\n'
             f'{m2.codigo};Material B;1.000\n'
         ).encode('utf-8')
+        from apps.requisicoes.services.ciclo_vida import (
+            registrar_timeline_divergencia_importacao,
+        )
+
         importacao = confirmar_importacao_scpi(
             ator_id=superuser.pk,
             conteudo_bytes=csv_bytes,
             arquivo_nome='multi.csv',
             estoque_id=estoque_principal.pk,
+            _pos_importacao_hook=registrar_timeline_divergencia_importacao,
         )
 
         eventos = TimelineRequisicao.objects.filter(
@@ -986,3 +995,281 @@ class TestDesativarMaterial:
         desativar_material(ator_id=superuser.pk, material_id=m.pk)
         m.refresh_from_db()
         assert m.ativo is False
+
+
+class TestRegistrarDevolucaoEstoque:
+    """Contrato de registrar_devolucao_estoque."""
+
+    def _setup_consumo(self, req, material, estoque, ator, quantidade):
+        from apps.estoque.models import MovimentacaoEstoque, TipoMovimentacaoEstoque
+
+        MovimentacaoEstoque.objects.create(
+            tipo=TipoMovimentacaoEstoque.CONSUMO,
+            material=material,
+            estoque=estoque,
+            delta_fisico=-quantidade,
+            delta_reservado=-quantidade,
+            requisicao=req,
+            ator=ator,
+        )
+
+    @pytest.mark.django_db
+    def test_happy_path_incrementa_saldo_e_emite_ledger(
+        self,
+        chefe_almoxarifado,
+        estoque_principal,
+        material_disponivel,
+        requisicao_autorizada,
+    ):
+        from decimal import Decimal
+
+        from apps.estoque.models import (
+            MovimentacaoEstoque,
+            SaldoEstoque,
+            TipoMovimentacaoEstoque,
+        )
+        from apps.estoque.services import registrar_devolucao_estoque
+
+        req, item = requisicao_autorizada
+        self._setup_consumo(
+            req,
+            material_disponivel,
+            estoque_principal,
+            chefe_almoxarifado,
+            Decimal('3'),
+        )
+
+        saldo = SaldoEstoque.objects.get(material=material_disponivel)
+        saldo_fisico_antes = saldo.saldo_fisico
+
+        registrar_devolucao_estoque(
+            requisicao_id=req.pk,
+            material_id=material_disponivel.pk,
+            quantidade=Decimal('2'),
+            ator_id=chefe_almoxarifado.pk,
+        )
+
+        saldo.refresh_from_db()
+        assert saldo.saldo_fisico == saldo_fisico_antes + Decimal('2')
+
+        mov = MovimentacaoEstoque.objects.get(
+            requisicao=req,
+            material=material_disponivel,
+            tipo=TipoMovimentacaoEstoque.DEVOLUCAO,
+        )
+        assert mov.delta_fisico == Decimal('2')
+        assert mov.delta_reservado == Decimal('0')
+        assert mov.ator_id == chefe_almoxarifado.pk
+
+    @pytest.mark.django_db
+    def test_quantidade_excede_entregue_liquida_lanca_conflito(
+        self,
+        chefe_almoxarifado,
+        estoque_principal,
+        material_disponivel,
+        requisicao_autorizada,
+    ):
+        from decimal import Decimal
+
+        from apps.core.exceptions import ConflitoDominio
+        from apps.estoque.services import registrar_devolucao_estoque
+
+        req, item = requisicao_autorizada
+        self._setup_consumo(
+            req,
+            material_disponivel,
+            estoque_principal,
+            chefe_almoxarifado,
+            Decimal('2'),
+        )
+
+        with pytest.raises(ConflitoDominio) as exc:
+            registrar_devolucao_estoque(
+                requisicao_id=req.pk,
+                material_id=material_disponivel.pk,
+                quantidade=Decimal('3'),
+                ator_id=chefe_almoxarifado.pk,
+            )
+        assert exc.value.code == 'quantidade_excede_entregue_liquida'
+
+    @pytest.mark.django_db
+    def test_material_inativo_lanca_conflito(
+        self,
+        chefe_almoxarifado,
+        estoque_principal,
+        material_disponivel,
+        requisicao_autorizada,
+    ):
+        from decimal import Decimal
+
+        from apps.core.exceptions import ConflitoDominio
+        from apps.estoque.services import registrar_devolucao_estoque
+
+        req, item = requisicao_autorizada
+        self._setup_consumo(
+            req,
+            material_disponivel,
+            estoque_principal,
+            chefe_almoxarifado,
+            Decimal('2'),
+        )
+        material_disponivel.ativo = False
+        material_disponivel.save(update_fields=['ativo'])
+
+        with pytest.raises(ConflitoDominio) as exc:
+            registrar_devolucao_estoque(
+                requisicao_id=req.pk,
+                material_id=material_disponivel.pk,
+                quantidade=Decimal('1'),
+                ator_id=chefe_almoxarifado.pk,
+            )
+        assert exc.value.code == 'material_inativo'
+
+    @pytest.mark.django_db
+    def test_sem_saldo_lanca_conflito(
+        self,
+        chefe_almoxarifado,
+        estoque_principal,
+        material_disponivel,
+        requisicao_autorizada,
+    ):
+        from decimal import Decimal
+
+        from apps.core.exceptions import ConflitoDominio
+        from apps.estoque.models import SaldoEstoque
+        from apps.estoque.services import registrar_devolucao_estoque
+
+        req, item = requisicao_autorizada
+        self._setup_consumo(
+            req,
+            material_disponivel,
+            estoque_principal,
+            chefe_almoxarifado,
+            Decimal('2'),
+        )
+        SaldoEstoque.objects.filter(material=material_disponivel).delete()
+
+        with pytest.raises(ConflitoDominio) as exc:
+            registrar_devolucao_estoque(
+                requisicao_id=req.pk,
+                material_id=material_disponivel.pk,
+                quantidade=Decimal('1'),
+                ator_id=chefe_almoxarifado.pk,
+            )
+        assert exc.value.code == 'saldo_nao_encontrado'
+
+
+class TestEstornarRequisicaoEstoque:
+    """Contrato de estornar_requisicao_estoque."""
+
+    def _setup_consumo(self, req, material, estoque, ator, quantidade):
+        from apps.estoque.models import MovimentacaoEstoque, TipoMovimentacaoEstoque
+
+        MovimentacaoEstoque.objects.create(
+            tipo=TipoMovimentacaoEstoque.CONSUMO,
+            material=material,
+            estoque=estoque,
+            delta_fisico=-quantidade,
+            delta_reservado=-quantidade,
+            requisicao=req,
+            ator=ator,
+        )
+
+    @pytest.mark.django_db
+    def test_happy_path_restaura_saldo_e_emite_ledger(
+        self,
+        chefe_almoxarifado,
+        estoque_principal,
+        material_disponivel,
+        requisicao_autorizada,
+    ):
+        from decimal import Decimal
+
+        from apps.estoque.models import (
+            MovimentacaoEstoque,
+            SaldoEstoque,
+            TipoMovimentacaoEstoque,
+        )
+        from apps.estoque.services import estornar_requisicao_estoque
+
+        req, item = requisicao_autorizada
+        self._setup_consumo(
+            req,
+            material_disponivel,
+            estoque_principal,
+            chefe_almoxarifado,
+            Decimal('4'),
+        )
+
+        saldo = SaldoEstoque.objects.get(material=material_disponivel)
+        saldo_fisico_antes = saldo.saldo_fisico
+
+        estornar_requisicao_estoque(
+            requisicao_id=req.pk,
+            material_ids=[material_disponivel.pk],
+            ator_id=chefe_almoxarifado.pk,
+        )
+
+        saldo.refresh_from_db()
+        assert saldo.saldo_fisico == saldo_fisico_antes + Decimal('4')
+
+        mov = MovimentacaoEstoque.objects.get(
+            requisicao=req,
+            material=material_disponivel,
+            tipo=TipoMovimentacaoEstoque.ESTORNO_REQUISICAO,
+        )
+        assert mov.delta_fisico == Decimal('4')
+        assert mov.delta_reservado == Decimal('0')
+
+    @pytest.mark.django_db
+    def test_sem_entregue_liquida_lanca_conflito(
+        self,
+        chefe_almoxarifado,
+        estoque_principal,
+        material_disponivel,
+        requisicao_autorizada,
+    ):
+        from apps.core.exceptions import ConflitoDominio
+        from apps.estoque.services import estornar_requisicao_estoque
+
+        req, item = requisicao_autorizada
+
+        with pytest.raises(ConflitoDominio) as exc:
+            estornar_requisicao_estoque(
+                requisicao_id=req.pk,
+                material_ids=[material_disponivel.pk],
+                ator_id=chefe_almoxarifado.pk,
+            )
+        assert exc.value.code == 'sem_liquida_para_estorno'
+
+    @pytest.mark.django_db
+    def test_sem_saldo_para_material_lanca_conflito(
+        self,
+        chefe_almoxarifado,
+        estoque_principal,
+        material_disponivel,
+        requisicao_autorizada,
+    ):
+        from decimal import Decimal
+
+        from apps.core.exceptions import ConflitoDominio
+        from apps.estoque.models import SaldoEstoque
+        from apps.estoque.services import estornar_requisicao_estoque
+
+        req, item = requisicao_autorizada
+        self._setup_consumo(
+            req,
+            material_disponivel,
+            estoque_principal,
+            chefe_almoxarifado,
+            Decimal('3'),
+        )
+        SaldoEstoque.objects.filter(material=material_disponivel).delete()
+
+        with pytest.raises(ConflitoDominio) as exc:
+            estornar_requisicao_estoque(
+                requisicao_id=req.pk,
+                material_ids=[material_disponivel.pk],
+                ator_id=chefe_almoxarifado.pk,
+            )
+        assert exc.value.code == 'saldo_nao_encontrado'

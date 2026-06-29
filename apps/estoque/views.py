@@ -470,6 +470,9 @@ def confirmar_importacao_scpi_view(request):
     from apps.core.exceptions import ConflitoDominio, DadosInvalidos, PermissaoNegada
     from apps.estoque.policies import exigir_pode_confirmar_importacao_scpi
     from apps.estoque.services import confirmar_importacao_scpi
+    from apps.requisicoes.services.ciclo_vida import (
+        registrar_timeline_divergencia_importacao,
+    )
 
     try:
         exigir_pode_confirmar_importacao_scpi(request.user)
@@ -503,6 +506,7 @@ def confirmar_importacao_scpi_view(request):
             conteudo_bytes=conteudo,
             arquivo_nome=arquivo_nome,
             estoque_id=estoque.pk,
+            _pos_importacao_hook=registrar_timeline_divergencia_importacao,
         )
     except ConflitoDominio as exc:
         return render(
