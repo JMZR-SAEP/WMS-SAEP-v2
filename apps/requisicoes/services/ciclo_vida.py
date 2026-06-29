@@ -669,6 +669,7 @@ def registrar_timeline_divergencia_importacao(
             saldo_fisico__lt=F('saldo_reservado'),
         )
         .select_for_update()
+        .order_by('estoque_id', 'material_id', 'id')
         .only('material_id', 'saldo_fisico', 'saldo_reservado')
     }
     if not saldos_criticos:

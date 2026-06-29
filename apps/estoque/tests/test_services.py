@@ -1303,3 +1303,59 @@ class TestEstornarRequisicaoEstoque:
                 ator_id=chefe_almoxarifado.pk,
             )
         assert exc.value.code == 'saldo_nao_encontrado'
+
+    @pytest.mark.django_db
+    def test_falha_em_saldo_save_rollback_atomico(
+        self,
+        chefe_almoxarifado,
+        estoque_principal,
+        material_disponivel,
+        requisicao_autorizada,
+    ):
+        """Falha durante saldo.save() → SaldoEstoque e ledger permanecem inalterados."""
+        from decimal import Decimal
+        from unittest.mock import patch
+
+        from apps.estoque.models import (
+            MovimentacaoEstoque,
+            SaldoEstoque,
+            TipoMovimentacaoEstoque,
+        )
+        from apps.estoque.services import estornar_requisicao_estoque
+
+        req, item = requisicao_autorizada
+        self._setup_consumo(
+            req,
+            material_disponivel,
+            estoque_principal,
+            chefe_almoxarifado,
+            Decimal('3'),
+        )
+
+        saldo = SaldoEstoque.objects.get(material=material_disponivel)
+        saldo_fisico_antes = saldo.saldo_fisico
+        ledger_antes = MovimentacaoEstoque.objects.filter(
+            requisicao=req,
+            tipo=TipoMovimentacaoEstoque.ESTORNO_REQUISICAO,
+        ).count()
+
+        def _raise(*args, **kwargs):
+            raise RuntimeError('erro forçado no saldo.save()')
+
+        with patch.object(SaldoEstoque, 'save', _raise):
+            with pytest.raises(RuntimeError):
+                estornar_requisicao_estoque(
+                    requisicao_id=req.pk,
+                    material_ids=[material_disponivel.pk],
+                    ator_id=chefe_almoxarifado.pk,
+                )
+
+        saldo.refresh_from_db()
+        assert saldo.saldo_fisico == saldo_fisico_antes
+        assert (
+            MovimentacaoEstoque.objects.filter(
+                requisicao=req,
+                tipo=TipoMovimentacaoEstoque.ESTORNO_REQUISICAO,
+            ).count()
+            == ledger_antes
+        )

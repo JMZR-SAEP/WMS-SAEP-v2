@@ -717,16 +717,12 @@ def confirmar_importacao_scpi(
             )
 
         if _pos_importacao_hook is not None:
-            try:
-                with transaction.atomic():
-                    _pos_importacao_hook(
-                        linhas=linhas,
-                        estoque=estoque,
-                        importacao=importacao,
-                        ator=ator,
-                    )
-            except Exception:
-                logger.exception('Erro no hook pós-importação — notificação ignorada')
+            _pos_importacao_hook(
+                linhas=linhas,
+                estoque=estoque,
+                importacao=importacao,
+                ator=ator,
+            )
 
     return importacao
 
@@ -784,6 +780,13 @@ def registrar_devolucao_estoque(
     inserções concorrentes de MovimentacaoEstoque para o mesmo par
     (requisicao_id, material_id).
     """
+    try:
+        User.objects.only('pk').get(pk=ator_id)
+    except User.DoesNotExist:
+        raise DadosInvalidos(
+            'Ator não encontrado.', code='ator_nao_encontrado'
+        ) from None
+
     if not quantidade.is_finite():
         raise DadosInvalidos(
             'Quantidade deve ser um número finito.', code='quantidade_invalida'
@@ -858,6 +861,13 @@ def estornar_requisicao_estoque(
     ledger ESTORNO_REQUISICAO. Locks adquiridos em ordem determinística
     (estoque_id, material_id, id) — ADR-0005.
     """
+    try:
+        User.objects.only('pk').get(pk=ator_id)
+    except User.DoesNotExist:
+        raise DadosInvalidos(
+            'Ator não encontrado.', code='ator_nao_encontrado'
+        ) from None
+
     material_ids = list(dict.fromkeys(material_ids))
     saldos = list(
         SaldoEstoque.objects.select_for_update()

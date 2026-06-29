@@ -1,6 +1,6 @@
 # Plano #50 — Seam de saldo por comandos de negócio; entregue_liquida por referência; quebra import reverso
 
-## Scope
+## Escopo
 
 **O que muda:**
 - Novos comandos públicos `registrar_devolucao_estoque` e `estornar_requisicao_estoque` em `apps/estoque/services.py`
@@ -33,7 +33,7 @@
 | `apps/requisicoes/services/atendimento.py::registrar_devolucao` | lock manual de `SaldoEstoque` + chamada direta |
 | `apps/requisicoes/services/ciclo_vida.py::estornar_requisicao` | lock manual de `SaldoEstoque` + chamada direta |
 
-## Files touched
+## Arquivos alterados
 
 | Arquivo | Tipo de mudança |
 |---------|----------------|
@@ -183,7 +183,7 @@ class ItemAtendimentoSaldo(TypedDict):
 
 `services.py` importa de `types.py` para evitar duplicação; as importações atuais em `requisicoes` passam a importar de `apps.estoque.types`.
 
-## Test strategy
+## Estratégia de testes
 
 ### Novos testes em `apps/estoque/tests/test_services.py`
 
@@ -220,7 +220,7 @@ Cobertura existente mantida. Não há mudança de policy ou transição de estad
 - `Σ delta_fisico` por `(estoque, material)` = `saldo_fisico`
 - `entregue_liquida = -Σ delta_fisico(CONSUMO, DEVOLUCAO, ESTORNO_REQUISICAO)` por `(requisicao, material)`
 
-## Risks
+## Riscos
 
 **Atomicidade do hook:** O `_pos_importacao_hook` é chamado dentro de `with transaction.atomic():` em `confirmar_importacao_scpi`. A VIEW não precisa de `@transaction.atomic` extra — o hook já participa da mesma transação do serviço.
 
