@@ -16,11 +16,11 @@ from apps.accounts.models import User
 from apps.core.exceptions import DadosInvalidos, EstadoInvalido
 from apps.estoque.models import SaldoEstoque
 from apps.estoque.services import (
-    ItemAtendimentoSaldo,
     OrigemMovimentacaoEstoque,
     consumir_e_liberar_reservas_para_atendimento,
     registrar_devolucao_estoque,
 )
+from apps.estoque.types import ItemAtendimentoSaldo
 from apps.notificacoes.models import TipoNotificacao
 from apps.notificacoes.services import criar_notificacoes_para
 from apps.requisicoes.models import (
