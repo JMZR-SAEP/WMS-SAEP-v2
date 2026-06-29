@@ -255,6 +255,7 @@ class TestNovaSaidaExcepcionalView:
         assert response.status_code == 200
         assert 'erro_geral' in response.context
         assert response.context['erro_geral'] == 'material inativo'
+        assert not list(response.wsgi_request._messages)
 
 
 class TestBuscarMateriasSaidaExcepcionalView:
@@ -451,6 +452,7 @@ class TestEstornarSaidaExcepcionalView:
         assert str(saida_registrada.pk) in response['Location']
         messages_list = list(response.wsgi_request._messages)
         assert any(m.tags == 'warning' for m in messages_list)
+        assert not any(m.tags == 'error' for m in messages_list)
 
     def test_conflito_dominio_mostra_warning_nao_error(
         self, client, chefe_almoxarifado, saida_registrada
