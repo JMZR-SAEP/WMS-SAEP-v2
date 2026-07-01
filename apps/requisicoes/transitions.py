@@ -1,50 +1,124 @@
-"""Tabela declarativa de transições de estado da Requisicao.
+"""Tabela declarativa de transições de estado da Requisicao, indexada por Operacao.
 
-TR-001 (N/A → rascunho) é criação — não chama verificar_transicao_valida porque
-não há estado de origem. As demais transições passam por esta função antes de
-qualquer efeito de domínio.
+ADR-0011 (emenda 2026-06-26): a tabela responde só "operação permitida
+**neste estado**?" — nunca autorização (isso é policy/papel, fatia separada).
 
-Adicionar novas transições aqui somente quando o service correspondente for
+TR-001 (N/A → rascunho) é criação e TR-003 (descarte de rascunho não enviado)
+é DELETE — nenhum dos dois tem `Operacao` correspondente aqui porque nenhum
+chama `verificar_transicao_valida` (sem estado de origem / sem transição de
+estado).
+
+Adicionar novas transições aqui somente quando o serviço correspondente for
 implementado com policy, testes e timeline próprios.
 """
 
-from apps.core.exceptions import EstadoInvalido
-from apps.requisicoes.models import EstadoRequisicao
+from dataclasses import dataclass
 
-# Transições declaradas: estado_origem → conjunto de estados_destino permitidos.
-# Atualizar incrementalmente conforme cada TR-* for implementada.
-TRANSICOES_VALIDAS: dict[str, set[str]] = {
-    EstadoRequisicao.RASCUNHO: {
-        EstadoRequisicao.RASCUNHO,  # TR-002: editar rascunho
-        EstadoRequisicao.CANCELADA,  # TR-004: cancelar rascunho numerado
-        EstadoRequisicao.AGUARDANDO_AUTORIZACAO,  # TR-005: enviar para autorização
-    },
-    EstadoRequisicao.AGUARDANDO_AUTORIZACAO: {
-        EstadoRequisicao.RASCUNHO,  # TR-006: retornar para rascunho
-        EstadoRequisicao.CANCELADA,  # TR-012: cancelar antes da autorização
-        EstadoRequisicao.AUTORIZADA,  # TR-008: autorizar integralmente
-        EstadoRequisicao.RECUSADA,  # TR-011: recusar inteira
-    },
-    EstadoRequisicao.AUTORIZADA: {
-        EstadoRequisicao.CANCELADA,  # TR-013: cancelar autorizada
-        EstadoRequisicao.PRONTA_PARA_RETIRADA,  # TR-015: separar para retirada
-    },
-    EstadoRequisicao.PRONTA_PARA_RETIRADA: {
-        EstadoRequisicao.CANCELADA,  # TR-014: cancelar pronta para retirada
-        EstadoRequisicao.ATENDIDA,  # TR-016/TR-017: registrar atendimento total/parcial
-    },
-    EstadoRequisicao.ATENDIDA: {
-        EstadoRequisicao.ATENDIDA,  # TR-020: registrar devolução
-        EstadoRequisicao.ESTORNADA,  # TR-021: estornar requisição atendida
-    },
+from apps.core.exceptions import EstadoInvalido
+from apps.requisicoes.models import (
+    EstadoRequisicao,
+    EventoTimeline,
+    Operacao,
+    Requisicao,
+)
+
+
+@dataclass(frozen=True)
+class TransicaoRequisicao:
+    """Especificação de uma operação: de onde pode partir, para onde vai, o que registra."""
+
+    operacao: Operacao
+    estados_origem: frozenset[str]
+    estado_destino: str
+    eventos_timeline: frozenset[EventoTimeline]
+
+
+TRANSICOES: dict[Operacao, TransicaoRequisicao] = {
+    Operacao.EDITAR_RASCUNHO: TransicaoRequisicao(
+        operacao=Operacao.EDITAR_RASCUNHO,
+        estados_origem=frozenset({EstadoRequisicao.RASCUNHO}),
+        estado_destino=EstadoRequisicao.RASCUNHO,
+        eventos_timeline=frozenset(),
+    ),
+    Operacao.ENVIAR_PARA_AUTORIZACAO: TransicaoRequisicao(
+        operacao=Operacao.ENVIAR_PARA_AUTORIZACAO,
+        estados_origem=frozenset({EstadoRequisicao.RASCUNHO}),
+        estado_destino=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+        eventos_timeline=frozenset({EventoTimeline.ENVIO_AUTORIZACAO}),
+    ),
+    Operacao.RETORNAR_PARA_RASCUNHO: TransicaoRequisicao(
+        operacao=Operacao.RETORNAR_PARA_RASCUNHO,
+        estados_origem=frozenset({EstadoRequisicao.AGUARDANDO_AUTORIZACAO}),
+        estado_destino=EstadoRequisicao.RASCUNHO,
+        eventos_timeline=frozenset({EventoTimeline.RETORNO_RASCUNHO}),
+    ),
+    Operacao.RECUSAR: TransicaoRequisicao(
+        operacao=Operacao.RECUSAR,
+        estados_origem=frozenset({EstadoRequisicao.AGUARDANDO_AUTORIZACAO}),
+        estado_destino=EstadoRequisicao.RECUSADA,
+        eventos_timeline=frozenset({EventoTimeline.RECUSA}),
+    ),
+    Operacao.AUTORIZAR: TransicaoRequisicao(
+        operacao=Operacao.AUTORIZAR,
+        estados_origem=frozenset({EstadoRequisicao.AGUARDANDO_AUTORIZACAO}),
+        estado_destino=EstadoRequisicao.AUTORIZADA,
+        eventos_timeline=frozenset({EventoTimeline.AUTORIZACAO_TOTAL}),
+    ),
+    Operacao.CANCELAR: TransicaoRequisicao(
+        operacao=Operacao.CANCELAR,
+        estados_origem=frozenset(
+            {
+                EstadoRequisicao.RASCUNHO,
+                EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+                EstadoRequisicao.AUTORIZADA,
+                EstadoRequisicao.PRONTA_PARA_RETIRADA,
+            }
+        ),
+        estado_destino=EstadoRequisicao.CANCELADA,
+        eventos_timeline=frozenset({EventoTimeline.CANCELAMENTO}),
+    ),
+    Operacao.SEPARAR_PARA_RETIRADA: TransicaoRequisicao(
+        operacao=Operacao.SEPARAR_PARA_RETIRADA,
+        estados_origem=frozenset({EstadoRequisicao.AUTORIZADA}),
+        estado_destino=EstadoRequisicao.PRONTA_PARA_RETIRADA,
+        eventos_timeline=frozenset({EventoTimeline.SEPARACAO_RETIRADA}),
+    ),
+    Operacao.REGISTRAR_ATENDIMENTO: TransicaoRequisicao(
+        operacao=Operacao.REGISTRAR_ATENDIMENTO,
+        estados_origem=frozenset({EstadoRequisicao.PRONTA_PARA_RETIRADA}),
+        estado_destino=EstadoRequisicao.ATENDIDA,
+        eventos_timeline=frozenset(
+            {
+                EventoTimeline.ATENDIMENTO_TOTAL,
+                EventoTimeline.ATENDIMENTO_PARCIAL,
+                EventoTimeline.LIBERACAO_RESERVA,
+            }
+        ),
+    ),
+    Operacao.REGISTRAR_DEVOLUCAO: TransicaoRequisicao(
+        operacao=Operacao.REGISTRAR_DEVOLUCAO,
+        estados_origem=frozenset({EstadoRequisicao.ATENDIDA}),
+        estado_destino=EstadoRequisicao.ATENDIDA,
+        eventos_timeline=frozenset({EventoTimeline.DEVOLUCAO_REGISTRADA}),
+    ),
+    Operacao.ESTORNAR: TransicaoRequisicao(
+        operacao=Operacao.ESTORNAR,
+        estados_origem=frozenset({EstadoRequisicao.ATENDIDA}),
+        estado_destino=EstadoRequisicao.ESTORNADA,
+        eventos_timeline=frozenset({EventoTimeline.ESTORNO}),
+    ),
 }
 
 
-def verificar_transicao_valida(de: str, para: str) -> None:
-    """Lança EstadoInvalido se a transição de→para não estiver declarada."""
-    destinos_permitidos = TRANSICOES_VALIDAS.get(de, set())
-    if para not in destinos_permitidos:
+def verificar_transicao_valida(
+    operacao: Operacao, requisicao: Requisicao
+) -> TransicaoRequisicao:
+    """Lança EstadoInvalido se `operacao` não puder partir do estado atual."""
+    transicao = TRANSICOES[operacao]
+    if requisicao.estado not in transicao.estados_origem:
         raise EstadoInvalido(
-            f"Transição de '{de}' para '{para}' não é permitida.",
-            code='transicao_invalida',
+            f"Transição '{operacao.label}' não é permitida no estado atual "
+            f"('{requisicao.get_estado_display()}').",
+            code='estado_origem_invalido',
         )
+    return transicao

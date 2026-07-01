@@ -28,6 +28,7 @@ from apps.requisicoes.models import (
     EstadoRequisicao,
     EventoTimeline,
     ItemRequisicao,
+    Operacao,
     Requisicao,
     TimelineRequisicao,
 )
@@ -115,6 +116,7 @@ def separar_para_retirada(
             'Esta requisição não está autorizada para separação.',
             code='estado_origem_invalido',
         )
+    verificar_transicao_valida(Operacao.SEPARAR_PARA_RETIRADA, requisicao)
     if not requisicao.itens.filter(quantidade_autorizada__gt=0).exists():
         raise EstadoInvalido(
             'Esta requisição não possui itens com quantidade autorizada.',
@@ -161,8 +163,6 @@ def separar_para_retirada(
                 f'Corrija o estoque ou cancele a requisição via TR-013.',
                 code='separacao_bloqueada',
             )
-
-    verificar_transicao_valida(requisicao.estado, EstadoRequisicao.PRONTA_PARA_RETIRADA)
 
     requisicao.estado = EstadoRequisicao.PRONTA_PARA_RETIRADA
     requisicao.save(update_fields=['estado', 'atualizado_em'])
@@ -218,7 +218,7 @@ def registrar_atendimento(
         )
     papel = papel_efetivo(ator)
     exigir_pode_atender_retirada(papel, requisicao)
-    verificar_transicao_valida(requisicao.estado, EstadoRequisicao.ATENDIDA)
+    verificar_transicao_valida(Operacao.REGISTRAR_ATENDIMENTO, requisicao)
 
     retirante = (retirante_nome or '').strip()
     if not retirante:
@@ -413,7 +413,7 @@ def registrar_devolucao(
 
     papel = papel_efetivo(ator)
     exigir_pode_registrar_devolucao(papel, requisicao)
-    verificar_transicao_valida(requisicao.estado, EstadoRequisicao.ATENDIDA)
+    verificar_transicao_valida(Operacao.REGISTRAR_DEVOLUCAO, requisicao)
 
     if quantidade <= 0:
         raise DadosInvalidos(

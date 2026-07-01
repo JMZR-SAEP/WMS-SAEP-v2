@@ -201,6 +201,27 @@ class EventoTimeline(models.TextChoices):
     )
 
 
+class Operacao(models.TextChoices):
+    """Vocabulário de operações que alteram o estado de uma Requisicao.
+
+    Cada membro tem uma TransicaoRequisicao correspondente em
+    ``apps.requisicoes.transitions.TRANSICOES`` (ADR-0011, emenda
+    2026-06-26). Não inclui TR-001 (criação, sem estado de origem) nem
+    TR-003 (descarte de rascunho não enviado, é DELETE, não transição).
+    """
+
+    EDITAR_RASCUNHO = 'editar_rascunho', 'Editar rascunho'
+    ENVIAR_PARA_AUTORIZACAO = 'enviar_para_autorizacao', 'Enviar para autorização'
+    RETORNAR_PARA_RASCUNHO = 'retornar_para_rascunho', 'Retornar para rascunho'
+    RECUSAR = 'recusar', 'Recusar'
+    AUTORIZAR = 'autorizar', 'Autorizar'
+    CANCELAR = 'cancelar', 'Cancelar'
+    SEPARAR_PARA_RETIRADA = 'separar_para_retirada', 'Separar para retirada'
+    REGISTRAR_ATENDIMENTO = 'registrar_atendimento', 'Registrar atendimento'
+    REGISTRAR_DEVOLUCAO = 'registrar_devolucao', 'Registrar devolução'
+    ESTORNAR = 'estornar', 'Estornar'
+
+
 class TimelineRequisicao(models.Model):
     """Evento de histórico de domínio de uma requisição (ADR-0002).
 

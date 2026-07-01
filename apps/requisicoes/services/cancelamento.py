@@ -17,6 +17,7 @@ from apps.estoque.services import (
 from apps.requisicoes.models import (
     EstadoRequisicao,
     EventoTimeline,
+    Operacao,
     Requisicao,
     TimelineRequisicao,
 )
@@ -136,7 +137,7 @@ def _cancelar_requisicao_impl(
                 'Este rascunho ainda não foi enviado e deve ser descartado.',
                 code='estado_origem_invalido',
             )
-        verificar_transicao_valida(requisicao.estado, EstadoRequisicao.CANCELADA)
+        verificar_transicao_valida(Operacao.CANCELAR, requisicao)
         requisicao.estado = EstadoRequisicao.CANCELADA
         requisicao.save(update_fields=['estado', 'atualizado_em'])
 
@@ -151,7 +152,7 @@ def _cancelar_requisicao_impl(
         return requisicao
 
     if requisicao.estado == EstadoRequisicao.AGUARDANDO_AUTORIZACAO:
-        verificar_transicao_valida(requisicao.estado, EstadoRequisicao.CANCELADA)
+        verificar_transicao_valida(Operacao.CANCELAR, requisicao)
         requisicao.estado = EstadoRequisicao.CANCELADA
         requisicao.save(update_fields=['estado', 'atualizado_em'])
 
@@ -179,7 +180,7 @@ def _cancelar_requisicao_impl(
             'Esta requisição não pode ser cancelada.',
             code='estado_origem_invalido',
         )
-    verificar_transicao_valida(requisicao.estado, EstadoRequisicao.CANCELADA)
+    verificar_transicao_valida(Operacao.CANCELAR, requisicao)
 
     itens_reservados = list(
         requisicao.itens.select_related('material')

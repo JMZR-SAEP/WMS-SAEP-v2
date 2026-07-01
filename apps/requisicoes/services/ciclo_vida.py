@@ -29,6 +29,7 @@ from apps.requisicoes.models import (
     EstadoRequisicao,
     EventoTimeline,
     ItemRequisicao,
+    Operacao,
     Requisicao,
     SequenciaRequisicao,
     TimelineRequisicao,
@@ -278,7 +279,7 @@ def editar_rascunho(
             'Esta requisição não está em rascunho.',
             code='estado_origem_invalido',
         )
-    verificar_transicao_valida(requisicao.estado, EstadoRequisicao.RASCUNHO)
+    verificar_transicao_valida(Operacao.EDITAR_RASCUNHO, requisicao)
 
     # Validar itens
     if not itens:
@@ -344,9 +345,7 @@ def enviar_para_autorizacao(
     papel = papel_efetivo(ator)
     exigir_pode_enviar_rascunho(papel, requisicao)
 
-    verificar_transicao_valida(
-        requisicao.estado, EstadoRequisicao.AGUARDANDO_AUTORIZACAO
-    )
+    verificar_transicao_valida(Operacao.ENVIAR_PARA_AUTORIZACAO, requisicao)
 
     itens_envio = list(requisicao.itens.values('material_id', 'quantidade_solicitada'))
     if not itens_envio:
@@ -411,7 +410,7 @@ def retornar_para_rascunho(
             'Esta requisição não está aguardando autorização.',
             code='estado_origem_invalido',
         )
-    verificar_transicao_valida(requisicao.estado, EstadoRequisicao.RASCUNHO)
+    verificar_transicao_valida(Operacao.RETORNAR_PARA_RASCUNHO, requisicao)
 
     requisicao.estado = EstadoRequisicao.RASCUNHO
     requisicao.save(update_fields=['estado', 'atualizado_em'])
@@ -455,7 +454,7 @@ def recusar_requisicao(
 
     papel = papel_efetivo(ator)
     exigir_pode_recusar_requisicao(papel, requisicao)
-    verificar_transicao_valida(requisicao.estado, EstadoRequisicao.RECUSADA)
+    verificar_transicao_valida(Operacao.RECUSAR, requisicao)
 
     motivo_limpo = (motivo or '').strip()
     if not motivo_limpo:
@@ -525,7 +524,7 @@ def autorizar_requisicao(
             'Esta requisição não está aguardando autorização.',
             code='estado_origem_invalido',
         )
-    verificar_transicao_valida(requisicao.estado, EstadoRequisicao.AUTORIZADA)
+    verificar_transicao_valida(Operacao.AUTORIZAR, requisicao)
 
     itens = list(requisicao.itens.select_related('material').order_by('id'))
     if not itens:
@@ -627,7 +626,7 @@ def estornar_requisicao(
             code='estado_origem_invalido',
         )
 
-    verificar_transicao_valida(requisicao.estado, EstadoRequisicao.ESTORNADA)
+    verificar_transicao_valida(Operacao.ESTORNAR, requisicao)
 
     justificativa_limpa = (justificativa or '').strip()
     if not justificativa_limpa:
