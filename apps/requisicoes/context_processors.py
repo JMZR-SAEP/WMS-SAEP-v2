@@ -4,6 +4,7 @@ Expõem flags de capacidade do usuário autenticado para uso no chrome
 compartilhado (topbar), evitando duplicação de policy em templates.
 """
 
+from apps.accounts.papeis import papel_efetivo
 from apps.estoque.policies import (
     pode_consultar_catalogo_estoque,
     pode_consultar_historico_scpi,
@@ -30,16 +31,15 @@ def flags_de_papel(request):
             'pode_consultar_catalogo_estoque': False,
             'pode_consultar_movimentacoes_estoque': False,
         }
+    papel = papel_efetivo(usuario)
     return {
-        'pode_ver_fila_autorizacao': pode_ver_fila_autorizacao(usuario),
-        'pode_ver_fila_atendimento': pode_ver_fila_atendimento(usuario),
-        'pode_consultar_saidas_excepcionais': pode_consultar_saidas_excepcionais(
-            usuario
-        ),
-        'pode_visualizar_preview_scpi': pode_visualizar_preview_scpi(usuario),
-        'pode_consultar_historico_scpi': pode_consultar_historico_scpi(usuario),
-        'pode_consultar_catalogo_estoque': pode_consultar_catalogo_estoque(usuario),
+        'pode_ver_fila_autorizacao': pode_ver_fila_autorizacao(papel),
+        'pode_ver_fila_atendimento': pode_ver_fila_atendimento(papel),
+        'pode_consultar_saidas_excepcionais': pode_consultar_saidas_excepcionais(papel),
+        'pode_visualizar_preview_scpi': pode_visualizar_preview_scpi(papel),
+        'pode_consultar_historico_scpi': pode_consultar_historico_scpi(papel),
+        'pode_consultar_catalogo_estoque': pode_consultar_catalogo_estoque(papel),
         'pode_consultar_movimentacoes_estoque': pode_consultar_movimentacoes_estoque(
-            usuario
+            papel
         ),
     }

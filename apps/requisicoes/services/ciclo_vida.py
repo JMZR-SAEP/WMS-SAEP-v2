@@ -15,6 +15,7 @@ from django.db.models import F
 from django.utils import timezone
 
 from apps.accounts.models import User
+from apps.accounts.papeis import papel_efetivo
 from apps.core.exceptions import DadosInvalidos, EstadoInvalido
 from apps.estoque.models import Material, SaldoEstoque
 from apps.estoque.services import (
@@ -40,7 +41,6 @@ from apps.requisicoes.policies import (
     exigir_pode_estornar_requisicao,
     exigir_pode_recusar_requisicao,
     exigir_pode_retornar_para_rascunho,
-    pode_ser_beneficiario,
 )
 from apps.requisicoes.selectors import material_eh_elegivel
 from apps.requisicoes.transitions import verificar_transicao_valida
@@ -178,18 +178,21 @@ def criar_requisicao(
             'Beneficiário não encontrado.', code='beneficiario_nao_encontrado'
         ) from None
 
-    # Autorização
-    exigir_pode_criar_para_beneficiario(ator, beneficiario)
+    papel = papel_efetivo(ator)
 
-    # Beneficiário precisa ter setor (snapshot)
-    if not pode_ser_beneficiario(beneficiario):
+    # Beneficiário precisa ter setor (snapshot) — verificado antes da autorização
+    # para que o código de erro beneficiario_inelegivel seja emitido corretamente.
+    if not (beneficiario.is_active and beneficiario.setor_id is not None):
         raise DadosInvalidos(
             f'{beneficiario.nome} não pode ser beneficiário: usuário inativo ou sem setor.',
             code='beneficiario_inelegivel',
         )
 
+    # Autorização
+    exigir_pode_criar_para_beneficiario(papel, beneficiario)
+
     setor_beneficiario = beneficiario.setor
-    assert setor_beneficiario is not None  # garantido por pode_ser_beneficiario acima
+    assert setor_beneficiario is not None  # garantido pela checagem de setor_id acima
 
     # Validar itens
     if not itens:
@@ -264,8 +267,10 @@ def editar_rascunho(
             'Requisição não encontrada.', code='requisicao_nao_encontrada'
         ) from None
 
+    papel = papel_efetivo(ator)
+
     # Autorização
-    exigir_pode_editar_rascunho(ator, requisicao)
+    exigir_pode_editar_rascunho(papel, requisicao)
 
     # Valida transição de estado
     if requisicao.estado != EstadoRequisicao.RASCUNHO:
@@ -336,7 +341,8 @@ def enviar_para_autorizacao(
             'Requisição não encontrada.', code='requisicao_nao_encontrada'
         ) from None
 
-    exigir_pode_enviar_rascunho(ator, requisicao)
+    papel = papel_efetivo(ator)
+    exigir_pode_enviar_rascunho(papel, requisicao)
 
     verificar_transicao_valida(
         requisicao.estado, EstadoRequisicao.AGUARDANDO_AUTORIZACAO
@@ -398,7 +404,8 @@ def retornar_para_rascunho(
             'Requisição não encontrada.', code='requisicao_nao_encontrada'
         ) from None
 
-    exigir_pode_retornar_para_rascunho(ator, requisicao)
+    papel = papel_efetivo(ator)
+    exigir_pode_retornar_para_rascunho(papel, requisicao)
     if requisicao.estado != EstadoRequisicao.AGUARDANDO_AUTORIZACAO:
         raise EstadoInvalido(
             'Esta requisição não está aguardando autorização.',
@@ -446,7 +453,8 @@ def recusar_requisicao(
             'Requisição não encontrada.', code='requisicao_nao_encontrada'
         ) from None
 
-    exigir_pode_recusar_requisicao(ator, requisicao)
+    papel = papel_efetivo(ator)
+    exigir_pode_recusar_requisicao(papel, requisicao)
     verificar_transicao_valida(requisicao.estado, EstadoRequisicao.RECUSADA)
 
     motivo_limpo = (motivo or '').strip()
@@ -509,7 +517,8 @@ def autorizar_requisicao(
             'Requisição não encontrada.', code='requisicao_nao_encontrada'
         ) from None
 
-    exigir_pode_autorizar_requisicao(ator, requisicao)
+    papel = papel_efetivo(ator)
+    exigir_pode_autorizar_requisicao(papel, requisicao)
 
     if requisicao.estado != EstadoRequisicao.AGUARDANDO_AUTORIZACAO:
         raise EstadoInvalido(
@@ -609,7 +618,8 @@ def estornar_requisicao(
             'Requisição não encontrada.', code='requisicao_nao_encontrada'
         ) from None
 
-    exigir_pode_estornar_requisicao(ator, requisicao)
+    papel = papel_efetivo(ator)
+    exigir_pode_estornar_requisicao(papel, requisicao)
 
     if requisicao.estado != EstadoRequisicao.ATENDIDA:
         raise EstadoInvalido(

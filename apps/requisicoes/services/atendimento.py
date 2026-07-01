@@ -13,6 +13,7 @@ from typing import TypedDict
 from django.db import transaction
 
 from apps.accounts.models import User
+from apps.accounts.papeis import papel_efetivo
 from apps.core.exceptions import DadosInvalidos, EstadoInvalido
 from apps.estoque.models import SaldoEstoque
 from apps.estoque.services import (
@@ -106,7 +107,8 @@ def separar_para_retirada(
             'Requisição não encontrada.', code='requisicao_nao_encontrada'
         ) from None
 
-    exigir_pode_separar_para_retirada(ator, requisicao)
+    papel = papel_efetivo(ator)
+    exigir_pode_separar_para_retirada(papel, requisicao)
 
     if requisicao.estado != EstadoRequisicao.AUTORIZADA:
         raise EstadoInvalido(
@@ -214,7 +216,8 @@ def registrar_atendimento(
             'Esta requisição não está pronta para retirada.',
             code='estado_origem_invalido',
         )
-    exigir_pode_atender_retirada(ator, requisicao)
+    papel = papel_efetivo(ator)
+    exigir_pode_atender_retirada(papel, requisicao)
     verificar_transicao_valida(requisicao.estado, EstadoRequisicao.ATENDIDA)
 
     retirante = (retirante_nome or '').strip()
@@ -408,7 +411,8 @@ def registrar_devolucao(
             code='estado_origem_invalido',
         )
 
-    exigir_pode_registrar_devolucao(ator, requisicao)
+    papel = papel_efetivo(ator)
+    exigir_pode_registrar_devolucao(papel, requisicao)
     verificar_transicao_valida(requisicao.estado, EstadoRequisicao.ATENDIDA)
 
     if quantidade <= 0:

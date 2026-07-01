@@ -1,27 +1,131 @@
-"""Testes de autorização contextual para requisições (ADR-0010).
+"""Testes de autorização contextual para requisições — PapelEfetivo puro (ADR-0010).
 
-Chamada direta às funções de policy — sem view, sem form.
+Policies não fazem IO. Requisicao é mockada com SimpleNamespace onde possível.
+Apenas testes de queryset (resolver_escopo) mantêm acesso ao banco.
 """
+
+from types import SimpleNamespace
 
 import pytest
 
-from apps.accounts.models import VinculoAuxiliar
+from apps.accounts.papeis import PapelEfetivo, papel_efetivo
 from apps.core.exceptions import PermissaoNegada
-from apps.requisicoes.models import EstadoRequisicao, Requisicao
+from apps.requisicoes.models import EstadoRequisicao
 from apps.requisicoes.policies import (
-    pode_criar_para_beneficiario,
-    pode_editar_rascunho,
+    pode_atender_retirada,
     pode_autorizar_requisicao,
     pode_cancelar_requisicao,
+    pode_copiar_requisicao,
+    pode_criar_para_beneficiario,
+    pode_editar_rascunho,
+    pode_enviar_rascunho,
+    pode_estornar_requisicao,
     pode_recusar_requisicao,
+    pode_registrar_devolucao,
     pode_retornar_para_rascunho,
-    pode_atender_retirada,
     pode_separar_para_retirada,
     pode_ser_beneficiario,
     pode_ver_fila_atendimento,
     pode_ver_fila_autorizacao,
     resolver_escopo_criacao_requisicao,
+    exigir_pode_estornar_requisicao,
 )
+
+
+# ---------------------------------------------------------------------------
+# Auxiliares
+# ---------------------------------------------------------------------------
+
+SETOR_ID = 10
+SETOR_TI_ID = 20
+SETOR_ALMOX_ID = 30
+ATOR_ID = 1
+OUTRO_ID = 2
+
+
+def _papel(
+    *,
+    ativo: bool = True,
+    eh_superusuario: bool = False,
+    eh_almoxarifado: bool = False,
+    eh_chefe_de_almoxarifado: bool = False,
+    setores_em_escopo: tuple[int, ...] = (),
+    setor_chefiado_ativo_id: int | None = None,
+    pode_ser_beneficiario_flag: bool = True,
+    ator_id: int = ATOR_ID,
+) -> PapelEfetivo:
+    return PapelEfetivo(
+        ativo=ativo,
+        eh_superusuario=eh_superusuario,
+        eh_almoxarifado=eh_almoxarifado,
+        eh_chefe_de_almoxarifado=eh_chefe_de_almoxarifado,
+        setores_em_escopo=setores_em_escopo,
+        setor_chefiado_ativo_id=setor_chefiado_ativo_id,
+        pode_ser_beneficiario=pode_ser_beneficiario_flag,
+        ator_id=ator_id,
+    )
+
+
+def _req(
+    estado: str,
+    criador_id: int = ATOR_ID,
+    beneficiario_id: int = ATOR_ID,
+    setor_beneficiario_id: int = SETOR_ID,
+    beneficiario=None,
+) -> SimpleNamespace:
+    ns = SimpleNamespace(
+        estado=estado,
+        criador_id=criador_id,
+        beneficiario_id=beneficiario_id,
+        setor_beneficiario_id=setor_beneficiario_id,
+    )
+    if beneficiario is not None:
+        ns.beneficiario = beneficiario
+    return ns
+
+
+def _user(
+    pk: int = ATOR_ID,
+    is_active: bool = True,
+    setor_id: int | None = SETOR_ID,
+    nome: str = 'Usuário',
+) -> SimpleNamespace:
+    return SimpleNamespace(pk=pk, is_active=is_active, setor_id=setor_id, nome=nome)
+
+
+# Personas reutilizáveis
+SOLICITANTE = _papel(ator_id=ATOR_ID, pode_ser_beneficiario_flag=True)
+OUTRO = _papel(ator_id=OUTRO_ID, pode_ser_beneficiario_flag=True)
+CHEFE_OBRAS = _papel(
+    ator_id=ATOR_ID,
+    setores_em_escopo=(SETOR_ID,),
+    setor_chefiado_ativo_id=SETOR_ID,
+    pode_ser_beneficiario_flag=True,
+)
+AUX_OBRAS = _papel(
+    ator_id=ATOR_ID,
+    setores_em_escopo=(SETOR_ID,),
+    setor_chefiado_ativo_id=None,
+    pode_ser_beneficiario_flag=True,
+)
+AUX_ALMOX = _papel(
+    ator_id=ATOR_ID,
+    eh_almoxarifado=True,
+    eh_chefe_de_almoxarifado=False,
+    pode_ser_beneficiario_flag=True,
+)
+CHEFE_ALMOX = _papel(
+    ator_id=ATOR_ID,
+    eh_almoxarifado=True,
+    eh_chefe_de_almoxarifado=True,
+    setor_chefiado_ativo_id=SETOR_ALMOX_ID,
+    pode_ser_beneficiario_flag=True,
+)
+SUPERUSER = _papel(
+    ator_id=ATOR_ID, eh_superusuario=True, pode_ser_beneficiario_flag=True
+)
+INATIVO = _papel(ator_id=ATOR_ID, ativo=False, pode_ser_beneficiario_flag=False)
+SEM_SETOR = _papel(ator_id=ATOR_ID, pode_ser_beneficiario_flag=False)
 
 
 # ---------------------------------------------------------------------------
@@ -29,108 +133,87 @@ from apps.requisicoes.policies import (
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.django_db
-def test_pode_ser_beneficiario_ativo_com_setor(solicitante):
-    assert pode_ser_beneficiario(solicitante) is True
+def test_pode_ser_beneficiario_ativo_com_setor():
+    assert pode_ser_beneficiario(SOLICITANTE) is True
 
 
-@pytest.mark.django_db
-def test_pode_ser_beneficiario_inativo(usuario_inativo):
-    assert pode_ser_beneficiario(usuario_inativo) is False
+def test_pode_ser_beneficiario_inativo():
+    assert pode_ser_beneficiario(INATIVO) is False
 
 
-@pytest.mark.django_db
-def test_pode_ser_beneficiario_sem_setor(usuario_sem_setor):
-    assert pode_ser_beneficiario(usuario_sem_setor) is False
+def test_pode_ser_beneficiario_sem_setor():
+    assert pode_ser_beneficiario(SEM_SETOR) is False
 
 
 # ---------------------------------------------------------------------------
-# resolver_escopo_criacao_requisicao — modo
+# resolver_escopo_criacao_requisicao — modo (sem banco onde possível)
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.django_db
-def test_escopo_solicitante_puro(solicitante):
-    escopo = resolver_escopo_criacao_requisicao(solicitante)
+def test_escopo_solicitante_puro():
+    escopo = resolver_escopo_criacao_requisicao(SOLICITANTE)
     assert escopo.modo_beneficiario == 'proprio'
     assert escopo.pode_criar_para_si is True
     assert escopo.setores_escopo_ids == []
 
 
-@pytest.mark.django_db
-def test_escopo_ator_sem_setor_levanta_permissao_negada(usuario_sem_setor):
+def test_escopo_ator_sem_setor_levanta_permissao_negada():
     with pytest.raises(PermissaoNegada):
-        resolver_escopo_criacao_requisicao(usuario_sem_setor)
+        resolver_escopo_criacao_requisicao(SEM_SETOR)
 
 
-@pytest.mark.django_db
-def test_escopo_chefe_setor_nao_almox(chefe_obras, setor_obras):
-    escopo = resolver_escopo_criacao_requisicao(chefe_obras)
+def test_escopo_chefe_setor_nao_almox():
+    escopo = resolver_escopo_criacao_requisicao(CHEFE_OBRAS)
     assert escopo.modo_beneficiario == 'setor'
-    assert setor_obras.pk in escopo.setores_escopo_ids
+    assert SETOR_ID in escopo.setores_escopo_ids
     assert escopo.pode_criar_para_si is True
 
 
-@pytest.mark.django_db
-def test_escopo_aux_setor_nao_almox(aux_obras, setor_obras):
-    escopo = resolver_escopo_criacao_requisicao(aux_obras)
+def test_escopo_aux_setor_nao_almox():
+    escopo = resolver_escopo_criacao_requisicao(AUX_OBRAS)
     assert escopo.modo_beneficiario == 'setor'
-    assert setor_obras.pk in escopo.setores_escopo_ids
+    assert SETOR_ID in escopo.setores_escopo_ids
 
 
-@pytest.mark.django_db
-def test_escopo_aux_almoxarifado(aux_almoxarifado):
-    escopo = resolver_escopo_criacao_requisicao(aux_almoxarifado)
+def test_escopo_aux_almoxarifado():
+    escopo = resolver_escopo_criacao_requisicao(AUX_ALMOX)
     assert escopo.modo_beneficiario == 'qualquer'
 
 
-@pytest.mark.django_db
-def test_escopo_chefe_almoxarifado(chefe_almoxarifado):
-    escopo = resolver_escopo_criacao_requisicao(chefe_almoxarifado)
+def test_escopo_chefe_almoxarifado():
+    escopo = resolver_escopo_criacao_requisicao(CHEFE_ALMOX)
     assert escopo.modo_beneficiario == 'qualquer'
 
 
-@pytest.mark.django_db
-def test_escopo_precedencia_chefe_setor_mais_aux_almox(
-    db, setor_obras, setor_almoxarifado
-):
-    """Usuário com papel de chefe em setor comum E auxiliar de almox → modo=qualquer."""
-    u = __import__('apps.accounts.models', fromlist=['User']).User.objects.create_user(
-        matricula='DUP01', nome='Duplo Papel', password='senha', setor=setor_obras
+def test_escopo_precedencia_chefe_setor_mais_aux_almox():
+    """Papel com setor em escopo E almoxarifado → modo=qualquer."""
+    papel = _papel(
+        setores_em_escopo=(SETOR_ID,),
+        eh_almoxarifado=True,
+        setor_chefiado_ativo_id=SETOR_ID,
     )
-    setor_obras.chefe = u
-    setor_obras.save(update_fields=['chefe'])
-    VinculoAuxiliar.objects.create(usuario=u, setor=setor_almoxarifado, ativo=True)
-
-    escopo = resolver_escopo_criacao_requisicao(u)
+    escopo = resolver_escopo_criacao_requisicao(papel)
     assert escopo.modo_beneficiario == 'qualquer'
 
 
-@pytest.mark.django_db
-def test_escopo_ator_com_papel_funcional_sem_setor_pode_criar_para_si_false(
-    db, setor_almoxarifado
-):
-    """Ator com vínculo de almox mas setor=None → pode_criar_para_si=False."""
-    u = __import__('apps.accounts.models', fromlist=['User']).User.objects.create_user(
-        matricula='NST01', nome='Sem Setor Almox', password='senha', setor=None
-    )
-    VinculoAuxiliar.objects.create(usuario=u, setor=setor_almoxarifado, ativo=True)
-
-    escopo = resolver_escopo_criacao_requisicao(u)
+def test_escopo_ator_almox_sem_setor_proprio_pode_criar_para_si_false():
+    """Ator com papel de almox mas pode_ser_beneficiario=False → pode_criar_para_si=False."""
+    papel = _papel(eh_almoxarifado=True, pode_ser_beneficiario_flag=False)
+    escopo = resolver_escopo_criacao_requisicao(papel)
     assert escopo.modo_beneficiario == 'qualquer'
     assert escopo.pode_criar_para_si is False
 
 
-# ---------------------------------------------------------------------------
-# Queryset de beneficiários por modo
-# ---------------------------------------------------------------------------
+def test_escopo_inativo_levanta_permissao_negada():
+    with pytest.raises(PermissaoNegada):
+        resolver_escopo_criacao_requisicao(INATIVO)
 
 
+# Testes de queryset precisam de banco
 @pytest.mark.django_db
-def test_escopo_setor_exclui_proprio_ator(
-    chefe_obras, setor_obras, outro_usuario_obras
-):
-    escopo = resolver_escopo_criacao_requisicao(chefe_obras)
+def test_escopo_setor_exclui_proprio_ator(chefe_obras, outro_usuario_obras):
+    papel = papel_efetivo(chefe_obras)
+    escopo = resolver_escopo_criacao_requisicao(papel)
     ids = set(escopo.beneficiarios.values_list('pk', flat=True))
     assert chefe_obras.pk not in ids
     assert outro_usuario_obras.pk in ids
@@ -138,14 +221,16 @@ def test_escopo_setor_exclui_proprio_ator(
 
 @pytest.mark.django_db
 def test_escopo_setor_exclui_usuarios_de_outro_setor(chefe_obras, usuario_ti):
-    escopo = resolver_escopo_criacao_requisicao(chefe_obras)
+    papel = papel_efetivo(chefe_obras)
+    escopo = resolver_escopo_criacao_requisicao(papel)
     ids = set(escopo.beneficiarios.values_list('pk', flat=True))
     assert usuario_ti.pk not in ids
 
 
 @pytest.mark.django_db
 def test_escopo_qualquer_exclui_proprio_ator(aux_almoxarifado, solicitante):
-    escopo = resolver_escopo_criacao_requisicao(aux_almoxarifado)
+    papel = papel_efetivo(aux_almoxarifado)
+    escopo = resolver_escopo_criacao_requisicao(papel)
     ids = set(escopo.beneficiarios.values_list('pk', flat=True))
     assert aux_almoxarifado.pk not in ids
     assert solicitante.pk in ids
@@ -156,41 +241,39 @@ def test_escopo_qualquer_exclui_proprio_ator(aux_almoxarifado, solicitante):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.django_db
-def test_pode_criar_para_si(solicitante):
-    assert pode_criar_para_beneficiario(solicitante, solicitante) is True
+def test_pode_criar_para_si():
+    user = _user(pk=ATOR_ID)
+    assert pode_criar_para_beneficiario(SOLICITANTE, user) is True
 
 
-@pytest.mark.django_db
-def test_solicitante_nao_pode_criar_para_terceiro(solicitante, outro_usuario_obras):
-    assert pode_criar_para_beneficiario(solicitante, outro_usuario_obras) is False
+def test_solicitante_nao_pode_criar_para_terceiro():
+    outro = _user(pk=OUTRO_ID)
+    assert pode_criar_para_beneficiario(SOLICITANTE, outro) is False
 
 
-@pytest.mark.django_db
-def test_chefe_setor_pode_criar_para_membro_do_setor(chefe_obras, outro_usuario_obras):
-    assert pode_criar_para_beneficiario(chefe_obras, outro_usuario_obras) is True
+def test_chefe_setor_pode_criar_para_membro_do_setor():
+    membro = _user(pk=OUTRO_ID, setor_id=SETOR_ID)
+    assert pode_criar_para_beneficiario(CHEFE_OBRAS, membro) is True
 
 
-@pytest.mark.django_db
-def test_chefe_setor_nao_pode_criar_para_outro_setor(chefe_obras, usuario_ti):
-    assert pode_criar_para_beneficiario(chefe_obras, usuario_ti) is False
+def test_chefe_setor_nao_pode_criar_para_outro_setor():
+    ti = _user(pk=OUTRO_ID, setor_id=SETOR_TI_ID)
+    assert pode_criar_para_beneficiario(CHEFE_OBRAS, ti) is False
 
 
-@pytest.mark.django_db
-def test_aux_almox_pode_criar_para_qualquer_setor(aux_almoxarifado, usuario_ti):
-    assert pode_criar_para_beneficiario(aux_almoxarifado, usuario_ti) is True
+def test_aux_almox_pode_criar_para_qualquer_setor():
+    ti = _user(pk=OUTRO_ID, setor_id=SETOR_TI_ID)
+    assert pode_criar_para_beneficiario(AUX_ALMOX, ti) is True
 
 
-@pytest.mark.django_db
-def test_nao_pode_criar_para_beneficiario_inativo(solicitante, usuario_inativo):
-    assert pode_criar_para_beneficiario(solicitante, usuario_inativo) is False
+def test_nao_pode_criar_para_beneficiario_inativo():
+    inativo = _user(pk=OUTRO_ID, is_active=False)
+    assert pode_criar_para_beneficiario(SOLICITANTE, inativo) is False
 
 
-@pytest.mark.django_db
-def test_nao_pode_criar_para_beneficiario_sem_setor(
-    aux_almoxarifado, usuario_sem_setor
-):
-    assert pode_criar_para_beneficiario(aux_almoxarifado, usuario_sem_setor) is False
+def test_nao_pode_criar_para_beneficiario_sem_setor():
+    sem_setor = _user(pk=OUTRO_ID, setor_id=None)
+    assert pode_criar_para_beneficiario(AUX_ALMOX, sem_setor) is False
 
 
 # ---------------------------------------------------------------------------
@@ -198,39 +281,25 @@ def test_nao_pode_criar_para_beneficiario_sem_setor(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.django_db
-def test_criador_pode_editar_rascunho(solicitante, setor_obras, material_disponivel):
-    req = Requisicao.objects.create(
-        estado=EstadoRequisicao.RASCUNHO,
-        criador=solicitante,
-        beneficiario=solicitante,
-        setor_beneficiario=setor_obras,
-    )
-    assert pode_editar_rascunho(solicitante, req) is True
+def test_criador_pode_editar_rascunho():
+    req = _req(EstadoRequisicao.RASCUNHO, criador_id=ATOR_ID)
+    assert pode_editar_rascunho(SOLICITANTE, req) is True
 
 
-@pytest.mark.django_db
-def test_nao_criador_nao_pode_editar(solicitante, outro_usuario_obras, setor_obras):
-    req = Requisicao.objects.create(
-        estado=EstadoRequisicao.RASCUNHO,
-        criador=solicitante,
-        beneficiario=solicitante,
-        setor_beneficiario=setor_obras,
-    )
-    assert pode_editar_rascunho(outro_usuario_obras, req) is False
+def test_nao_criador_nao_pode_editar():
+    req = _req(EstadoRequisicao.RASCUNHO, criador_id=ATOR_ID)
+    assert pode_editar_rascunho(OUTRO, req) is False
 
 
-@pytest.mark.django_db
-def test_criador_retorna_true_independente_do_estado(solicitante, setor_obras):
+def test_criador_retorna_true_independente_do_estado():
     """pode_editar_rascunho verifica apenas criador; estado é validado pelo service."""
-    req = Requisicao.objects.create(
-        estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
-        numero_publico='REQ-2026-000001',
-        criador=solicitante,
-        beneficiario=solicitante,
-        setor_beneficiario=setor_obras,
-    )
-    assert pode_editar_rascunho(solicitante, req) is True
+    req = _req(EstadoRequisicao.AGUARDANDO_AUTORIZACAO, criador_id=ATOR_ID)
+    assert pode_editar_rascunho(SOLICITANTE, req) is True
+
+
+def test_superusuario_pode_editar_rascunho_de_terceiro():
+    req = _req(EstadoRequisicao.RASCUNHO, criador_id=OUTRO_ID)
+    assert pode_editar_rascunho(SUPERUSER, req) is True
 
 
 # ---------------------------------------------------------------------------
@@ -238,151 +307,125 @@ def test_criador_retorna_true_independente_do_estado(solicitante, setor_obras):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.django_db
-def test_criador_pode_enviar_rascunho(solicitante, setor_obras):
-    from apps.requisicoes.policies import pode_enviar_rascunho
-
-    req = Requisicao.objects.create(
-        estado=EstadoRequisicao.RASCUNHO,
-        criador=solicitante,
-        beneficiario=solicitante,
-        setor_beneficiario=setor_obras,
-    )
-    assert pode_enviar_rascunho(solicitante, req) is True
+def test_criador_pode_enviar_rascunho():
+    req = _req(EstadoRequisicao.RASCUNHO, criador_id=ATOR_ID)
+    assert pode_enviar_rascunho(SOLICITANTE, req) is True
 
 
-@pytest.mark.django_db
-def test_nao_criador_nao_pode_enviar(solicitante, outro_usuario_obras, setor_obras):
-    from apps.requisicoes.policies import pode_enviar_rascunho
-
-    req = Requisicao.objects.create(
-        estado=EstadoRequisicao.RASCUNHO,
-        criador=solicitante,
-        beneficiario=solicitante,
-        setor_beneficiario=setor_obras,
-    )
-    assert pode_enviar_rascunho(outro_usuario_obras, req) is False
+def test_nao_criador_nao_pode_enviar():
+    req = _req(EstadoRequisicao.RASCUNHO, criador_id=ATOR_ID)
+    assert pode_enviar_rascunho(OUTRO, req) is False
 
 
-@pytest.mark.django_db
-def test_criador_inativo_nao_pode_enviar(solicitante, setor_obras):
-    from apps.requisicoes.policies import pode_enviar_rascunho
+def test_criador_inativo_nao_pode_enviar():
+    req = _req(EstadoRequisicao.RASCUNHO, criador_id=ATOR_ID)
+    assert pode_enviar_rascunho(INATIVO, req) is False
 
-    req = Requisicao.objects.create(
-        estado=EstadoRequisicao.RASCUNHO,
-        criador=solicitante,
-        beneficiario=solicitante,
-        setor_beneficiario=setor_obras,
-    )
-    solicitante.is_active = False
-    solicitante.save(update_fields=['is_active'])
-    assert pode_enviar_rascunho(solicitante, req) is False
+
+def test_superusuario_pode_enviar_rascunho_de_terceiro():
+    req = _req(EstadoRequisicao.RASCUNHO, criador_id=OUTRO_ID)
+    assert pode_enviar_rascunho(SUPERUSER, req) is True
 
 
 # ---------------------------------------------------------------------------
-# Fila de autorização, retorno e recusa
+# Fila de autorização
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.django_db
-def test_chefe_setor_pode_ver_fila_autorizacao(chefe_obras):
-    assert pode_ver_fila_autorizacao(chefe_obras) is True
+def test_chefe_setor_pode_ver_fila_autorizacao():
+    assert pode_ver_fila_autorizacao(CHEFE_OBRAS) is True
 
 
-@pytest.mark.django_db
-def test_auxiliar_almox_nao_pode_ver_fila_autorizacao(aux_almoxarifado):
-    assert pode_ver_fila_autorizacao(aux_almoxarifado) is False
+def test_auxiliar_almox_nao_pode_ver_fila_autorizacao():
+    assert pode_ver_fila_autorizacao(AUX_ALMOX) is False
 
 
-@pytest.mark.django_db
-def test_criador_pode_retornar_para_rascunho(solicitante, setor_obras):
-    req = Requisicao.objects.create(
-        estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
-        numero_publico='REQ-2026-000101',
-        criador=solicitante,
-        beneficiario=solicitante,
-        setor_beneficiario=setor_obras,
-    )
-    assert pode_retornar_para_rascunho(solicitante, req) is True
+def test_superuser_pode_ver_fila_autorizacao():
+    assert pode_ver_fila_autorizacao(SUPERUSER) is True
 
 
-@pytest.mark.django_db
-def test_terceiro_nao_pode_retornar_para_rascunho(
-    outro_usuario_obras, solicitante, setor_obras
-):
-    req = Requisicao.objects.create(
-        estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
-        numero_publico='REQ-2026-000102',
-        criador=solicitante,
-        beneficiario=solicitante,
-        setor_beneficiario=setor_obras,
-    )
-    assert pode_retornar_para_rascunho(outro_usuario_obras, req) is False
+def test_inativo_nao_pode_ver_fila_autorizacao():
+    assert pode_ver_fila_autorizacao(INATIVO) is False
 
 
 # ---------------------------------------------------------------------------
-# Cancelamento
+# pode_retornar_para_rascunho
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.django_db
-def test_criador_pode_cancelar_rascunho_numerado(solicitante, setor_obras):
-    req = Requisicao.objects.create(
-        estado=EstadoRequisicao.RASCUNHO,
-        numero_publico='REQ-2026-000200',
-        criador=solicitante,
-        beneficiario=solicitante,
-        setor_beneficiario=setor_obras,
+def test_criador_pode_retornar_para_rascunho():
+    req = _req(
+        EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+        criador_id=ATOR_ID,
+        beneficiario_id=ATOR_ID,
     )
-    assert pode_cancelar_requisicao(solicitante, req) is True
+    assert pode_retornar_para_rascunho(SOLICITANTE, req) is True
 
 
-@pytest.mark.django_db
-def test_beneficiario_pode_cancelar_aguardando_autorizacao(
-    solicitante, outro_usuario_obras, setor_obras
-):
-    req = Requisicao.objects.create(
-        estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
-        numero_publico='REQ-2026-000201',
-        criador=solicitante,
-        beneficiario=outro_usuario_obras,
-        setor_beneficiario=setor_obras,
+def test_terceiro_nao_pode_retornar_para_rascunho():
+    req = _req(
+        EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+        criador_id=ATOR_ID,
+        beneficiario_id=ATOR_ID,
     )
-    assert pode_cancelar_requisicao(outro_usuario_obras, req) is True
+    assert pode_retornar_para_rascunho(OUTRO, req) is False
 
 
-@pytest.mark.django_db
-def test_aux_almox_pode_cancelar_autorizada(aux_almoxarifado, solicitante, setor_obras):
-    req = Requisicao.objects.create(
-        estado=EstadoRequisicao.AUTORIZADA,
-        numero_publico='REQ-2026-000202',
-        criador=solicitante,
-        beneficiario=solicitante,
-        setor_beneficiario=setor_obras,
+# ---------------------------------------------------------------------------
+# pode_cancelar_requisicao
+# ---------------------------------------------------------------------------
+
+
+def test_criador_pode_cancelar_rascunho():
+    req = _req(EstadoRequisicao.RASCUNHO, criador_id=ATOR_ID)
+    assert pode_cancelar_requisicao(SOLICITANTE, req) is True
+
+
+def test_beneficiario_pode_cancelar_aguardando_autorizacao():
+    req = _req(
+        EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+        criador_id=OUTRO_ID,
+        beneficiario_id=ATOR_ID,
     )
-    assert pode_cancelar_requisicao(aux_almoxarifado, req) is True
+    assert pode_cancelar_requisicao(SOLICITANTE, req) is True
 
 
-@pytest.mark.django_db
-def test_criador_beneficiario_e_almox_podem_cancelar_pronta_para_retirada(
-    solicitante, outro_usuario_obras, aux_almoxarifado, setor_obras
-):
-    req = Requisicao.objects.create(
-        estado=EstadoRequisicao.PRONTA_PARA_RETIRADA,
-        numero_publico='REQ-2026-000204',
-        criador=solicitante,
-        beneficiario=outro_usuario_obras,
-        setor_beneficiario=setor_obras,
+def test_aux_almox_pode_cancelar_autorizada():
+    req = _req(
+        EstadoRequisicao.AUTORIZADA, criador_id=OUTRO_ID, beneficiario_id=OUTRO_ID
     )
-
-    assert pode_cancelar_requisicao(solicitante, req) is True
-    assert pode_cancelar_requisicao(outro_usuario_obras, req) is True
-    assert pode_cancelar_requisicao(aux_almoxarifado, req) is True
+    assert pode_cancelar_requisicao(AUX_ALMOX, req) is True
 
 
-@pytest.mark.django_db
+def test_criador_pode_cancelar_pronta_para_retirada():
+    req = _req(
+        EstadoRequisicao.PRONTA_PARA_RETIRADA,
+        criador_id=ATOR_ID,
+        beneficiario_id=OUTRO_ID,
+    )
+    assert pode_cancelar_requisicao(SOLICITANTE, req) is True
+
+
+def test_beneficiario_pode_cancelar_pronta_para_retirada():
+    req = _req(
+        EstadoRequisicao.PRONTA_PARA_RETIRADA,
+        criador_id=OUTRO_ID,
+        beneficiario_id=ATOR_ID,
+    )
+    assert pode_cancelar_requisicao(SOLICITANTE, req) is True
+
+
+def test_almox_pode_cancelar_pronta_para_retirada():
+    req = _req(
+        EstadoRequisicao.PRONTA_PARA_RETIRADA,
+        criador_id=OUTRO_ID,
+        beneficiario_id=OUTRO_ID,
+    )
+    assert pode_cancelar_requisicao(AUX_ALMOX, req) is True
+
+
 @pytest.mark.parametrize(
-    'estado_final',
+    'estado',
     [
         EstadoRequisicao.ATENDIDA,
         EstadoRequisicao.CANCELADA,
@@ -390,206 +433,129 @@ def test_criador_beneficiario_e_almox_podem_cancelar_pronta_para_retirada(
         EstadoRequisicao.ESTORNADA,
     ],
 )
-def test_cancelamento_negado_em_estados_finais(
-    solicitante, aux_almoxarifado, superuser, setor_obras, estado_final
-):
-    req = Requisicao.objects.create(
-        estado=estado_final,
-        numero_publico='REQ-2026-000205',
-        criador=solicitante,
-        beneficiario=solicitante,
-        setor_beneficiario=setor_obras,
+def test_cancelamento_negado_em_estados_finais(estado):
+    req = _req(estado, criador_id=ATOR_ID, beneficiario_id=ATOR_ID)
+    assert pode_cancelar_requisicao(SOLICITANTE, req) is False
+    assert pode_cancelar_requisicao(AUX_ALMOX, req) is False
+    assert pode_cancelar_requisicao(SUPERUSER, req) is False
+
+
+def test_chefe_setor_nao_pode_cancelar_autorizada_de_outro_setor():
+    req = _req(
+        EstadoRequisicao.AUTORIZADA,
+        criador_id=OUTRO_ID,
+        beneficiario_id=OUTRO_ID,
+        setor_beneficiario_id=SETOR_TI_ID,
     )
-
-    assert pode_cancelar_requisicao(solicitante, req) is False
-    assert pode_cancelar_requisicao(aux_almoxarifado, req) is False
-    assert pode_cancelar_requisicao(superuser, req) is False
-
-
-@pytest.mark.django_db
-def test_chefe_setor_nao_pode_cancelar_autorizada_de_outro_setor(
-    chefe_obras, solicitante, setor_ti
-):
-    req = Requisicao.objects.create(
-        estado=EstadoRequisicao.AUTORIZADA,
-        numero_publico='REQ-2026-000203',
-        criador=solicitante,
-        beneficiario=solicitante,
-        setor_beneficiario=setor_ti,
-    )
-    assert pode_cancelar_requisicao(chefe_obras, req) is False
-
-
-@pytest.mark.django_db
-def test_chefe_setor_pode_recusar_requisicao_do_setor(
-    chefe_obras, solicitante, setor_obras
-):
-    req = Requisicao.objects.create(
-        estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
-        numero_publico='REQ-2026-000103',
-        criador=solicitante,
-        beneficiario=solicitante,
-        setor_beneficiario=setor_obras,
-    )
-    assert pode_recusar_requisicao(chefe_obras, req) is True
-
-
-@pytest.mark.django_db
-def test_chefe_setor_pode_autorizar_requisicao_do_setor(
-    chefe_obras, solicitante, setor_obras
-):
-    req = Requisicao.objects.create(
-        estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
-        numero_publico='REQ-2026-000105',
-        criador=solicitante,
-        beneficiario=solicitante,
-        setor_beneficiario=setor_obras,
-    )
-    assert pode_autorizar_requisicao(chefe_obras, req) is True
-
-
-@pytest.mark.django_db
-def test_chefe_setor_nao_pode_autorizar_requisicao_de_outro_setor(
-    chefe_obras, solicitante, setor_ti
-):
-    req = Requisicao.objects.create(
-        estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
-        numero_publico='REQ-2026-000106',
-        criador=solicitante,
-        beneficiario=solicitante,
-        setor_beneficiario=setor_ti,
-    )
-    assert pode_autorizar_requisicao(chefe_obras, req) is False
-
-
-@pytest.mark.django_db
-def test_chefe_almox_nao_pode_autorizar_requisicao_de_outro_setor(
-    chefe_almoxarifado, solicitante, setor_obras
-):
-    req = Requisicao.objects.create(
-        estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
-        numero_publico='REQ-2026-000107',
-        criador=solicitante,
-        beneficiario=solicitante,
-        setor_beneficiario=setor_obras,
-    )
-    assert pode_autorizar_requisicao(chefe_almoxarifado, req) is False
-
-
-@pytest.mark.django_db
-def test_chefe_almox_nao_recusa_requisicao_de_outro_setor(
-    chefe_almoxarifado, solicitante, setor_obras
-):
-    req = Requisicao.objects.create(
-        estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
-        numero_publico='REQ-2026-000104',
-        criador=solicitante,
-        beneficiario=solicitante,
-        setor_beneficiario=setor_obras,
-    )
-    assert pode_recusar_requisicao(chefe_almoxarifado, req) is False
+    assert pode_cancelar_requisicao(CHEFE_OBRAS, req) is False
 
 
 # ---------------------------------------------------------------------------
-# pode_ver_fila_atendimento / pode_separar_para_retirada
+# pode_recusar_requisicao / pode_autorizar_requisicao
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.django_db
-def test_chefe_almox_pode_ver_fila_atendimento(chefe_almoxarifado):
-    assert pode_ver_fila_atendimento(chefe_almoxarifado) is True
+def test_chefe_setor_pode_recusar_requisicao_do_setor():
+    req = _req(EstadoRequisicao.AGUARDANDO_AUTORIZACAO, setor_beneficiario_id=SETOR_ID)
+    assert pode_recusar_requisicao(CHEFE_OBRAS, req) is True
 
 
-@pytest.mark.django_db
-def test_aux_almox_pode_ver_fila_atendimento(aux_almoxarifado):
-    assert pode_ver_fila_atendimento(aux_almoxarifado) is True
+def test_chefe_setor_pode_autorizar_requisicao_do_setor():
+    req = _req(EstadoRequisicao.AGUARDANDO_AUTORIZACAO, setor_beneficiario_id=SETOR_ID)
+    assert pode_autorizar_requisicao(CHEFE_OBRAS, req) is True
 
 
-@pytest.mark.django_db
-def test_chefe_setor_nao_pode_ver_fila_atendimento(chefe_obras):
-    assert pode_ver_fila_atendimento(chefe_obras) is False
-
-
-@pytest.mark.django_db
-def test_aux_setor_nao_pode_ver_fila_atendimento(aux_obras):
-    assert pode_ver_fila_atendimento(aux_obras) is False
-
-
-@pytest.mark.django_db
-def test_solicitante_nao_pode_ver_fila_atendimento(solicitante):
-    assert pode_ver_fila_atendimento(solicitante) is False
-
-
-@pytest.mark.django_db
-def test_superuser_pode_ver_fila_atendimento(superuser):
-    assert pode_ver_fila_atendimento(superuser) is True
-
-
-@pytest.mark.django_db
-def test_inativo_nao_pode_ver_fila_atendimento(usuario_inativo):
-    assert pode_ver_fila_atendimento(usuario_inativo) is False
-
-
-def _req_estado(estado, solicitante, setor_obras, numero):
-    return Requisicao.objects.create(
-        estado=estado,
-        numero_publico=numero,
-        criador=solicitante,
-        beneficiario=solicitante,
-        setor_beneficiario=setor_obras,
+def test_chefe_setor_nao_pode_autorizar_requisicao_de_outro_setor():
+    req = _req(
+        EstadoRequisicao.AGUARDANDO_AUTORIZACAO, setor_beneficiario_id=SETOR_TI_ID
     )
+    assert pode_autorizar_requisicao(CHEFE_OBRAS, req) is False
 
 
-@pytest.mark.django_db
-def test_aux_almox_pode_separar_requisicao_autorizada(
-    aux_almoxarifado, solicitante, setor_obras
-):
-    req = _req_estado(
-        EstadoRequisicao.AUTORIZADA, solicitante, setor_obras, 'REQ-2026-000200'
+def test_chefe_almox_nao_pode_autorizar_requisicao_de_outro_setor():
+    """Chefe de almox não é chefe de setor de obras → não pode autorizar."""
+    req = _req(EstadoRequisicao.AGUARDANDO_AUTORIZACAO, setor_beneficiario_id=SETOR_ID)
+    assert pode_autorizar_requisicao(CHEFE_ALMOX, req) is False
+
+
+def test_chefe_almox_nao_recusa_requisicao_de_outro_setor():
+    req = _req(EstadoRequisicao.AGUARDANDO_AUTORIZACAO, setor_beneficiario_id=SETOR_ID)
+    assert pode_recusar_requisicao(CHEFE_ALMOX, req) is False
+
+
+def test_superuser_pode_autorizar_qualquer_requisicao():
+    req = _req(
+        EstadoRequisicao.AGUARDANDO_AUTORIZACAO, setor_beneficiario_id=SETOR_TI_ID
     )
-    assert pode_separar_para_retirada(aux_almoxarifado, req) is True
+    assert pode_autorizar_requisicao(SUPERUSER, req) is True
 
 
-@pytest.mark.django_db
-def test_chefe_almox_pode_separar_requisicao_autorizada(
-    chefe_almoxarifado, solicitante, setor_obras
-):
-    req = _req_estado(
-        EstadoRequisicao.AUTORIZADA, solicitante, setor_obras, 'REQ-2026-000201'
-    )
-    assert pode_separar_para_retirada(chefe_almoxarifado, req) is True
+# ---------------------------------------------------------------------------
+# pode_ver_fila_atendimento
+# ---------------------------------------------------------------------------
 
 
-@pytest.mark.django_db
-def test_superuser_pode_separar(superuser, solicitante, setor_obras):
-    req = _req_estado(
-        EstadoRequisicao.AUTORIZADA, solicitante, setor_obras, 'REQ-2026-000202'
-    )
-    assert pode_separar_para_retirada(superuser, req) is True
+def test_chefe_almox_pode_ver_fila_atendimento():
+    assert pode_ver_fila_atendimento(CHEFE_ALMOX) is True
 
 
-@pytest.mark.django_db
-def test_chefe_setor_nao_pode_separar(chefe_obras, solicitante, setor_obras):
-    req = _req_estado(
-        EstadoRequisicao.AUTORIZADA, solicitante, setor_obras, 'REQ-2026-000203'
-    )
-    assert pode_separar_para_retirada(chefe_obras, req) is False
+def test_aux_almox_pode_ver_fila_atendimento():
+    assert pode_ver_fila_atendimento(AUX_ALMOX) is True
 
 
-@pytest.mark.django_db
-def test_solicitante_nao_pode_separar(solicitante, setor_obras):
-    req = _req_estado(
-        EstadoRequisicao.AUTORIZADA, solicitante, setor_obras, 'REQ-2026-000204'
-    )
-    assert pode_separar_para_retirada(solicitante, req) is False
+def test_chefe_setor_nao_pode_ver_fila_atendimento():
+    assert pode_ver_fila_atendimento(CHEFE_OBRAS) is False
 
 
-@pytest.mark.django_db
-def test_inativo_nao_pode_separar(usuario_inativo, solicitante, setor_obras):
-    req = _req_estado(
-        EstadoRequisicao.AUTORIZADA, solicitante, setor_obras, 'REQ-2026-000300'
-    )
-    assert pode_separar_para_retirada(usuario_inativo, req) is False
+def test_aux_setor_nao_pode_ver_fila_atendimento():
+    assert pode_ver_fila_atendimento(AUX_OBRAS) is False
+
+
+def test_solicitante_nao_pode_ver_fila_atendimento():
+    assert pode_ver_fila_atendimento(SOLICITANTE) is False
+
+
+def test_superuser_pode_ver_fila_atendimento():
+    assert pode_ver_fila_atendimento(SUPERUSER) is True
+
+
+def test_inativo_nao_pode_ver_fila_atendimento():
+    assert pode_ver_fila_atendimento(INATIVO) is False
+
+
+# ---------------------------------------------------------------------------
+# pode_separar_para_retirada
+# ---------------------------------------------------------------------------
+
+
+def test_aux_almox_pode_separar_requisicao_autorizada():
+    req = _req(EstadoRequisicao.AUTORIZADA)
+    assert pode_separar_para_retirada(AUX_ALMOX, req) is True
+
+
+def test_chefe_almox_pode_separar_requisicao_autorizada():
+    req = _req(EstadoRequisicao.AUTORIZADA)
+    assert pode_separar_para_retirada(CHEFE_ALMOX, req) is True
+
+
+def test_superuser_pode_separar():
+    req = _req(EstadoRequisicao.AUTORIZADA)
+    assert pode_separar_para_retirada(SUPERUSER, req) is True
+
+
+def test_chefe_setor_nao_pode_separar():
+    req = _req(EstadoRequisicao.AUTORIZADA)
+    assert pode_separar_para_retirada(CHEFE_OBRAS, req) is False
+
+
+def test_solicitante_nao_pode_separar():
+    req = _req(EstadoRequisicao.AUTORIZADA)
+    assert pode_separar_para_retirada(SOLICITANTE, req) is False
+
+
+def test_inativo_nao_pode_separar():
+    req = _req(EstadoRequisicao.AUTORIZADA)
+    assert pode_separar_para_retirada(INATIVO, req) is False
 
 
 # ---------------------------------------------------------------------------
@@ -597,87 +563,51 @@ def test_inativo_nao_pode_separar(usuario_inativo, solicitante, setor_obras):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.django_db
-def test_aux_almox_pode_atender(aux_almoxarifado, solicitante, setor_obras):
-    req = _req_estado(
-        EstadoRequisicao.PRONTA_PARA_RETIRADA,
-        solicitante,
-        setor_obras,
-        'REQ-2026-000400',
+def test_aux_almox_pode_atender():
+    req = _req(EstadoRequisicao.PRONTA_PARA_RETIRADA)
+    assert pode_atender_retirada(AUX_ALMOX, req) is True
+
+
+def test_chefe_almox_pode_atender():
+    req = _req(EstadoRequisicao.PRONTA_PARA_RETIRADA)
+    assert pode_atender_retirada(CHEFE_ALMOX, req) is True
+
+
+def test_superuser_pode_atender():
+    req = _req(EstadoRequisicao.PRONTA_PARA_RETIRADA)
+    assert pode_atender_retirada(SUPERUSER, req) is True
+
+
+def test_chefe_setor_nao_pode_atender():
+    req = _req(EstadoRequisicao.PRONTA_PARA_RETIRADA)
+    assert pode_atender_retirada(CHEFE_OBRAS, req) is False
+
+
+def test_solicitante_nao_pode_atender():
+    req = _req(EstadoRequisicao.PRONTA_PARA_RETIRADA)
+    assert pode_atender_retirada(SOLICITANTE, req) is False
+
+
+def test_inativo_nao_pode_atender():
+    req = _req(EstadoRequisicao.PRONTA_PARA_RETIRADA)
+    assert pode_atender_retirada(INATIVO, req) is False
+
+
+@pytest.mark.parametrize(
+    'estado',
+    [
+        EstadoRequisicao.AUTORIZADA,
+        EstadoRequisicao.ATENDIDA,
+        EstadoRequisicao.RASCUNHO,
+        EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+        EstadoRequisicao.CANCELADA,
+    ],
+)
+def test_aux_almox_nao_pode_atender_fora_de_pronta_para_retirada(estado):
+    req = _req(estado)
+    assert pode_atender_retirada(AUX_ALMOX, req) is False, (
+        f'estado={estado} não deveria permitir atendimento'
     )
-    assert pode_atender_retirada(aux_almoxarifado, req) is True
-
-
-@pytest.mark.django_db
-def test_chefe_almox_pode_atender(chefe_almoxarifado, solicitante, setor_obras):
-    req = _req_estado(
-        EstadoRequisicao.PRONTA_PARA_RETIRADA,
-        solicitante,
-        setor_obras,
-        'REQ-2026-000401',
-    )
-    assert pode_atender_retirada(chefe_almoxarifado, req) is True
-
-
-@pytest.mark.django_db
-def test_superuser_pode_atender(superuser, solicitante, setor_obras):
-    req = _req_estado(
-        EstadoRequisicao.PRONTA_PARA_RETIRADA,
-        solicitante,
-        setor_obras,
-        'REQ-2026-000402',
-    )
-    assert pode_atender_retirada(superuser, req) is True
-
-
-@pytest.mark.django_db
-def test_chefe_setor_nao_pode_atender(chefe_obras, solicitante, setor_obras):
-    req = _req_estado(
-        EstadoRequisicao.PRONTA_PARA_RETIRADA,
-        solicitante,
-        setor_obras,
-        'REQ-2026-000403',
-    )
-    assert pode_atender_retirada(chefe_obras, req) is False
-
-
-@pytest.mark.django_db
-def test_solicitante_nao_pode_atender(solicitante, setor_obras):
-    req = _req_estado(
-        EstadoRequisicao.PRONTA_PARA_RETIRADA,
-        solicitante,
-        setor_obras,
-        'REQ-2026-000404',
-    )
-    assert pode_atender_retirada(solicitante, req) is False
-
-
-@pytest.mark.django_db
-def test_inativo_nao_pode_atender(usuario_inativo, solicitante, setor_obras):
-    req = _req_estado(
-        EstadoRequisicao.PRONTA_PARA_RETIRADA,
-        solicitante,
-        setor_obras,
-        'REQ-2026-000405',
-    )
-    assert pode_atender_retirada(usuario_inativo, req) is False
-
-
-@pytest.mark.django_db
-def test_aux_almox_nao_pode_atender_fora_de_pronta_para_retirada(
-    aux_almoxarifado, solicitante, setor_obras
-):
-    for estado, numero in [
-        (EstadoRequisicao.AUTORIZADA, 'REQ-2026-000406'),
-        (EstadoRequisicao.ATENDIDA, 'REQ-2026-000407'),
-        (EstadoRequisicao.RASCUNHO, 'REQ-2026-000408'),
-        (EstadoRequisicao.AGUARDANDO_AUTORIZACAO, 'REQ-2026-000409'),
-        (EstadoRequisicao.CANCELADA, 'REQ-2026-000410'),
-    ]:
-        req = _req_estado(estado, solicitante, setor_obras, numero)
-        assert pode_atender_retirada(aux_almoxarifado, req) is False, (
-            f'estado={estado} não deveria permitir atendimento'
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -685,48 +615,49 @@ def test_aux_almox_nao_pode_atender_fora_de_pronta_para_retirada(
 # ---------------------------------------------------------------------------
 
 
-def _req_recusada(criador, beneficiario, setor):
-    from apps.requisicoes.models import Requisicao
-
-    return Requisicao.objects.create(
-        estado=EstadoRequisicao.RECUSADA,
-        numero_publico='REQ-2026-000501',
-        criador=criador,
+def test_solicitante_pode_copiar_propria_req():
+    beneficiario = _user(pk=ATOR_ID, setor_id=SETOR_ID)
+    req = _req(
+        EstadoRequisicao.RECUSADA,
+        criador_id=ATOR_ID,
+        beneficiario_id=ATOR_ID,
         beneficiario=beneficiario,
-        setor_beneficiario=setor,
     )
+    assert pode_copiar_requisicao(SOLICITANTE, req) is True
 
 
-@pytest.mark.django_db
-def test_solicitante_pode_copiar_propria_req(solicitante, setor_obras):
-    from apps.requisicoes.policies import pode_copiar_requisicao
-
-    req = _req_recusada(solicitante, solicitante, setor_obras)
-    assert pode_copiar_requisicao(solicitante, req) is True
-
-
-@pytest.mark.django_db
-def test_usuario_outro_setor_nao_pode_copiar(usuario_ti, solicitante, setor_obras):
-    from apps.requisicoes.policies import pode_copiar_requisicao
-
-    req = _req_recusada(solicitante, solicitante, setor_obras)
-    assert pode_copiar_requisicao(usuario_ti, req) is False
+def test_usuario_outro_setor_nao_pode_copiar():
+    beneficiario = _user(pk=ATOR_ID, setor_id=SETOR_ID)
+    req = _req(
+        EstadoRequisicao.RECUSADA,
+        criador_id=ATOR_ID,
+        beneficiario_id=ATOR_ID,
+        beneficiario=beneficiario,
+    )
+    outro_setor = _papel(ator_id=OUTRO_ID, setores_em_escopo=(SETOR_TI_ID,))
+    assert pode_copiar_requisicao(outro_setor, req) is False
 
 
-@pytest.mark.django_db
-def test_superuser_pode_copiar(superuser, solicitante, setor_obras):
-    from apps.requisicoes.policies import pode_copiar_requisicao
+def test_superuser_pode_copiar():
+    beneficiario = _user(pk=ATOR_ID, setor_id=SETOR_ID)
+    req = _req(
+        EstadoRequisicao.RECUSADA,
+        criador_id=ATOR_ID,
+        beneficiario_id=ATOR_ID,
+        beneficiario=beneficiario,
+    )
+    assert pode_copiar_requisicao(SUPERUSER, req) is True
 
-    req = _req_recusada(solicitante, solicitante, setor_obras)
-    assert pode_copiar_requisicao(superuser, req) is True
 
-
-@pytest.mark.django_db
-def test_inativo_nao_pode_copiar(usuario_inativo, solicitante, setor_obras):
-    from apps.requisicoes.policies import pode_copiar_requisicao
-
-    req = _req_recusada(solicitante, solicitante, setor_obras)
-    assert pode_copiar_requisicao(usuario_inativo, req) is False
+def test_inativo_nao_pode_copiar():
+    beneficiario = _user(pk=ATOR_ID, setor_id=SETOR_ID)
+    req = _req(
+        EstadoRequisicao.RECUSADA,
+        criador_id=ATOR_ID,
+        beneficiario_id=ATOR_ID,
+        beneficiario=beneficiario,
+    )
+    assert pode_copiar_requisicao(INATIVO, req) is False
 
 
 # ---------------------------------------------------------------------------
@@ -734,63 +665,29 @@ def test_inativo_nao_pode_copiar(usuario_inativo, solicitante, setor_obras):
 # ---------------------------------------------------------------------------
 
 
-def _req_atendida_stub(solicitante, setor_obras):
-    """Requisicao atendida mínima para testes de policy."""
-    from apps.requisicoes.models import Requisicao
-
-    return Requisicao.objects.create(
-        estado=EstadoRequisicao.ATENDIDA,
-        numero_publico='REQ-2026-000800',
-        criador=solicitante,
-        beneficiario=solicitante,
-        setor_beneficiario=setor_obras,
-    )
+def test_aux_almoxarifado_pode_registrar_devolucao():
+    req = _req(EstadoRequisicao.ATENDIDA)
+    assert pode_registrar_devolucao(AUX_ALMOX, req) is True
 
 
-@pytest.mark.django_db
-def test_aux_almoxarifado_pode_registrar_devolucao(
-    aux_almoxarifado, solicitante, setor_obras
-):
-    from apps.requisicoes.policies import pode_registrar_devolucao
-
-    req = _req_atendida_stub(solicitante, setor_obras)
-    assert pode_registrar_devolucao(aux_almoxarifado, req) is True
+def test_chefe_almoxarifado_pode_registrar_devolucao():
+    req = _req(EstadoRequisicao.ATENDIDA)
+    assert pode_registrar_devolucao(CHEFE_ALMOX, req) is True
 
 
-@pytest.mark.django_db
-def test_chefe_almoxarifado_pode_registrar_devolucao(
-    chefe_almoxarifado, solicitante, setor_obras
-):
-    from apps.requisicoes.policies import pode_registrar_devolucao
-
-    req = _req_atendida_stub(solicitante, setor_obras)
-    assert pode_registrar_devolucao(chefe_almoxarifado, req) is True
+def test_superuser_pode_registrar_devolucao():
+    req = _req(EstadoRequisicao.ATENDIDA)
+    assert pode_registrar_devolucao(SUPERUSER, req) is True
 
 
-@pytest.mark.django_db
-def test_superuser_pode_registrar_devolucao(superuser, solicitante, setor_obras):
-    from apps.requisicoes.policies import pode_registrar_devolucao
-
-    req = _req_atendida_stub(solicitante, setor_obras)
-    assert pode_registrar_devolucao(superuser, req) is True
+def test_solicitante_nao_pode_registrar_devolucao():
+    req = _req(EstadoRequisicao.ATENDIDA)
+    assert pode_registrar_devolucao(SOLICITANTE, req) is False
 
 
-@pytest.mark.django_db
-def test_solicitante_nao_pode_registrar_devolucao(solicitante, setor_obras):
-    from apps.requisicoes.policies import pode_registrar_devolucao
-
-    req = _req_atendida_stub(solicitante, setor_obras)
-    assert pode_registrar_devolucao(solicitante, req) is False
-
-
-@pytest.mark.django_db
-def test_inativo_nao_pode_registrar_devolucao(
-    usuario_inativo, solicitante, setor_obras
-):
-    from apps.requisicoes.policies import pode_registrar_devolucao
-
-    req = _req_atendida_stub(solicitante, setor_obras)
-    assert pode_registrar_devolucao(usuario_inativo, req) is False
+def test_inativo_nao_pode_registrar_devolucao():
+    req = _req(EstadoRequisicao.ATENDIDA)
+    assert pode_registrar_devolucao(INATIVO, req) is False
 
 
 # ---------------------------------------------------------------------------
@@ -798,45 +695,28 @@ def test_inativo_nao_pode_registrar_devolucao(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.django_db
-def test_chefe_almoxarifado_pode_estornar(chefe_almoxarifado, solicitante, setor_obras):
-    from apps.requisicoes.policies import pode_estornar_requisicao
-
-    req = _req_atendida_stub(solicitante, setor_obras)
-    assert pode_estornar_requisicao(chefe_almoxarifado, req) is True
+def test_chefe_almoxarifado_pode_estornar():
+    req = _req(EstadoRequisicao.ATENDIDA)
+    assert pode_estornar_requisicao(CHEFE_ALMOX, req) is True
 
 
-@pytest.mark.django_db
-def test_aux_almox_nao_pode_estornar(aux_almoxarifado, solicitante, setor_obras):
-    from apps.requisicoes.policies import pode_estornar_requisicao
-
-    req = _req_atendida_stub(solicitante, setor_obras)
-    assert pode_estornar_requisicao(aux_almoxarifado, req) is False
+def test_aux_almox_nao_pode_estornar():
+    req = _req(EstadoRequisicao.ATENDIDA)
+    assert pode_estornar_requisicao(AUX_ALMOX, req) is False
 
 
-@pytest.mark.django_db
-def test_superuser_pode_estornar(superuser, solicitante, setor_obras):
-    from apps.requisicoes.policies import pode_estornar_requisicao
-
-    req = _req_atendida_stub(solicitante, setor_obras)
-    assert pode_estornar_requisicao(superuser, req) is True
+def test_superuser_pode_estornar():
+    req = _req(EstadoRequisicao.ATENDIDA)
+    assert pode_estornar_requisicao(SUPERUSER, req) is True
 
 
-@pytest.mark.django_db
-def test_inativo_nao_pode_estornar(usuario_inativo, solicitante, setor_obras):
-    from apps.requisicoes.policies import pode_estornar_requisicao
-
-    req = _req_atendida_stub(solicitante, setor_obras)
-    assert pode_estornar_requisicao(usuario_inativo, req) is False
+def test_inativo_nao_pode_estornar():
+    req = _req(EstadoRequisicao.ATENDIDA)
+    assert pode_estornar_requisicao(INATIVO, req) is False
 
 
-@pytest.mark.django_db
-def test_exigir_pode_estornar_levanta_permissao_negada(
-    aux_almoxarifado, solicitante, setor_obras
-):
-    from apps.requisicoes.policies import exigir_pode_estornar_requisicao
-
-    req = _req_atendida_stub(solicitante, setor_obras)
+def test_exigir_pode_estornar_levanta_permissao_negada():
+    req = _req(EstadoRequisicao.ATENDIDA)
     with pytest.raises(PermissaoNegada) as excinfo:
-        exigir_pode_estornar_requisicao(aux_almoxarifado, req)
+        exigir_pode_estornar_requisicao(AUX_ALMOX, req)
     assert excinfo.value.code == 'estornar_requisicao_negada'

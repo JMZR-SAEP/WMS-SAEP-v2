@@ -4,6 +4,7 @@ Fluxo: ler input → chamar service com IDs → traduzir exceção → renderiza
 Nenhuma regra de domínio, query de escopo ou decisão de autorização própria.
 """
 
+from apps.accounts.papeis import papel_efetivo
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
@@ -109,10 +110,11 @@ def _detalhe_context(
     justificativa_cancelamento: str = '',
     cancelamento_modal_aberto: bool = False,
 ):
+    papel = papel_efetivo(request.user)
     itens = list(requisicao.itens.select_related('material').all())
     pode_devolver = (
         requisicao.estado == EstadoRequisicao.ATENDIDA
-        and pode_registrar_devolucao(request.user, requisicao)
+        and pode_registrar_devolucao(papel, requisicao)
     )
     if pode_devolver:
         for item in itens:
@@ -129,7 +131,7 @@ def _detalhe_context(
             (e.criado_em for e in eventos if e.evento == 'envio_autorizacao'),
             None,
         )
-    cancelavel = pode_cancelar_requisicao(request.user, requisicao)
+    cancelavel = pode_cancelar_requisicao(papel, requisicao)
     if cancelavel:
         if (
             requisicao.estado == EstadoRequisicao.RASCUNHO
@@ -184,7 +186,7 @@ def _detalhe_context(
 
     estados_copiavel = {EstadoRequisicao.ATENDIDA, EstadoRequisicao.RECUSADA}
     pode_copiar = requisicao.estado in estados_copiavel and pode_copiar_requisicao(
-        request.user, requisicao
+        papel, requisicao
     )
 
     return {
@@ -194,31 +196,31 @@ def _detalhe_context(
         'voltar_url': _voltar_url(request),
         'pode_enviar': (
             requisicao.estado == EstadoRequisicao.RASCUNHO
-            and pode_enviar_rascunho(request.user, requisicao)
+            and pode_enviar_rascunho(papel, requisicao)
         ),
         'pode_editar': (
             requisicao.estado == EstadoRequisicao.RASCUNHO
-            and pode_editar_rascunho(request.user, requisicao)
+            and pode_editar_rascunho(papel, requisicao)
         ),
         'pode_retornar': (
             requisicao.estado == EstadoRequisicao.AGUARDANDO_AUTORIZACAO
-            and pode_retornar_para_rascunho(request.user, requisicao)
+            and pode_retornar_para_rascunho(papel, requisicao)
         ),
         'pode_autorizar': (
             requisicao.estado == EstadoRequisicao.AGUARDANDO_AUTORIZACAO
-            and pode_autorizar_requisicao(request.user, requisicao)
+            and pode_autorizar_requisicao(papel, requisicao)
         ),
         'pode_recusar': (
             requisicao.estado == EstadoRequisicao.AGUARDANDO_AUTORIZACAO
-            and pode_recusar_requisicao(request.user, requisicao)
+            and pode_recusar_requisicao(papel, requisicao)
         ),
         'pode_separar_retirada': (
             requisicao.estado == EstadoRequisicao.AUTORIZADA
-            and pode_separar_para_retirada(request.user, requisicao)
+            and pode_separar_para_retirada(papel, requisicao)
         ),
         'pode_atender_retirada': (
             requisicao.estado == EstadoRequisicao.PRONTA_PARA_RETIRADA
-            and pode_atender_retirada(request.user, requisicao)
+            and pode_atender_retirada(papel, requisicao)
         ),
         'pode_cancelar': cancelavel,
         'pode_copiar': pode_copiar,
@@ -244,7 +246,7 @@ def _detalhe_context(
         'devolucao_form': RegistrarDevolucaoForm(),
         'pode_estornar': (
             requisicao.estado == EstadoRequisicao.ATENDIDA
-            and pode_estornar_requisicao(request.user, requisicao)
+            and pode_estornar_requisicao(papel, requisicao)
         ),
         'estorno_form': EstornarRequisicaoForm(),
     }
@@ -312,8 +314,9 @@ def _render_modal_erro(
 @login_required
 @require_http_methods(['GET', 'POST'])
 def nova_requisicao(request):
+    papel = papel_efetivo(request.user)
     try:
-        escopo = resolver_escopo_criacao_requisicao(request.user)
+        escopo = resolver_escopo_criacao_requisicao(papel)
     except PermissaoNegada as exc:
         raise PermissionDenied(str(exc))
 
@@ -410,8 +413,9 @@ def editar_rascunho_view(request, pk: int):
         pk=pk,
     )
 
+    papel = papel_efetivo(request.user)
     try:
-        exigir_pode_editar_rascunho(request.user, requisicao)
+        exigir_pode_editar_rascunho(papel, requisicao)
     except PermissaoNegada as exc:
         raise PermissionDenied(str(exc))
 
@@ -524,8 +528,9 @@ def nova_linha_item(request):
 @require_GET
 def buscar_materiais(request):
     """Retorna materiais elegíveis para autocomplete (JSON)."""
+    papel = papel_efetivo(request.user)
     try:
-        resolver_escopo_criacao_requisicao(request.user)
+        resolver_escopo_criacao_requisicao(papel)
     except PermissaoNegada:
         return JsonResponse(
             {'error': 'Sem permissão para buscar materiais.'}, status=403
@@ -573,8 +578,9 @@ def buscar_beneficiarios(request):
 
     Restrição de escopo idêntica à de criação de requisição.
     """
+    papel = papel_efetivo(request.user)
     try:
-        escopo = resolver_escopo_criacao_requisicao(request.user)
+        escopo = resolver_escopo_criacao_requisicao(papel)
     except PermissaoNegada:
         return JsonResponse(
             {'error': 'Sem permissão para buscar beneficiários.'}, status=403
@@ -628,8 +634,9 @@ def minhas_requisicoes_view(request):
 @require_GET
 def fila_autorizacao_view(request):
     """Lista requisições aguardando autorização no escopo da chefia."""
+    papel = papel_efetivo(request.user)
     try:
-        exigir_pode_ver_fila_autorizacao(request.user)
+        exigir_pode_ver_fila_autorizacao(papel)
     except PermissaoNegada as exc:
         raise PermissionDenied(str(exc))
 
@@ -680,8 +687,9 @@ def autorizar_requisicao_view(request, pk: int):
 @require_GET
 def fila_atendimento_view(request):
     """Lista requisições autorizadas/prontas para almoxarifado."""
+    papel = papel_efetivo(request.user)
     try:
-        exigir_pode_ver_fila_atendimento(request.user)
+        exigir_pode_ver_fila_atendimento(papel)
     except PermissaoNegada as exc:
         raise PermissionDenied(str(exc))
 
@@ -730,7 +738,8 @@ def registrar_atendimento_view(request, pk: int):
     if requisicao.estado != EstadoRequisicao.PRONTA_PARA_RETIRADA:
         messages.warning(request, 'Esta requisição não está pronta para retirada.')
         return _htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
-    if not pode_atender_retirada(request.user, requisicao):
+    papel = papel_efetivo(request.user)
+    if not pode_atender_retirada(papel, requisicao):
         raise PermissionDenied(
             'Você não tem permissão para registrar o atendimento desta requisição.'
         )
@@ -1160,8 +1169,9 @@ def confirmar_importacao_scpi_view(request):
         registrar_timeline_divergencia_importacao,
     )
 
+    papel = papel_efetivo(request.user)
     try:
-        exigir_pode_confirmar_importacao_scpi(request.user)
+        exigir_pode_confirmar_importacao_scpi(papel)
     except PermissaoNegada as exc:
         raise PermissionDenied(str(exc))
 

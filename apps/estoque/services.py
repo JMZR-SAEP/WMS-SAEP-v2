@@ -13,6 +13,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from apps.accounts.models import User
+from apps.accounts.papeis import papel_efetivo
 from apps.core.exceptions import ConflitoDominio, DadosInvalidos
 from apps.estoque.types import (
     ItemAtendimentoSaldo,
@@ -449,7 +450,8 @@ def registrar_saida_excepcional(
             'Ator ou estoque inválido.', code='referencia_invalida'
         ) from exc
 
-    exigir_pode_registrar_saida_excepcional(ator)
+    papel = papel_efetivo(ator)
+    exigir_pode_registrar_saida_excepcional(papel)
 
     if not itens:
         raise DadosInvalidos('A saída precisa ter ao menos um item.', code='sem_itens')
@@ -558,7 +560,8 @@ def estornar_saida_excepcional(
     except ObjectDoesNotExist as exc:
         raise DadosInvalidos('Ator inválido.', code='referencia_invalida') from exc
 
-    exigir_pode_estornar_saida_excepcional(ator)
+    papel = papel_efetivo(ator)
+    exigir_pode_estornar_saida_excepcional(papel)
 
     if not justificativa or not justificativa.strip():
         raise DadosInvalidos(
@@ -655,7 +658,8 @@ def confirmar_importacao_scpi(
     except User.DoesNotExist:
         raise DadosInvalidos('Usuário não encontrado.', code='usuario_nao_encontrado')
 
-    exigir_pode_confirmar_importacao_scpi(ator)
+    papel = papel_efetivo(ator)
+    exigir_pode_confirmar_importacao_scpi(papel)
 
     try:
         estoque = Estoque.objects.get(pk=estoque_id)
@@ -742,7 +746,8 @@ def desativar_material(*, ator_id: int, material_id: int) -> None:
             'Ator ou material inválido.', code='referencia_invalida'
         ) from exc
 
-    exigir_pode_gerir_catalogo(ator)
+    papel = papel_efetivo(ator)
+    exigir_pode_gerir_catalogo(papel)
 
     if not material.ativo:
         return

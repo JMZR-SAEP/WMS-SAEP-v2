@@ -5,6 +5,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.accounts.models import Setor, User, VinculoAuxiliar
+from apps.accounts.papeis import papel_efetivo
 from apps.core.exceptions import ConflitoDominio, DadosInvalidos
 
 
@@ -22,7 +23,8 @@ def trocar_chefe_setor(*, ator_id: int, setor_id: int, novo_chefe_id: int) -> No
             'Referência inválida.', code='referencia_invalida'
         ) from exc
 
-    exigir_pode_gerir_cadastro(ator)
+    papel = papel_efetivo(ator)
+    exigir_pode_gerir_cadastro(papel)
 
     if not novo_chefe.is_active:
         raise DadosInvalidos(
@@ -64,7 +66,8 @@ def desativar_usuario(
             'Referência inválida.', code='referencia_invalida'
         ) from exc
 
-    exigir_pode_gerir_cadastro(ator)
+    papel = papel_efetivo(ator)
+    exigir_pode_gerir_cadastro(papel)
 
     if not usuario.is_active:
         return
@@ -103,7 +106,8 @@ def ativar_vinculo_auxiliar(
             'Referência inválida.', code='referencia_invalida'
         ) from exc
 
-    exigir_pode_gerir_cadastro(ator)
+    papel = papel_efetivo(ator)
+    exigir_pode_gerir_cadastro(papel)
 
     vinculo = (
         VinculoAuxiliar.objects.select_for_update()
@@ -140,7 +144,8 @@ def desativar_vinculo_auxiliar(*, ator_id: int, vinculo_id: int) -> VinculoAuxil
             'Referência inválida.', code='referencia_invalida'
         ) from exc
 
-    exigir_pode_gerir_cadastro(ator)
+    papel = papel_efetivo(ator)
+    exigir_pode_gerir_cadastro(papel)
 
     if not vinculo.ativo:
         raise ConflitoDominio(

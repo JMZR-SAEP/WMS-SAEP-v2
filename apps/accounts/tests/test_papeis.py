@@ -18,6 +18,9 @@ def test_papel_efetivo_construivel_sem_banco():
         setores_em_escopo=(),
         setor_chefiado_ativo_id=None,
         pode_ser_beneficiario=True,
+        ativo=True,
+        eh_superusuario=False,
+        ator_id=1,
     )
     assert papel.eh_almoxarifado is False
     assert papel.eh_chefe_de_almoxarifado is False
@@ -36,9 +39,45 @@ def test_papel_efetivo_e_imutavel():
         setores_em_escopo=(),
         setor_chefiado_ativo_id=None,
         pode_ser_beneficiario=True,
+        ativo=True,
+        eh_superusuario=False,
+        ator_id=1,
     )
     with pytest.raises(FrozenInstanceError):
         papel.eh_almoxarifado = True  # type: ignore[misc]
+
+
+def test_papel_efetivo_tem_campos_identidade():
+    """PapelEfetivo expõe ativo, eh_superusuario e ator_id sem acesso ao banco."""
+    papel = PapelEfetivo(
+        eh_almoxarifado=False,
+        eh_chefe_de_almoxarifado=False,
+        setores_em_escopo=(),
+        setor_chefiado_ativo_id=None,
+        pode_ser_beneficiario=True,
+        ativo=True,
+        eh_superusuario=False,
+        ator_id=42,
+    )
+    assert papel.ativo is True
+    assert papel.eh_superusuario is False
+    assert papel.ator_id == 42
+
+
+def test_papel_efetivo_superusuario_inativo():
+    """Superusuário inativo: ativo=False, eh_superusuario=True."""
+    papel = PapelEfetivo(
+        eh_almoxarifado=False,
+        eh_chefe_de_almoxarifado=False,
+        setores_em_escopo=(),
+        setor_chefiado_ativo_id=None,
+        pode_ser_beneficiario=False,
+        ativo=False,
+        eh_superusuario=True,
+        ator_id=99,
+    )
+    assert papel.ativo is False
+    assert papel.eh_superusuario is True
 
 
 # ---------------------------------------------------------------------------
@@ -90,6 +129,9 @@ def test_sem_chefia_sem_vinculo(usuario):
     assert papel.setores_em_escopo == ()
     assert papel.setor_chefiado_ativo_id is None
     assert papel.pode_ser_beneficiario is True
+    assert papel.ativo is True
+    assert papel.eh_superusuario is False
+    assert papel.ator_id == usuario.pk
 
 
 @pytest.mark.django_db
@@ -217,6 +259,9 @@ def test_usuario_inativo_nao_tem_papel_operacional(db, setor_almox):
     assert papel.setores_em_escopo == ()
     assert papel.setor_chefiado_ativo_id is None
     assert papel.pode_ser_beneficiario is False
+    assert papel.ativo is False
+    assert papel.eh_superusuario is False
+    assert papel.ator_id == inativo.pk
 
 
 @pytest.mark.django_db

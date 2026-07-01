@@ -7,6 +7,7 @@ import logging
 from django.db import transaction
 
 from apps.accounts.models import User
+from apps.accounts.papeis import papel_efetivo
 from apps.core.exceptions import DadosInvalidos, EstadoInvalido
 from apps.requisicoes.models import (
     EstadoRequisicao,
@@ -17,7 +18,6 @@ from apps.requisicoes.models import (
 )
 from apps.requisicoes.policies import (
     exigir_pode_copiar_requisicao,
-    pode_ser_beneficiario,
 )
 
 logger = logging.getLogger(__name__)
@@ -62,14 +62,16 @@ def copiar_requisicao(
             code='estado_invalido',
         )
 
-    exigir_pode_copiar_requisicao(ator, origem)
+    papel = papel_efetivo(ator)
 
     beneficiario = origem.beneficiario
-    if not pode_ser_beneficiario(beneficiario):
+    if not (beneficiario.is_active and beneficiario.setor_id is not None):
         raise DadosInvalidos(
             f'{beneficiario.nome} não pode ser beneficiário: usuário inativo ou sem setor.',
             code='beneficiario_inelegivel',
         )
+
+    exigir_pode_copiar_requisicao(papel, origem)
 
     setor_beneficiario = beneficiario.setor
     if setor_beneficiario is None:

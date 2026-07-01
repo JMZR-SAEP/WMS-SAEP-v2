@@ -7,6 +7,7 @@ import logging
 from django.db import transaction
 
 from apps.accounts.models import User
+from apps.accounts.papeis import papel_efetivo
 from apps.core.exceptions import DadosInvalidos, EstadoInvalido
 from apps.estoque.services import (
     ItemLiberacaoReserva,
@@ -49,7 +50,8 @@ def _descartar_rascunho_impl(
             code='estado_origem_invalido',
         )
 
-    exigir_pode_cancelar_requisicao(ator, requisicao)
+    papel = papel_efetivo(ator)
+    exigir_pode_cancelar_requisicao(papel, requisicao)
     requisicao.delete()
 
 
@@ -123,7 +125,8 @@ def _cancelar_requisicao_impl(
             code='estado_origem_invalido',
         )
 
-    exigir_pode_cancelar_requisicao(ator, requisicao)
+    papel = papel_efetivo(ator)
+    exigir_pode_cancelar_requisicao(papel, requisicao)
 
     justificativa_limpa = (justificativa or '').strip()
 

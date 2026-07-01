@@ -18,6 +18,9 @@ class PapelEfetivo:
     setores_em_escopo: tuple[int, ...]
     setor_chefiado_ativo_id: int | None
     pode_ser_beneficiario: bool
+    ativo: bool
+    eh_superusuario: bool
+    ator_id: int
 
 
 def papel_efetivo(usuario: User) -> PapelEfetivo:
@@ -29,6 +32,9 @@ def papel_efetivo(usuario: User) -> PapelEfetivo:
             setores_em_escopo=(),
             setor_chefiado_ativo_id=None,
             pode_ser_beneficiario=False,
+            ativo=False,
+            eh_superusuario=bool(usuario.is_superuser),
+            ator_id=usuario.pk,
         )
     setor_chefiado = None
     try:
@@ -70,4 +76,7 @@ def papel_efetivo(usuario: User) -> PapelEfetivo:
         setores_em_escopo=tuple(setores_nao_almox),
         setor_chefiado_ativo_id=setor_chefiado_ativo_id,
         pode_ser_beneficiario=bool(usuario.is_active and usuario.setor_id is not None),
+        ativo=True,
+        eh_superusuario=bool(usuario.is_superuser),
+        ator_id=usuario.pk,
     )

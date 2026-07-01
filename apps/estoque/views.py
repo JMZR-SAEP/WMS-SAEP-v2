@@ -9,6 +9,7 @@ from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_GET, require_http_methods
 
+from apps.accounts.papeis import papel_efetivo
 from apps.core.exceptions import (
     ConflitoDominio,
     DadosInvalidos,
@@ -48,8 +49,9 @@ _MOTIVO_SAIDA_VALORES = {v for v, _ in MOTIVO_SAIDA_OPCOES}
 @login_required
 @require_GET
 def listar_saidas_excepcionais_view(request):
+    papel = papel_efetivo(request.user)
     try:
-        exigir_pode_consultar_saidas_excepcionais(request.user)
+        exigir_pode_consultar_saidas_excepcionais(papel)
     except PermissaoNegada as exc:
         raise PermissionDenied(str(exc))
 
@@ -59,7 +61,7 @@ def listar_saidas_excepcionais_view(request):
         'estoque/lista_saidas_excepcionais.html',
         {
             'saidas': saidas,
-            'pode_registrar': pode_registrar_saida_excepcional(request.user),
+            'pode_registrar': pode_registrar_saida_excepcional(papel),
         },
     )
 
@@ -114,8 +116,9 @@ def historico_movimentacoes_view(request):
     completa. A view chama os selectors por ID (`request.user.pk`) e traduz a
     exceção de domínio em resposta HTTP, conforme ADR-0011/CONVENTIONS.md.
     """
+    papel = papel_efetivo(request.user)
     try:
-        exigir_pode_consultar_movimentacoes_estoque(request.user)
+        exigir_pode_consultar_movimentacoes_estoque(papel)
     except PermissaoNegada as exc:
         raise PermissionDenied(str(exc))
 
@@ -163,8 +166,6 @@ def historico_movimentacoes_view(request):
     params_ordenacao['ordem'] = ordem_inversa
     url_ordenacao = '?' + params_ordenacao.urlencode()
 
-    # URLs do chip "só saídas": preservam o recorte atual (material, período,
-    # setor, ordem) e apenas alternam os tipos.
     params_chip_on = request.GET.copy()
     params_chip_on.pop('page', None)
     params_chip_on.setlist('tipos', [t.value for t in TIPOS_SO_SAIDAS])
@@ -209,8 +210,9 @@ def historico_movimentacoes_view(request):
 @login_required
 @require_http_methods(['GET', 'POST'])
 def nova_saida_excepcional_view(request):
+    papel = papel_efetivo(request.user)
     try:
-        exigir_pode_registrar_saida_excepcional(request.user)
+        exigir_pode_registrar_saida_excepcional(papel)
     except PermissaoNegada as exc:
         raise PermissionDenied(str(exc))
 
@@ -293,8 +295,9 @@ def nova_saida_excepcional_view(request):
 @login_required
 @require_GET
 def buscar_materiais_saida_excepcional_view(request):
+    papel = papel_efetivo(request.user)
     try:
-        exigir_pode_registrar_saida_excepcional(request.user)
+        exigir_pode_registrar_saida_excepcional(papel)
     except PermissaoNegada:
         return JsonResponse({'error': 'Sem permissão.'}, status=403)
 
@@ -335,8 +338,9 @@ def detalhe_saida_excepcional_view(request, pk: int):
     from apps.estoque.policies import pode_estornar_saida_excepcional
     from apps.estoque.selectors import buscar_detalhe_saida_excepcional
 
+    papel = papel_efetivo(request.user)
     try:
-        exigir_pode_consultar_saidas_excepcionais(request.user)
+        exigir_pode_consultar_saidas_excepcionais(papel)
     except PermissaoNegada as exc:
         raise PermissionDenied(str(exc))
 
@@ -346,7 +350,7 @@ def detalhe_saida_excepcional_view(request, pk: int):
 
         raise Http404
 
-    pode_estornar = pode_estornar_saida_excepcional(request.user)
+    pode_estornar = pode_estornar_saida_excepcional(papel)
 
     return render(
         request,
@@ -365,13 +369,14 @@ def estornar_saida_excepcional_view(request, pk: int):
     from apps.estoque.selectors import buscar_detalhe_saida_excepcional
     from apps.estoque.services import estornar_saida_excepcional
 
+    papel = papel_efetivo(request.user)
     try:
-        exigir_pode_consultar_saidas_excepcionais(request.user)
+        exigir_pode_consultar_saidas_excepcionais(papel)
     except PermissaoNegada as exc:
         raise PermissionDenied(str(exc))
 
     try:
-        exigir_pode_estornar_saida_excepcional(request.user)
+        exigir_pode_estornar_saida_excepcional(papel)
     except PermissaoNegada as exc:
         raise PermissionDenied(str(exc))
 
@@ -405,8 +410,9 @@ def preview_importacao_scpi_view(request):
     from apps.estoque.policies import exigir_pode_visualizar_preview_scpi
     from apps.estoque.selectors import gerar_preview_importacao_scpi
 
+    papel = papel_efetivo(request.user)
     try:
-        exigir_pode_visualizar_preview_scpi(request.user)
+        exigir_pode_visualizar_preview_scpi(papel)
     except PermissaoNegada as exc:
         raise PermissionDenied(str(exc))
 
@@ -474,8 +480,9 @@ def sucesso_importacao_scpi_view(request, pk: int):
     from apps.estoque.models import ImportacaoSCPI
     from apps.estoque.policies import exigir_pode_confirmar_importacao_scpi
 
+    papel = papel_efetivo(request.user)
     try:
-        exigir_pode_confirmar_importacao_scpi(request.user)
+        exigir_pode_confirmar_importacao_scpi(papel)
     except PermissaoNegada as exc:
         raise PermissionDenied(str(exc))
 
@@ -503,8 +510,9 @@ def historico_importacoes_scpi_view(request):
     from apps.estoque.policies import exigir_pode_consultar_historico_scpi
     from apps.estoque.selectors import listar_historico_importacoes_scpi
 
+    papel = papel_efetivo(request.user)
     try:
-        exigir_pode_consultar_historico_scpi(request.user)
+        exigir_pode_consultar_historico_scpi(papel)
     except PermissaoNegada as exc:
         raise PermissionDenied(str(exc))
 
@@ -523,8 +531,9 @@ def lista_materiais_view(request):
     from apps.estoque.policies import exigir_pode_consultar_catalogo_estoque
     from apps.estoque.selectors import listar_materiais_com_saldo
 
+    papel = papel_efetivo(request.user)
     try:
-        exigir_pode_consultar_catalogo_estoque(request.user)
+        exigir_pode_consultar_catalogo_estoque(papel)
     except PermissaoNegada as exc:
         raise PermissionDenied(str(exc))
 
