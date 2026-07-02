@@ -365,7 +365,7 @@ def pode_filtrar_historico_por_setor(ator_id: int) -> bool:
     return ator.is_superuser or _eh_almoxarifado(ator)
 
 
-def _setores_do_historico(qs: QuerySet[Requisicao]):
+def setores_do_historico(qs: QuerySet[Requisicao]) -> QuerySet:
     """Setores beneficiários distintos presentes no histórico visível
     (opções do filtro de setor, exibido apenas para almoxarifado)."""
     from apps.accounts.models import Setor

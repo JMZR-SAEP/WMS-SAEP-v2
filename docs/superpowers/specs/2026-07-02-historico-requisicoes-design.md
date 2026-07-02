@@ -58,9 +58,9 @@ qualquer solicitante):
 - **Texto**: `icontains` sobre nome/matrícula de `criador` OU `beneficiario`.
 - **Estado**: multi-select (checkboxes) sobre `EstadoRequisicao.choices`.
 - **Período**: `data_ini`/`data_fim` sobre `criado_em__date`, inclusive.
-- **Setor**: só visível/aplicável para almoxarifado (`pode_filtrar_historico_por_setor`);
-  chefe de setor não recebe esse filtro (já está implicitamente restrito ao próprio setor
-  pelo selector de visibilidade).
+- **Setor**: visível/aplicável para almoxarifado e superusuário
+  (`pode_filtrar_historico_por_setor`); chefe de setor não recebe esse filtro (já está
+  implicitamente restrito ao próprio setor pelo selector de visibilidade).
 - **Ordenação**: só por `criado_em`, asc/desc via clique no cabeçalho da coluna Data
   (`ordem` na querystring), padrão desc.
 - **Paginação**: `Paginator`, mesmo tamanho de página de `PAGINA_MOVIMENTACOES_TAMANHO`
@@ -91,7 +91,7 @@ aplicados em cima do queryset já escopado, exatamente como em
   - `historico_requisicoes_visiveis_para(ator_id) -> QuerySet[Requisicao]`
   - `filtrar_historico_requisicoes(qs, *, texto, estados, data_ini, data_fim, setor) -> QuerySet[Requisicao]`
   - `pode_filtrar_historico_por_setor(ator_id) -> bool`
-  - `_setores_do_historico(qs) -> list` (setores distintos no queryset escopado, para popular o select de filtro)
+  - `setores_do_historico(qs) -> QuerySet[Setor]` (setores distintos no queryset escopado, para popular o select de filtro)
 - `apps/requisicoes/policies.py`:
   - `pode_consultar_historico_requisicoes(papel) -> bool` (almoxarifado, superusuário ou chefia/auxiliar de setor não-almoxarifado — mesma matriz de `historico_requisicoes_visiveis_para`)
   - `exigir_pode_consultar_historico_requisicoes(papel) -> None`

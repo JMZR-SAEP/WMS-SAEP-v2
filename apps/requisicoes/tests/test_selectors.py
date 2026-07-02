@@ -19,6 +19,7 @@ from apps.requisicoes.selectors import (
     minhas_requisicoes,
     pode_filtrar_historico_por_setor,
     requisicoes_visiveis_para,
+    setores_do_historico,
 )
 
 
@@ -819,3 +820,12 @@ def test_pode_filtrar_historico_por_setor_almox_sim_chefe_setor_nao(
 @pytest.mark.django_db
 def test_pode_filtrar_historico_por_setor_solicitante_nao(solicitante):
     assert pode_filtrar_historico_por_setor(solicitante.pk) is False
+
+
+@pytest.mark.django_db
+def test_setores_do_historico_distintos_e_ordenados_por_nome(
+    chefe_almoxarifado, req_historico_obras, req_historico_ti
+):
+    visiveis = historico_requisicoes_visiveis_para(chefe_almoxarifado.pk)
+    nomes = list(setores_do_historico(visiveis).values_list('nome', flat=True))
+    assert nomes == ['Obras', 'TI']

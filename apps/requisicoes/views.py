@@ -61,6 +61,7 @@ from apps.requisicoes.selectors import (
     pode_filtrar_historico_por_setor,
     requisicoes_visiveis_para,
     saldos_por_materiais,
+    setores_do_historico,
 )
 from apps.requisicoes.services import (
     autorizar_requisicao,
@@ -1210,9 +1211,7 @@ def historico_requisicoes_view(request):
 
     setores_disponiveis = []
     if mostrar_filtro_setor:
-        from apps.requisicoes.selectors import _setores_do_historico
-
-        setores_disponiveis = _setores_do_historico(visiveis)
+        setores_disponiveis = setores_do_historico(visiveis)
 
     tem_filtro_ativo = bool(
         texto or estados or data_ini or data_fim or setor is not None
