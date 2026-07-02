@@ -5,17 +5,60 @@ escopo de visibilidade de requisições por papel (ADR-0004).
 Leituras triviais podem usar o ORM direto na view.
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Callable
+
 from django.db.models import Count, F, OuterRef, Q, QuerySet, Subquery
 
 from apps.accounts.models import User
 from apps.accounts.papeis import papel_efetivo
 from apps.estoque.models import Material
+from apps.requisicoes import policies
 from apps.requisicoes.models import (
     EstadoRequisicao,
     EventoTimeline,
+    Operacao,
     Requisicao,
     TimelineRequisicao,
 )
+from apps.requisicoes.transitions import TRANSICOES
+
+if TYPE_CHECKING:
+    from apps.accounts.papeis import PapelEfetivo
+
+_POLICY_POR_OPERACAO: dict[Operacao, Callable[['PapelEfetivo', Requisicao], bool]] = {
+    Operacao.EDITAR_RASCUNHO: policies.pode_editar_rascunho,
+    Operacao.ENVIAR_PARA_AUTORIZACAO: policies.pode_enviar_rascunho,
+    Operacao.RETORNAR_PARA_RASCUNHO: policies.pode_retornar_para_rascunho,
+    Operacao.RECUSAR: policies.pode_recusar_requisicao,
+    Operacao.AUTORIZAR: policies.pode_autorizar_requisicao,
+    Operacao.CANCELAR: policies.pode_cancelar_requisicao,
+    Operacao.SEPARAR_PARA_RETIRADA: policies.pode_separar_para_retirada,
+    Operacao.REGISTRAR_ATENDIMENTO: policies.pode_atender_retirada,
+    Operacao.REGISTRAR_DEVOLUCAO: policies.pode_registrar_devolucao,
+    Operacao.ESTORNAR: policies.pode_estornar_requisicao,
+}
+
+
+def acoes_disponiveis(
+    papel: 'PapelEfetivo', requisicao: Requisicao
+) -> frozenset[Operacao]:
+    """Capacidades (Operacao) que o papel pode executar sobre requisicao no estado atual.
+
+    Deriva de TRANSICOES (a operação é permitida neste estado?) e das policies
+    (este papel pode executá-la?), nesta ordem — a tabela nunca codifica
+    autorização (ADR-0011, emenda 2026-06-26). UI e consultas de apresentação
+    consomem esta projeção, sem duplicar o grafo de estados; enforcement
+    continua nos services via exigir_pode_*.
+    """
+    acoes = set()
+    for operacao, transicao in TRANSICOES.items():
+        if requisicao.estado not in transicao.estados_origem:
+            continue
+        if _POLICY_POR_OPERACAO[operacao](papel, requisicao):
+            acoes.add(operacao)
+    return frozenset(acoes)
 
 
 def materiais_para_requisicao(q: str = '', limite: int = 20) -> QuerySet:

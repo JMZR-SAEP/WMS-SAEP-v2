@@ -36,26 +36,18 @@ from apps.requisicoes.forms import (
     RequisicaoCriacaoForm,
     RequisicaoForm,
 )
-from apps.requisicoes.models import EstadoRequisicao, Requisicao
+from apps.requisicoes.models import EstadoRequisicao, Operacao, Requisicao
 from apps.requisicoes.policies import (
     exigir_pode_editar_rascunho,
     exigir_pode_ver_fila_atendimento,
     exigir_pode_ver_fila_autorizacao,
     pode_atender_retirada,
-    pode_autorizar_requisicao,
-    pode_cancelar_requisicao,
     pode_copiar_requisicao,
-    pode_editar_rascunho,
-    pode_enviar_rascunho,
-    pode_recusar_requisicao,
-    pode_estornar_requisicao,
-    pode_registrar_devolucao,
-    pode_retornar_para_rascunho,
-    pode_separar_para_retirada,
     pode_ver_fila_autorizacao,
     resolver_escopo_criacao_requisicao,
 )
 from apps.requisicoes.selectors import (
+    acoes_disponiveis,
     fila_atendimento,
     fila_autorizacao,
     materiais_para_requisicao,
@@ -111,11 +103,9 @@ def _detalhe_context(
     cancelamento_modal_aberto: bool = False,
 ):
     papel = papel_efetivo(request.user)
+    acoes = acoes_disponiveis(papel, requisicao)
     itens = list(requisicao.itens.select_related('material').all())
-    pode_devolver = (
-        requisicao.estado == EstadoRequisicao.ATENDIDA
-        and pode_registrar_devolucao(papel, requisicao)
-    )
+    pode_devolver = Operacao.REGISTRAR_DEVOLUCAO in acoes
     if pode_devolver:
         for item in itens:
             item.entregue_liquida = entregue_liquida_por_material(
@@ -131,7 +121,7 @@ def _detalhe_context(
             (e.criado_em for e in eventos if e.evento == 'envio_autorizacao'),
             None,
         )
-    cancelavel = pode_cancelar_requisicao(papel, requisicao)
+    cancelavel = Operacao.CANCELAR in acoes
     if cancelavel:
         if (
             requisicao.estado == EstadoRequisicao.RASCUNHO
@@ -194,34 +184,13 @@ def _detalhe_context(
         'itens': itens,
         'eventos': eventos,
         'voltar_url': _voltar_url(request),
-        'pode_enviar': (
-            requisicao.estado == EstadoRequisicao.RASCUNHO
-            and pode_enviar_rascunho(papel, requisicao)
-        ),
-        'pode_editar': (
-            requisicao.estado == EstadoRequisicao.RASCUNHO
-            and pode_editar_rascunho(papel, requisicao)
-        ),
-        'pode_retornar': (
-            requisicao.estado == EstadoRequisicao.AGUARDANDO_AUTORIZACAO
-            and pode_retornar_para_rascunho(papel, requisicao)
-        ),
-        'pode_autorizar': (
-            requisicao.estado == EstadoRequisicao.AGUARDANDO_AUTORIZACAO
-            and pode_autorizar_requisicao(papel, requisicao)
-        ),
-        'pode_recusar': (
-            requisicao.estado == EstadoRequisicao.AGUARDANDO_AUTORIZACAO
-            and pode_recusar_requisicao(papel, requisicao)
-        ),
-        'pode_separar_retirada': (
-            requisicao.estado == EstadoRequisicao.AUTORIZADA
-            and pode_separar_para_retirada(papel, requisicao)
-        ),
-        'pode_atender_retirada': (
-            requisicao.estado == EstadoRequisicao.PRONTA_PARA_RETIRADA
-            and pode_atender_retirada(papel, requisicao)
-        ),
+        'pode_enviar': Operacao.ENVIAR_PARA_AUTORIZACAO in acoes,
+        'pode_editar': Operacao.EDITAR_RASCUNHO in acoes,
+        'pode_retornar': Operacao.RETORNAR_PARA_RASCUNHO in acoes,
+        'pode_autorizar': Operacao.AUTORIZAR in acoes,
+        'pode_recusar': Operacao.RECUSAR in acoes,
+        'pode_separar_retirada': Operacao.SEPARAR_PARA_RETIRADA in acoes,
+        'pode_atender_retirada': Operacao.REGISTRAR_ATENDIMENTO in acoes,
         'pode_cancelar': cancelavel,
         'pode_copiar': pode_copiar,
         'cancelamento_titulo': cancelamento_titulo,
@@ -244,10 +213,7 @@ def _detalhe_context(
         'enviada_em': enviada_em,
         'pode_devolver': pode_devolver,
         'devolucao_form': RegistrarDevolucaoForm(),
-        'pode_estornar': (
-            requisicao.estado == EstadoRequisicao.ATENDIDA
-            and pode_estornar_requisicao(papel, requisicao)
-        ),
+        'pode_estornar': Operacao.ESTORNAR in acoes,
         'estorno_form': EstornarRequisicaoForm(),
     }
 

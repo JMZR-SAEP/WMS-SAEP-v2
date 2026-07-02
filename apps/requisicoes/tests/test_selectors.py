@@ -1,10 +1,14 @@
 """Testes unitários para seletores de requisições."""
 
+from types import SimpleNamespace
+
 import pytest
 
 from apps.accounts.models import User
-from apps.requisicoes.models import EstadoRequisicao, Requisicao
+from apps.accounts.papeis import PapelEfetivo
+from apps.requisicoes.models import EstadoRequisicao, Operacao, Requisicao
 from apps.requisicoes.selectors import (
+    acoes_disponiveis,
     fila_atendimento,
     fila_autorizacao,
     material_eh_elegivel,
@@ -452,3 +456,179 @@ def test_fila_atendimento_anota_quantidade_itens(
     )
     req = fila_atendimento(aux_almoxarifado.pk).get(pk=req_autorizada_obras.pk)
     assert req.quantidade_itens == 1
+
+
+# ---------------------------------------------------------------------------
+# acoes_disponiveis — puro, sem DB (papel × estado)
+# ---------------------------------------------------------------------------
+
+ATOR_ID = 1
+SETOR_BENEFICIARIO_ID = 10
+
+
+def _papel(**kwargs) -> PapelEfetivo:
+    defaults = dict(
+        ativo=True,
+        eh_superusuario=False,
+        eh_almoxarifado=False,
+        eh_chefe_de_almoxarifado=False,
+        setores_em_escopo=(),
+        setor_chefiado_ativo_id=None,
+        pode_ser_beneficiario=True,
+        ator_id=ATOR_ID,
+    )
+    defaults.update(kwargs)
+    return PapelEfetivo(**defaults)
+
+
+def _req(
+    estado: str,
+    criador_id: int = ATOR_ID,
+    beneficiario_id: int = ATOR_ID,
+    setor_beneficiario_id: int = SETOR_BENEFICIARIO_ID,
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        estado=estado,
+        criador_id=criador_id,
+        beneficiario_id=beneficiario_id,
+        setor_beneficiario_id=setor_beneficiario_id,
+    )
+
+
+def test_acoes_disponiveis_inclui_editar_rascunho_para_criador_em_rascunho():
+    papel = _papel(ator_id=ATOR_ID)
+    req = _req(EstadoRequisicao.RASCUNHO, criador_id=ATOR_ID)
+
+    acoes = acoes_disponiveis(papel, req)
+
+    assert Operacao.EDITAR_RASCUNHO in acoes
+
+
+def test_acoes_disponiveis_exclui_editar_rascunho_para_nao_criador():
+    papel = _papel(ator_id=ATOR_ID)
+    req = _req(EstadoRequisicao.RASCUNHO, criador_id=999)
+
+    acoes = acoes_disponiveis(papel, req)
+
+    assert Operacao.EDITAR_RASCUNHO not in acoes
+
+
+def test_acoes_disponiveis_exclui_editar_rascunho_fora_do_estado_rascunho():
+    papel = _papel(ator_id=ATOR_ID)
+    req = _req(EstadoRequisicao.AGUARDANDO_AUTORIZACAO, criador_id=ATOR_ID)
+
+    acoes = acoes_disponiveis(papel, req)
+
+    assert Operacao.EDITAR_RASCUNHO not in acoes
+
+
+def test_acoes_disponiveis_cancelar_disponivel_em_todos_os_estados_cancelaveis():
+    papel = _papel(ator_id=ATOR_ID)
+
+    for estado in (
+        EstadoRequisicao.RASCUNHO,
+        EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+        EstadoRequisicao.AUTORIZADA,
+        EstadoRequisicao.PRONTA_PARA_RETIRADA,
+    ):
+        req = _req(estado, criador_id=ATOR_ID)
+        assert Operacao.CANCELAR in acoes_disponiveis(papel, req)
+
+
+def test_acoes_disponiveis_cancelar_ausente_em_estados_finais():
+    papel = _papel(ator_id=ATOR_ID)
+
+    for estado in (
+        EstadoRequisicao.RECUSADA,
+        EstadoRequisicao.ATENDIDA,
+        EstadoRequisicao.ESTORNADA,
+    ):
+        req = _req(estado, criador_id=ATOR_ID)
+        assert Operacao.CANCELAR not in acoes_disponiveis(papel, req)
+
+
+def test_acoes_disponiveis_papel_inativo_retorna_conjunto_vazio():
+    papel = _papel(ator_id=ATOR_ID, ativo=False)
+    req = _req(EstadoRequisicao.RASCUNHO, criador_id=ATOR_ID)
+
+    acoes = acoes_disponiveis(papel, req)
+
+    assert acoes == frozenset()
+
+
+def test_acoes_disponiveis_retorna_frozenset():
+    papel = _papel(ator_id=ATOR_ID)
+    req = _req(EstadoRequisicao.RASCUNHO, criador_id=ATOR_ID)
+
+    assert isinstance(acoes_disponiveis(papel, req), frozenset)
+
+
+@pytest.mark.parametrize(
+    'papel,req,esperado',
+    [
+        pytest.param(
+            _papel(ator_id=ATOR_ID),
+            _req(
+                EstadoRequisicao.RASCUNHO, criador_id=ATOR_ID, beneficiario_id=ATOR_ID
+            ),
+            frozenset(
+                {
+                    Operacao.EDITAR_RASCUNHO,
+                    Operacao.ENVIAR_PARA_AUTORIZACAO,
+                    Operacao.CANCELAR,
+                }
+            ),
+            id='criador_em_rascunho',
+        ),
+        pytest.param(
+            _papel(ator_id=ATOR_ID, setor_chefiado_ativo_id=SETOR_BENEFICIARIO_ID),
+            _req(
+                EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+                criador_id=999,
+                beneficiario_id=999,
+            ),
+            frozenset({Operacao.RECUSAR, Operacao.AUTORIZAR}),
+            id='chefe_setor_em_aguardando_autorizacao',
+        ),
+        pytest.param(
+            _papel(ator_id=ATOR_ID, eh_almoxarifado=True),
+            _req(EstadoRequisicao.AUTORIZADA, criador_id=999, beneficiario_id=999),
+            frozenset({Operacao.SEPARAR_PARA_RETIRADA, Operacao.CANCELAR}),
+            id='almoxarifado_em_autorizada',
+        ),
+        pytest.param(
+            _papel(ator_id=ATOR_ID, eh_almoxarifado=True),
+            _req(
+                EstadoRequisicao.PRONTA_PARA_RETIRADA,
+                criador_id=999,
+                beneficiario_id=999,
+            ),
+            frozenset({Operacao.REGISTRAR_ATENDIMENTO, Operacao.CANCELAR}),
+            id='almoxarifado_em_pronta_para_retirada',
+        ),
+        pytest.param(
+            _papel(ator_id=ATOR_ID, eh_almoxarifado=True),
+            _req(EstadoRequisicao.ATENDIDA, criador_id=999, beneficiario_id=999),
+            frozenset({Operacao.REGISTRAR_DEVOLUCAO}),
+            id='aux_almoxarifado_em_atendida_sem_estornar',
+        ),
+        pytest.param(
+            _papel(
+                ator_id=ATOR_ID, eh_almoxarifado=True, eh_chefe_de_almoxarifado=True
+            ),
+            _req(EstadoRequisicao.ATENDIDA, criador_id=999, beneficiario_id=999),
+            frozenset({Operacao.REGISTRAR_DEVOLUCAO, Operacao.ESTORNAR}),
+            id='chefe_almoxarifado_em_atendida',
+        ),
+        pytest.param(
+            _papel(ator_id=ATOR_ID),
+            _req(
+                EstadoRequisicao.RECUSADA, criador_id=ATOR_ID, beneficiario_id=ATOR_ID
+            ),
+            frozenset(),
+            id='estado_final_sem_acoes',
+        ),
+    ],
+)
+def test_acoes_disponiveis_conjunto_completo_por_papel_e_estado(papel, req, esperado):
+    assert acoes_disponiveis(papel, req) == esperado
