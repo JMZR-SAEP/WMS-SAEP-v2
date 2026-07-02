@@ -60,7 +60,7 @@ from apps.requisicoes.services import (
     copiar_requisicao,
     criar_e_enviar_requisicao,
     criar_requisicao,
-    cancelar_ou_descartar_requisicao,
+    cancelar_requisicao,
     editar_rascunho,
     enviar_para_autorizacao,
     recusar_requisicao,
@@ -850,7 +850,7 @@ def cancelar_requisicao_view(request, pk: int):
     justificativa = request.POST.get('justificativa', '')
 
     try:
-        resultado_cancelamento = cancelar_ou_descartar_requisicao(
+        resultado_cancelamento = cancelar_requisicao(
             ator_id=request.user.pk,
             requisicao_id=pk,
             justificativa=justificativa,
@@ -897,7 +897,7 @@ def cancelar_requisicao_view(request, pk: int):
         return _htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
 
     numero = numero_publico or f'#{pk}'
-    if resultado_cancelamento is None:
+    if resultado_cancelamento.pk is None:
         messages.success(request, f'Rascunho {numero} descartado com sucesso.')
         return _htmx_redirect(
             request,

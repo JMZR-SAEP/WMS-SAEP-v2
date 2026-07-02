@@ -22,9 +22,7 @@ from apps.requisicoes.models import (
 from apps.requisicoes.services import (
     autorizar_requisicao,
     criar_requisicao,
-    cancelar_ou_descartar_requisicao,
     cancelar_requisicao,
-    descartar_rascunho,
     editar_rascunho,
     recusar_requisicao,
     registrar_atendimento,
@@ -548,7 +546,7 @@ def test_descartar_rascunho_nunca_enviado_remove_requisicao_e_nao_consumo_numero
         ],
     )
 
-    descartar_rascunho(ator_id=solicitante.pk, requisicao_id=req.pk)
+    cancelar_requisicao(ator_id=solicitante.pk, requisicao_id=req.pk)
 
     assert not Requisicao.objects.filter(pk=req.pk).exists()
     assert not ItemRequisicao.objects.filter(requisicao_id=req.pk).exists()
@@ -625,23 +623,6 @@ def test_cancelar_requisicao_aguardando_autorizacao_ignora_justificativa(
     assert req.estado == EstadoRequisicao.CANCELADA
     evento = req.eventos.filter(evento=EventoTimeline.CANCELAMENTO).get()
     assert evento.justificativa == ''
-    assert not req.eventos.filter(evento=EventoTimeline.LIBERACAO_RESERVA).exists()
-
-
-@pytest.mark.django_db
-def test_cancelar_ou_descartar_requisicao_aguardando_autorizacao_ignora_justificativa(
-    requisicao_aguardando, solicitante
-):
-    req = cancelar_ou_descartar_requisicao(
-        ator_id=solicitante.pk,
-        requisicao_id=requisicao_aguardando.pk,
-        justificativa='Cancelamento solicitado pelo usuário.',
-    )
-
-    assert req is not None
-    assert req.estado == EstadoRequisicao.CANCELADA
-    evento = req.eventos.filter(evento=EventoTimeline.CANCELAMENTO).get()
-    assert evento.justificativa == 'Cancelamento solicitado pelo usuário.'
     assert not req.eventos.filter(evento=EventoTimeline.LIBERACAO_RESERVA).exists()
 
 
@@ -768,7 +749,7 @@ def test_descartar_rascunho_permissao_negada_nao_altera_estado_ou_estoque(
     timeline_antes = TimelineRequisicao.objects.filter(requisicao=req).count()
 
     with pytest.raises(PermissaoNegada):
-        descartar_rascunho(ator_id=usuario_ti.pk, requisicao_id=req.pk)
+        cancelar_requisicao(ator_id=usuario_ti.pk, requisicao_id=req.pk)
 
     req.refresh_from_db()
     saldo_depois = SaldoEstoque.objects.get(material=material_disponivel)

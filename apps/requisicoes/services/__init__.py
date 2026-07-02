@@ -14,11 +14,7 @@ from apps.requisicoes.services.atendimento import (
     registrar_devolucao,
     separar_para_retirada,
 )
-from apps.requisicoes.services.cancelamento import (
-    cancelar_ou_descartar_requisicao,
-    cancelar_requisicao,
-    descartar_rascunho,
-)
+from apps.requisicoes.services.cancelamento import cancelar_requisicao
 from apps.requisicoes.services.ciclo_vida import (
     ItemInput,
     autorizar_requisicao,
@@ -42,8 +38,6 @@ __all__ = [
     'recusar_requisicao',
     'autorizar_requisicao',
     'estornar_requisicao',
-    'descartar_rascunho',
-    'cancelar_ou_descartar_requisicao',
     'cancelar_requisicao',
     'separar_para_retirada',
     'registrar_atendimento',
