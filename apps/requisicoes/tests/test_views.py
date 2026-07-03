@@ -1912,6 +1912,38 @@ def test_atender_get_aux_almox_renderiza_form(
 
 
 @pytest.mark.django_db
+def test_atender_get_prepreenche_quantidade_decimal_com_ponto(
+    client, aux_almoxarifado, solicitante, setor_obras, material_disponivel
+):
+    from apps.estoque.models import SaldoEstoque
+
+    req = Requisicao.objects.create(
+        estado=EstadoRequisicao.PRONTA_PARA_RETIRADA,
+        numero_publico='REQ-2026-9101',
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+    )
+    ItemRequisicao.objects.create(
+        requisicao=req,
+        material=material_disponivel,
+        quantidade_solicitada=Decimal('5.500'),
+        quantidade_autorizada=Decimal('5.500'),
+    )
+    saldo = SaldoEstoque.objects.get(material=material_disponivel)
+    saldo.saldo_reservado = (saldo.saldo_reservado or 0) + Decimal('5.500')
+    saldo.save(update_fields=['saldo_reservado'])
+
+    _login(client, aux_almoxarifado)
+    response = client.get(
+        reverse('requisicoes:registrar_atendimento', kwargs={'pk': req.pk})
+    )
+    html = response.content.decode('utf-8')
+    assert 'value="5.500"' in html
+    assert 'value="5,500"' not in html
+
+
+@pytest.mark.django_db
 def test_atender_get_solicitante_403(client, solicitante, req_pronta_view_com_itens):
     _login(client, solicitante)
     response = client.get(
