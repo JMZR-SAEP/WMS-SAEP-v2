@@ -1,6 +1,7 @@
 {% comment %}
-Side nav — seção Requisições (e Almoxarifado, se papel tiver acesso).
-Incluído via {% block sidebar_nav %} em requisicoes/base.html.
+Side nav (desktop) — Requisições + Almoxarifado.
+Único partial compartilhado por requisicoes/base.html e estoque/base.html
+via {% block sidebar_nav %}, evitando duplicação/drift entre apps.
 Variável `current` deve estar disponível no contexto (setada em base_auth.html).
 {% endcomment %}
 <div class="mt-4">
