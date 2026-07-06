@@ -40,7 +40,7 @@ querystring_filtros.
           <div>
             <dt class="text-xs font-medium uppercase tracking-wide text-slate-500">Material</dt>
             <dd class="mt-0.5 text-slate-800">
-              {% if req.quantidade_itens == 1 %}{{ req.itens.all.0.material.nome }}{% else %}{{ req.quantidade_itens }} itens{% endif %}
+              {{ req.quantidade_itens }} {{ req.quantidade_itens|pluralize:"item,itens" }}{% if req.quantidade_itens == 1 %}<br><span class="text-xs text-slate-400">{{ req.itens.all.0.material.nome }}</span>{% endif %}
             </dd>
           </div>
         </dl>
@@ -99,7 +99,7 @@ querystring_filtros.
             <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-700">{{ req.beneficiario.nome }}</td>
             <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-700">{{ req.setor_beneficiario.nome }}</td>
             <td class="max-w-xs truncate px-4 py-3 text-sm text-slate-700">
-              {% if req.quantidade_itens == 1 %}{{ req.itens.all.0.material.nome }}{% else %}{{ req.quantidade_itens }} itens{% endif %}
+              {{ req.quantidade_itens }} {{ req.quantidade_itens|pluralize:"item,itens" }}{% if req.quantidade_itens == 1 %}<br><span class="text-xs text-slate-400">{{ req.itens.all.0.material.nome }}</span>{% endif %}
             </td>
             <td class="whitespace-nowrap px-4 py-3 text-sm">
               {% include "requisicoes/partials/_estado_badge.html" with requisicao=req %}

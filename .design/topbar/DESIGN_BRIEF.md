@@ -91,6 +91,66 @@ CSS custom property `--app-bar-height` permite que `<main>` calcule offset e que
 
 **Findings remediados por amend (não exigem código):** P1-02 (drawer em desktop é intencional), P1-03 (back-arrow em subtela é intencional), P2-07 (drawer em tablet é intencional).
 
+### Amendment — Side Nav Desktop (2026-07-03, issue #63 M1)
+
+**Decisão Q5 (B2) revertida para lg+.** Auditoria UI/UX 2026-07 identificou dois problemas no padrão de drawer único: (1) hierarquia visual fraca em viewports largos — app parece "mobile demais" em 1280px; (2) cliques extras desnecessários para papéis com fluxo repetitivo (ex.: chefe verificando fila de autorização várias vezes ao dia).
+
+#### Decisões aprovadas
+
+| Dimensão | Decisão |
+|---|---|
+| **Breakpoint** | `lg+` (≥ 1024px) — abaixo disso: comportamento atual inalterado |
+| **Tipo** | Side nav persistente fixo — sem toggle, sem colapsar |
+| **Largura** | `w-60` (240px) |
+| **Cor** | Light — `bg-white border-r border-slate-200` |
+| **Layout** | Flex no fluxo: wrapper `lg:flex` envolve `<aside>` + `<main>` abaixo do app bar |
+| **Hamburguer em lg+** | Oculto (`lg:hidden`) — drawer continua existindo para mobile/tablet |
+| **Item ativo** | Pill — `bg-slate-100 rounded-md` no item inteiro |
+| **Estilo** | Tailwind inline no novo partial `_side_nav_requisicoes.html` (sem novas classes `@layer`) |
+| **Subtelas em desktop** | Side nav sempre visível — `{% block topbar_menu %}{% endblock %}` só suprime o hambúrguer, não o side nav |
+| **Conta/logout** | Rodapé do side nav (nome + matrícula + botão Sair) |
+
+#### Estrutura de blocos
+
+`base_auth.html` expõe novo block:
+
+```django
+{# wrapper flex abaixo do app bar #}
+<div class="lg:flex">
+  <aside class="hidden lg:flex lg:w-60 lg:shrink-0 lg:flex-col ...">
+    {# Início (core:home) sempre presente #}
+    {% block sidebar_nav %}{% endblock %}  {# domínio injeta seções aqui #}
+    {# rodapé: nome + matrícula + logout #}
+  </aside>
+  <main class="flex-1 min-w-0 ...">
+    <div class="mx-auto max-w-screen-xl p-6">
+      {% include "core/partials/_messages.html" %}
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+</div>
+```
+
+`requisicoes/base.html` estende `sidebar_nav`:
+
+```django
+{% block sidebar_nav %}
+  {% include "requisicoes/partials/_side_nav_requisicoes.html" %}
+{% endblock %}
+```
+
+#### Novos arquivos
+
+- `apps/requisicoes/templates/requisicoes/partials/_side_nav_requisicoes.html` — seções "Requisições" e "Almoxarifado" com Tailwind inline e mesmas guards de permissão de `_topbar_nav.html`. Partial de domínio vive no app dono (`requisicoes`), não em `core`, conforme ADR-0008.
+
+#### Imutável
+
+- `_topbar_nav.html` e classes `app-bar__menu-*` não mudam — drawer mobile continua funcionando.
+- Back-arrow em subtelas (`{% block topbar_leading %}`) inalterado.
+- Subtelas abaixo de `lg`: nenhuma mudança de comportamento.
+
+---
+
 ## Fora do escopo (documentado, não implementado)
 
 | Item | Por quê | Quando reabrir |

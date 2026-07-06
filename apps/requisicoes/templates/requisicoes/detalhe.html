@@ -95,10 +95,6 @@
           <span class="text-slate-400">({{ requisicao.criador.matricula }})</span>
         </dd>
       </div>
-      <div>
-        <dt class="text-xs font-medium uppercase tracking-wide text-slate-500">Atualizada em</dt>
-        <dd class="mt-0.5 text-slate-900">{{ requisicao.atualizado_em|date:"d/m/Y H:i" }}</dd>
-      </div>
       {% if enviada_em %}
       <div>
         <dt class="text-xs font-medium uppercase tracking-wide text-slate-500">Enviada em</dt>
@@ -359,6 +355,29 @@
     </section>
   {% endif %}
 
+  {% if pode_atender_retirada %}
+    <section
+      class="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"
+      aria-labelledby="atender-retirada-titulo"
+    >
+      <div class="mb-4">
+        <h2 id="atender-retirada-titulo" class="text-sm font-semibold text-slate-900">
+          Registrar retirada
+        </h2>
+        <p class="mt-1 text-sm text-slate-600">
+          Confirme as quantidades efetivamente entregues. Baixa físico apenas o entregue;
+          a reserva não entregue é liberada automaticamente.
+        </p>
+      </div>
+      <a
+        href="{% url 'requisicoes:registrar_atendimento' requisicao.pk %}?next={{ voltar_url|urlencode }}"
+        class="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 sm:w-auto"
+      >
+        Registrar retirada
+      </a>
+    </section>
+  {% endif %}
+
   {% if pode_cancelar and requisicao.estado != 'rascunho' %}
     {% cancelamento_copy cancelamento_info requisicao.estado as cancelamento_copy_texto %}
     <section
@@ -389,29 +408,6 @@
       </div>
       {% url 'requisicoes:cancelar' requisicao.pk as cancelar_url %}
       {% include "components/modal.html" with id="confirmar-cancelar" titulo=cancelamento_copy_texto.titulo descricao=cancelamento_copy_texto.descricao action_url=cancelar_url confirm_label=cancelamento_copy_texto.confirmar confirm_variant="danger" icon_variant="danger" form_body_template="requisicoes/partials/_modal_form_cancelar.html" erro=cancelamento_erro hidden_inputs=cancelamento_hidden_inputs %}
-    </section>
-  {% endif %}
-
-  {% if pode_atender_retirada %}
-    <section
-      class="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"
-      aria-labelledby="atender-retirada-titulo"
-    >
-      <div class="mb-4">
-        <h2 id="atender-retirada-titulo" class="text-sm font-semibold text-slate-900">
-          Registrar retirada
-        </h2>
-        <p class="mt-1 text-sm text-slate-600">
-          Confirme as quantidades efetivamente entregues. Baixa físico apenas o entregue;
-          a reserva não entregue é liberada automaticamente.
-        </p>
-      </div>
-      <a
-        href="{% url 'requisicoes:registrar_atendimento' requisicao.pk %}?next={{ voltar_url|urlencode }}"
-        class="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 sm:w-auto"
-      >
-        Registrar retirada
-      </a>
     </section>
   {% endif %}
 

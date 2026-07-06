@@ -2985,3 +2985,140 @@ class TestNavHistoricoRequisicoes:
         _login(client, solicitante)
         response = client.get(reverse('requisicoes:minhas'))
         assert 'Histórico de requisições'.encode() not in response.content
+
+
+# ---------------------------------------------------------------------------
+# Testes dos achados médios da auditoria UI/UX — issue #63
+# M1: side nav lg+, M2: campo Atualizada em, M3: coluna Material histórico,
+# M4: badge cancelada, M5: scroll shadow, M6: ordem cards pronta retirada
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_side_nav_renderiza_links_para_autenticado(client, solicitante):
+    _login(client, solicitante)
+    response = client.get(reverse('requisicoes:minhas'))
+    html = response.content.decode('utf-8')
+    assert 'hidden lg:flex' in html
+    assert 'Navegação principal' in html
+
+
+@pytest.mark.django_db
+def test_hamburger_oculto_em_lg(client, solicitante):
+    _login(client, solicitante)
+    response = client.get(reverse('requisicoes:minhas'))
+    assert 'lg:hidden' in response.content.decode('utf-8')
+
+
+@pytest.mark.django_db
+def test_detalhe_nao_exibe_campo_atualizado_em(
+    client, solicitante, req_enviada_solicitante
+):
+    _login(client, solicitante)
+    response = client.get(
+        reverse('requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk})
+    )
+    assert response.status_code == 200
+    assert 'Atualizada em'.encode() not in response.content
+
+
+@pytest.mark.django_db
+def test_historico_material_mostra_contagem_para_multi_itens(
+    client, superuser, setor_obras, material_disponivel, material_disponivel_2
+):
+    req = Requisicao.objects.create(
+        estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+        numero_publico='REQ-2026-M301',
+        criador=superuser,
+        beneficiario=superuser,
+        setor_beneficiario=setor_obras,
+    )
+    ItemRequisicao.objects.create(
+        requisicao=req, material=material_disponivel, quantidade_solicitada=1
+    )
+    ItemRequisicao.objects.create(
+        requisicao=req, material=material_disponivel_2, quantidade_solicitada=2
+    )
+    _login(client, superuser)
+    response = client.get(reverse('requisicoes:historico'))
+    assert '2 itens'.encode() in response.content
+
+
+@pytest.mark.django_db
+def test_historico_material_mostra_nome_como_secundario_para_item_unico(
+    client, superuser, setor_obras, material_disponivel
+):
+    req = Requisicao.objects.create(
+        estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+        numero_publico='REQ-2026-M302',
+        criador=superuser,
+        beneficiario=superuser,
+        setor_beneficiario=setor_obras,
+    )
+    ItemRequisicao.objects.create(
+        requisicao=req, material=material_disponivel, quantidade_solicitada=1
+    )
+    _login(client, superuser)
+    response = client.get(reverse('requisicoes:historico'))
+    html = response.content.decode('utf-8')
+    assert '1 item' in html
+    assert material_disponivel.nome in html
+
+
+@pytest.mark.django_db
+def test_badge_cancelada_usa_cor_laranja(client, solicitante, setor_obras):
+    req = Requisicao.objects.create(
+        estado=EstadoRequisicao.CANCELADA,
+        numero_publico='REQ-2026-M401',
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+    )
+    _login(client, solicitante)
+    response = client.get(reverse('requisicoes:detalhe', kwargs={'pk': req.pk}))
+    assert response.status_code == 200
+    assert 'bg-orange-100'.encode() in response.content
+
+
+@pytest.mark.django_db
+def test_badge_recusada_usa_cor_vermelha(
+    client, solicitante, req_enviada_solicitante, chefe_obras
+):
+    from apps.requisicoes.services import recusar_requisicao
+
+    req = recusar_requisicao(
+        ator_id=chefe_obras.pk,
+        requisicao_id=req_enviada_solicitante.pk,
+        motivo='Sem orçamento.',
+    )
+    _login(client, solicitante)
+    response = client.get(reverse('requisicoes:detalhe', kwargs={'pk': req.pk}))
+    assert response.status_code == 200
+    assert 'bg-red-200'.encode() in response.content
+
+
+@pytest.mark.django_db
+def test_atender_retirada_tabela_tem_scroll_shadow(
+    client, aux_almoxarifado, req_pronta_view_com_itens
+):
+    _login(client, aux_almoxarifado)
+    response = client.get(
+        reverse(
+            'requisicoes:registrar_atendimento',
+            kwargs={'pk': req_pronta_view_com_itens.pk},
+        )
+    )
+    assert response.status_code == 200
+    assert 'scroll-shadow-x'.encode() in response.content
+
+
+@pytest.mark.django_db
+def test_detalhe_pronta_retirada_registrar_antes_cancelar(
+    client, aux_almoxarifado, req_pronta_view_com_itens
+):
+    _login(client, aux_almoxarifado)
+    response = client.get(
+        reverse('requisicoes:detalhe', kwargs={'pk': req_pronta_view_com_itens.pk})
+    )
+    html = response.content.decode('utf-8')
+    assert html.index('atender-retirada-titulo') < html.index('cancelamento-titulo')
