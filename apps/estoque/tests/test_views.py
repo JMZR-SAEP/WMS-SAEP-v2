@@ -454,6 +454,23 @@ class TestEstornarSaidaExcepcionalView:
         assert any(m.tags == 'warning' for m in messages_list)
         assert not any(m.tags == 'error' for m in messages_list)
 
+    def test_estorno_nao_duplica_mensagem_no_detalhe(
+        self, client, chefe_almoxarifado, saida_registrada
+    ):
+        client.force_login(chefe_almoxarifado)
+        response = client.post(
+            self._url(saida_registrada.pk),
+            data={'justificativa': 'Registro equivocado.'},
+        )
+        assert response.status_code == 302
+        assert str(saida_registrada.pk) in response['Location']
+
+        detalhe_response = client.get(response['Location'])
+        assert detalhe_response.status_code == 200
+        conteudo = detalhe_response.content.decode()
+        mensagem = f'Saída {saida_registrada.numero_publico} estornada com sucesso.'
+        assert conteudo.count(mensagem) == 1
+
     def test_conflito_dominio_mostra_warning_nao_error(
         self, client, chefe_almoxarifado, saida_registrada
     ):
