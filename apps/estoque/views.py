@@ -1,5 +1,3 @@
-from datetime import date
-
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
@@ -16,6 +14,7 @@ from apps.core.exceptions import (
     ErroDominio,
     PermissaoNegada,
 )
+from apps.core.http import parse_data_iso, querystring_sem_page
 from apps.core.presentation import traduz_erro_dominio
 from apps.estoque.models import Estoque, SaldoEstoque, TipoMovimentacaoEstoque
 from apps.estoque.policies import (
@@ -75,24 +74,6 @@ TIPOS_SO_SAIDAS = [
 ]
 
 
-def _parse_data_iso(valor: str | None) -> date | None:
-    """Converte 'YYYY-MM-DD' em date; entrada inválida/vazia → None (no-op)."""
-    if not valor:
-        return None
-    try:
-        return date.fromisoformat(valor)
-    except ValueError:
-        return None
-
-
-def _querystring_sem_page(get_params) -> str:
-    """Querystring atual sem o parâmetro `page`, para preservar filtros na
-    paginação (links e swap HTMX)."""
-    params = get_params.copy()
-    params.pop('page', None)
-    return params.urlencode()
-
-
 def _setores_beneficiarios_do_ledger(visiveis):
     """Setores beneficiários presentes no ledger visível (opções do filtro de
     setor, exibido apenas para almoxarifado)."""
@@ -125,8 +106,8 @@ def historico_movimentacoes_view(request):
     material = request.GET.get('material', '').strip()
     tipos_brutos = request.GET.getlist('tipos')
     tipos = [t for t in tipos_brutos if t in TipoMovimentacaoEstoque.values]
-    data_ini = _parse_data_iso(request.GET.get('data_ini'))
-    data_fim = _parse_data_iso(request.GET.get('data_fim'))
+    data_ini = parse_data_iso(request.GET.get('data_ini'))
+    data_fim = parse_data_iso(request.GET.get('data_fim'))
     ordem = 'asc' if request.GET.get('ordem') == 'asc' else 'desc'
 
     mostrar_filtro_setor = pode_filtrar_movimentacoes_por_setor(request.user.pk)
@@ -176,7 +157,7 @@ def historico_movimentacoes_view(request):
     params_chip_off.setlist('tipos', [])
     url_chip_sem_so_saidas = '?' + params_chip_off.urlencode()
 
-    is_htmx = request.headers.get('HX-Request') == 'true'
+    is_htmx = request.htmx
     contexto = {
         'page_obj': page_obj,
         'is_htmx': is_htmx,
@@ -197,7 +178,7 @@ def historico_movimentacoes_view(request):
         'url_chip_sem_so_saidas': url_chip_sem_so_saidas,
         'tem_filtro_ativo': tem_filtro_ativo,
         'so_saidas_ativo': so_saidas_ativo,
-        'querystring_filtros': _querystring_sem_page(request.GET),
+        'querystring_filtros': querystring_sem_page(request.GET),
     }
 
     if is_htmx:

@@ -4,8 +4,6 @@ Fluxo: ler input → chamar service com IDs → traduzir exceção → renderiza
 Nenhuma regra de domínio, query de escopo ou decisão de autorização própria.
 """
 
-from datetime import date
-
 from apps.accounts.papeis import papel_efetivo
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -27,6 +25,7 @@ from apps.core.exceptions import (
     EstadoInvalido,
     PermissaoNegada,
 )
+from apps.core.http import htmx_redirect, parse_data_iso, querystring_sem_page
 from apps.core.presentation import traduz_erro_dominio
 from apps.estoque.models import SaldoEstoque
 from apps.estoque.selectors import entregue_liquida_por_material
@@ -79,15 +78,6 @@ from apps.requisicoes.services import (
     separar_para_retirada,
 )
 from apps.requisicoes.transitions import cancelamento_info
-
-
-def _htmx_redirect(request, url: str) -> HttpResponse:
-    """PRG para HTMX: 204 com HX-Redirect; redirect HTTP para requisições normais."""
-    if request.headers.get('HX-Request') == 'true':
-        response = HttpResponse(status=204)
-        response['HX-Redirect'] = url
-        return response
-    return redirect(url)
 
 
 def _voltar_url(request, default: str = '') -> str:
@@ -592,20 +582,20 @@ def autorizar_requisicao_view(request, pk: int):
         raise PermissionDenied(str(exc))
     except EstadoInvalido as exc:
         messages.warning(request, str(exc))
-        return _htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
+        return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
     except ConflitoDominio as exc:
         messages.warning(request, str(exc))
-        return _htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
+        return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
     except DadosInvalidos as exc:
         messages.error(request, str(exc))
-        return _htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
+        return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
 
     messages.success(
         request,
         f'Requisição {requisicao.numero_publico} autorizada com sucesso.',
     )
     detalhe_url = reverse('requisicoes:detalhe', args=[requisicao.pk])
-    return _htmx_redirect(request, _voltar_url(request, default=detalhe_url))
+    return htmx_redirect(request, _voltar_url(request, default=detalhe_url))
 
 
 @login_required
@@ -640,10 +630,10 @@ def separar_retirada_view(request, pk: int):
         raise PermissionDenied(str(exc))
     except EstadoInvalido as exc:
         messages.warning(request, str(exc))
-        return _htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
+        return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
     except DadosInvalidos as exc:
         messages.error(request, str(exc))
-        return _htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
+        return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
 
     numero = requisicao.numero_publico or f'#{requisicao.pk}'
     messages.success(
@@ -651,7 +641,7 @@ def separar_retirada_view(request, pk: int):
         f'Requisição {numero} pronta para retirada.',
     )
     detalhe_url = reverse('requisicoes:detalhe', args=[requisicao.pk])
-    return _htmx_redirect(request, _voltar_url(request, default=detalhe_url))
+    return htmx_redirect(request, _voltar_url(request, default=detalhe_url))
 
 
 @login_required
@@ -662,7 +652,7 @@ def registrar_atendimento_view(request, pk: int):
 
     if requisicao.estado != EstadoRequisicao.PRONTA_PARA_RETIRADA:
         messages.warning(request, 'Esta requisição não está pronta para retirada.')
-        return _htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
+        return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
     papel = papel_efetivo(request.user)
     if not pode_atender_retirada(papel, requisicao):
         raise PermissionDenied(
@@ -736,13 +726,13 @@ def registrar_atendimento_view(request, pk: int):
         raise PermissionDenied(str(exc))
     except EstadoInvalido as exc:
         messages.warning(request, str(exc))
-        return _htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
+        return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
     except ConflitoDominio as exc:
         messages.warning(request, str(exc))
-        return _htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
+        return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
     except DadosInvalidos as exc:
         messages.error(request, str(exc))
-        return _htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
+        return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
 
     numero = requisicao.numero_publico or f'#{requisicao.pk}'
     messages.success(
@@ -750,7 +740,7 @@ def registrar_atendimento_view(request, pk: int):
         f'Retirada da requisição {numero} registrada com sucesso.',
     )
     detalhe_url = reverse('requisicoes:detalhe', args=[requisicao.pk])
-    return _htmx_redirect(request, _voltar_url(request, default=detalhe_url))
+    return htmx_redirect(request, _voltar_url(request, default=detalhe_url))
 
 
 # ---------------------------------------------------------------------------
@@ -796,17 +786,17 @@ def enviar_rascunho_view(request, pk: int):
         raise PermissionDenied(str(exc))
     except EstadoInvalido as exc:
         messages.warning(request, str(exc))
-        return _htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
+        return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
     except DadosInvalidos as exc:
         messages.error(request, str(exc))
-        return _htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
+        return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
 
     messages.success(
         request,
         f'Requisição enviada para autorização. Número {requisicao.numero_publico}.',
     )
     detalhe_url = reverse('requisicoes:detalhe', args=[requisicao.pk])
-    return _htmx_redirect(request, _voltar_url(request, default=detalhe_url))
+    return htmx_redirect(request, _voltar_url(request, default=detalhe_url))
 
 
 # ---------------------------------------------------------------------------
@@ -828,16 +818,16 @@ def retornar_rascunho_view(request, pk: int):
         raise PermissionDenied(str(exc))
     except EstadoInvalido as exc:
         messages.warning(request, str(exc))
-        return _htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
+        return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
     except DadosInvalidos as exc:
         messages.error(request, str(exc))
-        return _htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
+        return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
 
     messages.success(
         request,
         f'Requisição {requisicao.numero_publico} retornada para rascunho.',
     )
-    return _htmx_redirect(
+    return htmx_redirect(
         request,
         _voltar_url(
             request, default=reverse('requisicoes:detalhe', args=[requisicao.pk])
@@ -867,7 +857,7 @@ def cancelar_requisicao_view(request, pk: int):
         raise PermissionDenied(str(exc))
     except DadosInvalidos as exc:
         if exc.code == 'justificativa_cancelamento_obrigatoria':
-            if request.headers.get('HX-Request') == 'true':
+            if request.htmx:
                 return _render_modal_erro(
                     request,
                     modal_id='confirmar-cancelar',
@@ -896,18 +886,18 @@ def cancelar_requisicao_view(request, pk: int):
                 cancelamento_modal_aberto=True,
             )
         messages.error(request, str(exc))
-        return _htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
+        return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
     except EstadoInvalido as exc:
         messages.warning(request, str(exc))
-        return _htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
+        return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
     except ConflitoDominio as exc:
         messages.warning(request, str(exc))
-        return _htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
+        return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
 
     numero = numero_publico or f'#{pk}'
     if resultado_cancelamento.pk is None:
         messages.success(request, f'Rascunho {numero} descartado com sucesso.')
-        return _htmx_redirect(
+        return htmx_redirect(
             request,
             _voltar_url(request, default=reverse('requisicoes:minhas')),
         )
@@ -922,7 +912,7 @@ def cancelar_requisicao_view(request, pk: int):
             f'Requisição {numero} cancelada. Reservas liberadas.',
         )
 
-    return _htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
+    return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
 
 
 @login_required
@@ -943,7 +933,7 @@ def recusar_requisicao_view(request, pk: int):
             requisicoes_visiveis_para(request.user.pk),
             pk=pk,
         )
-        if request.headers.get('HX-Request') == 'true':
+        if request.htmx:
             return _render_modal_erro(
                 request,
                 modal_id='confirmar-recusar',
@@ -966,10 +956,10 @@ def recusar_requisicao_view(request, pk: int):
         )
     except EstadoInvalido as exc:
         messages.warning(request, str(exc))
-        return _htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
+        return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
 
     messages.success(request, f'Requisição {requisicao.numero_publico} recusada.')
-    return _htmx_redirect(
+    return htmx_redirect(
         request,
         _voltar_url(
             request, default=reverse('requisicoes:detalhe', args=[requisicao.pk])
@@ -1023,7 +1013,7 @@ def registrar_devolucao_view(request, pk: int, item_pk: int) -> HttpResponse:
     form = RegistrarDevolucaoForm(request.POST)
     if not form.is_valid():
         messages.warning(request, form.errors.as_text())
-        return _htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
+        return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
     try:
         registrar_devolucao(
             ator_id=request.user.pk,
@@ -1039,7 +1029,7 @@ def registrar_devolucao_view(request, pk: int, item_pk: int) -> HttpResponse:
         getattr(messages, pres.severity)(request, str(exc))
     else:
         messages.success(request, 'Devolução registrada com sucesso.')
-    return _htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
+    return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
 
 
 @login_required
@@ -1050,7 +1040,7 @@ def estornar_requisicao_view(request, pk: int) -> HttpResponse:
     form = EstornarRequisicaoForm(request.POST)
     if not form.is_valid():
         messages.warning(request, form.errors.as_text())
-        return _htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
+        return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
     try:
         estornar_requisicao(
             ator_id=request.user.pk,
@@ -1064,7 +1054,7 @@ def estornar_requisicao_view(request, pk: int) -> HttpResponse:
         getattr(messages, pres.severity)(request, str(exc))
     else:
         messages.success(request, 'Requisição estornada com sucesso.')
-    return _htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
+    return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
 
 
 @login_required
@@ -1143,24 +1133,6 @@ def confirmar_importacao_scpi_view(request):
 PAGINA_HISTORICO_REQUISICOES_TAMANHO = 25
 
 
-def _parse_data_iso_historico(valor: str | None) -> date | None:
-    """Converte 'YYYY-MM-DD' em date; entrada inválida/vazia → None (no-op)."""
-    if not valor:
-        return None
-    try:
-        return date.fromisoformat(valor)
-    except ValueError:
-        return None
-
-
-def _querystring_sem_page_historico(get_params) -> str:
-    """Querystring atual sem o parâmetro `page`, para preservar filtros na
-    paginação (links e swap HTMX)."""
-    params = get_params.copy()
-    params.pop('page', None)
-    return params.urlencode()
-
-
 @login_required
 @require_GET
 def historico_requisicoes_view(request):
@@ -1181,8 +1153,8 @@ def historico_requisicoes_view(request):
     texto = request.GET.get('texto', '').strip()
     estados_brutos = request.GET.getlist('estados')
     estados = [e for e in estados_brutos if e in EstadoRequisicao.values]
-    data_ini = _parse_data_iso_historico(request.GET.get('data_ini'))
-    data_fim = _parse_data_iso_historico(request.GET.get('data_fim'))
+    data_ini = parse_data_iso(request.GET.get('data_ini'))
+    data_fim = parse_data_iso(request.GET.get('data_fim'))
     ordem = 'asc' if request.GET.get('ordem') == 'asc' else 'desc'
 
     mostrar_filtro_setor = pode_filtrar_historico_por_setor(request.user.pk)
@@ -1223,7 +1195,7 @@ def historico_requisicoes_view(request):
     params_ordenacao['ordem'] = ordem_inversa
     url_ordenacao = '?' + params_ordenacao.urlencode()
 
-    is_htmx = request.headers.get('HX-Request') == 'true'
+    is_htmx = request.htmx
     contexto = {
         'page_obj': page_obj,
         'is_htmx': is_htmx,
@@ -1241,7 +1213,7 @@ def historico_requisicoes_view(request):
         'aria_sort': 'ascending' if ordem == 'asc' else 'descending',
         'url_ordenacao': url_ordenacao,
         'tem_filtro_ativo': tem_filtro_ativo,
-        'querystring_filtros': _querystring_sem_page_historico(request.GET),
+        'querystring_filtros': querystring_sem_page(request.GET),
     }
 
     if is_htmx:
