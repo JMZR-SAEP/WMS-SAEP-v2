@@ -25,12 +25,36 @@
    - não renderiza `<form method="post" action="...">` envolvente (sem `action_url` nesse modo);
    - o botão de confirmar vira `type="button"` com `@click="fechar(); document.getElementById('{{ submit_form_id }}').requestSubmit()"`
      em vez de `type="submit"` dentro do form do próprio modal;
-   - mantém `data-modal-confirm` para integração com anti-double-submit do form alvo.
-   `action_url` e `submit_form_id` são mutuamente exclusivos — documentar no docstring do
-   componente. `form_body_template` fica vazio (só header/footer, sem `erro`, sem HTMX).
+   - mantém `data-modal-confirm` no botão (usado pelo `form-submit.js` para achar o botão que
+     recebeu o clique, mesmo fora do form alvo).
+   `action_url` e `submit_form_id` são mutuamente exclusivos e **o componente valida isso
+   explicitamente** (não é só docstring): renderiza vazio/erro de configuração se ambos ou
+   nenhum forem passados, e falha de forma auditável (Django `ImproperlyConfigured` ou
+   equivalente em tempo de render) se `submit_form_id` apontar para um id que não existe no
+   momento do render — como o valor vem sempre de um literal no template chamador (não é input
+   de usuário), a validação é uma checagem de contrato entre templates, não uma validação de
+   runtime no browser. Testes cobrem: `action_url` sozinho (caminho já existente, não regride),
+   `submit_form_id` sozinho, os dois juntos (deve falhar) e nenhum dos dois (deve falhar).
+   `form_body_template` fica vazio (só header/footer, sem `erro`, sem HTMX).
    Trigger e modal continuam no mesmo `x-data="modalController({ id: 'confirmar-atender-retirada' })"`
    já existente no wrapper (`atender_retirada.html:196-219` vira o `x-data` do `modalController`,
    substituindo o objeto Alpine manual).
+
+   **Anti-double-submit no modo `submit_form_id` (achado de review):** o botão de confirmar fica
+   fora de `form[data-prevent-double-submit]` (o form alvo é externo e o botão nem está dentro de
+   nenhum form nesse modo). `apps/core/static/core/js/form-submit.js:38-50` só registra o
+   `submitter` via clique quando `btn.closest('form[data-prevent-double-submit]')` resolve — o que
+   não acontece aqui. Efeito real, verificado lendo o script (`form-submit.js:52-92`): o bloqueio
+   central de double-submit (`form.dataset.submitting === '1'`, setado no evento `submit` do form
+   alvo) **continua funcionando**, porque é disparado pelo `requestSubmit()` independentemente de
+   quem clicou; o que se perde é só a aplicação de `aria-busy`/spinner num botão — que já não está
+   mais visível, pois o modal fecha (`fechar()`) antes do `requestSubmit()`. Decisão: não alterar
+   `form-submit.js` (o form alvo, `#form-atender-retirada`, já tem `data-prevent-double-submit` e
+   nenhum botão de submit próprio visível — `alvosDoForm` retorna vazio hoje também, sem
+   regressão). Documentar essa análise no PR e adicionar teste de view garantindo que dois POSTs
+   consecutivos ao endpoint de atendimento não causam dupla baixa de estoque (idempotência via
+   validação de estado, não via JS) — cobre o risco real (dado inconsistente), não o comportamento
+   cosmético do botão.
 
 3. **Migrar `detalhe_saida_excepcional.html:193-268`** (overlay `div` + `x-show`, sem `<dialog>`)
    para `components/modal.html` com `form_body_template="estoque/partials/_modal_form_estorno_saida.html"`
@@ -45,6 +69,20 @@
    `data-modal-trigger="estornar-saida" @click="abrir($event)"`. O comportamento bottom-sheet mobile
    atual (overlay full-screen customizado) **não é preservado** — vira o dialog centrado padrão do
    componente; registrar essa mudança visual no corpo do PR.
+
+   **Invariantes de domínio do estorno (achado de review):** a migração é só de apresentação —
+   o `<form method="post" action="{% url 'estoque:estornar_saida_excepcional' saida.pk %}">`
+   continua apontando pra mesma view/URL, sem tocar `apps/estoque/services.py`,
+   `apps/estoque/policies.py` ou `apps/estoque/views.py`. Antes de considerar a migração 2
+   concluída, confirmar (via suíte existente, sem teste novo de domínio — só de não-regressão):
+   `saida.estado` permanece `'registrada'` até um POST de estorno bem-sucedido (não pode ser
+   estornada implicitamente pela troca de markup); a `Movimentação` de estoque gerada pelo
+   estorno continua append-only e referenciando a `SaidaExcepcional` de origem correta (mesmo
+   contrato de `apps/estoque/tests/test_services.py`/`test_views.py` já cobre isso — rodar essa
+   suíte é a evidência, não escrever nova asserção de domínio). Se a suíte desses testes
+   (`test_chefe_estorna_e_redireciona_para_detalhe`, `test_saida_ja_estornada_redireciona_com_mensagem_warning`)
+   passar inalterada após a migração de template, a invariante está preservada — nenhuma mudança
+   nesses arquivos de teste é esperada, só nos testes de markup do modal.
 
 ### Fora do escopo
 
@@ -73,10 +111,15 @@
 
 ## Estratégia de testes
 
-- **Happy path fonte única:** teste de view (`requisicoes`) que dispara 422 (`_render_modal_erro`)
-  continua validando que a resposta contém `data-modal-body`, `aria-live="polite"` e o erro — hoje
-  já coberto (busca por `test_atender_post_form_invalido_renderiza_400` e testes de recusa/estorno
-  análogos); confirmar que continuam verdes após a promoção do parcial.
+- **Happy path fonte única:** teste de view (`requisicoes`) que dispara 422 via HTMX
+  (`_render_modal_erro`) continua validando que a resposta contém `data-modal-body`,
+  `aria-live="polite"` e o erro — contrato já coberto por
+  `test_recusar_requisicao_sem_motivo_via_htmx_retorna_422_fragment` e
+  `test_cancelar_requisicao_sem_justificativa_via_htmx_retorna_422_fragment`
+  (`apps/requisicoes/tests/test_views.py:1231,1550`); confirmar que continuam verdes após a
+  promoção do parcial. **Nota (correção de review):** `test_atender_post_form_invalido_renderiza_400`
+  é um contrato diferente — validação do formset de quantidades entregues, sem HTMX, sem modal,
+  resposta 400 — não é evidência do fluxo de modal/422 e não deve ser citado como tal.
 - **Caso extremo — duplicação:** grep de regressão via teste ou verificação manual: nenhuma ocorrência
   de `data-modal-body` fora de `components/` (critério de aceite da issue). Não é um teste automatizado
   novo — é uma checagem manual antes de finalizar (não há test runner de grep neste projeto).
@@ -91,8 +134,9 @@
   modal migrado, e que `data-modal-trigger="estornar-saida"` existe no botão).
 - **Cenário de erro/contrato:** o fluxo 422 de recusar/cancelar requisição (que já usa
   `_modal_body_fragment.html`) precisa continuar devolvendo o modal aberto com erro — teste de
-  regressão explícito rodando o fluxo completo (`test_atender_post_form_invalido_renderiza_400` e
-  equivalentes de recusar/cancelar/retornar).
+  regressão explícito rodando `test_recusar_requisicao_sem_motivo_via_htmx_retorna_422_fragment`,
+  `test_cancelar_requisicao_sem_justificativa_via_htmx_retorna_422_fragment` e equivalentes de
+  retornar/devolver (mesmo padrão 422+fragment).
 
 ## Invariantes relevantes (matriz de invariantes / a11y)
 
