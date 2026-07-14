@@ -1,0 +1,19 @@
+{% comment %}
+  Corpo do form do modal de estorno de saída excepcional — só o campo de
+  justificativa (obrigatório). Usado via form_body_template em
+  components/modal.html (issue #78).
+{% endcomment %}
+
+<div>
+  <label for="justificativa" class="block text-sm font-medium text-slate-700">
+    Justificativa <span class="text-red-500" aria-hidden="true">*</span>
+  </label>
+  <textarea
+    id="justificativa"
+    name="justificativa"
+    required
+    rows="3"
+    class="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+    placeholder="Descreva o motivo do estorno…"
+  ></textarea>
+</div>

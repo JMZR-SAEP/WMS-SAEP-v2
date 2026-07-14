@@ -7,7 +7,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="max-w-screen-xl mx-auto space-y-6">
+<div class="max-w-screen-xl mx-auto space-y-6" x-data="modalController({ id: 'estornar-saida' })">
 
   {# Cabeçalho do documento #}
   <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -25,9 +25,9 @@
       {% if saida.estado == 'registrada' and pode_estornar %}
         <button
           type="button"
+          data-modal-trigger="estornar-saida"
+          @click="abrir($event)"
           class="shrink-0 inline-flex min-h-11 items-center rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
-          x-data
-          @click="$dispatch('open-modal-estorno')"
         >
           Estornar
         </button>
@@ -188,83 +188,11 @@
     </a>
   </div>
 
+  {# Modal de estorno #}
+  {% if saida.estado == 'registrada' and pode_estornar %}
+    {% url 'estoque:estornar_saida_excepcional' saida.pk as estornar_url %}
+    {% include "components/modal.html" with id="estornar-saida" titulo="Estornar saída excepcional" descricao="Esta ação é irreversível. Todos os itens serão devolvidos ao saldo físico do estoque." action_url=estornar_url confirm_label="Confirmar estorno" confirm_variant="danger" form_body_template="estoque/partials/_modal_form_estorno_saida.html" %}
+  {% endif %}
 </div>
-
-{# Modal de estorno #}
-{% if saida.estado == 'registrada' and pode_estornar %}
-  <div
-    x-data="{ aberto: false }"
-    @open-modal-estorno.window="aberto = true"
-    x-cloak
-  >
-    <div
-      x-show="aberto"
-      x-transition:enter="ease-out duration-200"
-      x-transition:enter-start="opacity-0"
-      x-transition:enter-end="opacity-100"
-      x-transition:leave="ease-in duration-150"
-      x-transition:leave-start="opacity-100"
-      x-transition:leave-end="opacity-0"
-      class="fixed inset-0 z-40 bg-slate-900/40"
-      @click="aberto = false"
-      aria-hidden="true"
-    ></div>
-
-    <div
-      x-show="aberto"
-      x-transition:enter="ease-out duration-200"
-      x-transition:enter-start="opacity-0 translate-y-4"
-      x-transition:enter-end="opacity-100 translate-y-0"
-      x-transition:leave="ease-in duration-150"
-      x-transition:leave-start="opacity-100 translate-y-0"
-      x-transition:leave-end="opacity-0 translate-y-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="modal-estorno-titulo"
-      class="fixed inset-x-4 bottom-0 z-50 mx-auto mb-4 max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-xl sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:bottom-auto sm:top-1/2 sm:-translate-y-1/2"
-      x-trap="aberto"
-      @keydown.escape.window="aberto = false"
-    >
-      <h2 id="modal-estorno-titulo" class="text-base font-semibold text-slate-900">
-        Estornar saída excepcional
-      </h2>
-      <p class="mt-2 text-sm text-slate-600">
-        Esta ação é irreversível. Todos os itens serão devolvidos ao saldo físico do estoque.
-      </p>
-
-      <form method="post" action="{% url 'estoque:estornar_saida_excepcional' saida.pk %}">
-        {% csrf_token %}
-        <div class="mt-4">
-          <label for="justificativa" class="block text-sm font-medium text-slate-700">
-            Justificativa <span class="text-red-500" aria-hidden="true">*</span>
-          </label>
-          <textarea
-            id="justificativa"
-            name="justificativa"
-            required
-            rows="3"
-            class="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Descreva o motivo do estorno…"
-          ></textarea>
-        </div>
-        <div class="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <button
-            type="button"
-            @click="aberto = false"
-            class="inline-flex min-h-11 items-center justify-center rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
-          >
-            Cancelar
-          </button>
-          <button
-            type="submit"
-            class="inline-flex min-h-11 items-center justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
-          >
-            Confirmar estorno
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-{% endif %}
 
 {% endblock %}
