@@ -38,7 +38,7 @@
     @input="buscarComDebounce()"
     @keydown.arrow-down.prevent="selecionarProximo()"
     @keydown.arrow-up.prevent="selecionarAnterior()"
-    @keydown.enter.prevent="confirmarSelecao()"
+    @keydown.enter="if (ativo >= 0) { $event.preventDefault(); confirmarSelecao(); }"
     @keydown.escape="fecharDropdown()"
     @blur="fecharDropdown()"
     @focus="buscarTodos()"

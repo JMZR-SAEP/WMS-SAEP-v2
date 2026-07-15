@@ -104,7 +104,7 @@
               endpoint: '{% url 'requisicoes:buscar_beneficiarios' %}',
               minChars: 0,
               campoDisplay: 'nome',
-              initialId: '{{ benef_id }}',
+              initialId: '{{ benef_id|escapejs }}',
               initialLabel: '{{ benef_label|escapejs }}',
             })"
           >

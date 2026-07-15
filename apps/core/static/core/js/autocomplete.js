@@ -59,6 +59,12 @@
       },
 
       buscarComDebounce() {
+        this._abortController?.abort();
+        this._abortController = null;
+        this.buscando = false;
+        this.resultados = [];
+        this.fecharDropdown();
+
         if (this.$refs.hiddenInput) {
           this.$refs.hiddenInput.value = '';
         }
@@ -66,7 +72,8 @@
           this.onInvalidate();
         }
         clearTimeout(this._debounceTimer);
-        this._debounceTimer = setTimeout(() => this._buscarComGate(this.query), 300);
+        const query = this.query;
+        this._debounceTimer = setTimeout(() => this._buscarComGate(query), 300);
       },
 
       async buscarTodos() {
@@ -89,18 +96,18 @@
       },
 
       async buscar(q) {
-        if (this._abortController) {
-          this._abortController.abort();
-        }
-        this._abortController = new AbortController();
+        this._abortController?.abort();
+        const controller = new AbortController();
+        this._abortController = controller;
 
         this.buscando = true;
         try {
           const res = await fetch(`${this.endpoint}?q=${encodeURIComponent(q ?? '')}`, {
             headers: { 'X-Requested-With': 'XMLHttpRequest' },
-            signal: this._abortController.signal,
+            signal: controller.signal,
           });
           const data = await res.json();
+          if (this._abortController !== controller) return;
           this.resultados = data.resultados || [];
           this.aberto = true;
           this.ativo = -1;
@@ -108,7 +115,10 @@
           if (e.name === 'AbortError') return;
           this.resultados = [];
         } finally {
-          this.buscando = false;
+          if (this._abortController === controller) {
+            this.buscando = false;
+            this._abortController = null;
+          }
         }
       },
 

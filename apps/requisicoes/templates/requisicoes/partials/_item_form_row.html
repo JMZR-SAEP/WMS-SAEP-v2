@@ -18,7 +18,7 @@ Parâmetros de contexto:
       endpoint: '{% url 'requisicoes:buscar_materiais' %}',
       minChars: 2,
       campoDisplay: 'label',
-      initialId: '{{ form.material_id.value|default:'' }}',
+      initialId: '{{ form.material_id.value|default:''|escapejs }}',
       initialLabel: '{{ form.material_label.value|default:''|escapejs }}',
     })"
     @click.outside="fecharDropdown()"
