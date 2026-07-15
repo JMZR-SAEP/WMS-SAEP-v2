@@ -80,31 +80,52 @@ Nenhum arquivo de `services.py`, `policies.py`, `selectors.py` ou `models.py` é
 ## Design da tag
 
 ```python
+ICONES_CATALOGO = frozenset({
+    'voltar', 'lixeira', 'remover', 'spinner', 'adicionar', 'enviar', 'copiar',
+})
+
+
 @register.simple_tag
 def icon(name: str, size: int = 20, **kwargs: str) -> str:
-    css_class = kwargs.get('class', '')
-    try:
-        return mark_safe(
-            render_to_string(
-                f'components/icons/{name}.svg',
-                {'size': size, 'class': css_class},
-            )
-        )
-    except TemplateDoesNotExist as exc:
+    if name not in ICONES_CATALOGO:
         raise ImproperlyConfigured(
-            f"Ícone \"{name}\" não encontrado em components/icons/. "
-            'Confira o nome ou adicione o arquivo ao catálogo.'
-        ) from exc
+            f"Ícone \"{name}\" não está no catálogo (components/icons/). "
+            f'Nomes válidos: {sorted(ICONES_CATALOGO)}.'
+        )
+    css_class = kwargs.get('class', '')
+    return mark_safe(
+        render_to_string(
+            f'components/icons/{name}.svg',
+            {'size': size, 'class': css_class},
+        )
+    )
 ```
 
 - `class` chega via `**kwargs` porque `class` é palavra reservada em Python — não dá
   para declarar como parâmetro nomeado, mas o Django simple_tag aceita perfeitamente
   `{% icon "x" class="h-4 w-4" %}` porque a chamada é feita com `**kwargs` internamente.
-- Cada arquivo `.svg` do catálogo usa `{{ size }}`/`{{ class }}` só onde o markup
-  original variava; onde o original é 100% fixo (ex.: `voltar` nunca teve `class`
-  atribuído em nenhuma das 6 ocorrências), o arquivo não referencia essas variáveis.
-- Erro de nome inexistente vira `ImproperlyConfigured` com mensagem clara, seguindo o
-  padrão já usado em `validar_contrato_modal` no mesmo arquivo.
+- `name` é validado contra `ICONES_CATALOGO` (allowlist fechada) **antes** de montar o
+  path do template — barra qualquer `name` fora do catálogo, incluindo tentativas com
+  separador de caminho (`../`, `/`), sem depender de `TemplateDoesNotExist` do loader.
+- Contrato de `size`/`class` por ícone é explícito (não "cada arquivo usa o que
+  precisar" implicitamente) — ver tabela abaixo. Ícone que não suporta um parâmetro
+  simplesmente não referencia `{{ size }}`/`{{ class }}` no seu `.svg`; isso é
+  contrato documentado, não efeito colateral silencioso.
+
+  | ícone | usa `size` | usa `class` |
+  |---|---|---|
+  | `voltar` | sim — `width`/`height`, default 20 (viewBox fixo em 24) | não — nenhuma das 6 ocorrências originais tinha `class` |
+  | `lixeira` | não — viewBox fixo em 20 | sim |
+  | `remover` | não — viewBox fixo em 20 | sim |
+  | `spinner` | não — viewBox fixo em 24 | sim |
+  | `adicionar` | não — viewBox fixo em 20 | sim |
+  | `enviar` | não — viewBox fixo em 20 | sim |
+  | `copiar` | não — viewBox fixo em 20 | sim |
+
+- Para os 6 ícones que usam `class`, o `.svg` sempre renderiza `class="{{ class }}"`
+  sem guarda condicional — todo call site real desses ícones já passa `class` (é
+  assim que o markup original sempre foi). `voltar` nunca referencia `{{ class }}`
+  no arquivo, então passar `class=` para ele é um no-op documentado, não um bug.
 
 ## Estratégia de teste
 
@@ -117,8 +138,13 @@ def icon(name: str, size: int = 20, **kwargs: str) -> str:
 - **Parâmetro `size`** (ícone `voltar`, único que usa `width`/`height`): `size=24`
   muda os atributos `width`/`height` sem alterar o `viewBox` (que é fixo em 24,
   grid nativo do ícone).
-- **Erro de nome inexistente**: `{% icon "nao-existe" %}` levanta
-  `ImproperlyConfigured` com mensagem citando o nome do ícone.
+- **Erro de nome fora do catálogo**: `{% icon "nao-existe" %}` e
+  `{% icon "../../etc/passwd" %}` levantam `ImproperlyConfigured` com mensagem
+  citando o nome — validado pela allowlist antes de tocar o template loader.
+- **Contrato por ícone**: para os 6 ícones que usam `class`, confirmar que o valor
+  aparece verbatim; para `voltar`, confirmar que passar `class=` não gera efeito
+  (não aparece no HTML, já que o arquivo não referencia a variável) — cobre o caso
+  de parâmetro suportado vs. não suportado citado pelo review.
 - **Spinner**: saída contém os dois elementos internos (`circle` + `path`) e
   repassa `animate-spin motion-reduce:animate-none` via `class`.
 
@@ -141,9 +167,5 @@ matriz se aplica a esta mudança, que é puramente de apresentação e não toca
 - **Regressão visual no spinner com `x-show`**: mitigada movendo a diretiva para um
   `<span>` wrapper que já seria o único filho do flex container — sem mudança de
   `gap`/alinhamento esperada, mas será conferida manualmente no browser preview.
-- **`class=""` vazio no markup**: ícones que nunca receberam `class` (ex. `voltar`)
-  vão renderizar `class=""` se o parâmetro não for passado, em vez de omitir o
-  atributo. Efeito no DOM é nulo (atributo vazio não muda estilo/comportamento), mas
-  o arquivo do ícone usa `{% if class %}` para evitar emitir o atributo à toa.
 - **Divergência de contagem do épico** (`plus ×3` vs 2 reais): documentada acima,
   não é um risco de execução, só uma nota de rastreabilidade.
