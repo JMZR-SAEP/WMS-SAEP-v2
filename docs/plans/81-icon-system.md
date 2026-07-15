@@ -170,7 +170,8 @@ matriz se aplica a esta mudança, que é puramente de apresentação e não toca
 - **Regressão visual no spinner com `x-show`**: mitigada movendo a diretiva para um
   `<span x-show="..." class="inline-flex">` — `inline-flex` explícito evita que o
   `<span>` (default `display: inline`) introduza deslocamento de baseline/line-height
-  em relação ao `<svg>` que antes era filho direto do flex `gap-2`. Conferida também
-  manualmente no browser preview nos 3 call sites do spinner.
+  em relação ao `<svg>` que antes era filho direto do flex `gap-2`. Ainda precisa ser
+  conferida manualmente no browser preview nos 3 call sites do spinner antes de
+  fechar a implementação — verificação pendente, não concluída neste plano.
 - **Divergência de contagem do épico** (`plus ×3` vs 2 reais): documentada acima,
   não é um risco de execução, só uma nota de rastreabilidade.
