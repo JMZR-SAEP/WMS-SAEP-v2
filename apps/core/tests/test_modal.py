@@ -29,3 +29,9 @@ def test_submit_form_id_e_action_url_juntos_falha_validacao():
 def test_nenhum_dos_dois_falha_validacao():
     with pytest.raises(ImproperlyConfigured):
         _render_modal()
+
+
+def test_submit_form_id_sozinho_nao_renderiza_form_interno():
+    html = _render_modal(submit_form_id='form-externo')
+    assert 'form-externo' in html
+    assert '<form' not in html

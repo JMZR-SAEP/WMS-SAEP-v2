@@ -30,7 +30,7 @@
   {% if form_body_template or erro %}
     <div class="flex-1 overflow-y-auto px-6 py-5">
       {% if erro %}
-        <div data-modal-erro aria-live="polite" class="mb-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-900">
+        <div data-modal-erro role="alert" aria-live="polite" class="mb-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-900">
           <svg aria-hidden="true" class="mt-0.5 h-4 w-4 shrink-0 text-red-700" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M18 10A8 8 0 1 1 2 10a8 8 0 0 1 16 0Zm-7-4a1 1 0 1 0-2 0v4a1 1 0 1 0 2 0V6Zm-1 8a1.2 1.2 0 1 1 0-2.4 1.2 1.2 0 0 1 0 2.4Z" clip-rule="evenodd"/>
           </svg>
@@ -55,7 +55,7 @@
       <button
         type="button"
         data-modal-confirm
-        @click="fechar(); document.getElementById('{{ submit_form_id }}')?.requestSubmit() ?? console.error('modal {{ id }}: submit_form_id {{ submit_form_id }} nao encontrado')"
+        @click="document.getElementById('{{ submit_form_id }}')?.requestSubmit() ?? console.error('modal {{ id }}: submit_form_id {{ submit_form_id }} nao encontrado')"
         class="inline-flex min-h-11 items-center justify-center rounded-md px-4 py-2 text-sm font-semibold shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 {% if confirm_variant == 'danger' %}bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500{% elif confirm_variant == 'secondary' %}bg-slate-700 text-white hover:bg-slate-800 focus-visible:ring-slate-500{% else %}bg-blue-600 text-white hover:bg-blue-700 focus-visible:ring-blue-500{% endif %}"
       >
         {{ confirm_label|default:"Confirmar" }}

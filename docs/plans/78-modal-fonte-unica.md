@@ -24,9 +24,13 @@
    de form externo": novo param `submit_form_id` em `modal.html`. Quando presente, o componente:
    - não renderiza `<form method="post" action="...">` envolvente (sem `action_url` nesse modo);
    - o botão de confirmar vira `type="button"` com
-     `@click="fechar(); document.getElementById('{{ submit_form_id }}')?.requestSubmit()"`
+     `@click="document.getElementById('{{ submit_form_id }}')?.requestSubmit()"`
      (optional chaining — contrato único em todo o plano, ver validação abaixo) em vez de
-     `type="submit"` dentro do form do próprio modal;
+     `type="submit"` dentro do form do próprio modal. **Correção de review (implementação):**
+     não chama `fechar()` antes do `requestSubmit()` — fechar o modal é responsabilidade da
+     navegação/resposta do servidor (POST tradicional navega a página inteira; se o form alvo
+     algum dia usar HTMX, uma resposta 422 precisa poder reabrir/atualizar o modal, o que não
+     seria possível se ele já tivesse sido fechado no clique);
    - mantém `data-modal-confirm` no botão como metadado do modal (identifica o botão de
      confirmação para estilo/acessibilidade) — **não** é o que aciona a proteção de
      double-submit nesse modo; a proteção real acontece no evento `submit` do form alvo
@@ -61,8 +65,8 @@
    não acontece aqui. Efeito real, verificado lendo o script (`form-submit.js:52-92`): o bloqueio
    central de double-submit (`form.dataset.submitting === '1'`, setado no evento `submit` do form
    alvo) **continua funcionando**, porque é disparado pelo `requestSubmit()` independentemente de
-   quem clicou; o que se perde é só a aplicação de `aria-busy`/spinner num botão — que já não está
-   mais visível, pois o modal fecha (`fechar()`) antes do `requestSubmit()`. Decisão: não alterar
+   quem clicou; o que se perde é só a aplicação de `aria-busy`/spinner nesse botão específico do
+   modal (o form alvo não tem outro botão de submit visível). Decisão: não alterar
    `form-submit.js` (o form alvo, `#form-atender-retirada`, já tem `data-prevent-double-submit` e
    nenhum botão de submit próprio visível — `alvosDoForm` retorna vazio hoje também, sem
    regressão). Documentar essa análise no PR e adicionar teste de view garantindo que dois POSTs
