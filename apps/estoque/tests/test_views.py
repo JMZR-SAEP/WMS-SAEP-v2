@@ -416,6 +416,25 @@ class TestDetalheSaidaExcepcionalView:
         response = client.post(self._url(saida_registrada.pk), data={})
         assert response.status_code == 405
 
+    def test_modal_estorno_usa_componente_com_textarea_obrigatorio(
+        self, client, chefe_almoxarifado, saida_registrada
+    ):
+        """Modal de estorno migrado para components/modal.html (issue #78)."""
+        client.force_login(chefe_almoxarifado)
+        response = client.get(self._url(saida_registrada.pk))
+        html = response.content.decode('utf-8')
+        assert 'data-modal-trigger="estornar-saida"' in html
+        dialog_inicio = html.index('id="estornar-saida"')
+        dialog_fim = html.index('</dialog>', dialog_inicio)
+        dialog_html = html[dialog_inicio:dialog_fim]
+        assert '<textarea' in dialog_html
+        assert 'name="justificativa"' in dialog_html
+        assert 'required' in dialog_html
+        assert f'action="{self._estornar_url(saida_registrada.pk)}"' in dialog_html
+
+    def _estornar_url(self, pk):
+        return reverse('estoque:estornar_saida_excepcional', args=[pk])
+
 
 class TestEstornarSaidaExcepcionalView:
     def _url(self, pk):
