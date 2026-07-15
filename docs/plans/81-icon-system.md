@@ -65,9 +65,12 @@
 - `apps/core/templates/components/_modal_icon.html` — variant danger usa `{% icon "lixeira" %}`.
 - `apps/core/templates/components/autocomplete.html` — spinner sem `x-show`.
 - `apps/estoque/templates/estoque/preview_importacao_scpi.html` — 3 spinners; os 2 com
-  `x-show="enviando"`/`x-show="confirmando"` passam a envolver a tag num `<span
-  x-show="...">` (a diretiva Alpine sai do `<svg>` para o `<span>` pai, sem alterar
-  layout: já é o único filho do `<button>` num flex `gap-2`).
+  `x-show="enviando"`/`x-show="confirmando"` passam a envolver a tag num
+  `<span x-show="..." class="inline-flex">` — a diretiva Alpine sai do `<svg>` para o
+  `<span>` pai. `class="inline-flex"` é obrigatório: um `<span>` puro é `display:
+  inline` e herda métricas de baseline/line-height que podem deslocar o ícone alguns
+  px verticalmente dentro do flex `gap-2` do `<button>`; `inline-flex` garante que o
+  wrapper tenha o mesmo comportamento de caixa que o `<svg>` tinha como filho direto.
 - `apps/estoque/templates/estoque/nova_saida_excepcional.html` — voltar, remover, adicionar.
 - `apps/requisicoes/templates/requisicoes/partials/_item_form_row.html` — remover.
 - `apps/requisicoes/templates/requisicoes/rascunho_form.html` — voltar ×2, adicionar, enviar.
@@ -165,7 +168,9 @@ matriz se aplica a esta mudança, que é puramente de apresentação e não toca
 ## Riscos
 
 - **Regressão visual no spinner com `x-show`**: mitigada movendo a diretiva para um
-  `<span>` wrapper que já seria o único filho do flex container — sem mudança de
-  `gap`/alinhamento esperada, mas será conferida manualmente no browser preview.
+  `<span x-show="..." class="inline-flex">` — `inline-flex` explícito evita que o
+  `<span>` (default `display: inline`) introduza deslocamento de baseline/line-height
+  em relação ao `<svg>` que antes era filho direto do flex `gap-2`. Conferida também
+  manualmente no browser preview nos 3 call sites do spinner.
 - **Divergência de contagem do épico** (`plus ×3` vs 2 reais): documentada acima,
   não é um risco de execução, só uma nota de rastreabilidade.
