@@ -1,0 +1,158 @@
+/**
+ * autocomplete — Alpine factory para combobox ARIA com busca remota (debounce 300ms).
+ *
+ * Cobre o contrato comum às buscas de beneficiário/material do projeto:
+ * digitar invalida a seleção anterior; foco com campo vazio lista tudo;
+ * Enter confirma o item ativo; Esc/blur fecham o dropdown.
+ *
+ * O componente NÃO renderiza o hidden input do valor selecionado — isso fica
+ * a cargo do template chamador, que deve declarar um elemento com
+ * `x-ref="hiddenInput"` dentro do mesmo escopo `x-data`.
+ *
+ * Config aceito por `autocomplete(config)`:
+ *   endpoint       (obrigatório) URL do JSON de busca (?q=)
+ *   minChars       (opcional, default 2) abaixo disso a busca não dispara
+ *   campoDisplay   (opcional, default 'label') campo do item usado para
+ *                  preencher o texto exibido após seleção
+ *   initialId      (opcional) valor inicial do hidden input (edição)
+ *   initialLabel   (opcional) texto inicial exibido (edição)
+ *   onSelect(item) (opcional) callback; retornar `false` veta a seleção —
+ *                  nesse caso o componente não altera query/hidden/dropdown
+ *
+ * Uso no template chamador:
+ *   <div x-data="autocomplete({ endpoint: '{% url ... %}', minChars: 2 })">
+ *     <input type="hidden" x-ref="hiddenInput" name="...">
+ *     {% include "components/autocomplete.html" with ... %}
+ *   </div>
+ */
+(function () {
+  'use strict';
+
+  function factory(config = {}) {
+    return {
+      endpoint: config.endpoint,
+      minChars: config.minChars ?? 2,
+      campoDisplay: config.campoDisplay || 'label',
+      onSelect: typeof config.onSelect === 'function' ? config.onSelect : null,
+
+      idBase: '',
+      query: '',
+      resultados: [],
+      aberto: false,
+      buscando: false,
+      ativo: -1,
+      _debounceTimer: null,
+
+      init() {
+        this.idBase = 'autocomplete-' + proximoId();
+        if (config.initialId) {
+          if (this.$refs.hiddenInput) {
+            this.$refs.hiddenInput.value = config.initialId;
+          }
+          this.query = (config.initialLabel || '').trim();
+        }
+      },
+
+      buscarComDebounce() {
+        if (this.$refs.hiddenInput) {
+          this.$refs.hiddenInput.value = '';
+        }
+        clearTimeout(this._debounceTimer);
+        this._debounceTimer = setTimeout(() => this._buscarComGate(this.query), 300);
+      },
+
+      async buscarTodos() {
+        if (!this.query) {
+          await this.buscar('');
+        } else if (this.resultados.length > 0) {
+          this.aberto = true;
+        } else {
+          await this._buscarComGate(this.query);
+        }
+      },
+
+      async _buscarComGate(q) {
+        if (this.minChars > 0 && q.length > 0 && q.length < this.minChars) {
+          this.resultados = [];
+          this.fecharDropdown();
+          return;
+        }
+        await this.buscar(q);
+      },
+
+      async buscar(q) {
+        this.buscando = true;
+        try {
+          const res = await fetch(`${this.endpoint}?q=${encodeURIComponent(q ?? '')}`, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+          });
+          const data = await res.json();
+          this.resultados = data.resultados || [];
+          this.aberto = true;
+          this.ativo = -1;
+        } catch (_e) {
+          this.resultados = [];
+        } finally {
+          this.buscando = false;
+        }
+      },
+
+      selecionar(item) {
+        const aceito = this.onSelect ? this.onSelect(item) !== false : true;
+        if (!aceito) {
+          // Veto não destrutivo: query/hidden/dropdown ficam como estavam.
+          return;
+        }
+        this.query = item[this.campoDisplay] ?? item.label ?? '';
+        if (this.$refs.hiddenInput) {
+          this.$refs.hiddenInput.value = item.id;
+        }
+        this.fecharDropdown();
+        this.$nextTick(() => this.$refs.displayInput?.blur());
+      },
+
+      limpar() {
+        this.query = '';
+        this.resultados = [];
+        if (this.$refs.hiddenInput) {
+          this.$refs.hiddenInput.value = '';
+        }
+        this.fecharDropdown();
+      },
+
+      fecharDropdown() {
+        this.aberto = false;
+        this.ativo = -1;
+      },
+
+      selecionarProximo() {
+        if (this.ativo < this.resultados.length - 1) this.ativo++;
+      },
+
+      selecionarAnterior() {
+        if (this.ativo > 0) this.ativo--;
+      },
+
+      confirmarSelecao() {
+        if (this.ativo >= 0 && this.resultados[this.ativo]) {
+          this.selecionar(this.resultados[this.ativo]);
+        }
+      },
+
+      mensagemVaziaVisivel() {
+        const minimo = Math.max(this.minChars, 1);
+        return !this.buscando && this.query.length >= minimo && this.resultados.length === 0;
+      },
+    };
+  }
+
+  let _uidSeq = 0;
+  function proximoId() {
+    _uidSeq += 1;
+    return _uidSeq;
+  }
+
+  document.addEventListener('alpine:init', () => {
+    window.Alpine.data('autocomplete', factory);
+  });
+})();
