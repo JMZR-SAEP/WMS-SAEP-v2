@@ -4,6 +4,7 @@ from datetime import date
 from types import SimpleNamespace
 
 import pytest
+from django.utils import timezone
 
 from apps.accounts.models import User
 from apps.accounts.papeis import PapelEfetivo
@@ -822,7 +823,7 @@ def test_filtrar_historico_estado_invalido_e_no_op(
 
 @pytest.mark.django_db
 def test_filtrar_historico_por_periodo(superuser, req_historico_obras):
-    hoje = req_historico_obras.criado_em.date()
+    hoje = timezone.localtime(req_historico_obras.criado_em).date()
     visiveis = historico_requisicoes_visiveis_para(superuser.pk)
 
     dentro = filtrar_historico_requisicoes(
