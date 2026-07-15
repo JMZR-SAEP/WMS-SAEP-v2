@@ -61,6 +61,7 @@ NAVEGACAO = [
 - Para cada seção, filtra itens cujo `flag` é `None` ou `context.get(flag)` é truthy.
 - Descarta seções sem itens visíveis (reproduz o `{% if pode_x or pode_y ... %}` que hoje envolve o bloco "Almoxarifado").
 - Cada item devolvido carrega `icone_path` (lookup em `ICONES`) e `url_names_ativos` (o próprio `url_names_ativos` do item, ou `[url_name]` como default).
+- Constrói dicts/listas **novos** a cada chamada (não muta `NAVEGACAO`/`ICONES` module-level nem retorna referências diretas aos itens originais) — evita vazamento de estado entre requisições/threads, já que os módulos Django são carregados uma vez por processo.
 - Registrada com `{% simple_tag(takes_context=True) %}`, usada como `{% secoes_navegacao as secoes %}` — permite reaproveitar em ambos os partials sem duplicar a leitura de flags.
 
 ## Arquivos tocados
@@ -78,11 +79,14 @@ NAVEGACAO = [
    - Cada flag ligada individualmente → item correspondente aparece.
    - Item SCPI: `current` igual a qualquer um dos 3 `url_names_ativos` → tratado como ativo pelo template (verificado via `render_to_string` com contexto simulando `current`).
    - Todas as flags ligadas → todas as seções/itens presentes, na ordem original.
+   - **Validação de configuração**: para todo item em `NAVEGACAO`, `item["icone"]` existe em `ICONES` e o valor é uma string de path SVG não vazia (typo em `icone` não pode passar silenciosamente).
+   - **URLs resolvíveis**: com todas as flags habilitadas, `render_to_string` do resultado completo não lança `NoReverseMatch` — cobre todo `url_name` e todo `url_names_ativos` da estrutura contra as URLs reais do projeto.
+   - **Não mutação**: chamar `secoes_navegacao` com dois contextos consecutivos (ex.: flags diferentes) e confirmar que os itens/`icone_path`/`url_names_ativos` retornados no primeiro contexto não são afetados pela segunda chamada nem apontam para os mesmos objetos de `NAVEGACAO`/`ICONES` (sem vazamento de estado entre requisições).
 2. **Paridade via view (com DB)**, reaproveitando fixtures existentes (`solicitante`, `chefe_obras`, `chefe_almoxarifado`, `superuser`) em `apps/requisicoes/tests/test_views.py` ou teste novo dedicado:
    - Mesmo conjunto de rótulos visíveis simultaneamente no HTML da sidebar e do drawer, para cada papel.
    - `aria-current="page"` presente exatamente no item ativo (incluindo as 3 rotas do trio SCPI) em ambos os renderers.
    - Capitalização "Fila de autorizações" idêntica nos dois HTMLs.
-3. Suíte completa (`uv run pytest ...`) deve permanecer verde — os testes existentes que checam texto/flags nos partials (`TestNavHistoricoRequisicoes`, `test_side_nav_renderiza_links_para_autenticado`) continuam passando sem alteração, pois o texto renderizado não muda.
+3. Suíte completa (`uv run pytest ...`) deve permanecer verde. Verificado por grep (`rg "Fila de [Aa]utoriza"` em `apps/**/tests/`): nenhuma asserção existente depende da capitalização antiga "Fila de Autorizações" — `test_fila_autorizacao_chefe_renderiza_apenas_setor` e `test_fila_autorizacao_superuser_ve_todos_setores` (`apps/requisicoes/tests/test_views.py:1027,1048`) checam a string `'Fila de autorização'` (singular, título de página, não o item de nav), que não é afetada pela mudança de capitalização do item de nav plural. `TestNavHistoricoRequisicoes` e `test_side_nav_renderiza_links_para_autenticado` checam outros textos (`'Histórico de requisições'`, `'hidden lg:flex'`, `'Navegação principal'`), também não afetados. Nenhuma asserção existente precisa de ajuste; se a suíte revelar alguma dependência não mapeada aqui, ela será corrigida durante a fase de implementação e documentada no PR.
 
 ## Invariantes (docs/design-acesso-rapido/matriz-invariantes.md)
 
