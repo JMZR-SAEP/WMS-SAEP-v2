@@ -26,7 +26,7 @@ Parent: #68 (Épico — extração de componentes do design system)
 2. **IDs do combobox gerados internamente (`idBase`), não via parâmetro Django `id_base`.** `nova_saida_excepcional` itera um array 100% client-side (`x-for` sobre `itens`), sem `form_index` por linha — um `id_base` vindo de contexto Django não cobriria esse caso. O componente gera um `idBase` único por instância no `init()` (contador de módulo), usado via bindings Alpine (`:id`, `:for`, `:aria-controls`, `:aria-activedescendant`). Isso cobre os 3 usos sem exigir que o chamador calcule unicidade.
 3. **Diferença de campo de saldo (`saldo_disponivel` vs `saldo_fisico`) resolvida no template do item, não via config extra.** `_autocomplete_item_material.html` usa `item.saldo_disponivel ?? item.saldo_fisico`, então o mesmo partial serve às 2 buscas de material sem parâmetro adicional.
 4. **`campoDisplay` configurável.** Após selecionar, o texto exibido no input deve ser `item.nome` (beneficiário, comportamento atual) ou `item.label` (material, comportamento atual). Config `campoDisplay` (default `'label'`) resolve isso.
-5. **Guarda de duplicidade via callback com veto.** `config.onSelect(item)` pode retornar `false` para rejeitar a seleção; o componente genérico então chama seu próprio `limpar()` (reseta query/resultados/hidden). A lógica de duplicidade em si (comparar contra os outros itens do array) permanece 100% em `novaSaidaExcepcional()`, como pede a issue.
+5. **Guarda de duplicidade via callback com veto — veto é no-op, não reset.** `config.onSelect(item)` pode retornar `false` para rejeitar a seleção. No código atual de `nova_saida_excepcional`, ao rejeitar um duplicado o item rejeitado simplesmente não é commitado — `query`/`material_id` ficam exatamente como estavam antes da tentativa (já invalidados pela digitação anterior, ou preservando uma seleção válida prévia se o dropdown reabriu com resultados em cache sem novo fetch). Reproduzir isso 1:1: se `onSelect` retornar `false`, `selecionar()` não altera `query`, não mexe no hidden e não fecha o dropdown — apenas retorna sem commitar. Nada de `limpar()` no veto (chamar `limpar()` destruiria uma seleção válida anterior, que é exatamente o defeito apontado na revisão). A lógica de duplicidade em si (comparar contra os outros itens do array, setar `erroDuplicado`) permanece 100% em `novaSaidaExcepcional()`.
 
 ## Contrato do componente (`autocomplete.js`)
 
@@ -39,6 +39,13 @@ Config aceito por `autocomplete(config)`:
 
 Estado exposto: `query`, `resultados`, `aberto`, `buscando`, `ativo`, `idBase`.
 Métodos usados pelo partial: `buscarComDebounce(valor)`, `buscarTodos()`, `selecionar(item)`, `fecharDropdown()`, `selecionarProximo()`, `selecionarAnterior()`, `confirmarSelecao()`, `mensagemVaziaVisivel()`, `limpar()`.
+
+**Sincronização do hidden input (convenção fixa, `x-ref="hiddenInput"` no template chamador):**
+- `init()`: se `config.initialId` estiver presente, grava `initialId` em `this.$refs.hiddenInput.value` e `initialLabel` em `this.query` — hidrata o campo oculto e o texto exibido a partir do mesmo par id/label, nunca só um dos dois.
+- `buscarComDebounce(valor)`: qualquer edição zera `this.$refs.hiddenInput.value = ''` antes de disparar a busca (invalida seleção anterior até nova escolha explícita).
+- `selecionar(item)` (caminho aceito, `onSelect(item) !== false`): grava `item.id` em `this.$refs.hiddenInput.value` e `item[campoDisplay]` em `this.query` — sempre os dois juntos, nunca um sem o outro.
+- `selecionar(item)` (caminho vetado, `onSelect(item) === false`): não toca em `query` nem em `$refs.hiddenInput` — ver decisão 5 abaixo (veto é no-op, não reset).
+- `limpar()` (chamado só pelo próprio chamador quando fizer sentido, ex. reset explícito de linha) zera `query`, `resultados` e `$refs.hiddenInput.value`.
 
 Mensagem "nenhum resultado" visível quando `!buscando && query.length >= max(minChars, 1) && resultados.length === 0` — reproduz o threshold atual de cada tela (beneficiário mostra a partir de 1 char; material a partir de 2).
 
