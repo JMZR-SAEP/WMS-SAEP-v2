@@ -23,7 +23,7 @@ ICONES_CATALOGO = frozenset(
 @register.simple_tag
 def icon(name: str, size: int = 20, **kwargs: str) -> str:
     """Renderiza um ícone do catálogo vendorizado (aria-hidden sempre)."""
-    if name not in ICONES_CATALOGO:
+    if not isinstance(name, str) or name not in ICONES_CATALOGO:
         raise ImproperlyConfigured(
             f'Ícone "{name}" não está no catálogo (components/icons/). '
             f'Nomes válidos: {sorted(ICONES_CATALOGO)}.'

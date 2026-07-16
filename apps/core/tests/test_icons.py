@@ -43,6 +43,11 @@ def test_icon_nome_com_separador_de_caminho_levanta_improperly_configured():
         _render('{% icon "../../etc/passwd" %}')
 
 
+def test_icon_nome_nao_string_levanta_improperly_configured_em_vez_de_typeerror():
+    with pytest.raises(ImproperlyConfigured):
+        _render('{% icon nome %}', nome=['adicionar'])
+
+
 def test_icon_voltar_usa_size_para_width_height_mas_viewbox_fixo_em_24():
     html_default = _render('{% icon "voltar" %}')
     assert 'width="20"' in html_default
