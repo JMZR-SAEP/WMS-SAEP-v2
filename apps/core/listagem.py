@@ -40,7 +40,8 @@ def paginar_com_filtros(
     de selectors — responsabilidade da view (ADR-0011).
     """
     ordem = 'asc' if request.GET.get('ordem') == 'asc' else 'desc'
-    queryset = queryset.order_by('criado_em' if ordem == 'asc' else '-criado_em')
+    campos_ordenacao = ('criado_em', 'pk') if ordem == 'asc' else ('-criado_em', '-pk')
+    queryset = queryset.order_by(*campos_ordenacao)
 
     paginator = Paginator(queryset, per_page)
     page_obj = paginator.get_page(request.GET.get('page'))
