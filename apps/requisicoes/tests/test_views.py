@@ -2406,6 +2406,36 @@ def test_fila_atendimento_coluna_autorizada_em(
 
 
 @pytest.mark.django_db
+def test_fila_atendimento_caption_e_acoes_sr_only_apos_refactor_chrome(
+    client, aux_almoxarifado, req_autorizada_view
+):
+    _login(client, aux_almoxarifado)
+    response = client.get(reverse('requisicoes:atendimentos'))
+    assert response.status_code == 200
+    html = response.content.decode('utf-8')
+    assert (
+        '<caption class="sr-only">Fila de atendimento com requisições autorizadas'
+        ' e prontas para retirada.</caption>' in html
+    )
+    assert '<span class="sr-only">Ações</span>' in html
+
+
+@pytest.mark.django_db
+def test_fila_autorizacao_caption_e_acoes_sr_only_apos_refactor_chrome(
+    client, chefe_obras, req_enviada_solicitante
+):
+    _login(client, chefe_obras)
+    response = client.get(reverse('requisicoes:autorizacoes'))
+    assert response.status_code == 200
+    html = response.content.decode('utf-8')
+    assert (
+        '<caption class="sr-only">Fila de autorização com requisições aguardando'
+        ' decisão.</caption>' in html
+    )
+    assert '<span class="sr-only">Ações</span>' in html
+
+
+@pytest.mark.django_db
 def test_detalhe_registrar_retirada_botao_azul(
     client, aux_almoxarifado, req_pronta_view_com_itens
 ):
