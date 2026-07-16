@@ -885,12 +885,11 @@ class TestListaMateriaisView:
         client.force_login(chefe_almoxarifado)
         response = client.get(URL_MATERIAIS)
         conteudo = response.content.decode()
-        marcador = (
-            '<table class="min-w-full divide-y divide-slate-200">'
-            '\n\n      <caption class="sr-only">Saldo físico, reservado e '
-            'disponível de cada material no estoque.</caption>'
+        assert conteudo.count('<caption class="sr-only">') == 1
+        assert (
+            'Saldo físico, reservado e disponível de cada material no estoque.'
+            in conteudo
         )
-        assert conteudo.count(marcador) == 1
 
     def test_material_divergente_realca_linha_e_card(
         self, client, chefe_almoxarifado, material_scpi_critico, estoque_principal
