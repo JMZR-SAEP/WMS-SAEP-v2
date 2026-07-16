@@ -140,8 +140,27 @@ segue reportando o path completo).
    nada existente. **Teste novo** (obrigatório, não opcional — sem ele o
    contrato de acessibilidade fica sem cobertura e uma regressão futura
    passaria despercebida): `test_minhas_tabela_tem_caption_sr_only` verifica
-   `<caption class="sr-only">Requisições onde você é criador ou
-   beneficiário.</caption>` no `response.content`.
+   cardinalidade e adjacência, não só presença — projeto não tem parser HTML
+   como dependência (`grep` confirma zero uso de `bs4`/`html.parser` em
+   `apps/`; guardrail "zero dependência nova" proíbe introduzir um). Segue a
+   convenção já usada em `apps/estoque/tests/test_views.py:546,1151`
+   (`conteudo.count(marcador) == 1`):
+
+   ```python
+   conteudo = response.content.decode()
+   marcador = (
+       '<table class="min-w-full divide-y divide-slate-200">'
+       '\n        <caption class="sr-only">Requisições onde você é '
+       'criador ou beneficiário.</caption>'
+   )
+   assert conteudo.count(marcador) == 1
+   ```
+
+   O marcador inclui a abertura literal de `<table>` (vinda de
+   `components/table.html#tabela_abertura`) imediatamente seguida da
+   `<caption>`, garantindo adjacência (caption é filho direto da tabela
+   certa) sem precisar de parser HTML. Ajustar espaçamento exato ao rodar —
+   copiar do output real do `tabela_abertura`, não assumir indentação.
 2. **Regressão de conteúdo do histórico** — suíte existente
    (`TestHistoricoRequisicoesView` e filtros) permanece verde, mesmo raciocínio
    de byte-paridade do chrome.
