@@ -7,7 +7,9 @@ Epic: #68. Bloqueadores #70, #71, #72, #76 — todos `CLOSED`, componentes já e
 
 1. **`{% partialdef resultados %}` já entra nas 2 telas reais agora**, mesmo sem swap HTMX hoje — zero
    mudança de output renderizado, mas prova o padrão de fato (não só em prosa no design-system.md) e
-   deixa pronto pra `view` futura renderizar `fila_x.html#resultados` num swap parcial.
+   deixa pronto para uma view **GET** futura renderizar `fila_x.html#resultados`. Transições HTMX
+   continuam retornando `204` com `HX-Redirect`, conforme `docs/CONVENTIONS.md` — este fragmento nunca
+   é o alvo de uma transição de estado, só de uma futura filtragem/paginação assíncrona (GET).
 2. **Só os fragmentos de abertura viram `partialdef`** (`tabela_abertura`, `th`, `cards_abertura`,
    `card_abertura`). Fechamentos (`</table></div>`, `</div>`, `</article>`) são triviais, carregam
    nenhuma string de classe pra deduplicar, e ficam literais nas telas — minimiza abstração e resolve
@@ -51,7 +53,11 @@ Nenhum arquivo de `services`, `policies`, `selectors`, `views` ou `models` é to
 {% endpartialdef %}
 
 {% partialdef th %}
-<th scope="col" class="px-4 py-3 text-{% if alinhamento == 'direita' %}right{% else %}left{% endif %} text-xs font-semibold uppercase tracking-wide text-slate-500">{% if rotulo_somente_leitura %}<span class="sr-only">{{ rotulo_somente_leitura }}</span>{% else %}{{ rotulo }}{% endif %}</th>
+{% if alinhamento == 'direita' %}
+<th scope="col" class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">{% if rotulo_somente_leitura %}<span class="sr-only">{{ rotulo_somente_leitura }}</span>{% else %}{{ rotulo }}{% endif %}</th>
+{% else %}
+<th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">{% if rotulo_somente_leitura %}<span class="sr-only">{{ rotulo_somente_leitura }}</span>{% else %}{{ rotulo }}{% endif %}</th>
+{% endif %}
 {% endpartialdef %}
 
 {% partialdef cards_abertura %}
@@ -91,10 +97,12 @@ regressão sem alteração:
   `test_fila_autorizacao_superuser_ve_todos_setores`, `test_fila_autorizacao_ator_sem_permissao_retorna_403`).
 
 Não é necessário criar novo teste de comportamento (nenhuma lógica nova) — mas será adicionado 1 teste
-de regressão por tela garantindo que o `<caption class="sr-only">` e o `<span class="sr-only">Ações</span>`
-continuam presentes após a extração do chrome, já que esses dois elementos passam a ser produzidos por
-fragmento compartilhado (`th` com `rotulo_somente_leitura`) e um erro de parâmetro nesse fragmento
-quebraria as 2 telas ao mesmo tempo — o tipo de regressão silenciosa que este refactor pode introduzir.
+de regressão por tela garantindo que o `<caption class="sr-only">` (que continua literal em cada tela,
+texto próprio por fila — não passa pelo chrome) e o `<span class="sr-only">Ações</span>` (esse sim
+produzido pelo fragmento compartilhado `th` com `rotulo_somente_leitura`) continuam presentes após a
+extração do chrome. O `span` é o elemento de risco real: um erro de parâmetro no `th` quebraria as 2
+telas ao mesmo tempo — o tipo de regressão silenciosa que este refactor pode introduzir. O `caption`
+entra no mesmo teste só para travar o texto explícito de cada tela também.
 
 Nomes fixados:
 - `test_fila_atendimento_caption_e_acoes_sr_only_apos_refactor_chrome`
