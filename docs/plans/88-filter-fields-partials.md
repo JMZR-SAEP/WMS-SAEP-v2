@@ -1,9 +1,9 @@
 # Plano — Issue #88: campos de filtro como partials
 
-Parent: #68 (épico extração de componentes do design system)
-Blocked by: #83 (CLOSED — padrão de listagem/one-template via `{% partialdef %}`)
+Pai: #68 (épico extração de componentes do design system)
+Bloqueado por: #83 (CLOSED — padrão de listagem/one-template via `{% partialdef %}`)
 
-## Scope
+## Escopo
 
 Extrair os campos da barra de filtros HTMX — hoje ~120 linhas ~90% idênticas em
 `historico_requisicoes.html` e `historico_movimentacoes.html` — como partials
@@ -56,7 +56,7 @@ redor do form, enquanto `historico_requisicoes.html` (linha 31) tem
 `sm:block!` nas duas telas — elimina esse drift como efeito colateral
 (alinhado ao objetivo do épico).
 
-## Test strategy
+## Estratégia de testes
 
 Testes existentes (`TestHistoricoRequisicoesFiltros`,
 `TestHistoricoMovimentacoesFiltros`, `TestHistoricoMovimentacoesResponsivo`)
@@ -68,7 +68,11 @@ preservados byte-a-byte.
 Cobertura nova a acrescentar (TDD, RED→GREEN por comportamento):
 1. **Paridade visual/estrutural**: as 2 telas continuam renderizando
    `<details>`, `<summary class="sm:hidden"...>`, `sm:block!` no wrapper do
-   form (regressão do drift corrigido acima).
+   form (regressão do drift corrigido acima). Usar parser HTML
+   (`lxml.html.fromstring` ou `assertHTMLEqual`) para validar aninhamento e
+   fechamento de tags — não apenas `in response.content` — cobrindo em
+   especial o `</div>` do grid aberto por `filter_shell.html#abertura` (ver
+   risco abaixo).
 2. **Submissão sem JS**: GET puro com querystring aplica filtro (já coberto
    indiretamente pelos testes de filtro existentes — reforça que o partial
    não introduziu JS-only behavior).
@@ -76,10 +80,12 @@ Cobertura nova a acrescentar (TDD, RED→GREEN por comportamento):
    de estado/tipo.
 4. **`filter_select` fieldset a11y**: `<label for=...>` vinculado ao `id` do
    select permanece.
-5. **Zero duplicação**: teste de regressão (grep-style, via
-   `assertNotContains` do texto de classe canônico do `<details>`) opcional
-   se já não haver cobertura suficiente — decidir durante TDD conforme
-   granularidade dos testes existentes.
+5. **Zero duplicação**: em vez de `assertNotContains` sobre o HTML
+   renderizado (frágil — testa string, não composição), verificar a fonte
+   dos 2 templates migrados (leitura direta do `.html` no teste) confirmando
+   que `filter_shell.html#abertura` é incluído e que os blocos de campo
+   inline antigos não estão mais presentes — testa a composição do
+   template, não uma substring da resposta HTTP.
 
 ## Invariantes preservadas
 
@@ -100,7 +106,8 @@ Cobertura nova a acrescentar (TDD, RED→GREEN por comportamento):
   build atual para `historico_movimentacoes.html` também).
 - **Composição por posição**: `filter_shell.html#abertura` deixa `<div
   class="grid ...">` aberto para o chamador fechar — risco de esquecer o
-  `</div>` de fechamento ao migrar uma das 2 telas; mitigado por teste de
-  paridade estrutural.
+  `</div>` de fechamento ao migrar uma das 2 telas; mitigado pelo teste de
+  paridade estrutural com parser HTML (item 1 da estratégia de testes, não
+  apenas checagem de substring).
 - Nenhum risco de concorrência, migração de schema ou mudança de contrato
   OpenAPI — mudança é puramente de template.
