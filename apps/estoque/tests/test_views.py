@@ -1456,3 +1456,32 @@ class TestHistoricoMovimentacoesFiltrosResponsivo:
         idx_chip = fonte.index('_chip_so_saidas.html')
         idx_shell = fonte.index('filter_shell.html#abertura')
         assert idx_chip < idx_shell
+
+
+URL_NOVA_LINHA_ITEM = reverse('estoque:nova_linha_item_saida_excepcional')
+
+
+class TestNovaLinhaItemSaidaExcepcionalView:
+    def test_chefe_recebe_partial_com_linha_vazia(self, client, chefe_almoxarifado):
+        client.force_login(chefe_almoxarifado)
+        response = client.get(URL_NOVA_LINHA_ITEM, {'index': '2'})
+        assert response.status_code == 200
+        html = response.content.decode()
+        assert 'itens-2-material_id' in html
+        assert 'itens-2-quantidade' in html
+
+    def test_index_ausente_usa_zero(self, client, chefe_almoxarifado):
+        client.force_login(chefe_almoxarifado)
+        response = client.get(URL_NOVA_LINHA_ITEM)
+        assert response.status_code == 200
+        assert 'itens-0-material_id' in response.content.decode()
+
+    def test_solicitante_recebe_403(self, client, solicitante):
+        client.force_login(solicitante)
+        response = client.get(URL_NOVA_LINHA_ITEM)
+        assert response.status_code == 403
+
+    def test_anonimo_redirecionado_para_login(self, client):
+        response = client.get(URL_NOVA_LINHA_ITEM)
+        assert response.status_code == 302
+        assert 'login' in response['Location']

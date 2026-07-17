@@ -2,6 +2,8 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.db.models import DecimalField, ExpressionWrapper, F, Sum
+from django.forms import BooleanField
+from django.forms.formsets import DELETION_FIELD_NAME
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_GET, require_http_methods
@@ -13,9 +15,10 @@ from apps.core.exceptions import (
     ErroDominio,
     PermissaoNegada,
 )
-from apps.core.http import parse_data_iso
+from apps.core.http import htmx_redirect, parse_data_iso
 from apps.core.listagem import paginar_com_filtros
 from apps.core.presentation import traduz_erro_dominio
+from apps.estoque.forms import ItemSaidaExcepcionalFormSet, SaidaExcepcionalForm
 from apps.estoque.models import Estoque, SaldoEstoque, TipoMovimentacaoEstoque
 from apps.estoque.policies import (
     exigir_pode_consultar_movimentacoes_estoque,
@@ -262,6 +265,41 @@ def nova_saida_excepcional_view(request):
 
     messages.success(request, f'Saída {saida.numero_publico} registrada com sucesso.')
     return redirect('estoque:listar_saidas_excepcionais')
+
+
+@login_required
+@require_GET
+def nova_linha_item_saida_excepcional_view(request):
+    """Retorna partial HTML com nova linha vazia do formset de saída excepcional."""
+    papel = papel_efetivo(request.user)
+    try:
+        exigir_pode_registrar_saida_excepcional(papel)
+    except PermissaoNegada as exc:
+        raise PermissionDenied(str(exc))
+
+    try:
+        index = int(request.GET.get('index', 0))
+    except (ValueError, TypeError):
+        index = 0
+
+    form = ItemSaidaExcepcionalFormSet.form(prefix=f'itens-{index}')
+    form.fields[DELETION_FIELD_NAME] = BooleanField(label='Deletar', required=False)
+    return render(
+        request,
+        'components/item_form_row.html',
+        {
+            'material_id_field': form['material_id'],
+            'material_label_field': form['material_label'],
+            'quantidade_field': form['quantidade'],
+            'quantidade_label': 'Quantidade',
+            'quantidade_min': '0.001',
+            'quantidade_step': 'any',
+            'autocomplete_url_name': 'estoque:buscar_materiais_saida_excepcional',
+            'autocomplete_item_template': 'estoque/partials/_autocomplete_item_material.html',
+            'delete_field': form[DELETION_FIELD_NAME],
+            'form_index': index,
+        },
+    )
 
 
 @login_required
