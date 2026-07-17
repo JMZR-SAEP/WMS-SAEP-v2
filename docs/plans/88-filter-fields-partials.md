@@ -1,6 +1,6 @@
 # Plano — Issue #88: campos de filtro como partials
 
-Pai: #68 (épico extração de componentes do design system)
+Pai: #68 (épico de extração de componentes do design system)
 Bloqueado por: #83 (CLOSED — padrão de listagem/one-template via `{% partialdef %}`)
 
 ## Escopo
@@ -73,19 +73,30 @@ Cobertura nova a acrescentar (TDD, RED→GREEN por comportamento):
    fechamento de tags — não apenas `in response.content` — cobrindo em
    especial o `</div>` do grid aberto por `filter_shell.html#abertura` (ver
    risco abaixo).
-2. **Submissão sem JS**: GET puro com querystring aplica filtro (já coberto
-   indiretamente pelos testes de filtro existentes — reforça que o partial
-   não introduziu JS-only behavior).
+2. **Submissão sem JS (requisito de aceite explícito)**: teste dedicado por
+   tela que faz `client.get(url, {..._querystring_})` sem `HTTP_HX_REQUEST`
+   simulando o `method="get" action=...` puro do `<form>` (sem HTMX/JS) e
+   valida tanto o `page_obj` filtrado quanto a querystring gerada
+   (`hx-push-url`/`href` de "Limpar filtros"). Não basta reaproveitar a
+   cobertura indireta dos testes de filtro existentes — este teste precisa
+   afirmar explicitamente que a submissão nativa do formulário (sem
+   `HTTP_HX_REQUEST`) funciona.
 3. **Checkbox `min-h-11`**: manter asserção de alvo de toque nos checkboxes
    de estado/tipo.
 4. **`filter_select` fieldset a11y**: `<label for=...>` vinculado ao `id` do
    select permanece.
-5. **Zero duplicação**: em vez de `assertNotContains` sobre o HTML
-   renderizado (frágil — testa string, não composição), verificar a fonte
-   dos 2 templates migrados (leitura direta do `.html` no teste) confirmando
-   que `filter_shell.html#abertura` é incluído e que os blocos de campo
-   inline antigos não estão mais presentes — testa a composição do
-   template, não uma substring da resposta HTTP.
+5. **Zero duplicação e conjunto de campos preservado**: em vez de
+   `assertNotContains` sobre o HTML renderizado (frágil — testa string, não
+   composição), verificar a fonte dos 2 templates migrados (leitura direta
+   do `.html` no teste) confirmando que `filter_shell.html#abertura` é
+   incluído e que os blocos de campo inline antigos não estão mais
+   presentes. Complementar com asserções sobre a resposta renderizada que
+   fixem, por tela, todos os campos esperados via seus atributos
+   `name`/`id` (`texto`/`material`, `data_ini`, `data_fim`, `setor` quando
+   `mostrar_filtro_setor`, `estados`/`tipos`), incluindo o caso condicional
+   do filtro de setor, e confirmando que o chip "só saídas" continua
+   composto fora de `filter_shell.html#abertura` (não migra para dentro do
+   shell).
 
 ## Invariantes preservadas
 
