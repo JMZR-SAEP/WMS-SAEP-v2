@@ -20,7 +20,8 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
 {% endcomment %}
 {% load core_tags %}
 <div class="item-form-row flex flex-wrap items-start gap-3 p-3 rounded-lg border {% if saldo_item and not saldo_item.elegivel %}border-amber-300 bg-amber-50/40{% else %}border-slate-200 bg-white{% endif %}"
-     data-index="{{ form_index }}">
+     data-index="{{ form_index }}"
+     {% if delete_field.value %}style="display: none"{% endif %}>
 
   {# Autocomplete de material — hidden field dentro do escopo Alpine para $refs #}
   <div
@@ -76,15 +77,16 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
       min="{{ quantidade_min|default:'1' }}"
       step="{{ quantidade_step|default:'1' }}"
       class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+      {% if quantidade_field.errors %}aria-invalid="true" aria-describedby="{{ quantidade_field.id_for_label }}-erro"{% endif %}
     >
     {% if quantidade_field.errors %}
-      <p class="mt-1 text-xs text-red-600" role="alert">{{ quantidade_field.errors|join:", " }}</p>
+      <p id="{{ quantidade_field.id_for_label }}-erro" class="mt-1 text-xs text-red-600" role="alert">{{ quantidade_field.errors|join:", " }}</p>
     {% endif %}
   </div>
 
-  {# Campo DELETE do formset (escondido — controlado por Alpine/botão) #}
+  {# Campo DELETE do formset (escondido — controlado por JS/botão) #}
   {% if delete_field %}
-    <input type="hidden" name="{{ delete_field.html_name }}" value="">
+    <input type="hidden" name="{{ delete_field.html_name }}" value="{{ delete_field.value|default:'' }}">
   {% endif %}
 
   {# Botão remover #}

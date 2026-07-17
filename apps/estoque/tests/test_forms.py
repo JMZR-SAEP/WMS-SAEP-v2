@@ -7,7 +7,7 @@ import pytest
 from apps.estoque.forms import ItemSaidaExcepcionalFormSet, SaidaExcepcionalForm
 
 
-def _build_formset_data(itens: list[dict], deletados: list[int] = None) -> dict:
+def _montar_dados_formset(itens: list[dict], deletados: list[int] = None) -> dict:
     """Monta POST data para o formset de itens de saída excepcional."""
     deletados = deletados or []
     total = len(itens)
@@ -27,7 +27,7 @@ def _build_formset_data(itens: list[dict], deletados: list[int] = None) -> dict:
 
 @pytest.mark.django_db
 def test_formset_valido_com_um_item(material_disponivel):
-    data = _build_formset_data(
+    data = _montar_dados_formset(
         [{'material_id': material_disponivel.pk, 'quantidade': '5'}]
     )
     fs = ItemSaidaExcepcionalFormSet(data, prefix='itens')
@@ -38,7 +38,7 @@ def test_formset_valido_com_um_item(material_disponivel):
 def test_formset_linhas_validas_retorna_dicts_com_quantidade_decimal(
     material_disponivel,
 ):
-    data = _build_formset_data(
+    data = _montar_dados_formset(
         [{'material_id': material_disponivel.pk, 'quantidade': '5.5'}]
     )
     fs = ItemSaidaExcepcionalFormSet(data, prefix='itens')
@@ -51,7 +51,7 @@ def test_formset_linhas_validas_retorna_dicts_com_quantidade_decimal(
 
 @pytest.mark.django_db
 def test_formset_duplicidade_levanta_erro(material_disponivel):
-    data = _build_formset_data(
+    data = _montar_dados_formset(
         [
             {'material_id': material_disponivel.pk, 'quantidade': '5'},
             {'material_id': material_disponivel.pk, 'quantidade': '3'},
@@ -60,14 +60,13 @@ def test_formset_duplicidade_levanta_erro(material_disponivel):
     fs = ItemSaidaExcepcionalFormSet(data, prefix='itens')
     assert not fs.is_valid()
     assert any(
-        'material já foi adicionado' in e
-        for f in fs.forms
-        for e in f.errors.get('material_label', [])
+        'material já foi adicionado' in erro
+        for erro in fs.forms[1].errors.get('material_label', [])
     )
 
 
 def test_formset_sem_linhas_validas_levanta_erro():
-    data = _build_formset_data([{'material_id': '', 'quantidade': ''}])
+    data = _montar_dados_formset([{'material_id': '', 'quantidade': ''}])
     fs = ItemSaidaExcepcionalFormSet(data, prefix='itens')
     assert not fs.is_valid()
     assert any('ao menos um item' in e for e in fs.non_form_errors())
@@ -83,8 +82,10 @@ def test_formset_material_inativo_gera_erro_de_elegibilidade(estoque_principal):
     SaldoEstoque.objects.create(
         estoque=estoque_principal, material=material, saldo_fisico=10
     )
-    data = _build_formset_data([{'material_id': material.pk, 'quantidade': '1'}])
-    fs = ItemSaidaExcepcionalFormSet(data, prefix='itens')
+    data = _montar_dados_formset([{'material_id': material.pk, 'quantidade': '1'}])
+    fs = ItemSaidaExcepcionalFormSet(
+        data, prefix='itens', estoque_id=estoque_principal.pk
+    )
     assert not fs.is_valid()
     assert any(
         'inelegível' in e or 'inativo' in e
@@ -103,13 +104,40 @@ def test_formset_material_sem_saldo_gera_erro_de_elegibilidade(estoque_principal
     SaldoEstoque.objects.create(
         estoque=estoque_principal, material=material, saldo_fisico=0
     )
-    data = _build_formset_data([{'material_id': material.pk, 'quantidade': '1'}])
-    fs = ItemSaidaExcepcionalFormSet(data, prefix='itens')
+    data = _montar_dados_formset([{'material_id': material.pk, 'quantidade': '1'}])
+    fs = ItemSaidaExcepcionalFormSet(
+        data, prefix='itens', estoque_id=estoque_principal.pk
+    )
     assert not fs.is_valid()
     assert any(
         'inelegível' in e or 'saldo' in e
         for f in fs.forms
         for e in f.errors.get('material_label', [])
+    )
+
+
+@pytest.mark.django_db
+def test_formset_material_com_saldo_em_outro_estoque_gera_erro_de_elegibilidade(
+    estoque_principal,
+):
+    """Material elegível globalmente, mas sem saldo no estoque desta saída
+    especificamente — deve ser rejeitado (escopo por estoque_id)."""
+    from apps.estoque.models import Estoque, Material, SaldoEstoque, UnidadeMedida
+
+    outro_estoque = Estoque.objects.create(codigo='EST02', nome='Estoque Secundário')
+    material = Material.objects.create(
+        codigo='MAT096', nome='Marreta', unidade=UnidadeMedida.UNIDADE, ativo=True
+    )
+    SaldoEstoque.objects.create(
+        estoque=outro_estoque, material=material, saldo_fisico=10
+    )
+    data = _montar_dados_formset([{'material_id': material.pk, 'quantidade': '1'}])
+    fs = ItemSaidaExcepcionalFormSet(
+        data, prefix='itens', estoque_id=estoque_principal.pk
+    )
+    assert not fs.is_valid()
+    assert any(
+        'inelegível' in e for f in fs.forms for e in f.errors.get('material_label', [])
     )
 
 
@@ -143,7 +171,7 @@ def test_saida_excepcional_form_observacao_ausente():
 @pytest.mark.django_db
 def test_formset_duplicidade_ignora_linha_deletada(material_disponivel):
     """Linha marcada como DELETE não conta para verificação de duplicidade."""
-    data = _build_formset_data(
+    data = _montar_dados_formset(
         [
             {'material_id': material_disponivel.pk, 'quantidade': '5'},
             {'material_id': material_disponivel.pk, 'quantidade': '3'},

@@ -202,12 +202,16 @@ def nova_saida_excepcional_view(request):
             {
                 'estoque': estoque,
                 'form': SaidaExcepcionalForm(),
-                'formset': ItemSaidaExcepcionalFormSet(prefix='itens', initial=[{}]),
+                'formset': ItemSaidaExcepcionalFormSet(
+                    prefix='itens', initial=[{}], estoque_id=estoque.pk
+                ),
             },
         )
 
     form = SaidaExcepcionalForm(request.POST)
-    formset = ItemSaidaExcepcionalFormSet(request.POST, prefix='itens')
+    formset = ItemSaidaExcepcionalFormSet(
+        request.POST, prefix='itens', estoque_id=estoque.pk
+    )
 
     if form.is_valid() and formset.is_valid():
         try:

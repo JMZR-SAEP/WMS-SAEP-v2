@@ -167,7 +167,12 @@
     );
     const duplicado = Array.from(
       document.querySelectorAll('#itens-container input[name$="-material_id"]')
-    ).some((input) => input !== linhaAtual && input.value === String(item.id));
+    ).some((input) => {
+      if (input === linhaAtual) return false;
+      const row = input.closest('.item-form-row');
+      if (row && row.style.display === 'none') return false;
+      return input.value === String(item.id);
+    });
 
     const aviso = document.getElementById('aviso-duplicidade');
     if (duplicado) {

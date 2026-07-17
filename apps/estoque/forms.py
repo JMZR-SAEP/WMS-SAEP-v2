@@ -108,6 +108,10 @@ class ItemSaidaExcepcionalForm(forms.Form):
 class BaseItemSaidaExcepcionalFormSet(BaseFormSet):
     """Formset base com validação de duplicidade, elegibilidade e mínimo de itens."""
 
+    def __init__(self, *args, estoque_id: int | None = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.estoque_id = estoque_id
+
     def clean(self):
         if any(self.errors):
             return
@@ -148,17 +152,21 @@ class BaseItemSaidaExcepcionalFormSet(BaseFormSet):
         )
 
     def _validar_elegibilidade(self, material_ids: list[int]) -> None:
-        """Anexa erro à linha cujo material está inativo ou sem saldo físico.
-
-        Mesmo critério de `buscar_materiais_saida_excepcional` — consulta única
-        pra evitar N+1 (uma query por linha).
+        """Anexa erro à linha cujo material está inativo ou sem saldo físico
+        no estoque desta saída — consulta única pra evitar N+1 (uma query
+        por linha). Escopado por `estoque_id` (o mesmo critério do service
+        `registrar_saida_excepcional`); sem `estoque_id`, verifica saldo em
+        qualquer estoque (mesmo critério, mais permissivo, de
+        `buscar_materiais_saida_excepcional`).
         """
         from apps.estoque.models import Material
 
+        filtro_saldo = {'saldos__saldo_fisico__gt': 0}
+        if self.estoque_id is not None:
+            filtro_saldo['saldos__estoque_id'] = self.estoque_id
+
         elegiveis = set(
-            Material.objects.filter(
-                pk__in=material_ids, ativo=True, saldos__saldo_fisico__gt=0
-            )
+            Material.objects.filter(pk__in=material_ids, ativo=True, **filtro_saldo)
             .distinct()
             .values_list('pk', flat=True)
         )
