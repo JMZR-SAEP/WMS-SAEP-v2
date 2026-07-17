@@ -1,14 +1,20 @@
 {% comment %}
-Linha do formset de itens. Usada pelo template principal e pelo endpoint HTMX.
-Parâmetros de contexto:
-  form        — ItemRequisicaoForm com prefixo correto
-  form_index  — índice numérico (para data-index e lógica JS/Alpine)
-  prefix      — prefixo completo "itens-N" (usado nos ids/names quando gerado via HTMX)
-  saldo_info  — dict {str(material_id): {elegivel, saldo_disponivel, motivo}} (opcional)
+Linha de item de formset reutilizável entre telas com itens dinâmicos
+(requisições, saída excepcional). Extraído per ADR-0016 — markup de linha
+de item compartilhado em vez de reimplementado por tela.
+
+Parâmetros de contexto (todos BoundField, exceto indicado):
+  material_id_field      — campo hidden com o id do material
+  material_label_field    — campo de autocomplete (texto exibido)
+  quantidade_field        — campo numérico de quantidade
+  autocomplete_url_name   — nome da URL do endpoint de busca de materiais (string, resolvido via {% url %})
+  autocomplete_item_template — path do template de item do dropdown (string)
+  form_index              — índice numérico da linha (int)
+  quantidade_label         — rótulo do campo de quantidade (str, opcional, default "Quantidade")
+  delete_field             — BoundField do campo DELETE do formset (opcional)
+  saldo_item               — dict {elegivel, saldo_disponivel, motivo} (opcional)
 {% endcomment %}
-{% load requisicoes_tags %}
 {% load core_tags %}
-{% with saldo_item=saldo_info|get_item:form.material_id.value %}
 <div class="item-form-row flex flex-wrap items-start gap-3 p-3 rounded-lg border {% if saldo_item and not saldo_item.elegivel %}border-amber-300 bg-amber-50/40{% else %}border-slate-200 bg-white{% endif %}"
      data-index="{{ form_index }}">
 
@@ -16,27 +22,27 @@ Parâmetros de contexto:
   <div
     class="min-w-0 flex-1 basis-full sm:basis-0"
     x-data="autocomplete({
-      endpoint: '{% url 'requisicoes:buscar_materiais' %}',
+      endpoint: '{% url autocomplete_url_name %}',
       minChars: 2,
       campoDisplay: 'label',
-      initialId: '{{ form.material_id.value|default:''|escapejs }}',
-      initialLabel: '{{ form.material_label.value|default:''|escapejs }}',
+      initialId: '{{ material_id_field.value|default:''|escapejs }}',
+      initialLabel: '{{ material_label_field.value|default:''|escapejs }}',
     })"
     @click.outside="fecharDropdown()"
   >
     <input
       type="hidden"
       x-ref="hiddenInput"
-      name="{{ form.material_id.html_name }}"
-      id="{{ form.material_id.id_for_label }}"
-      value="{{ form.material_id.value|default:'' }}"
+      name="{{ material_id_field.html_name }}"
+      id="{{ material_id_field.id_for_label }}"
+      value="{{ material_id_field.value|default:'' }}"
     >
-    {% include "components/autocomplete.html" with label="Material" placeholder="Buscar por código ou descrição…" item_template="estoque/partials/_autocomplete_item_material.html" sem_resultados_label="Nenhum material elegível encontrado." tipo_input="search" com_erro=form.material_label.errors erro_id=form.material_label.id_for_label|add:"-erro" %}
-    {% if form.material_label.errors %}
-      <p id="{{ form.material_label.id_for_label }}-erro" class="mt-1 text-xs text-red-600" role="alert">{{ form.material_label.errors|join:", " }}</p>
+    {% include "components/autocomplete.html" with label="Material" placeholder="Buscar por código ou descrição…" item_template=autocomplete_item_template sem_resultados_label="Nenhum material elegível encontrado." tipo_input="search" com_erro=material_label_field.errors erro_id=material_label_field.id_for_label|add:"-erro" %}
+    {% if material_label_field.errors %}
+      <p id="{{ material_label_field.id_for_label }}-erro" class="mt-1 text-xs text-red-600" role="alert">{{ material_label_field.errors|join:", " }}</p>
     {% endif %}
-    {% if form.material_id.errors %}
-      <p class="mt-1 text-xs text-red-600" role="alert">{{ form.material_id.errors|join:", " }}</p>
+    {% if material_id_field.errors %}
+      <p class="mt-1 text-xs text-red-600" role="alert">{{ material_id_field.errors|join:", " }}</p>
     {% endif %}
     {% if saldo_item %}
       {% if not saldo_item.elegivel %}
@@ -54,26 +60,26 @@ Parâmetros de contexto:
 
   {# Quantidade #}
   <div class="w-28 shrink-0">
-    <label class="block text-xs font-medium text-slate-600 mb-1" for="{{ form.quantidade_solicitada.id_for_label }}">
-      Quantidade
+    <label class="block text-xs font-medium text-slate-600 mb-1" for="{{ quantidade_field.id_for_label }}">
+      {{ quantidade_label|default:"Quantidade" }}
     </label>
     <input
       type="number"
-      name="{{ form.quantidade_solicitada.html_name }}"
-      id="{{ form.quantidade_solicitada.id_for_label }}"
-      value="{{ form.quantidade_solicitada.value|default:'' }}"
-      min="1"
-      step="1"
+      name="{{ quantidade_field.html_name }}"
+      id="{{ quantidade_field.id_for_label }}"
+      value="{{ quantidade_field.value|default:'' }}"
+      min="{{ quantidade_min|default:'1' }}"
+      step="{{ quantidade_step|default:'1' }}"
       class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
     >
-    {% if form.quantidade_solicitada.errors %}
-      <p class="mt-1 text-xs text-red-600" role="alert">{{ form.quantidade_solicitada.errors|join:", " }}</p>
+    {% if quantidade_field.errors %}
+      <p class="mt-1 text-xs text-red-600" role="alert">{{ quantidade_field.errors|join:", " }}</p>
     {% endif %}
   </div>
 
   {# Campo DELETE do formset (escondido — controlado por Alpine/botão) #}
-  {% if form.DELETE %}
-    <input type="hidden" name="{{ form.DELETE.html_name }}" value="">
+  {% if delete_field %}
+    <input type="hidden" name="{{ delete_field.html_name }}" value="">
   {% endif %}
 
   {# Botão remover #}
@@ -89,4 +95,3 @@ Parâmetros de contexto:
     </button>
   </div>
 </div>
-{% endwith %}
