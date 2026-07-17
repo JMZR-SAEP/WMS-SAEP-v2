@@ -73,14 +73,17 @@ Cobertura nova a acrescentar (TDD, RED→GREEN por comportamento):
    fechamento de tags — não apenas `in response.content` — cobrindo em
    especial o `</div>` do grid aberto por `filter_shell.html#abertura` (ver
    risco abaixo).
-2. **Submissão sem JS (requisito de aceite explícito)**: teste dedicado por
-   tela que faz `client.get(url, {..._querystring_})` sem `HTTP_HX_REQUEST`
-   simulando o `method="get" action=...` puro do `<form>` (sem HTMX/JS) e
-   valida tanto o `page_obj` filtrado quanto a querystring gerada
-   (`hx-push-url`/`href` de "Limpar filtros"). Não basta reaproveitar a
-   cobertura indireta dos testes de filtro existentes — este teste precisa
-   afirmar explicitamente que a submissão nativa do formulário (sem
-   `HTTP_HX_REQUEST`) funciona.
+2. **Submissão sem JS (requisito de aceite explícito)**: separar o contrato
+   de navegação nativa do contrato HTMX — dois testes distintos. (a) Afirmar
+   no HTML renderizado que o `<form>` expõe `method="get"` e `action="{{
+   url }}"` (o atributo real de fallback sem JS, não `hx-get`/`hx-push-url`,
+   que são comportamento client-side não exercitado por `client.get()`).
+   (b) Chamar essa mesma `action` via `client.get(url, {..._querystring_})`
+   sem `HTTP_HX_REQUEST` e validar o `page_obj` filtrado — isto comprova o
+   fallback de navegação nativa (GET com querystring), não que o cliente de
+   teste "processou" `hx-push-url`. Testar o `href` de "Limpar filtros"
+   separadamente, como link estático de navegação nativa.
+
 3. **Checkbox `min-h-11`**: manter asserção de alvo de toque nos checkboxes
    de estado/tipo.
 4. **`filter_select` fieldset a11y**: `<label for=...>` vinculado ao `id` do
