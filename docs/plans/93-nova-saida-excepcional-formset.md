@@ -69,7 +69,7 @@
 
 ## Risks
 
-- ADR-0016 ainda não está mergeada em `main` (PR joaozuneda4/WMS-SAEP-v2#10 aberto) — a decisão já está confirmada no comentário de fechamento da issue #82 (HITL), então a migração não fica bloqueada por isso, mas o link do ADR no plano aponta pra um arquivo que só existe nessa branch até lá
+- ADR-0016 (`docs/adr/0016-paradigma-unico-linhas-dinamicas.md`) foi trazida pra esta branch via merge da branch `docs/adr-0016-paradigma-linhas-dinamicas` — PR joaozuneda4/WMS-SAEP-v2#10 (que propunha a ADR isoladamente) foi fechado e a ADR passa a landar em `main` junto com a implementação desta issue
 - Extrair o partial de linha de item toca `requisicoes/rascunho_form.html`, tela em produção — regressão manual + suíte de `apps/requisicoes` obrigatória antes de considerar a issue pronta
 - Duplo veto (JS + formset) de duplicidade é a decisão confirmada com o usuário (paridade de comportamento), mas mantém lógica de duplicidade em 2 lugares — se divergirem no futuro, o formset é a fonte de verdade
 - `clean()` do formset consulta `Material`/`SaldoEstoque` para elegibilidade — evitar N+1: usar um único `filter(pk__in=...)` para todos os `material_id` do formset, não uma query por linha
