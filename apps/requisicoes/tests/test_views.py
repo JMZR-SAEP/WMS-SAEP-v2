@@ -3248,6 +3248,26 @@ class TestHistoricoRequisicoesFiltrosPartials:
         content = client.get(URL_HISTORICO_REQUISICOES).content.decode()
         assert 'id="filtro-setor"' not in content
 
+    def test_limpar_filtros_reemitido_via_oob_no_swap_htmx(self, client, superuser):
+        # Bug-regressão (achado do CodeRabbit): filter_acoes.html vive fora
+        # de #resultados-historico-requisicoes (dentro do <form>), então numa
+        # resposta HTMX precisa ser reemitido como out-of-band pra refletir
+        # tem_filtro_ativo — senão "Limpar filtros" fica com o estado da
+        # primeira renderização full-page.
+        _login(client, superuser)
+        parcial = client.get(
+            URL_HISTORICO_REQUISICOES, {'texto': 'x'}, HTTP_HX_REQUEST='true'
+        ).content
+        assert b'id="filtro-acoes-historico-requisicoes"' in parcial
+        assert b'hx-swap-oob="true"' in parcial
+        assert b'Limpar filtros' in parcial
+
+    def test_limpar_filtros_sem_oob_na_pagina_completa(self, client, superuser):
+        _login(client, superuser)
+        conteudo = client.get(URL_HISTORICO_REQUISICOES, {'texto': 'x'}).content
+        assert conteudo.count(b'id="filtro-acoes-historico-requisicoes"') == 1
+        assert b'hx-swap-oob' not in conteudo
+
     def test_todos_os_campos_esperados_presentes(self, client, chefe_almoxarifado):
         _login(client, chefe_almoxarifado)
         content = client.get(URL_HISTORICO_REQUISICOES).content.decode()

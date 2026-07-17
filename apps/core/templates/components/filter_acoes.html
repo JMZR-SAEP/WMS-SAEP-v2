@@ -3,15 +3,27 @@ Ações do filtro: submit "Aplicar filtros" + link condicional "Limpar
 filtros" (navegação nativa via href + progressive enhancement HTMX).
 components/filter_*.html (issue #88).
 
-Parâmetros:
-  action_url        (obrigatório) URL da tela (href/hx-get do link de limpar)
-  target_id          (obrigatório) id do wrapper HTMX alvo do swap (sem #)
-  tem_filtro_ativo   (opcional, boolean) exibe "Limpar filtros" quando truthy
+Vive fora do alvo do swap HTMX (#{{ target_id }}, dentro do <form>);
+por isso precisa ser reemitido via out-of-band nas respostas HTMX
+(oob=True) para refletir tem_filtro_ativo após aplicar/limpar filtro —
+mesmo padrão de estoque/partials/_chip_so_saidas.html (oob_chip).
 
-Uso:
-  {% include "components/filter_acoes.html" with action_url=url_historico target_id="resultados-historico-requisicoes" tem_filtro_ativo=tem_filtro_ativo %}
+Parâmetros:
+  id                 (obrigatório) id do wrapper — âncora do swap out-of-band
+  action_url         (obrigatório) URL da tela (href/hx-get do link de limpar)
+  target_id          (obrigatório) id do wrapper HTMX alvo do swap de resultados (sem #)
+  tem_filtro_ativo   (opcional, boolean) exibe "Limpar filtros" quando truthy
+  oob                (opcional, boolean) adiciona hx-swap-oob="true" — usar
+                     só no reemite dentro do partial de resultados em
+                     respostas HTMX (is_htmx)
+
+Uso (form, sempre):
+  {% include "components/filter_acoes.html" with id="filtro-acoes-historico-requisicoes" action_url=url_historico target_id="resultados-historico-requisicoes" tem_filtro_ativo=tem_filtro_ativo %}
+
+Uso (reemite OOB dentro do partial de resultados, só quando is_htmx):
+  {% if is_htmx %}{% include "components/filter_acoes.html" with id="filtro-acoes-historico-requisicoes" action_url=url_historico target_id="resultados-historico-requisicoes" tem_filtro_ativo=tem_filtro_ativo oob=True %}{% endif %}
 {% endcomment %}
-<div class="mt-4 flex flex-wrap items-center gap-2">
+<div id="{{ id }}" class="mt-4 flex flex-wrap items-center gap-2"{% if oob %} hx-swap-oob="true"{% endif %}>
   <button
     type="submit"
     class="inline-flex min-h-11 items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"

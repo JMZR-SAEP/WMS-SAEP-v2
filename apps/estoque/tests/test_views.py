@@ -1333,6 +1333,31 @@ class TestHistoricoMovimentacoesFiltrosPartials:
         content = client.get(URL_MOVIMENTACOES).content.decode()
         assert 'id="filtro-setor"' not in content
 
+    def test_limpar_filtros_reemitido_via_oob_no_swap_htmx(
+        self, client, superuser, requisicao_autorizada
+    ):
+        # Bug-regressão (achado do CodeRabbit): filter_acoes.html vive fora
+        # de #resultados-movimentacoes (dentro do <form>), então numa
+        # resposta HTMX precisa ser reemitido como out-of-band pra refletir
+        # tem_filtro_ativo — senão "Limpar filtros" fica com o estado da
+        # primeira renderização full-page. Mesmo padrão de
+        # _chip_so_saidas.html (oob_chip).
+        client.force_login(superuser)
+        parcial = client.get(
+            URL_MOVIMENTACOES, {'material': 'MAT001'}, HTTP_HX_REQUEST='true'
+        ).content
+        assert b'id="filtro-acoes-movimentacoes"' in parcial
+        assert b'hx-swap-oob="true"' in parcial
+        assert b'Limpar filtros' in parcial
+
+    def test_limpar_filtros_sem_oob_na_pagina_completa(
+        self, client, superuser, requisicao_autorizada
+    ):
+        client.force_login(superuser)
+        conteudo = client.get(URL_MOVIMENTACOES, {'material': 'MAT001'}).content
+        assert conteudo.count(b'id="filtro-acoes-movimentacoes"') == 1
+        assert b'hx-swap-oob' not in conteudo
+
     def test_todos_os_campos_esperados_presentes(self, client, chefe_almoxarifado):
         client.force_login(chefe_almoxarifado)
         content = client.get(URL_MOVIMENTACOES).content.decode()

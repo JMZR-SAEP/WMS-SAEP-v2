@@ -36,7 +36,7 @@
     {# Preserva ordenação corrente ao submeter os filtros #}
     {% if ordem == 'asc' %}<input type="hidden" name="ordem" value="asc">{% endif %}
 
-    {% include "components/filter_acoes.html" with action_url=url_movimentacoes target_id="resultados-movimentacoes" tem_filtro_ativo=tem_filtro_ativo %}
+    {% include "components/filter_acoes.html" with id="filtro-acoes-movimentacoes" action_url=url_movimentacoes target_id="resultados-movimentacoes" tem_filtro_ativo=tem_filtro_ativo %}
   </form>
     </div>
   </details>
@@ -150,6 +150,9 @@
     falso) o chip é renderizado pelo próprio template-base — evita id duplicado.
     {% endcomment %}
     {% if is_htmx %}{% include 'estoque/partials/_chip_so_saidas.html' with oob_chip=True %}{% endif %}
+
+    {# filter_acoes.html vive fora de #resultados-movimentacoes (dentro do <form>); reemite via out-of-band pra refletir tem_filtro_ativo após um swap HTMX. #}
+    {% if is_htmx %}{% include "components/filter_acoes.html" with id="filtro-acoes-movimentacoes" action_url=url_movimentacoes target_id="resultados-movimentacoes" tem_filtro_ativo=tem_filtro_ativo oob=True %}{% endif %}
     {% endpartialdef %}
     {% partial resultados %}
   </div>

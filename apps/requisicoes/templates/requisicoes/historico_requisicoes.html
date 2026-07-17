@@ -34,7 +34,7 @@
     {# Preserva ordenação corrente ao submeter os filtros #}
     {% if ordem == 'asc' %}<input type="hidden" name="ordem" value="asc">{% endif %}
 
-    {% include "components/filter_acoes.html" with action_url=url_historico target_id="resultados-historico-requisicoes" tem_filtro_ativo=tem_filtro_ativo %}
+    {% include "components/filter_acoes.html" with id="filtro-acoes-historico-requisicoes" action_url=url_historico target_id="resultados-historico-requisicoes" tem_filtro_ativo=tem_filtro_ativo %}
   </form>
     </div>
   </details>
@@ -157,6 +157,9 @@
       {% endif %}
 
     {% endif %}
+
+    {# filter_acoes.html vive fora de #resultados-historico-requisicoes (dentro do <form>); reemite via out-of-band pra refletir tem_filtro_ativo após um swap HTMX. #}
+    {% if is_htmx %}{% include "components/filter_acoes.html" with id="filtro-acoes-historico-requisicoes" action_url=url_historico target_id="resultados-historico-requisicoes" tem_filtro_ativo=tem_filtro_ativo oob=True %}{% endif %}
     {% endpartialdef %}
     {% partial resultados %}
   </div>
