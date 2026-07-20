@@ -31,9 +31,15 @@ Criar `apps/core/templates/components/alert.html` conforme `docs/design-system.m
 
 ```text
 variant        (default=info) info, success, warning, danger
-message        (obrigatório, exceto se body_template) texto autoescapado (Django
-               escapa por padrão); conteúdo HTML rico só via body_template, nunca via
-               message
+message        (obrigatório, exceto se body_template ou casca JS-hidratada) texto
+               autoescapado (Django escapa por padrão); conteúdo HTML rico só via
+               body_template, nunca via message. String vazia é permitida
+               explicitamente quando o componente serve só de casca estática inicial
+               para um elemento que o JS do chamador preenche depois via
+               `textContent` (caso da caixa de duplicidade — ver "Migra" abaixo);
+               fora desse cenário, `message` vazio sem `body_template` é
+               responsabilidade do chamador tratar (o componente não valida
+               obrigatoriedade em runtime, só documenta a expectativa)
 body_template  (opcional) partial incluído no corpo — herda contexto do chamador
                (mesmo mecanismo de form_body_template em modal.html)
 icone          (opcional, bool, default=True)
@@ -67,9 +73,11 @@ Visual: `rounded-lg border px-4 py-3 text-sm` + par cor-200/cor-50/cor-800 (spec
   (loop) — **novo caso, não existia na issue original** (era dict `erros` manual antes
   de #93)
 - `nova_saida_excepcional.html:92-97` — caixa de duplicidade (`#aviso-duplicidade`),
-  danger, `icone=False`, `id="aviso-duplicidade"`, `aria_live="assertive"`, `message=""`
-  (JS do chamador continua fazendo `textContent`/`classList.toggle('hidden')` — o
-  componente só fornece a casca estática inicial) — **novo caso**: na issue original
+  danger, `icone=False`, `id="aviso-duplicidade"`, `aria_live="assertive"`,
+  `message=""` (uso explicitamente coberto pelo contrato do parâmetro `message` acima —
+  casca JS-hidratada; JS do chamador continua fazendo `textContent`/
+  `classList.toggle('hidden')`, componente só fornece a casca estática inicial) —
+  **novo caso**: na issue original
   isso era Alpine `x-show`/`x-text` reativo (não migrável); pós-#93 é JS vanilla direto
   no DOM, compatível com uma casca server-rendered
 - `copiar_confirmacao.html:23-26` — nota amber, `role="note"` preservado via override
@@ -112,7 +120,8 @@ Visual: `rounded-lg border px-4 py-3 text-sm` + par cor-200/cor-50/cor-800 (spec
 - Teste de template do componente isolado (`test_components_alert.py`): variantes
   (info/success/warning/danger), `role` correto por variante, override de `role`,
   `icone=False` oculta ícone, `body_template` inclui corpo herdando contexto, `id`
-  renderiza atributo, `class` faz passthrough, `message` é autoescapado.
+  renderiza atributo, `class` faz passthrough, `message` é autoescapado, `message=""`
+  sem `body_template` renderiza casca válida sem erro (caso da casca JS-hidratada).
 - Testes de view existentes (rascunho_form, nova_saida_excepcional, copiar_confirmacao,
   preview_importacao_scpi) continuam cobrindo a exibição das mensagens — texto e roles
   seguem presentes após a migração; nenhuma asserção de view deve precisar mudar de
