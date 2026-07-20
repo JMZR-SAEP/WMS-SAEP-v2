@@ -1,0 +1,52 @@
+{% comment %}
+Componente global de caixa de aviso (banner estático). Não conhece exceções de
+domínio — só variante visual e role ARIA: warning/danger=alert, success/info=status
+(equivalente ao contrato error/warning=alert do messages-contract; "danger" é o
+nome de variante aqui, análogo a button.html — ver docs/plans/77-alert-component.md).
+
+Fora do contrato de dismiss de docs/CONVENTIONS.md (§Níveis e ARIA) — essa regra
+governa o contrato de flash messages Django, renderizado por
+core/partials/_messages.html, que não usa este componente.
+
+Parâmetros:
+  variant        (opcional, default=info) info, success, warning, danger
+  message        (obrigatório, exceto se body_template ou casca JS-hidratada) texto
+                 autoescapado (Django escapa por padrão). Conteúdo HTML rico só via
+                 body_template. Se body_template também for passado, body_template
+                 tem precedência e message é ignorado.
+  body_template  (opcional) caminho de partial incluído no corpo — herda o
+                 contexto do chamador, como form_body_template em modal.html.
+  icone          (opcional, boolean, default=True)
+  role           (opcional) sobrescreve o role padrão (ex. "note")
+  aria_live      (opcional) valor de aria-live — sem default automático
+  id             (opcional) — necessário para cascas hidratadas por JS do
+                 chamador via getElementById (ex. caixa de duplicidade)
+  class          (opcional) passthrough para ajuste de layout do chamador
+
+Uso:
+  {% include "components/alert.html" with variant="danger" message=erro_geral %}
+  {% include "components/alert.html" with variant="warning" body_template="requisicoes/partials/_alert_itens_inelegiveis_corpo.html" %}
+{% endcomment %}
+<div
+  {% if id %}id="{{ id }}"{% endif %}
+  {% if role %}role="{{ role }}"{% elif variant == 'warning' or variant == 'danger' %}role="alert"{% else %}role="status"{% endif %}
+  {% if aria_live %}aria-live="{{ aria_live }}"{% endif %}
+  class="flex items-start gap-2 rounded-lg border px-4 py-3 text-sm {% if variant == 'success' %}border-green-200 bg-green-50 text-green-800{% elif variant == 'warning' %}border-amber-200 bg-amber-50 text-amber-800{% elif variant == 'danger' %}border-red-200 bg-red-50 text-red-800{% else %}border-blue-200 bg-blue-50 text-blue-800{% endif %}{% if class %} {{ class }}{% endif %}"
+>
+  {% if icone != False %}
+    <svg aria-hidden="true" class="mt-0.5 h-4 w-4 shrink-0 {% if variant == 'success' %}text-green-600{% elif variant == 'warning' %}text-amber-600{% elif variant == 'danger' %}text-red-600{% else %}text-blue-600{% endif %}" viewBox="0 0 20 20" fill="currentColor">
+      {% if variant == 'success' %}
+        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/>
+      {% elif variant == 'warning' %}
+        <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495ZM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5Zm0 9a1 1 0 100-2 1 1 0 000 2Z" clip-rule="evenodd"/>
+      {% elif variant == 'danger' %}
+        <path fill-rule="evenodd" d="M18 10A8 8 0 1 1 2 10a8 8 0 0 1 16 0Zm-7-4a1 1 0 1 0-2 0v4a1 1 0 1 0 2 0V6Zm-1 8a1.2 1.2 0 1 1 0-2.4 1.2 1.2 0 0 1 0 2.4Z" clip-rule="evenodd"/>
+      {% else %}
+        <path fill-rule="evenodd" d="M18 10A8 8 0 1 1 2 10a8 8 0 0 1 16 0Zm-8.75-4.25a.75.75 0 011.5 0v.5a.75.75 0 01-1.5 0v-.5Zm.75 3a.75.75 0 00-.75.75v4a.75.75 0 001.5 0v-4a.75.75 0 00-.75-.75Z" clip-rule="evenodd"/>
+      {% endif %}
+    </svg>
+  {% endif %}
+  <div class="min-w-0 flex-1">
+    {% if body_template %}{% include body_template %}{% else %}{{ message }}{% endif %}
+  </div>
+</div>
