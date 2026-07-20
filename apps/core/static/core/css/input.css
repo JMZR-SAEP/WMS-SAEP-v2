@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @source not "../../../../*/tests";
+@source not "../../../../../docs";
 
 /*
   Design tokens — WMS-SAEP

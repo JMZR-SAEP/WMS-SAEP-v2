@@ -70,6 +70,20 @@ UTILITIES_ESPERADAS = [
     'bg-warning-subtle',
 ]
 
+# Tokens declarados no @theme mas sem consumidor real em nenhum template
+# hoje (success-text/return-text base tier; toda a família info-*, usada só
+# pelo alert/messages "info" que na verdade consome primary-*). Não devem
+# ter utility compilada — se aparecerem, algo (doc, teste) vazou pro scan.
+UTILITIES_DORMANTES = [
+    '.text-success-text{',
+    '.text-return-text{',
+    '.bg-info{',
+    '.bg-info-subtle{',
+    '.bg-info-muted{',
+    '.border-info-border{',
+    '.text-info-text{',
+]
+
 
 def _arquivos_alvo():
     arquivos = sorted(COMPONENTS_DIR.rglob('*.html'))
@@ -124,4 +138,15 @@ def test_css_build_gera_tokens_e_utilities_novas():
     assert utilities_faltando == [], (
         f'Utilities esperadas ausentes no app.css — Tailwind não gerou a '
         f'classe (nome errado no template ou token não usado): {utilities_faltando}'
+    )
+
+    utilities_dormantes_vazadas = [
+        seletor for seletor in UTILITIES_DORMANTES if seletor in app_css
+    ]
+    assert utilities_dormantes_vazadas == [], (
+        f'Utility de token dormente (sem consumidor real em templates) '
+        f'apareceu no app.css — provável vazamento do content scan do '
+        f'Tailwind (ex. exemplo de classe escrito por extenso em docs/*.md '
+        f'ou apps/*/tests/*.py, não excluído via @source not em '
+        f'input.css): {utilities_dormantes_vazadas}'
     )
