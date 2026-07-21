@@ -822,6 +822,25 @@ class TestPreviewImportacaoScpiView:
             b'CADPRO' in resp.content or material_scpi.codigo.encode() in resp.content
         )
 
+    def test_post_csv_com_novos_e_divergencias_usa_components_alert_com_aria(
+        self, client, superuser, estoque_principal, material_scpi
+    ):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        client.force_login(superuser)
+        csv_bytes = (
+            f'CADPRO;DENOMINACAO;QUAN3\n'
+            f'{material_scpi.codigo};Teste;150.000\n'
+            f'000.000.999;Material Novo;5.000\n'
+        ).encode('utf-8')
+        arquivo = SimpleUploadedFile('teste.csv', csv_bytes, content_type='text/csv')
+        resp = client.post(self.URL, {'arquivo': arquivo})
+        conteudo = resp.content.decode()
+
+        assert 'border-primary-border bg-primary-subtle text-primary-text-emphasis' in conteudo
+        assert 'border-warning-border bg-warning-subtle text-warning-text' in conteudo
+        assert conteudo.count('aria-live="polite"') == 3
+
     def test_post_sem_arquivo_retorna_200_com_erro(self, client, superuser):
         client.force_login(superuser)
         resp = client.post(self.URL, {})
