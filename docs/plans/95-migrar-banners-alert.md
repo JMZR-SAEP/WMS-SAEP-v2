@@ -81,6 +81,17 @@ Nenhuma entrada de `docs/design-acesso-rapido/matriz-invariantes.md` se
 aplica — essa matriz cobre o fluxo de acesso rápido, não os templates
 tocados aqui.
 
+`CONTEXT.md` (glossário "Divergência SCPI" e regras de `preview_importacao_scpi`,
+`~L110-196`) documenta: *"Pré-visualizar importação é sempre read-only"* e
+*"Divergência SCPI gera alerta; nunca altera `saldo_fisico`"*, com *"o preview
+mostra o delta para permitir conferência"*. Essas invariantes seguem intactas
+nesta migração: o delta por linha já é exibido na coluna `Delta` da tabela
+(`~L290-302` de `preview_importacao_scpi.html`, fora do escopo desta issue) e
+continua inalterado; o banner de divergências (`~L383`) migrado preserva o
+texto original — que já é só uma contagem com a reassurance "saldo do WMS
+não será alterado" — sem incluir o delta agregado, pois o conteúdo do banner
+não muda nesta migração puramente de apresentação, só sua casca de markup.
+
 ## Risks
 
 - **Baixo risco geral** — mudança é só de apresentação (HTML/template), sem alteração de views, services ou models.
