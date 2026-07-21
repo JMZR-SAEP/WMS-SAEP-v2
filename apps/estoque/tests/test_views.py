@@ -837,7 +837,10 @@ class TestPreviewImportacaoScpiView:
         resp = client.post(self.URL, {'arquivo': arquivo})
         conteudo = resp.content.decode()
 
-        assert 'border-primary-border bg-primary-subtle text-primary-text-emphasis' in conteudo
+        assert (
+            'border-primary-border bg-primary-subtle text-primary-text-emphasis'
+            in conteudo
+        )
         assert 'border-warning-border bg-warning-subtle text-warning-text' in conteudo
         assert conteudo.count('aria-live="polite"') == 3
 
