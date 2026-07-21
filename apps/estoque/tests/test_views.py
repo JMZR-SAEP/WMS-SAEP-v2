@@ -851,9 +851,9 @@ class TestPreviewImportacaoScpiView:
 
         client.force_login(superuser)
         csv_bytes = (
-            f'CADPRO;DENOMINACAO;QUAN3\n'
-            f'000.000.997;Material Novo 1;5.000\n'
-            f'000.000.998;Material Novo 2;5.000\n'
+            'CADPRO;DENOMINACAO;QUAN3\n'
+            '000.000.997;Material Novo 1;5.000\n'
+            '000.000.998;Material Novo 2;5.000\n'
         ).encode('utf-8')
         arquivo = SimpleUploadedFile('teste.csv', csv_bytes, content_type='text/csv')
         resp = client.post(self.URL, {'arquivo': arquivo})
