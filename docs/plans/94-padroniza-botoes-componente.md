@@ -53,10 +53,10 @@
 ## Estratégia de testes
 
 Não há lógica de domínio nova — é refatoração de apresentação. Estratégia:
-1. `uv run pytest -q -ra --tb=short --strict-markers --disable-warnings -n logical` completo antes de tocar em qualquer arquivo (baseline). Gates de qualidade obrigatórios (`uv run ruff format .`, `uv run ruff format --check .`, `uv run ruff check .`, `uv run mypy apps`) rodados antes de cada commit, por ser mudança que toca Python (`core_tags.py`) além de modelos Django.
+1. `uv run pytest -q -ra --tb=short --strict-markers --disable-warnings -n logical` completo antes de tocar em qualquer arquivo (baseline). Gates de qualidade obrigatórios (`uv run ruff format .`, `uv run ruff format --check .`, `uv run ruff check .`, `uv run mypy apps`) rodados antes de cada commit, por ser mudança que toca Python (`core_tags.py`) além de templates Django.
 2. Novos testes unitários de template para os params novos de `button.html` em `apps/core/tests/test_button_component.py` (arquivo novo, segue convenção de `test_icons.py`: `Template(...).render(Context(...))` sem DB/view):
    - `loading_label="Enviando..."` gera exatamente `data-submit-loading-label="Enviando..."` e `<span data-submit-text>` com o label esperado.
-   - `label_mobile` gera os dois spans responsivos.
+   - `label_mobile` **junto de** `loading_label` gera os dois spans responsivos; `label_mobile` sozinho (sem `loading_label`) não ativa esse comportamento — pré-condição documentada no contrato.
    - `x_disabled`/`x_aria_busy` geram `:disabled="..."` / `:aria-busy="..."`.
    - `label_bind` gera `<span x-text="...">` com fallback estático.
    - `spinner_show` gera o spinner com `x-show` e esconde `icon_template` com `x-show="!(...)"`.
