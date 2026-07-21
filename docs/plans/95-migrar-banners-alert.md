@@ -29,7 +29,7 @@ divergências) e o `role="note"` customizado em `copiar_confirmacao.html`
 | `apps/estoque/templates/estoque/confirmar_importacao_scpi.html` | Substitui 2 divs cruas (sucesso `role=status`, erro `role=alert`) por `alert.html` |
 | `apps/estoque/templates/estoque/partials/_alert_sucesso_importacao_corpo.html` | Novo — título + `dl` de métricas + rodapé com nome/data do arquivo |
 | `apps/estoque/templates/estoque/partials/_alert_erro_confirmacao_corpo.html` | Novo — título + mensagem de erro |
-| `apps/estoque/templates/estoque/preview_importacao_scpi.html` | Substitui 2 divs cruas (`novos>0` teal, `divergencias>0` amber) por `alert.html` |
+| `apps/estoque/templates/estoque/preview_importacao_scpi.html` | Substitui 2 divs cruas por `alert.html`: `novos>0` → `variant="info" aria_live="polite"`; `divergencias>0` → `variant="warning" role="status" aria_live="polite"` (override de `role` preserva o `status`/`polite` original — ver tabela ARIA em Test strategy) |
 | `apps/estoque/templates/estoque/partials/_alert_novos_materiais_corpo.html` | Novo — parágrafo com contagem de materiais novos |
 | `apps/estoque/templates/estoque/partials/_alert_divergencias_corpo.html` | Novo — parágrafo com contagem de divergências |
 | `apps/requisicoes/templates/requisicoes/copiar_confirmacao.html` | Remove `role="note"` do include existente; comentário inline justificando `variant="warning"` |
@@ -59,7 +59,18 @@ aviso (`warning`) do que como notificação neutra (`info`).
 ## Test strategy
 
 - **Happy path**: cada banner migrado renderiza com o texto original preservado e a classe de variante correta (`border-success-border`, `border-danger-border`, `border-warning-border`, `border-primary-border`).
-- **ARIA**: para cada um dos 6 pontos, assert de `role` (via variant automático) e ausência/presença de `aria-live` conforme o comportamento original de cada tela (login sem aria-live; erro/sucesso SCPI com aria-live polite/assertive já existentes; novos/divergências com aria-live polite existente; copiar_confirmacao sem aria-live, `role="alert"` em vez de `role="note"`).
+- **ARIA**: mapeamento explícito de `role`/`aria_live` por include, um assert por linha na suíte:
+
+  | # | Local | `variant` | `role` renderizado | `aria_live` passado | Preserva original? |
+  |---|---|---|---|---|---|
+  | 1 | `login.html` | `danger` | `alert` (automático) | — (não passado) | Sim — original não tinha `aria-live` |
+  | 2 | `confirmar_importacao_scpi.html` sucesso | `success` | `status` (automático) | `polite` (explícito) | Sim — original já era `status`/`polite` |
+  | 3 | `confirmar_importacao_scpi.html` erro | `danger` | `alert` (automático) | `assertive` (explícito) | Sim — original já era `alert`/`assertive` |
+  | 4 | `preview_importacao_scpi.html` novos | `info` | `status` (automático) | `polite` (explícito) | Sim — original já era `status`/`polite` |
+  | 5 | `preview_importacao_scpi.html` divergências | `warning` | `status` (**override explícito** via `role="status"`) | `polite` (explícito) | Sim — mantém `status`/`polite` original; sem o override, o automático da variante `warning` seria `alert`, mudando a assertividade do anúncio (regressão de comportamento não pedida pelo issue) |
+  | 6 | `copiar_confirmacao.html` | `warning` | `alert` (automático, `role="note"` removido) | — (não passado) | Corrigido por design — é exatamente o pedido do issue: sair do `role="note"` fora de contrato para o `role` automático documentado |
+
+  `components/alert.html` não define `aria-live` por padrão (só renderiza quando `aria_live` é passado) — por isso os itens 2-5 exigem o parâmetro explícito no include, não só a escolha do `variant`.
 - **Regressão de contrato**: `id="login-error"` preservado (usado por `aria-describedby` nos campos do form, coberto por teste já existente `test_login_preserva_ids_de_erros_aria`).
 - Nenhum teste de domínio/serviço é afetado — mudança é puramente de apresentação.
 - **Permissão negada / violação de domínio / erro de contrato**: N/A — nenhuma view, service ou policy é tocada; os testes de permissão e contrato HTTP já existentes (`test_sem_permissao_retorna_403`, etc.) continuam cobrindo o comportamento não-visual sem alteração.
