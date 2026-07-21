@@ -65,18 +65,18 @@ UTILITIES_ESPERADAS = [
     'text-warning-text-strong',
     'text-success-text-strong',
     'text-return-text-strong',
+    'text-success-text',
+    'text-return-text',
     'border-danger-border-strong',
     'ring-danger-accent',
     'bg-warning-subtle',
 ]
 
 # Tokens declarados no @theme mas sem consumidor real em nenhum template
-# hoje (success-text/return-text base tier; toda a família info-*, usada só
-# pelo alert/messages "info" que na verdade consome primary-*). Não devem
-# ter utility compilada — se aparecerem, algo (doc, teste) vazou pro scan.
+# hoje (toda a família info-*, usada só pelo alert/messages "info" que na
+# verdade consome primary-*). Não devem ter utility compilada — se
+# aparecerem, algo (doc, teste) vazou pro scan.
 UTILITIES_DORMANTES = [
-    '.text-success-text{',
-    '.text-return-text{',
     '.bg-info{',
     '.bg-info-subtle{',
     '.bg-info-muted{',
