@@ -125,7 +125,7 @@
                    focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
         </div>
-        {% include "components/button.html" with variant="primary" type="submit" label="Tentar novamente" x_disabled="enviando" spinner_show="enviando" class="transition-colors duration-150 motion-reduce:transition-none touch-manipulation" %}
+        {% include "components/button.html" with variant="primary" type="submit" label="Tentar novamente" x_disabled="enviando" x_aria_busy="enviando" spinner_show="enviando" class="transition-colors duration-150 motion-reduce:transition-none touch-manipulation" %}
       </div>
     </form>
 

@@ -46,6 +46,23 @@ def test_name_e_value_ausentes_por_padrao():
     assert 'value=' not in html
 
 
+def test_value_inteiro_zero_nao_e_tratado_como_ausente():
+    html = _render(value=0)
+    assert 'value="0"' in html
+
+
+def test_label_bind_tem_precedencia_sobre_loading_label_e_label_mobile():
+    html = _render(
+        label='Confirmar',
+        label_bind="x ? 'A' : 'B'",
+        loading_label='Carregando…',
+        label_mobile='Curto',
+    )
+    assert 'x-text' in html
+    assert 'data-submit-text' not in html
+    assert 'data-submit-loading-label="Carregando…"' in html
+
+
 def test_disabled_aplica_atributo_boolean_na_tag():
     html = _render(disabled=True)
     abertura = html[: html.index('>') + 1]
