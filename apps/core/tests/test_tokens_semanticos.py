@@ -68,7 +68,7 @@ UTILITIES_ESPERADAS = [
     'text-success-text',
     'text-return-text',
     'border-danger-border-strong',
-    'ring-danger-accent',
+    'focus-visible:ring-danger-accent',
     'bg-warning-subtle',
 ]
 
@@ -134,7 +134,15 @@ def test_css_build_gera_tokens_e_utilities_novas():
         f'não reconhecido): {tokens_faltando}'
     )
 
-    utilities_faltando = [u for u in UTILITIES_ESPERADAS if u not in app_css]
+    def _utility_compilada(nome):
+        # Seletor real: classe com ':' de variante escapado (\:), seguido de
+        # '{' (regra própria) ou ':' (pseudo-classe, ex. :focus-visible) —
+        # nunca um sufixo de identificador (ex. '-strong'), pra não casar
+        # por substring dentro de uma utility maior (#88).
+        seletor = re.escape('.' + nome.replace(':', '\\:'))
+        return re.search(seletor + r'[{:]', app_css) is not None
+
+    utilities_faltando = [u for u in UTILITIES_ESPERADAS if not _utility_compilada(u)]
     assert utilities_faltando == [], (
         f'Utilities esperadas ausentes no app.css — Tailwind não gerou a '
         f'classe (nome errado no template ou token não usado): {utilities_faltando}'

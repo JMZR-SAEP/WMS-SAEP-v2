@@ -70,8 +70,8 @@ token em `input.css`, mas a custom property e a utility só entram no
 `app.css` quando algum template referencia a classe (JIT real, não é um
 dump de todas as variáveis pro `:root`). Hoje toda a família
 `--color-info*` está declarada mas **não aparece no `app.css`
-compilado** — nenhum template a consome (`info` é usado só pelo
-`.app-bar`, que não inclui esses tokens). Isso é esperado, não é bug: usar
+compilado** — nenhum template a consome. A variante `info` de alertas e
+mensagens usa `primary-*`, não `info-*`. Isso é esperado, não é bug: usar
 `bg-info-subtle` num template novo funciona normalmente após
 `npm run css:build` recompilar. Só não espere a classe já existir no
 `app.css` atual sem ter sido consumida em algum lugar primeiro.
