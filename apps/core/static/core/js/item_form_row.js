@@ -37,9 +37,15 @@
           return;
         }
 
+        const outraLinhaVisivel = Array.from(
+          this._container.querySelectorAll('.item-form-row:not([style*="display: none"])')
+        ).find((linha) => linha !== row);
+        const botaoFoco = outraLinhaVisivel?.querySelector('button[aria-label="Remover item"]');
+
         row.style.display = 'none';
         const deleteInput = row.querySelector('[name$="-DELETE"]');
         if (deleteInput) deleteInput.value = 'on';
+        botaoFoco?.focus();
       },
 
       _avisarNaoPodeRemover(row) {
