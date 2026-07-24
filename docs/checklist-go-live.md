@@ -10,7 +10,7 @@ conferência falha.
 
 ### GL-01 — Existe exatamente um `Estoque`
 
-**Por quê.** Os services de estoque assumem um único `Estoque` nesta fase
+**Por quê?** Os services de estoque assumem um único `Estoque` nesta fase
 (ADR-0017): localizam saldo apenas por `material_id`, sem `estoque_id`, e
 tratam "mais de um `SaldoEstoque` para o mesmo material" como erro. Um segundo
 estoque com saldo para um material já usado quebra **globalmente** autorização,
@@ -21,7 +21,7 @@ separação, atendimento e cancelamento de qualquer setor, com uma mensagem
 interface do admin, mas **não** cobre criação por shell, `seed_dev` ou
 migration — daí este item de checklist.
 
-**Como conferir.**
+**Como conferir?**
 
 ```sql
 SELECT id, codigo, nome, ativo FROM estoque_estoque;
