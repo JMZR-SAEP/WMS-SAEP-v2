@@ -14,8 +14,8 @@ from django.test import RequestFactory
 from django.urls import reverse
 
 from apps.accounts.models import User
-from apps.estoque.admin import EstoqueAdmin, MaterialAdmin
-from apps.estoque.models import Estoque, Material
+from apps.estoque.admin import EstoqueAdmin, MaterialAdmin, SaldoEstoqueAdmin
+from apps.estoque.models import Estoque, Material, SaldoEstoque
 
 
 @pytest.fixture
@@ -219,3 +219,114 @@ def test_changeform_traduz_conflito_em_warning(client, superuser, material_dispo
     ]
     material_disponivel.refresh_from_db()
     assert material_disponivel.ativo is True
+
+
+# ---------------------------------------------------------------------------
+# SaldoEstoqueAdmin — saldo é derivado do ledger, somente-leitura (issue #105)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def saldo_admin():
+    return SaldoEstoqueAdmin(SaldoEstoque, AdminSite())
+
+
+@pytest.fixture
+def staff_de_saldo(db, setor_obras):
+    """Staff **não** superusuário, com as permissões Django de `SaldoEstoque`.
+
+    O Django, sozinho, autorizaria este usuário. Qualquer 403 nas telas de
+    saldo só pode vir do guard do #105.
+    """
+    usuario = User.objects.create_user(
+        matricula='904',
+        nome='Staff Saldo',
+        password='senha',
+        setor=setor_obras,
+        is_staff=True,
+    )
+    usuario.user_permissions.set(
+        Permission.objects.filter(
+            content_type=ContentType.objects.get_for_model(SaldoEstoque),
+        )
+    )
+    return usuario
+
+
+def test_post_no_admin_nao_troca_saldo_fisico(
+    client, staff_de_saldo, estoque_principal, material_disponivel
+):
+    """Escrita direta de saldo é mutação sem `MovimentacaoEstoque` (LED-01).
+
+    O ledger passa a não reconciliar com o saldo (LED-02), e não há linha
+    nenhuma que explique a diferença.
+    """
+    saldo = SaldoEstoque.objects.get(
+        estoque=estoque_principal, material=material_disponivel
+    )
+    fisico_original = saldo.saldo_fisico
+    client.force_login(staff_de_saldo)
+
+    resposta = client.post(
+        reverse('admin:estoque_saldoestoque_change', args=[saldo.pk]),
+        {
+            'estoque': str(saldo.estoque_id),
+            'material': str(saldo.material_id),
+            'saldo_fisico': '999',
+            'saldo_reservado': '0',
+        },
+    )
+
+    assert resposta.status_code == 403
+    saldo.refresh_from_db()
+    assert saldo.saldo_fisico == fisico_original
+
+
+def test_saldos_declarados_readonly(saldo_admin):
+    assert 'saldo_fisico' in saldo_admin.readonly_fields
+    assert 'saldo_reservado' in saldo_admin.readonly_fields
+
+
+def test_saldos_fora_do_formulario(
+    saldo_admin, request_de, superuser, estoque_principal, material_disponivel
+):
+    saldo = SaldoEstoque.objects.get(
+        estoque=estoque_principal, material=material_disponivel
+    )
+
+    formulario = saldo_admin.get_form(request_de(superuser), obj=saldo)
+
+    assert 'saldo_fisico' not in formulario.base_fields
+    assert 'saldo_reservado' not in formulario.base_fields
+
+
+def test_saldo_admin_nega_add_change_e_delete(saldo_admin, request_de, superuser):
+    requisicao = request_de(superuser)
+
+    assert saldo_admin.has_add_permission(requisicao) is False
+    assert saldo_admin.has_change_permission(requisicao) is False
+    assert saldo_admin.has_delete_permission(requisicao) is False
+
+
+def test_add_de_saldo_nega(client, staff_de_saldo):
+    """Linha de saldo nasce na importação SCPI, não à mão.
+
+    Criada pelo admin, ela nasceria zerada e sem nenhuma `MovimentacaoEstoque`
+    correspondente — estado fora do ledger desde o primeiro instante.
+    """
+    client.force_login(staff_de_saldo)
+
+    resposta = client.get(reverse('admin:estoque_saldoestoque_add'))
+
+    assert resposta.status_code == 403
+
+
+def test_changelist_de_saldo_permanece_legivel(
+    client, staff_de_saldo, material_disponivel
+):
+    """A negação é de escrita, não de consulta."""
+    client.force_login(staff_de_saldo)
+
+    resposta = client.get(reverse('admin:estoque_saldoestoque_changelist'))
+
+    assert resposta.status_code == 200
