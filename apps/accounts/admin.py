@@ -35,6 +35,22 @@ class SetorAdmin(admin.ModelAdmin):
         )
 
     def save_model(self, request, obj, form, change):
+        # Antes do ramo de chefia: se os dois campos mudarem no mesmo POST e a
+        # troca de chefe rodasse primeiro, o super() gravaria ativo=False sem
+        # passar pelo service.
+        if change and 'ativo' in form.changed_data and not obj.ativo:
+            from apps.accounts.services import desativar_setor
+            from apps.core.exceptions import ConflitoDominio
+
+            campos_extras = set(form.changed_data) - {'ativo'}
+            if campos_extras:
+                raise ConflitoDominio(
+                    'Desative o setor separadamente de outras alterações de cadastro.',
+                    code='desativacao_setor_com_campos_extras',
+                )
+            desativar_setor(ator_id=request.user.pk, setor_id=obj.pk)
+            return  # service já persistiu; super sobrescreveria com os dados do form
+
         if change and 'chefe' in form.changed_data:
             from apps.accounts.services import trocar_chefe_setor
             from apps.core.exceptions import ConflitoDominio
