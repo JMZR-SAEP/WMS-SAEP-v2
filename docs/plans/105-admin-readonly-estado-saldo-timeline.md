@@ -35,6 +35,9 @@ derivados.
 - `apps/requisicoes/tests/test_admin.py` — arquivo **novo**.
 - `apps/estoque/tests/test_admin.py` — arquivo já existente (#102, #104); ganha
   um bloco para `SaldoEstoqueAdmin` e uma linha no docstring do módulo.
+- `docs/matriz-invariantes.md` e `docs/matriz-permissoes.md` — PER-05 e os dois
+  bullets de superusuário ganham a ressalva de mutação direta em models
+  derivados. Ver "Ajuste de contrato" abaixo.
 
 **Não vai mudar:**
 
@@ -120,6 +123,8 @@ contém apenas este plano, e os quatro admins seguem com as brechas descritas.
 | `apps/estoque/admin.py` | `SaldoEstoqueAdmin` somente-leitura: `saldo_fisico`/`saldo_reservado` em `readonly_fields` + add/change/delete negados |
 | `apps/requisicoes/tests/test_admin.py` | Arquivo novo — cobertura dos três admins de requisições |
 | `apps/estoque/tests/test_admin.py` | Acrescentar bloco de `SaldoEstoqueAdmin` e atualizar o docstring do módulo, hoje restrito a #102/#104 |
+| `docs/matriz-invariantes.md` | Qualificar PER-05 com a ressalva de mutação direta em models derivados (ver "Ajuste de contrato") |
+| `docs/matriz-permissoes.md` | Mesma ressalva nos dois bullets de superusuário (§1 e §5); tabela de ações por papel intocada |
 
 ## Implementação
 
@@ -276,7 +281,8 @@ todos os outros casos e ninguém notaria que o admin virou vitrine.
 | 8 | as três quantidades fora de `get_form(...).base_fields` | `superuser` | prova o enforcement |
 | 9 | `has_add_permission` / `has_change_permission` / `has_delete_permission` negam | `superuser` | `False` nos três |
 | 10 | `has_add_permission(request, obj)` do inline nega | `superuser` | `False` (assinatura de 3 args) |
-| 11 | `GET admin:requisicoes_itemrequisicao_add` | `superuser` | 403, não 500 |
+| 11a | `GET admin:requisicoes_itemrequisicao_add` | `superuser` | 403 |
+| 11b | `POST admin:requisicoes_itemrequisicao_add` com payload mínimo válido (`requisicao`, `material`) | `superuser` | 403 e nenhum `ItemRequisicao` criado |
 | 12 | `POST admin:requisicoes_itemrequisicao_change` | `staff_de_requisicao` | 403 apesar da permissão Django |
 | 13 | `GET admin:requisicoes_itemrequisicao_changelist` | `staff_de_requisicao` | 200 — leitura preservada |
 | 14 | `delete_selected` ausente das actions | `superuser` | action filtrada |
@@ -317,11 +323,14 @@ todos os outros casos e ninguém notaria que o admin virou vitrine.
   com o campo governado no corpo. O cenário do issue não é o admin clicar num
   widget, é o campo existir. O POST de requisição inclui os `management_form` do
   inline `itens` (prefixo `itens`, do `related_name` em `ItemRequisicao.requisicao`).
-- **Armadilhas de mecanismo**: caso 11 fixa que o add de item vira **403 e não
-  500** (é o `IntegrityError` que `readonly_fields` sozinho provocaria), e o caso
-  10 fixa a assinatura de três argumentos do `has_add_permission` do inline —
-  com dois, toda change view de `Requisicao` cai em `TypeError`, exatamente a
-  classe de regressão do #104.
+- **Armadilhas de mecanismo**: o par 11a/11b fixa que o add de item vira **403 e
+  não 500**. Os dois são necessários: o GET (11a) prova que a tela nega antes de
+  renderizar, mas não executa `save()` e portanto jamais revelaria o
+  `IntegrityError` que `readonly_fields` sozinho provocaria — só o POST (11b), com
+  payload mínimo válido e verificação de que nenhuma linha foi criada, exercita
+  esse caminho. O caso 10 fixa a assinatura de três argumentos do
+  `has_add_permission` do inline — com dois, toda change view de `Requisicao` cai
+  em `TypeError`, exatamente a classe de regressão do #104.
 - **Enforcement vs. atributo** (casos 2, 3, 8, 20): o critério literal é fraco
   sozinho — um `get_readonly_fields` sobrescrito no futuro poderia devolver algo
   diferente do atributo de classe e o teste de introspecção continuaria verde
@@ -352,11 +361,32 @@ Não coberto, deliberadamente:
 | LED-02 | "`Σ delta_fisico`/`Σ delta_reservado` reconciliam com os saldos." É o invariante que quebra silenciosamente quando o admin ajusta saldo à mão, cria linha zerada fora do ledger, ou reatribui o `material` de uma linha existente: a reconciliação passa a acusar divergência permanente, sem nenhuma linha de ledger que a explique. Motivo direto da subida de 🟡 pré-produção para pré-piloto. |
 | LED-05 | "Ledger é append-only." Preservado sem código novo — `MovimentacaoEstoque` já se defende no model. Citado como o padrão que `TimelineRequisicao`, `ItemRequisicao` e `SaldoEstoque` passam a espelhar na camada admin. |
 | EST-01 | "disponível = físico − reservado." Preservado: `saldo_disponivel` continua property calculada; a mudança tira do formulário os dois operandos, não a fórmula. |
-| PER-05 | "Superusuário tem permissões totais, incluindo administração." Tensão aparente, resolvida: o superusuário mantém acesso a todo o admin, leitura completa dos cinco models e escrita nos campos não derivados de `Requisicao`. O que ele perde é a escrita direta em campos derivados — que nunca foi permissão, e sim lapso. Os casos 5, 6, 13, 18 e 24, mais o não-uso de `has_view_permission`, mantêm PER-05 verificável. |
+| PER-05 | "Superusuário tem permissões totais, incluindo administração, consulta ampla e operações de negócio/estoque." **Precisa ser qualificado** — ver a seção seguinte. O superusuário mantém acesso a todo o admin, leitura completa dos cinco models, escrita nos campos não derivados de `Requisicao` e **todas** as operações de negócio/estoque pelos services. O que ele perde é uma mecânica (editar a tabela crua de três models derivados), não uma capacidade de negócio. Mas o texto atual do invariante diz "totais" sem ressalva, e o código passa a dizer outra coisa: a divergência vai para a documentação, não fica só na prosa deste plano. Os casos 5, 6, 13, 18 e 24, mais o não-uso de `has_view_permission`, mantêm a parte preservada verificável. |
 | PER-08 | "Views e services chamam a mesma policy contextual." Reforçado: o admin deixa de ser um caminho de escrita que não passa por policy nenhuma. |
 
-Nenhuma linha da matriz de invariantes ou da matriz de permissões precisa ser
-reescrita — a mudança faz o código convergir para o que já está documentado.
+### Ajuste de contrato: PER-05 ganha ressalva explícita
+
+Este parágrafo substitui a afirmação anterior do plano de que nenhuma linha das
+matrizes precisaria mudar. Ela era verdadeira enquanto o plano só tirava campos
+do formulário; deixou de ser quando passou a negar add/change/delete ao
+superusuário em três models. Um contrato que diz "permissões totais" sem
+ressalva, com o código negando mutação direta, é ambiguidade que reaparece na
+próxima implementação — resolvê-la em prosa aqui não basta.
+
+Três linhas passam a ser qualificadas, sem mudar o que o superusuário pode
+**fazer** no negócio:
+
+| Arquivo | Linha | Ajuste |
+|---|---|---|
+| `docs/matriz-invariantes.md` | PER-05 (§3) | Acrescentar a ressalva: mutação direta de `ItemRequisicao`, `TimelineRequisicao` e `SaldoEstoque` pelo admin não está incluída — esses models são derivados da máquina de estados e do ledger, e mudam apenas por service. Consulta ampla e operações de negócio/estoque permanecem totais. |
+| `docs/matriz-permissoes.md` | §1, bullet "Superusuário tem permissões totais…" | Mesma ressalva. |
+| `docs/matriz-permissoes.md` | §5, bullet "Superusuário vê todos os registros e pode executar ações administrativas, operacionais e de estoque." | Mesma ressalva, mantendo intacta a parte de visibilidade. |
+
+O que **não** muda em nenhuma das duas matrizes: as linhas da tabela de ações
+por papel (§4 de `matriz-permissoes.md`). Nenhuma ação de negócio sai do alcance
+do superusuário — autorizar, atender, cancelar, importar SCPI, consultar
+histórico completo seguem "Sim". A ressalva é sobre a **mecânica** de escrita
+crua no admin, não sobre capacidade.
 
 ## Riscos
 
@@ -364,7 +394,7 @@ reescrita — a mudança faz o código convergir para o que já está documentad
 |---|---|
 | Perder a válvula de emergência | O risco real do issue, e o que mais cresce ao fechar item e saldo por inteiro. Mitigado por desenho: leitura intacta nos cinco admins, e `Requisicao` — o agregado por onde o socorro começa — segue com add/change/delete e com `criador`/`beneficiario`/`setor_beneficiario`/`observacao_geral` editáveis. Casos 5, 6, 13, 18 e 24 fixam isso em teste. Se um estado ficar preso **sem** caminho de domínio, é bug de domínio a abrir como issue própria — não justificativa para reabrir o admin. |
 | Fechar item/saldo é escopo além do issue | Reconhecido e deliberado. O issue restringe o escopo a "escrita direta de estado/quantidade/saldo/timeline", e as operações fechadas **são** essa escrita por outra porta: criar item é escrever `quantidade_solicitada`; trocar o `material` de uma linha de saldo é reatribuir o saldo; apagar item é zerar as três quantidades de uma vez. O critério de aceite ("nenhum dos campos acima é editável pelo admin") não fecha com meia-medida. Refinamentos que **não** são essa escrita seguem em pré-produção, como o issue pede. |
-| `readonly_fields` transformar add em erro 500 | O risco concreto encontrado na revisão do plano, e uma das razões de negar add. Varredura dos três models: só `ItemRequisicao.quantidade_solicitada` é NOT NULL sem `default` (e ainda com `CheckConstraint > 0`); `Requisicao.estado` e os dois saldos têm default. Caso 11 fixa o resultado. |
+| `readonly_fields` transformar add em erro 500 | O risco concreto encontrado na revisão do plano, e uma das razões de negar add. Varredura dos três models: só `ItemRequisicao.quantidade_solicitada` é NOT NULL sem `default` (e ainda com `CheckConstraint > 0`); `Requisicao.estado` e os dois saldos têm default. Os casos 11a/11b fixam o resultado — o 11b é o único que chega a `save()`. |
 | Assinatura errada de `has_add_permission` no inline | Regressão de mesma classe que o #104: `TypeError` na montagem do menu/change view derruba páginas que nada têm a ver com item. Mitigado pela nota de mecanismo e pelos casos 6 e 10. |
 | Inline sumir da change view de `Requisicao` | Não ocorre: `get_inline_instances` só descarta a inline quando add, change, delete **e** view são todos negados. Com `has_view_permission` default, ela permanece em modo leitura. Caso 6 fixa o 200. |
 | `TimelineRequisicao`/`SaldoEstoque` sem caminho de escrita | Falso. Timeline é escrita pelos services de transição (varredura confirma: `ciclo_vida`, `atendimento`, `cancelamento`, `copia`; o admin não é produtor). Linhas de saldo nascem em `confirmar_importacao_scpi` e mudam pelos services do ledger. |
