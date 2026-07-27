@@ -6,15 +6,15 @@ Corrigir a regressão que derruba **todo** o Django admin com HTTP 500:
 `MaterialAdmin._pode_gerir` passa um `User` para `pode_gerir_catalogo`, que desde
 o flip de contrato do commit `81df7a0` espera um `PapelEfetivo`.
 
-**Muda:**
+**Vai mudar:**
 
-- `apps/estoque/admin.py` — `MaterialAdmin._pode_gerir` deriva o papel com
-  `papel_efetivo(request.user)` antes de chamar a policy.
+- `apps/estoque/admin.py` — `MaterialAdmin._pode_gerir` passará a derivar o papel
+  com `papel_efetivo(request.user)` antes de chamar a policy.
 - `apps/estoque/tests/test_admin.py` — arquivo já existente (guard de estoque
-  único, #102); ganha um bloco novo para `MaterialAdmin`: smoke de páginas do
-  admin e testes de unidade de `_pode_gerir`.
+  único, #102); ganhará um bloco novo para `MaterialAdmin`: smokes das páginas do
+  admin, testes de unidade de `_pode_gerir` e negação HTTP.
 
-**Não muda:**
+**Não vai mudar:**
 
 - `apps/estoque/policies.py` — `pode_gerir_catalogo(papel: PapelEfetivo)` está
   correta e é o contrato vigente da ADR-0011. Reverter a policy para aceitar
@@ -32,12 +32,15 @@ o flip de contrato do commit `81df7a0` espera um `PapelEfetivo`.
   policies; segue como está.
 - Schema, migrations, seed. Sem mudança estrutural → sem `make setup`.
 
-## Arquivos alterados
+## Arquivos a alterar
 
-| Arquivo | Ação |
+Nenhuma das mudanças abaixo foi aplicada ainda: na altura deste commit o repo
+contém só o plano, e `apps/estoque/admin.py` segue com o defeito descrito.
+
+| Arquivo | Ação prevista |
 |---|---|
-| `apps/estoque/admin.py` | `MaterialAdmin/_pode_gerir` — deriva papel antes da policy |
-| `apps/estoque/tests/test_admin.py` | Acrescenta cobertura de `MaterialAdmin` (smokes, unidade de `_pode_gerir`, negação HTTP) e a fixture local `staff_de_material`; atualiza o docstring do módulo, hoje restrito ao escopo do #102 |
+| `apps/estoque/admin.py` | `MaterialAdmin/_pode_gerir` deverá derivar o papel antes de chamar a policy |
+| `apps/estoque/tests/test_admin.py` | Deverá acrescentar cobertura de `MaterialAdmin` (smokes, unidade de `_pode_gerir`, negação HTTP) e a fixture local `staff_de_material`; e atualizar o docstring do módulo, hoje restrito ao escopo do #102 |
 
 ## Implementação
 
