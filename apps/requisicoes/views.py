@@ -272,7 +272,7 @@ def nova_requisicao(request):
                     )
             except (PermissaoNegada, DadosInvalidos) as exc:
                 messages.error(request, str(exc))
-            except EstadoInvalido as exc:
+            except (EstadoInvalido, ConflitoDominio) as exc:
                 messages.warning(request, str(exc))
             else:
                 if acao == 'enviar':
@@ -795,6 +795,9 @@ def enviar_rascunho_view(request, pk: int):
     except PermissaoNegada as exc:
         raise PermissionDenied(str(exc))
     except EstadoInvalido as exc:
+        messages.warning(request, str(exc))
+        return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
+    except ConflitoDominio as exc:
         messages.warning(request, str(exc))
         return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
     except DadosInvalidos as exc:
