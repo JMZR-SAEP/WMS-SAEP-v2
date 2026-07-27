@@ -137,7 +137,7 @@ def test_nova_requisicao_post_valido_cria_e_redireciona(
 
 @pytest.mark.django_db
 def test_nova_requisicao_post_acao_enviar_cria_e_envia(
-    client, solicitante, material_disponivel
+    client, solicitante, chefe_obras, material_disponivel
 ):
     """Botão 'Criar e enviar' cria rascunho + envia para autorização atomicamente."""
     _login(client, solicitante)
@@ -154,6 +154,27 @@ def test_nova_requisicao_post_acao_enviar_cria_e_envia(
     eventos = list(req.eventos.values_list('evento', flat=True))
     assert 'criacao' in eventos
     assert 'envio_autorizacao' in eventos
+
+
+@pytest.mark.django_db
+def test_nova_requisicao_acao_enviar_setor_sem_autorizador_nao_cria_nada(
+    client, solicitante, material_disponivel
+):
+    """Guard de #103 no fluxo composto: formulário volta com warning, nada persistido."""
+    from django.contrib.messages import constants as message_constants
+
+    _login(client, solicitante)
+    data = _formset_post(material_disponivel.pk, extra={'acao': 'enviar'})
+    resp = client.post(reverse('requisicoes:nova_requisicao'), data)
+
+    assert resp.status_code == 200
+    assert not Requisicao.objects.exists()
+    assert not TimelineRequisicao.objects.exists()
+
+    msgs = list(resp.context['messages'])
+    assert any(
+        m.level == message_constants.WARNING and 'chefe ativo' in str(m) for m in msgs
+    )
 
 
 @pytest.mark.django_db
@@ -897,7 +918,7 @@ def test_enviar_rascunho_post_nao_criador_retorna_403(
 
 @pytest.mark.django_db
 def test_enviar_rascunho_post_criador_redireciona_detalhe(
-    client, solicitante, material_disponivel
+    client, solicitante, chefe_obras, material_disponivel
 ):
     _login(client, solicitante)
     req = criar_requisicao(
@@ -956,7 +977,7 @@ def test_enviar_rascunho_post_estado_invalido_mostra_warning(
 
 @pytest.mark.django_db
 def test_enviar_rascunho_htmx_retorna_hx_redirect(
-    client, solicitante, material_disponivel
+    client, solicitante, chefe_obras, material_disponivel
 ):
     _login(client, solicitante)
     req = criar_requisicao(
@@ -977,6 +998,71 @@ def test_enviar_rascunho_htmx_retorna_hx_redirect(
     assert response['HX-Redirect'] == reverse(
         'requisicoes:detalhe', kwargs={'pk': req.pk}
     )
+
+
+@pytest.mark.django_db
+def test_enviar_rascunho_setor_sem_autorizador_mostra_warning(
+    client, solicitante, material_disponivel
+):
+    """ConflitoDominio de #103 vira messages.warning + PRG, não 500."""
+    from django.contrib.messages import constants as message_constants
+
+    _login(client, solicitante)
+    req = criar_requisicao(
+        ator_id=solicitante.pk,
+        beneficiario_id=solicitante.pk,
+        itens=[
+            {
+                'material_id': material_disponivel.pk,
+                'quantidade_solicitada': Decimal('1'),
+            }
+        ],
+    )
+
+    response = client.post(
+        reverse('requisicoes:enviar_rascunho', kwargs={'pk': req.pk})
+    )
+    assert response.status_code == 302
+    assert response['Location'] == reverse('requisicoes:detalhe', kwargs={'pk': req.pk})
+
+    req.refresh_from_db()
+    assert req.estado == EstadoRequisicao.RASCUNHO
+    assert req.numero_publico is None
+
+    msgs = list(client.get(response['Location']).context['messages'])
+    assert any(
+        m.level == message_constants.WARNING and 'chefe ativo' in str(m) for m in msgs
+    )
+
+
+@pytest.mark.django_db
+def test_enviar_rascunho_setor_sem_autorizador_htmx_retorna_hx_redirect(
+    client, solicitante, material_disponivel
+):
+    """Sob HTMX o mesmo conflito vira 204 + HX-Redirect (contrato de mensagens)."""
+    _login(client, solicitante)
+    req = criar_requisicao(
+        ator_id=solicitante.pk,
+        beneficiario_id=solicitante.pk,
+        itens=[
+            {
+                'material_id': material_disponivel.pk,
+                'quantidade_solicitada': Decimal('1'),
+            }
+        ],
+    )
+
+    response = client.post(
+        reverse('requisicoes:enviar_rascunho', kwargs={'pk': req.pk}),
+        HTTP_HX_REQUEST='true',
+    )
+    assert response.status_code == 204
+    assert response['HX-Redirect'] == reverse(
+        'requisicoes:detalhe', kwargs={'pk': req.pk}
+    )
+
+    req.refresh_from_db()
+    assert req.estado == EstadoRequisicao.RASCUNHO
 
 
 @pytest.mark.django_db

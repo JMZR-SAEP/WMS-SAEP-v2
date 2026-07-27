@@ -272,7 +272,7 @@ def nova_requisicao(request):
                     )
             except (PermissaoNegada, DadosInvalidos) as exc:
                 messages.error(request, str(exc))
-            except EstadoInvalido as exc:
+            except (EstadoInvalido, ConflitoDominio) as exc:
                 messages.warning(request, str(exc))
             else:
                 if acao == 'enviar':
@@ -785,7 +785,8 @@ def enviar_rascunho_view(request, pk: int):
     """Envia rascunho para autorização e redireciona para o detalhe.
 
     A view não verifica estado nem ator: o service revalida sob lock
-    (ADR-0005) e lança PermissaoNegada / EstadoInvalido / DadosInvalidos.
+    (ADR-0005) e lança PermissaoNegada / EstadoInvalido / ConflitoDominio /
+    DadosInvalidos.
     """
     try:
         requisicao = enviar_para_autorizacao(
@@ -794,7 +795,7 @@ def enviar_rascunho_view(request, pk: int):
         )
     except PermissaoNegada as exc:
         raise PermissionDenied(str(exc))
-    except EstadoInvalido as exc:
+    except (EstadoInvalido, ConflitoDominio) as exc:
         messages.warning(request, str(exc))
         return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
     except DadosInvalidos as exc:
