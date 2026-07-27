@@ -278,7 +278,8 @@ todos os outros casos e ninguém notaria que o admin virou vitrine.
 | # | Caso | Sujeito | Esperado |
 |---|---|---|---|
 | 7 | as três quantidades em `readonly_fields` (admin e inline) | — | introspecção passa |
-| 8 | as três quantidades fora de `get_form(...).base_fields` | `superuser` | prova o enforcement |
+| 8a | as três quantidades fora de `ItemRequisicaoAdmin.get_form(request, item).base_fields` | `superuser` | prova o enforcement no admin avulso |
+| 8b | as três quantidades fora de `ItemRequisicaoInline.get_formset(request, requisicao).form.base_fields` | `superuser` | prova o enforcement no inline |
 | 9 | `has_add_permission` / `has_change_permission` / `has_delete_permission` negam | `superuser` | `False` nos três |
 | 10 | `has_add_permission(request, obj)` do inline nega | `superuser` | `False` (assinatura de 3 args) |
 | 11a | `GET admin:requisicoes_itemrequisicao_add` | `superuser` | 403 |
@@ -331,11 +332,18 @@ todos os outros casos e ninguém notaria que o admin virou vitrine.
   esse caminho. O caso 10 fixa a assinatura de três argumentos do
   `has_add_permission` do inline — com dois, toda change view de `Requisicao` cai
   em `TypeError`, exatamente a classe de regressão do #104.
-- **Enforcement vs. atributo** (casos 2, 3, 8, 20): o critério literal é fraco
-  sozinho — um `get_readonly_fields` sobrescrito no futuro poderia devolver algo
-  diferente do atributo de classe e o teste de introspecção continuaria verde
-  enquanto o campo voltava a ser editável. `base_fields` mede o formulário que o
-  Django realmente monta.
+- **Enforcement vs. atributo** (casos 2, 3, 8a, 8b, 20): o critério literal é
+  fraco sozinho — um `get_readonly_fields` sobrescrito no futuro poderia devolver
+  algo diferente do atributo de classe e o teste de introspecção continuaria
+  verde enquanto o campo voltava a ser editável. `base_fields` mede o formulário
+  que o Django realmente monta.
+  O par 8a/8b existe porque **as duas classes não compartilham a API de
+  formulário**: `get_form` é definido em `ModelAdmin`, não em `BaseModelAdmin`,
+  então `ItemRequisicaoInline` não o tem — chamá-lo levantaria `AttributeError` e
+  o inline ficaria sem cobertura de enforcement. O caminho do inline é
+  `get_formset(request, obj).form.base_fields`, e é ele que reflete o
+  `readonly_fields` aplicado dentro da change view de `Requisicao` — a superfície
+  que o superusuário sob estresse realmente usa.
 
 Não coberto, deliberadamente:
 
