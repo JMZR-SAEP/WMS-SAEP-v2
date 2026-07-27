@@ -220,7 +220,9 @@ def test_post_no_admin_nao_troca_quantidade_do_item(
     client.force_login(staff_de_requisicao)
 
     resposta = client.post(
-        reverse('admin:requisicoes_itemrequisicao_change', args=[item_de_requisicao.pk]),
+        reverse(
+            'admin:requisicoes_itemrequisicao_change', args=[item_de_requisicao.pk]
+        ),
         {
             'requisicao': str(item_de_requisicao.requisicao_id),
             'material': str(item_de_requisicao.material_id),

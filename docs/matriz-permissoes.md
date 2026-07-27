@@ -10,7 +10,7 @@ Referência rápida de papéis, escopos e ações permitidas para implementar `p
 - Autorização contextual fica em policy compartilhada por views e services.
 - Services revalidam autorização em toda escrita.
 - `permission_classes` não substitui validação por objeto, setor, papel ou estado.
-- Superusuário tem permissões totais, incluindo administração técnica, consulta ampla e operações de negócio/estoque.
+- Superusuário tem permissões totais, incluindo administração técnica, consulta ampla e operações de negócio/estoque. Ressalva (#105): escrita direta pelo Django admin em `ItemRequisicao`, `TimelineRequisicao` e `SaldoEstoque` não está incluída — são models derivados da máquina de estados e do ledger, e mudam só por service. É restrição de mecânica, não de capacidade: nenhuma ação da tabela da §4 sai do alcance do superusuário.
 
 ## 3. Papéis e conceitos
 
@@ -105,7 +105,7 @@ Valores: **Sim**, **Não**, **Apenas próprio setor**, **Qualquer setor**, **Ape
 - Saídas excepcionais são consultáveis por chefe de Almoxarifado, auxiliar de Almoxarifado e superuser; registro e estorno ficam restritos ao chefe de Almoxarifado e ao override técnico do superuser.
 - Histórico de movimentações de estoque (ledger `MovimentacaoEstoque`): almoxarifado (chefe/aux) e superusuário veem tudo, incluindo saídas excepcionais; chefe/aux de setor não-almox veem apenas movimentações de requisições do próprio setor (`requisicao__setor_beneficiario`), **sem** saídas excepcionais; solicitante e usuário inativo não veem. A fronteira de visibilidade vive em `estoque/selectors.py::movimentacoes_visiveis_para`.
 - Relatórios gerais: Almoxarifado e suporte/admin. Chefe de setor: apenas relatórios do próprio setor.
-- Superusuário vê todos os registros e pode executar ações administrativas, operacionais e de estoque.
+- Superusuário vê todos os registros e pode executar ações administrativas, operacionais e de estoque. A visibilidade é integral, sem exceção; a escrita exclui a mutação direta pelo admin dos três models derivados citados na §1 (#105).
 
 ## 6. Checklist de testes
 
