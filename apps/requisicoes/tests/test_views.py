@@ -137,7 +137,7 @@ def test_nova_requisicao_post_valido_cria_e_redireciona(
 
 @pytest.mark.django_db
 def test_nova_requisicao_post_acao_enviar_cria_e_envia(
-    client, solicitante, material_disponivel
+    client, solicitante, chefe_obras, material_disponivel
 ):
     """Botão 'Criar e enviar' cria rascunho + envia para autorização atomicamente."""
     _login(client, solicitante)
@@ -897,7 +897,7 @@ def test_enviar_rascunho_post_nao_criador_retorna_403(
 
 @pytest.mark.django_db
 def test_enviar_rascunho_post_criador_redireciona_detalhe(
-    client, solicitante, material_disponivel
+    client, solicitante, chefe_obras, material_disponivel
 ):
     _login(client, solicitante)
     req = criar_requisicao(
@@ -956,7 +956,7 @@ def test_enviar_rascunho_post_estado_invalido_mostra_warning(
 
 @pytest.mark.django_db
 def test_enviar_rascunho_htmx_retorna_hx_redirect(
-    client, solicitante, material_disponivel
+    client, solicitante, chefe_obras, material_disponivel
 ):
     _login(client, solicitante)
     req = criar_requisicao(

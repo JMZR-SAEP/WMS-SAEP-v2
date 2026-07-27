@@ -253,7 +253,7 @@ def test_criar_requisicao_material_duplicado(solicitante, material_disponivel):
 
 
 @pytest.fixture
-def rascunho(db, solicitante, setor_obras, material_disponivel):
+def rascunho(db, solicitante, setor_obras, chefe_obras, material_disponivel):
     req = criar_requisicao(
         ator_id=solicitante.pk,
         beneficiario_id=solicitante.pk,
@@ -402,7 +402,7 @@ def test_enviar_para_autorizacao_emite_numero_publico(rascunho, solicitante):
 
 @pytest.mark.django_db
 def test_enviar_sequencia_anual_incrementa(
-    solicitante, material_disponivel, material_disponivel_2
+    solicitante, chefe_obras, material_disponivel, material_disponivel_2
 ):
     from apps.requisicoes.services import enviar_para_autorizacao
 
@@ -522,6 +522,36 @@ def test_enviar_nao_reserva_estoque(rascunho, solicitante, material_disponivel):
     saldo_depois = SaldoEstoque.objects.get(material=material_disponivel)
     assert saldo_depois.saldo_reservado == reservado_antes
     assert saldo_depois.saldo_fisico == fisico_antes
+
+
+@pytest.mark.django_db
+def test_enviar_setor_sem_chefe_recusa_e_nao_consome_numero(
+    solicitante, setor_obras, material_disponivel
+):
+    """Setor beneficiário sem chefe cadastrado não aceita envio (#103)."""
+    from apps.requisicoes.models import SequenciaRequisicao
+    from apps.requisicoes.services import enviar_para_autorizacao
+
+    req = criar_requisicao(
+        ator_id=solicitante.pk,
+        beneficiario_id=solicitante.pk,
+        itens=[
+            {
+                'material_id': material_disponivel.pk,
+                'quantidade_solicitada': Decimal('2'),
+            }
+        ],
+    )
+
+    with pytest.raises(ConflitoDominio) as exc_info:
+        enviar_para_autorizacao(ator_id=solicitante.pk, requisicao_id=req.pk)
+
+    assert exc_info.value.code == 'setor_sem_autorizador'
+    req.refresh_from_db()
+    assert req.estado == EstadoRequisicao.RASCUNHO
+    assert req.numero_publico is None
+    assert not SequenciaRequisicao.objects.exists()
+    assert not req.eventos.filter(evento=EventoTimeline.ENVIO_AUTORIZACAO).exists()
 
 
 # ---------------------------------------------------------------------------
@@ -863,7 +893,7 @@ def test_cancelar_requisicao_sem_justificativa_obrigatoria_nao_altera_estado_ou_
 
 
 @pytest.fixture
-def requisicao_aguardando(solicitante, material_disponivel):
+def requisicao_aguardando(solicitante, chefe_obras, material_disponivel):
     from apps.requisicoes.services import enviar_para_autorizacao
 
     req = criar_requisicao(
@@ -901,7 +931,7 @@ def test_retornar_para_rascunho_preserva_numero_publico_e_registra_timeline(
 
 @pytest.mark.django_db
 def test_retornar_para_rascunho_restaura_visibilidade_creator_only(
-    aux_obras, solicitante, material_disponivel
+    aux_obras, solicitante, chefe_obras, material_disponivel
 ):
     from apps.requisicoes.selectors import requisicoes_visiveis_para
     from apps.requisicoes.services import enviar_para_autorizacao

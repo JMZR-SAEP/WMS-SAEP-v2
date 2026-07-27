@@ -14,9 +14,9 @@ from django.db import transaction
 from django.db.models import F
 from django.utils import timezone
 
-from apps.accounts.models import User
+from apps.accounts.models import Setor, User
 from apps.accounts.papeis import papel_efetivo
-from apps.core.exceptions import DadosInvalidos, EstadoInvalido
+from apps.core.exceptions import ConflitoDominio, DadosInvalidos, EstadoInvalido
 from apps.estoque.models import Material, SaldoEstoque
 from apps.estoque.services import (
     OrigemMovimentacaoEstoque,
@@ -354,6 +354,18 @@ def enviar_para_autorizacao(
             code='sem_itens',
         )
     _validar_itens(itens_envio)
+
+    tem_autorizador = Setor.objects.filter(
+        pk=requisicao.setor_beneficiario_id,
+        ativo=True,
+        chefe__is_active=True,
+    ).exists()
+    if not tem_autorizador:
+        raise ConflitoDominio(
+            f'O setor {requisicao.setor_beneficiario.nome} não tem chefe ativo '
+            'para autorizar a requisição. Procure o suporte antes de enviar.',
+            code='setor_sem_autorizador',
+        )
 
     if requisicao.numero_publico is None:
         ano = timezone.now().year

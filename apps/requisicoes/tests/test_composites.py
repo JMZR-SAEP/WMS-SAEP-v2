@@ -22,7 +22,7 @@ from apps.requisicoes.services.composites import criar_e_enviar_requisicao
 
 @pytest.mark.django_db
 def test_criar_e_enviar_requisicao_cria_e_envia_em_uma_chamada(
-    solicitante, material_disponivel
+    solicitante, chefe_obras, material_disponivel
 ):
     req = criar_e_enviar_requisicao(
         ator_id=solicitante.pk,
