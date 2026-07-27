@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 import pytest
 
-from apps.core.exceptions import DadosInvalidos, PermissaoNegada
+from apps.core.exceptions import ConflitoDominio, DadosInvalidos, PermissaoNegada
 from apps.requisicoes.models import (
     EstadoRequisicao,
     EventoTimeline,
@@ -62,6 +62,28 @@ def test_criar_e_enviar_requisicao_rollback_total_se_envio_falhar(
                 ],
             )
 
+    assert not Requisicao.objects.exists()
+    assert not TimelineRequisicao.objects.exists()
+
+
+@pytest.mark.django_db
+def test_criar_e_enviar_requisicao_setor_sem_autorizador_rollback_total(
+    solicitante, material_disponivel
+):
+    """Guard de #103 é herdado do atômico; nada é persistido no fluxo composto."""
+    with pytest.raises(ConflitoDominio) as exc_info:
+        criar_e_enviar_requisicao(
+            ator_id=solicitante.pk,
+            beneficiario_id=solicitante.pk,
+            itens=[
+                {
+                    'material_id': material_disponivel.pk,
+                    'quantidade_solicitada': Decimal('3'),
+                }
+            ],
+        )
+
+    assert exc_info.value.code == 'setor_sem_autorizador'
     assert not Requisicao.objects.exists()
     assert not TimelineRequisicao.objects.exists()
 
