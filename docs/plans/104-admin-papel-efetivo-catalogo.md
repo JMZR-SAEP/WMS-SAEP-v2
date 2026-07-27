@@ -37,7 +37,7 @@ o flip de contrato do commit `81df7a0` espera um `PapelEfetivo`.
 | Arquivo | Ação |
 |---|---|
 | `apps/estoque/admin.py` | `MaterialAdmin/_pode_gerir` — deriva papel antes da policy |
-| `apps/estoque/tests/test_admin.py` | Acrescenta cobertura de `MaterialAdmin`; atualiza o docstring do módulo, hoje restrito ao escopo do #102 |
+| `apps/estoque/tests/test_admin.py` | Acrescenta cobertura de `MaterialAdmin` (smokes, unidade de `_pode_gerir`, negação HTTP) e a fixture local `staff_de_material`; atualiza o docstring do módulo, hoje restrito ao escopo do #102 |
 
 ## Implementação
 
@@ -68,11 +68,17 @@ aditivo em relação à organização de arquivos da ADR-0010 foi registrado naq
 plano; este plano apenas acrescenta casos ao arquivo).
 
 Fixtures reaproveitadas de `apps/estoque/tests/conftest.py`: `superuser`
-(`create_superuser`, portanto `is_staff=True`) e `chefe_almoxarifado`. A fixture
-`request_de`, já no arquivo, monta requests via `RequestFactory` para os testes
-de unidade.
+(`create_superuser`, portanto `is_staff=True`), `chefe_almoxarifado` e
+`material_disponivel`. A fixture `request_de`, já no arquivo, monta requests via
+`RequestFactory` para os testes de unidade.
 
-Duas camadas, deliberadamente:
+Uma fixture nova, local ao `test_admin.py`: **`staff_de_material`** — usuário com
+`is_staff=True`, **não** superusuário, e com as permissões Django
+`estoque.add_material` / `estoque.change_material` / `estoque.view_material`
+concedidas. É o sujeito dos testes de negação: como o Django já autorizaria, um
+403 só pode vir da policy.
+
+Três camadas, deliberadamente:
 
 | # | Caso | Setup | Esperado |
 |---|---|---|---|
@@ -81,18 +87,35 @@ Duas camadas, deliberadamente:
 | 3 | `admin:estoque_material_add` responde | idem | 200 |
 | 4 | `_pode_gerir` autoriza superusuário | `RequestFactory` + `superuser` | `True` |
 | 5 | `_pode_gerir` nega quem não é superusuário | `RequestFactory` + `chefe_almoxarifado` | `False` |
+| 6 | `GET admin:estoque_material_add` com staff autorizado pelo Django | `force_login(staff_de_material)` | 403 |
+| 7 | `POST admin:estoque_material_change` com o mesmo staff | idem + `material_disponivel` | 403 |
+| 8 | `GET admin:estoque_material_changelist` com o mesmo staff | idem | 200 |
 
 Os casos 1–3 são o critério de aceite literal do issue e reproduzem a regressão:
 antes da correção falham com `AttributeError`. O caso 1 é o que prova o blast
 radius — `admin:index` não é uma tela de `Material`.
 
-Os casos 4–5 existem porque os smokes sozinhos não fixam a regra: um
-`_pode_gerir` que retornasse `True` incondicionalmente passaria nos três. O caso
-5 é o que ancora a autorização real, e é a única defesa contra uma "correção"
-que troque o 500 por uma brecha de permissão.
+Os casos 4–5 ancoram a regra na camada de policy: um `_pode_gerir` que
+retornasse `True` incondicionalmente passaria nos smokes 1–3.
+
+Os casos 6–8 fecham o vão entre as duas camadas — provam que
+`has_add_permission` / `has_change_permission` de fato **consomem** o resultado
+de `_pode_gerir`, no contrato HTTP e não só na chamada direta. As rotas atingidas
+mapeiam para os dois pontos onde `ModelAdmin._changeform_view` levanta
+`PermissionDenied`: `add` no GET consulta `has_add_permission`; `change` no
+**POST** consulta `has_change_permission` (no GET consultaria
+`has_view_or_change_permission`, que é default de framework e não passa pela
+policy — por isso o caso 7 é POST, não GET).
+
+O caso 8 espera **200**, não 403, e é intencional: `has_view_permission` não é
+sobrescrito por `MaterialAdmin`, então a leitura do catálogo segue governada
+pelas permissões Django. A policy gateia escrita, não consulta. Fixar isso em
+teste evita que uma correção futura amplie o gate para leitura sem que ninguém
+perceba.
 
 Não coberto (fora da camada): que o Django esconda o botão "Add" quando
-`has_add_permission` é falso — default de framework, a ADR-0010 proíbe testar.
+`has_add_permission` é falso, e que o change form renderize read-only — defaults
+de framework, a ADR-0010 proíbe testar.
 
 ## Invariantes
 
@@ -112,7 +135,7 @@ reescrita: esta é uma correção de regressão para o comportamento já documen
 |---|---|
 | Queries extras por request do admin | `papel_efetivo` faz uma consulta a `VinculoAuxiliar` e pode tocar `setor_chefiado`. `get_app_list` chama `_pode_gerir` ao menos duas vezes por página (via `get_model_perms`: add + change), e as telas de `Material` chamam mais. Sem cache por request. Aceito: o admin é válvula de emergência de baixa frequência, e o issue pede uma correção de 1 linha. Introduzir cache por request seria expandir escopo. |
 | `request.user` anônimo em `_pode_gerir` | Não ocorre: todas as views do admin passam por `AdminSite.admin_view`, que exige autenticação e `is_staff` antes de renderizar. `papel_efetivo` nunca recebe `AnonymousUser` por este caminho. |
-| Troca de 500 por brecha de permissão | Coberto pelo caso 5 (`chefe_almoxarifado` → `False`), que falharia em qualquer correção que apenas silenciasse a exceção. |
+| Troca de 500 por brecha de permissão | Coberto em duas camadas: caso 5 (`chefe_almoxarifado` → `False`) na policy, e casos 6–7 (403 no `add` e no `change`) no contrato HTTP, com um staff que o Django já autorizaria. Qualquer correção que apenas silenciasse a exceção falharia nos três. |
 | Outros callers com o mesmo defeito | Varredura de `request.user` em todos os `admin.py`: único caller de policy é este. Os demais passam `ator_id` para services. |
 | Máquina de estados / transições | Não tocada. |
 | Contrato OpenAPI | Projeto server-rendered sem camada REST. Não se aplica. |
