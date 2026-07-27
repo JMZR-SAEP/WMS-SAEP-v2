@@ -14,8 +14,17 @@ from django.test import RequestFactory
 from django.urls import reverse
 
 from apps.accounts.models import User
-from apps.requisicoes.admin import RequisicaoAdmin
-from apps.requisicoes.models import EstadoRequisicao, Requisicao
+from apps.requisicoes.admin import (
+    ItemRequisicaoAdmin,
+    ItemRequisicaoInline,
+    RequisicaoAdmin,
+)
+from apps.requisicoes.models import (
+    EstadoRequisicao,
+    ItemRequisicao,
+    Requisicao,
+    TimelineRequisicao,
+)
 
 
 @pytest.fixture
@@ -54,10 +63,31 @@ def staff_de_requisicao(db, setor_obras):
         Permission.objects.filter(
             content_type__in=ContentType.objects.get_for_models(
                 Requisicao,
+                ItemRequisicao,
+                TimelineRequisicao,
             ).values(),
         )
     )
     return usuario
+
+
+@pytest.fixture
+def item_admin():
+    return ItemRequisicaoAdmin(ItemRequisicao, AdminSite())
+
+
+@pytest.fixture
+def item_inline():
+    return ItemRequisicaoInline(Requisicao, AdminSite())
+
+
+@pytest.fixture
+def item_de_requisicao(db, req_historico_obras, material_disponivel):
+    return ItemRequisicao.objects.create(
+        requisicao=req_historico_obras,
+        material=material_disponivel,
+        quantidade_solicitada=7,
+    )
 
 
 def _payload_requisicao(requisicao, **overrides):
@@ -170,3 +200,140 @@ def test_change_view_de_requisicao_responde(client, superuser, req_historico_obr
     )
 
     assert resposta.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# ItemRequisicao — somente-leitura no admin avulso e no inline
+# ---------------------------------------------------------------------------
+
+
+def test_post_no_admin_nao_troca_quantidade_do_item(
+    client, staff_de_requisicao, item_de_requisicao
+):
+    """As três quantidades são governadas por autorizar/atender, não pelo admin.
+
+    O sujeito é o staff com a permissão Django concedida: se o 403 viesse das
+    permissões padrão em vez do guard deste issue, este teste não provaria nada.
+    """
+    client.force_login(staff_de_requisicao)
+
+    resposta = client.post(
+        reverse('admin:requisicoes_itemrequisicao_change', args=[item_de_requisicao.pk]),
+        {
+            'requisicao': str(item_de_requisicao.requisicao_id),
+            'material': str(item_de_requisicao.material_id),
+            'quantidade_solicitada': '999',
+            'justificativa_entrega': '',
+        },
+    )
+
+    assert resposta.status_code == 403
+    item_de_requisicao.refresh_from_db()
+    assert item_de_requisicao.quantidade_solicitada == 7
+
+
+def test_quantidades_declaradas_readonly_no_admin_e_no_inline(item_admin, item_inline):
+    for campo in (
+        'quantidade_solicitada',
+        'quantidade_autorizada',
+        'quantidade_entregue',
+    ):
+        assert campo in item_admin.readonly_fields
+        assert campo in item_inline.readonly_fields
+
+
+def test_quantidades_fora_do_formulario_do_item(
+    item_admin, request_de, superuser, item_de_requisicao
+):
+    formulario = item_admin.get_form(request_de(superuser), obj=item_de_requisicao)
+
+    assert 'quantidade_solicitada' not in formulario.base_fields
+    assert 'quantidade_autorizada' not in formulario.base_fields
+    assert 'quantidade_entregue' not in formulario.base_fields
+
+
+def test_quantidades_fora_do_formset_do_inline(
+    item_inline, request_de, superuser, req_historico_obras, item_de_requisicao
+):
+    """O inline tem API própria: `get_formset`, não `get_form`.
+
+    `get_form` é definido em `ModelAdmin`, não em `BaseModelAdmin` — chamá-lo
+    num inline levantaria `AttributeError`. Este é o formulário efetivamente
+    renderizado dentro da change view de `Requisicao`, que é a superfície pela
+    qual o superusuário sob estresse realmente passa.
+    """
+    formset = item_inline.get_formset(request_de(superuser), obj=req_historico_obras)
+
+    assert 'quantidade_solicitada' not in formset.form.base_fields
+    assert 'quantidade_autorizada' not in formset.form.base_fields
+    assert 'quantidade_entregue' not in formset.form.base_fields
+
+
+def test_item_admin_nega_add_change_e_delete(item_admin, request_de, superuser):
+    requisicao = request_de(superuser)
+
+    assert item_admin.has_add_permission(requisicao) is False
+    assert item_admin.has_change_permission(requisicao) is False
+    assert item_admin.has_delete_permission(requisicao) is False
+
+
+def test_item_inline_nega_add_change_e_delete(
+    item_inline, request_de, superuser, req_historico_obras
+):
+    """`InlineModelAdmin.has_add_permission` recebe `obj` posicional.
+
+    A assinatura difere da de `ModelAdmin`, e errá-la derruba toda change view
+    de `Requisicao` com `TypeError`.
+    """
+    requisicao = request_de(superuser)
+
+    assert item_inline.has_add_permission(requisicao, req_historico_obras) is False
+    assert item_inline.has_change_permission(requisicao, req_historico_obras) is False
+    assert item_inline.has_delete_permission(requisicao, req_historico_obras) is False
+
+
+def test_add_de_item_nega_no_get(client, superuser):
+    client.force_login(superuser)
+
+    resposta = client.get(reverse('admin:requisicoes_itemrequisicao_add'))
+
+    assert resposta.status_code == 403
+
+
+def test_add_de_item_nega_no_post_sem_criar_linha(
+    client, superuser, req_historico_obras, material_disponivel
+):
+    """Só o POST percorre o caminho de `save()`.
+
+    `quantidade_solicitada` é NOT NULL sem default e com `CheckConstraint > 0`:
+    se o guard fosse apenas `readonly_fields`, o campo sairia do formulário e o
+    save cairia em `IntegrityError` — 500 em vez de 403. O GET nunca revelaria
+    isso porque não chega a salvar.
+    """
+    client.force_login(superuser)
+
+    resposta = client.post(
+        reverse('admin:requisicoes_itemrequisicao_add'),
+        {
+            'requisicao': str(req_historico_obras.pk),
+            'material': str(material_disponivel.pk),
+            'justificativa_entrega': '',
+        },
+    )
+
+    assert resposta.status_code == 403
+    assert ItemRequisicao.objects.count() == 0
+
+
+def test_changelist_de_item_permanece_legivel(client, staff_de_requisicao):
+    """A negação é de escrita, não de consulta."""
+    client.force_login(staff_de_requisicao)
+
+    resposta = client.get(reverse('admin:requisicoes_itemrequisicao_changelist'))
+
+    assert resposta.status_code == 200
+
+
+def test_delete_selected_ausente_das_actions_de_item(item_admin, request_de, superuser):
+    """`_filter_actions_by_permissions` remove a action via `has_delete_permission`."""
+    assert 'delete_selected' not in item_admin.get_actions(request_de(superuser))

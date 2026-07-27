@@ -8,9 +8,37 @@ from apps.requisicoes.models import (
 )
 
 
+# Quantidades derivadas: `solicitada` nasce na criação da requisição,
+# `autorizada` na autorização e `entregue` no atendimento — sempre por service,
+# com timeline e movimentação de estoque na mesma transação.
+QUANTIDADES_READONLY = (
+    'quantidade_solicitada',
+    'quantidade_autorizada',
+    'quantidade_entregue',
+)
+
+
 class ItemRequisicaoInline(admin.TabularInline):
+    """Itens da requisição em modo consulta.
+
+    Some do formulário, mas não da tela: `has_view_permission` segue no
+    default, então `get_inline_instances` mantém a inline e o superusuário
+    continua vendo os itens da requisição que foi diagnosticar.
+    """
+
     model = ItemRequisicao
-    extra = 1
+    extra = 0
+    can_delete = False
+    readonly_fields = QUANTIDADES_READONLY
+
+    def has_add_permission(self, request, obj):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(Requisicao)
@@ -51,6 +79,20 @@ class ItemRequisicaoAdmin(admin.ModelAdmin):
     list_filter = ('requisicao__estado', 'material')
     search_fields = ('requisicao__numero_publico', 'material__nome', 'material__codigo')
     ordering = ('requisicao', 'id')
+    readonly_fields = QUANTIDADES_READONLY
+
+    # Item é criado por `criar_requisicao`/`copiar_requisicao` e mudado por
+    # autorizar/atender. Não há caminho legítimo pelo admin: criar a linha
+    # escreveria `quantidade_solicitada`, apagá-la zeraria as três de uma vez, e
+    # trocar o `material` deixaria a reserva pendurada no material antigo.
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(SequenciaRequisicao)
