@@ -33,7 +33,10 @@ class RequisicaoAdmin(admin.ModelAdmin):
         ('Observações', {'fields': ('observacao_geral',)}),
         ('Datas', {'fields': ('criado_em', 'atualizado_em'), 'classes': ('collapse',)}),
     )
-    readonly_fields = ('numero_publico', 'criado_em', 'atualizado_em')
+    # `estado` é derivado da máquina de estados: muda por service, com timeline
+    # e ledger na mesma transação. Segue visível no fieldset (o superusuário
+    # precisa dele para diagnosticar), mas fora do formulário.
+    readonly_fields = ('numero_publico', 'estado', 'criado_em', 'atualizado_em')
 
 
 @admin.register(ItemRequisicao)
