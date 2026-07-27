@@ -35,16 +35,30 @@ class MaterialAdmin(admin.ModelAdmin):
         return False
 
     def changeform_view(self, request, object_id=None, form_url='', extra_context=None):
+        """Captura erro de domínio de `save_model` e o exibe como mensagem.
+
+        O nível segue o mapeamento de `docs/CONVENTIONS.md`: conflito de estado
+        é `warning` (a ação não foi aplicada, mas o estado atual é
+        compreensível); dado inválido é `error` (o usuário precisa corrigir).
+        """
         from django.contrib import messages
         from django.core.exceptions import PermissionDenied
         from django.http import HttpResponseRedirect
 
-        from apps.core.exceptions import ErroDominio, PermissaoNegada
+        from apps.core.exceptions import (
+            ConflitoDominio,
+            ErroDominio,
+            EstadoInvalido,
+            PermissaoNegada,
+        )
 
         try:
             return super().changeform_view(request, object_id, form_url, extra_context)
         except PermissaoNegada as exc:
             raise PermissionDenied(str(exc)) from exc
+        except (EstadoInvalido, ConflitoDominio) as exc:
+            self.message_user(request, str(exc), level=messages.WARNING)
+            return HttpResponseRedirect(request.get_full_path())
         except ErroDominio as exc:
             self.message_user(request, str(exc), level=messages.ERROR)
             return HttpResponseRedirect(request.get_full_path())

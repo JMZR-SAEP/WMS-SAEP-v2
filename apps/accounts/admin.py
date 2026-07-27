@@ -2,13 +2,23 @@ from django.contrib import admin, messages
 from django.http import HttpResponseRedirect
 
 from apps.accounts.models import Setor, User, VinculoAuxiliar
-from apps.core.exceptions import ErroDominio, PermissaoNegada
+from apps.core.exceptions import (
+    ConflitoDominio,
+    ErroDominio,
+    EstadoInvalido,
+    PermissaoNegada,
+)
 
 
 def _changeform_com_captura_dominio(
     admin_instance, request, object_id, form_url, extra_context
 ):
-    """Wrapper: captura ErroDominio de save_model e exibe como mensagem de erro."""
+    """Wrapper: captura ErroDominio de save_model e exibe como mensagem.
+
+    O nível segue o mapeamento de `docs/CONVENTIONS.md`: conflito de estado é
+    `warning` (a ação não foi aplicada, mas o estado atual é compreensível);
+    dado inválido é `error` (o usuário precisa corrigir).
+    """
     from django.core.exceptions import PermissionDenied
 
     try:
@@ -17,6 +27,9 @@ def _changeform_com_captura_dominio(
         )
     except PermissaoNegada as exc:
         raise PermissionDenied(str(exc)) from exc
+    except (EstadoInvalido, ConflitoDominio) as exc:
+        admin_instance.message_user(request, str(exc), level=messages.WARNING)
+        return HttpResponseRedirect(request.get_full_path())
     except ErroDominio as exc:
         admin_instance.message_user(request, str(exc), level=messages.ERROR)
         return HttpResponseRedirect(request.get_full_path())

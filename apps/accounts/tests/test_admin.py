@@ -160,6 +160,7 @@ def test_changeform_traduz_conflito_em_mensagem(
 
     O 302 sozinho não distingue este redirect do de um save bem-sucedido; a
     mensagem exibida é o que prova que a exceção virou retorno ao usuário.
+    `ConflitoDominio` é `warning` pelo mapeamento de `docs/CONVENTIONS.md`.
     """
     requisicao_em_voo(setor)
     client.force_login(superusuario)
@@ -176,10 +177,44 @@ def test_changeform_traduz_conflito_em_mensagem(
     )
 
     assert resposta.redirect_chain[-1][1] == 302
-    erros = [str(m) for m in resposta.context['messages'] if m.level == messages.ERROR]
-    assert erros == [
+    avisos = [
+        str(m) for m in resposta.context['messages'] if m.level == messages.WARNING
+    ]
+    assert avisos == [
         f"O setor '{setor.nome}' tem 1 requisição aguardando autorização. "
         'Conclua ou cancele antes de desativar o setor.'
     ]
     setor.refresh_from_db()
     assert setor.ativo is True
+
+
+@pytest.mark.django_db
+def test_changeform_traduz_dados_invalidos_em_erro(client, superusuario, setor):
+    """`DadosInvalidos` segue em `error` — o mapeamento não é uniforme.
+
+    Designar chefe inativo é dado errado do formulário, não conflito de estado.
+    """
+    chefe_inativo = User.objects.create_user(
+        matricula='IN1', nome='Inativo', password=SENHA, setor=setor, is_active=False
+    )
+    client.force_login(superusuario)
+
+    resposta = client.post(
+        reverse('admin:accounts_setor_change', args=[setor.pk]),
+        {
+            'codigo': setor.codigo,
+            'nome': setor.nome,
+            'classificacao': setor.classificacao,
+            'chefe': str(chefe_inativo.pk),
+            'ativo': 'on',
+        },
+        follow=True,
+    )
+
+    assert resposta.redirect_chain[-1][1] == 302
+    erros = [str(m) for m in resposta.context['messages'] if m.level == messages.ERROR]
+    assert erros == [
+        f"Usuário '{chefe_inativo.nome}' está inativo e não pode ser designado como chefe."
+    ]
+    setor.refresh_from_db()
+    assert setor.chefe_id is None
