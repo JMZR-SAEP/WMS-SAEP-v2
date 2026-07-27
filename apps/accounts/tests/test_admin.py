@@ -4,6 +4,7 @@ Roteamento da desativação de setor por `desativar_setor` (issue #107).
 """
 
 import pytest
+from django.contrib import messages
 from django.contrib.admin.sites import AdminSite
 from django.test import RequestFactory
 from django.urls import reverse
@@ -155,7 +156,11 @@ def test_save_model_recusa_desativacao_com_campos_extras(
 def test_changeform_traduz_conflito_em_mensagem(
     client, superusuario, setor, requisicao_em_voo
 ):
-    """Contrato HTTP: `_changeform_com_captura_dominio` evita o 500."""
+    """Contrato HTTP: `_changeform_com_captura_dominio` evita o 500 e exibe o texto.
+
+    O 302 sozinho não distingue este redirect do de um save bem-sucedido; a
+    mensagem exibida é o que prova que a exceção virou retorno ao usuário.
+    """
     requisicao_em_voo(setor)
     client.force_login(superusuario)
 
@@ -167,8 +172,14 @@ def test_changeform_traduz_conflito_em_mensagem(
             'classificacao': setor.classificacao,
             'chefe': '',
         },
+        follow=True,
     )
 
-    assert resposta.status_code == 302
+    assert resposta.redirect_chain[-1][1] == 302
+    erros = [str(m) for m in resposta.context['messages'] if m.level == messages.ERROR]
+    assert erros == [
+        f"O setor '{setor.nome}' tem 1 requisição aguardando autorização. "
+        'Conclua ou cancele antes de desativar o setor.'
+    ]
     setor.refresh_from_db()
     assert setor.ativo is True
