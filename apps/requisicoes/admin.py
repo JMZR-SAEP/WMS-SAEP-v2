@@ -108,3 +108,15 @@ class TimelineRequisicaoAdmin(admin.ModelAdmin):
     search_fields = ('requisicao__numero_publico', 'ator__nome')
     ordering = ('-criado_em',)
     readonly_fields = ('criado_em',)
+
+    # Log append-only (ADR-0002): eventos são escritos pelos services de
+    # transição e correção entra como evento novo, nunca como edição ou delete.
+    # Leitura fica aberta — a trilha só cumpre REQ-08 se for consultável.
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

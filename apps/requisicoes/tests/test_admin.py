@@ -18,9 +18,11 @@ from apps.requisicoes.admin import (
     ItemRequisicaoAdmin,
     ItemRequisicaoInline,
     RequisicaoAdmin,
+    TimelineRequisicaoAdmin,
 )
 from apps.requisicoes.models import (
     EstadoRequisicao,
+    EventoTimeline,
     ItemRequisicao,
     Requisicao,
     TimelineRequisicao,
@@ -337,3 +339,80 @@ def test_changelist_de_item_permanece_legivel(client, staff_de_requisicao):
 def test_delete_selected_ausente_das_actions_de_item(item_admin, request_de, superuser):
     """`_filter_actions_by_permissions` remove a action via `has_delete_permission`."""
     assert 'delete_selected' not in item_admin.get_actions(request_de(superuser))
+
+
+# ---------------------------------------------------------------------------
+# TimelineRequisicao — log append-only, somente-leitura no admin
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def evento_de_timeline(db, req_historico_obras, solicitante):
+    return TimelineRequisicao.objects.create(
+        requisicao=req_historico_obras,
+        evento=EventoTimeline.CRIACAO,
+        ator=solicitante,
+        estado_resultante=EstadoRequisicao.RASCUNHO,
+    )
+
+
+def test_admin_nao_apaga_evento_de_timeline(
+    client, staff_de_requisicao, evento_de_timeline
+):
+    """A trilha de auditoria só vale se for append-only.
+
+    Correção de evento errado entra como evento novo, pelo service — nunca
+    como delete pelo admin. O sujeito é o staff com `delete_timelinerequisicao`
+    concedido: a negação tem que vir do guard, não das permissões Django.
+    """
+    client.force_login(staff_de_requisicao)
+
+    resposta = client.post(
+        reverse(
+            'admin:requisicoes_timelinerequisicao_delete',
+            args=[evento_de_timeline.pk],
+        ),
+        {'post': 'yes'},
+    )
+
+    assert resposta.status_code == 403
+    assert TimelineRequisicao.objects.filter(pk=evento_de_timeline.pk).exists()
+
+
+def test_timeline_admin_nega_add_change_e_delete(request_de, superuser):
+    timeline_admin = TimelineRequisicaoAdmin(TimelineRequisicao, AdminSite())
+    requisicao = request_de(superuser)
+
+    assert timeline_admin.has_add_permission(requisicao) is False
+    assert timeline_admin.has_change_permission(requisicao) is False
+    assert timeline_admin.has_delete_permission(requisicao) is False
+
+
+def test_delete_selected_ausente_das_actions_de_timeline(request_de, superuser):
+    timeline_admin = TimelineRequisicaoAdmin(TimelineRequisicao, AdminSite())
+
+    assert 'delete_selected' not in timeline_admin.get_actions(request_de(superuser))
+
+
+def test_add_de_evento_de_timeline_nega(client, staff_de_requisicao):
+    """Evento só nasce por service. Nem com `add_timelinerequisicao` concedido."""
+    client.force_login(staff_de_requisicao)
+
+    resposta = client.get(reverse('admin:requisicoes_timelinerequisicao_add'))
+
+    assert resposta.status_code == 403
+
+
+def test_changelist_de_timeline_permanece_legivel(
+    client, staff_de_requisicao, evento_de_timeline
+):
+    """REQ-08 exige que a trilha seja visível a autorizados.
+
+    Sem este caso, alguém "reforçando" o admin com `has_view_permission = False`
+    passaria em todos os outros testes de timeline.
+    """
+    client.force_login(staff_de_requisicao)
+
+    resposta = client.get(reverse('admin:requisicoes_timelinerequisicao_changelist'))
+
+    assert resposta.status_code == 200
