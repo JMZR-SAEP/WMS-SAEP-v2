@@ -17,7 +17,7 @@ Para cada mudança, localizar o invariante aplicável, implementar na camada ind
 | USR-03 | Setores | Usuário pertence a um único setor. | Model; FK de setor principal. | Criar com setor; sem vínculos auxiliares. | Modelo 2.1 |
 | USR-04 | Setores | Todo setor operacional ativo possui um chefe ativo; `Setor.chefe` apontando para usuário inativo viola o invariante. | Model/service; validação em alteração e na desativação de usuário. | Criar com chefe ativo; bloquear setor ativo sem chefe ativo. | Backlog ACE-002 |
 | USR-05 | Setores | Um chefe responde por apenas um setor. | Constraint/policy. | Bloquear chefe duplicado. | Modelo 2.1 |
-| USR-06 | Setores | Setor inativo permanece em histórico e não recebe nova requisição. | Service/policy; preservar FK histórica. | Negar nova requisição; histórico visível. | Modelo 2.1 |
+| USR-06 | Setores | Setor inativo permanece em histórico e não recebe nova requisição; setor não é desativado enquanto tiver requisição aguardando autorização. | Service/policy; preservar FK histórica; `desativar_setor` bloqueia com requisição em voo. | Negar nova requisição; histórico visível; bloquear desativação com requisição aguardando autorização. | Modelo 2.1 |
 | USR-07 | Setores | Não desativar usuário que chefia setor ativo sem designar antes outro chefe ativo do próprio setor. | Service de desativação de usuário. | Bloquear desativação sem reassignment; permitir com novo chefe válido. | USR-04 |
 | PER-01 | Permissões | Solicitante cria apenas para si. | Policy/service compartilhados. | Próprio permitido; terceiro negado. | Crit. 11.1 |
 | PER-02 | Permissões | Auxiliar de setor cria para si e usuários dentro do próprio setor. | Policy por setor principal. | Mesmo setor permitido; outro negado. | Crit. 11.2 |
