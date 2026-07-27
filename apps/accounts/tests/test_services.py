@@ -276,3 +276,120 @@ class TestVinculoAuxiliar:
                 usuario_id=usuario_ativo_b.pk,
                 setor_id=setor_a.pk,
             )
+
+
+# ---------------------------------------------------------------------------
+# TestDesativarSetor — USR-06 (issue #107)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def requisicao_em(db, usuario_ativo_a):
+    """Cria uma requisição num setor e estado dados, sem passar por service.
+
+    A montagem é direta porque o objeto sob teste é `desativar_setor`; o ciclo
+    de vida da requisição tem cobertura própria em `apps/requisicoes`.
+    """
+
+    def _criar(setor, estado):
+        from apps.requisicoes.models import Requisicao
+
+        return Requisicao.objects.create(
+            estado=estado,
+            criador=usuario_ativo_a,
+            beneficiario=usuario_ativo_a,
+            setor_beneficiario=setor,
+        )
+
+    return _criar
+
+
+@pytest.mark.django_db
+class TestDesativarSetor:
+    def test_requisicao_aguardando_autorizacao_bloqueia_desativacao(
+        self, superusuario, setor_a, requisicao_em
+    ):
+        from apps.core.exceptions import ConflitoDominio
+        from apps.accounts.services import desativar_setor
+        from apps.requisicoes.models import EstadoRequisicao
+
+        requisicao_em(setor_a, EstadoRequisicao.AGUARDANDO_AUTORIZACAO)
+
+        with pytest.raises(ConflitoDominio) as exc_info:
+            desativar_setor(ator_id=superusuario.pk, setor_id=setor_a.pk)
+
+        assert exc_info.value.code == 'setor_com_requisicoes_em_voo'
+        setor_a.refresh_from_db()
+        assert setor_a.ativo is True
+
+    def test_setor_sem_requisicoes_desativa(self, superusuario, setor_a):
+        from apps.accounts.services import desativar_setor
+
+        desativar_setor(ator_id=superusuario.pk, setor_id=setor_a.pk)
+
+        setor_a.refresh_from_db()
+        assert setor_a.ativo is False
+
+    def test_rascunho_nao_bloqueia_desativacao(
+        self, superusuario, setor_a, requisicao_em
+    ):
+        """Rascunho não está na fila de ninguém — não depende de autorizador."""
+        from apps.accounts.services import desativar_setor
+        from apps.requisicoes.models import EstadoRequisicao
+
+        requisicao_em(setor_a, EstadoRequisicao.RASCUNHO)
+
+        desativar_setor(ator_id=superusuario.pk, setor_id=setor_a.pk)
+
+        setor_a.refresh_from_db()
+        assert setor_a.ativo is False
+
+    def test_requisicao_autorizada_nao_bloqueia_desativacao(
+        self, superusuario, setor_a, requisicao_em
+    ):
+        """Requisição autorizada segue pelo almoxarifado, não pelo chefe do setor."""
+        from apps.accounts.services import desativar_setor
+        from apps.requisicoes.models import EstadoRequisicao
+
+        requisicao_em(setor_a, EstadoRequisicao.AUTORIZADA)
+
+        desativar_setor(ator_id=superusuario.pk, setor_id=setor_a.pk)
+
+        setor_a.refresh_from_db()
+        assert setor_a.ativo is False
+
+    def test_requisicao_em_voo_de_outro_setor_nao_bloqueia(
+        self, superusuario, setor_a, setor_b, requisicao_em
+    ):
+        from apps.accounts.services import desativar_setor
+        from apps.requisicoes.models import EstadoRequisicao
+
+        requisicao_em(setor_b, EstadoRequisicao.AGUARDANDO_AUTORIZACAO)
+
+        desativar_setor(ator_id=superusuario.pk, setor_id=setor_a.pk)
+
+        setor_a.refresh_from_db()
+        assert setor_a.ativo is False
+
+    def test_setor_ja_inativo_e_idempotente(self, superusuario, setor_a):
+        from apps.accounts.services import desativar_setor
+
+        setor_a.ativo = False
+        setor_a.save(update_fields=['ativo'])
+
+        desativar_setor(ator_id=superusuario.pk, setor_id=setor_a.pk)
+
+        setor_a.refresh_from_db()
+        assert setor_a.ativo is False
+
+    def test_ator_nao_superusuario_lanca_permissao_negada(
+        self, setor_a, usuario_ativo_a
+    ):
+        from apps.core.exceptions import PermissaoNegada
+        from apps.accounts.services import desativar_setor
+
+        with pytest.raises(PermissaoNegada):
+            desativar_setor(ator_id=usuario_ativo_a.pk, setor_id=setor_a.pk)
+
+        setor_a.refresh_from_db()
+        assert setor_a.ativo is True

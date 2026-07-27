@@ -2,9 +2,11 @@
 
 - Guard de estoque único em `EstoqueAdmin` (issue #102, ADR-0017).
 - Derivação de `PapelEfetivo` antes da policy em `MaterialAdmin` (issue #104).
+- Nível das mensagens de erro de domínio (issue #107).
 """
 
 import pytest
+from django.contrib import messages
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth.models import Permission
 from django.contrib.contenttypes.models import ContentType
@@ -181,3 +183,39 @@ def test_changelist_de_material_permanece_legivel_para_staff(
     resposta = client.get(reverse('admin:estoque_material_changelist'))
 
     assert resposta.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Nível das mensagens de erro de domínio (issue #107)
+# ---------------------------------------------------------------------------
+
+
+def test_changeform_traduz_conflito_em_warning(client, superuser, material_disponivel):
+    """`ConflitoDominio` é `warning` pelo mapeamento de `docs/CONVENTIONS.md`.
+
+    A ação não foi aplicada, mas o estado atual — material com saldo — é
+    compreensível e não exige correção de dado pelo usuário.
+    """
+    client.force_login(superuser)
+
+    resposta = client.post(
+        reverse('admin:estoque_material_change', args=[material_disponivel.pk]),
+        {
+            'codigo': material_disponivel.codigo,
+            'nome': material_disponivel.nome,
+            'unidade': material_disponivel.unidade,
+            'observacao_interna': '',
+        },
+        follow=True,
+    )
+
+    assert resposta.redirect_chain[-1][1] == 302
+    avisos = [
+        str(m) for m in resposta.context['messages'] if m.level == messages.WARNING
+    ]
+    assert avisos == [
+        f"Material '{material_disponivel.nome}' possui saldo físico (100.000). "
+        'Zere o saldo antes de desativar.'
+    ]
+    material_disponivel.refresh_from_db()
+    assert material_disponivel.ativo is True
