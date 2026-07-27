@@ -20,9 +20,10 @@ class MaterialAdmin(admin.ModelAdmin):
     ordering = ('nome',)
 
     def _pode_gerir(self, request):
+        from apps.accounts.papeis import papel_efetivo
         from apps.estoque.policies import pode_gerir_catalogo
 
-        return pode_gerir_catalogo(request.user)
+        return pode_gerir_catalogo(papel_efetivo(request.user))
 
     def has_add_permission(self, request):
         return self._pode_gerir(request)
