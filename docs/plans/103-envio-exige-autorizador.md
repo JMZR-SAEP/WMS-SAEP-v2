@@ -2,11 +2,19 @@
 
 ## Escopo
 
-Impedir que uma requisição entre em `aguardando_autorizacao` quando o
-`setor_beneficiario` não tem chefe capaz de autorizá-la. Hoje o envio é aceito,
-o número público é emitido e a requisição fica presa: `fila_autorizacao` sai
-vazia para todos e `autorizar_requisicao` levanta `PermissaoNegada` para
-qualquer ator.
+Recusar o envio quando, **no momento em que o envio é processado**, o
+`setor_beneficiario` não tem chefe capaz de autorizar a requisição. Hoje o envio
+é aceito, o número público é emitido e a requisição fica presa:
+`fila_autorizacao` sai vazia para todos e `autorizar_requisicao` levanta
+`PermissaoNegada` para qualquer ator.
+
+**Limite do contrato, declarado de saída:** este plano entrega um guard pontual
+no envio, não uma garantia de que nenhuma requisição jamais fique presa. Duas
+janelas permanecem abertas por decisão explícita — desativação de setor/chefe
+*depois* do envio (fora do escopo do issue, endereçada por processo) e a corrida
+entre o guard e a gravação do estado (ver decisão 5 e a tabela de Riscos). Nas
+duas, o resultado é o mesmo estado recuperável de hoje, com saída por TR-006 /
+TR-012.
 
 **Muda:**
 
@@ -61,7 +69,7 @@ qualquer ator.
 | `apps/requisicoes/views.py` | `except ConflitoDominio` em `enviar_rascunho_view` e em `nova_requisicao` |
 | `apps/requisicoes/tests/test_services.py` | 3 testes novos; fixture `rascunho` e testes de envio passam a exigir chefe ativo |
 | `apps/requisicoes/tests/test_composites.py` | 1 teste novo (guard + rollback total); fixtures ajustadas |
-| `apps/requisicoes/tests/test_views.py` | 2 testes novos (tradução HTTP nas duas telas); testes de envio ajustados |
+| `apps/requisicoes/tests/test_views.py` | 3 testes novos (tradução HTTP: envio normal, envio HTMX, criação composta); testes de envio ajustados |
 | `docs/estado-transicoes-requisicao.md` | Pré-condição de TR-005 |
 
 ## Implementação
@@ -86,7 +94,7 @@ if not tem_autorizador:
     )
 ```
 
-Quatro decisões que o código embute:
+Cinco decisões que o código embute:
 
 1. **Uma única query `EXISTS` no caminho feliz.** O nome do setor só é
    carregado quando o guard falha (o acesso a `requisicao.setor_beneficiario`
@@ -111,6 +119,21 @@ Quatro decisões que o código embute:
    corretos; o que está errado é o estado do cadastro no momento do envio —
    definição literal de `ConflitoDominio` em `apps/core/exceptions.py:45`.
    Também é o que o issue pede.
+5. **O guard não é atômico em relação ao cadastro — e o contrato diz isso.**
+   O `select_for_update` da linha 339 trava a **requisição**, não o `Setor` nem
+   o `User` do chefe. Entre o `EXISTS` e o `save` do estado, uma desativação
+   concorrente de setor ou de chefe ainda pode produzir uma requisição em
+   `aguardando_autorizacao` sem autorizador. Fechar essa janela exigiria
+   `select_for_update` também nas linhas de `Setor` e `User` — precisamente o
+   travamento de cadastro que a decisão 1 recusa — e mesmo assim não cobriria
+   mutações feitas fora do caminho do envio. A escolha é **declarar** a janela,
+   não prometer o que o código não entrega: o contrato de
+   `enviar_para_autorizacao` é "recusa o envio quando, no instante da checagem,
+   o setor não tem autorizador", e não "toda requisição em
+   `aguardando_autorizacao` tem autorizador". O estado resultante de perder a
+   corrida é idêntico ao de hoje e recuperável por TR-006 / TR-012. Não há teste
+   para essa janela: reproduzi-la exigiria orquestrar duas transações
+   concorrentes para verificar um comportamento que o plano assume, não previne.
 
 `ciclo_vida.py` hoje importa `DadosInvalidos` e `EstadoInvalido` de
 `apps.core.exceptions` e, de `apps.accounts.models`, só `User`. O guard exige
@@ -204,8 +227,15 @@ Camada de view, em `test_views.py` (contrato de tradução HTTP):
 
 | # | Caso | Esperado |
 |---|---|---|
-| 6 | POST em `requisicoes:enviar_rascunho` com setor sem chefe | 302 para o detalhe (204 + `HX-Redirect` sob HTMX), `messages.WARNING`, não 500 |
-| 7 | POST em `requisicoes:nova_requisicao` com `acao='enviar'` e setor sem chefe | 200 re-renderizando o formulário, `messages.WARNING`, nenhuma `Requisicao` criada |
+| 6 | POST normal em `requisicoes:enviar_rascunho` com setor sem chefe | `302` com `Location` para `requisicoes:detalhe`, `messages.WARNING`, não 500 |
+| 7 | POST HTMX (`HTTP_HX_REQUEST='true'`) em `requisicoes:enviar_rascunho` com setor sem chefe | `204` com header `HX-Redirect` para `requisicoes:detalhe`, `messages.WARNING` |
+| 8 | POST em `requisicoes:nova_requisicao` com `acao='enviar'` e setor sem chefe | 200 re-renderizando o formulário, `messages.WARNING`, nenhuma `Requisicao` criada |
+
+Os casos 6 e 7 são contratos HTTP distintos e ficam em testes separados, como já
+fazem `test_enviar_rascunho_post_criador_redireciona_detalhe` (899) e
+`test_enviar_rascunho_htmx_retorna_hx_redirect` (958). `nova_requisicao` não tem
+variante HTMX neste fluxo — devolve o formulário re-renderizado nos dois casos —
+por isso o caso 8 é único.
 
 Não coberto, e por quê: comportamento de `fila_autorizacao` (nada muda nela);
 recuperação de requisições já presas (TR-006/TR-012 já têm cobertura própria);
@@ -230,7 +260,7 @@ processo).
 | Quebra em massa de testes existentes | Esperada e mapeada acima. Todas as quebras são "cenário do issue exercitado sem querer"; o ajuste é acrescentar `chefe_obras` às fixtures, nunca afrouxar asserção. |
 | Bloqueio de operação real no piloto | É o objetivo declarado do issue: falhar cedo com mensagem acionável em vez de falhar silenciosamente depois. A mensagem nomeia o setor e diz o que fazer. |
 | Requisições já em `aguardando_autorizacao` sem autorizador | Não são tocadas pelo guard. Saem por TR-006 ou TR-012, já implementadas e acessíveis ao criador/beneficiário. Sem data migration. |
-| Corrida: chefe desativado entre o guard e o `save` | Janela existente e não fechada. `select_for_update` trava a requisição, não o setor nem o usuário; travar cadastro por causa de envio seria pior que o problema. Efeito de perder a corrida é o mesmo estado de hoje, recuperável por TR-006/TR-012. |
+| Corrida: setor ou chefe desativado entre o guard e o `save` | Janela existente e **não fechada** — decisão 5, refletida no limite de contrato declarado no Escopo. `select_for_update` trava a requisição, não o setor nem o usuário; travar cadastro por causa de envio seria pior que o problema. Efeito de perder a corrida é o mesmo estado de hoje, recuperável por TR-006/TR-012. |
 | Custo de query | Um `EXISTS` por envio, no caminho feliz; uma query extra só quando o envio é recusado. Irrelevante. |
 | Contrato OpenAPI | Projeto é server-rendered sem camada REST (AGENTS.md). Não se aplica. |
 | Migrations / schema | Nenhuma mudança de model. Nada a resetar, `make setup` não é necessário. |
