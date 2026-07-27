@@ -1,11 +1,13 @@
 """Testes do admin de estoque.
 
-Guard de estoque único em `EstoqueAdmin` (issue #102, ADR-0017).
+- Guard de estoque único em `EstoqueAdmin` (issue #102, ADR-0017).
+- Derivação de `PapelEfetivo` antes da policy em `MaterialAdmin` (issue #104).
 """
 
 import pytest
 from django.contrib.admin.sites import AdminSite
 from django.test import RequestFactory
+from django.urls import reverse
 
 from apps.estoque.admin import EstoqueAdmin
 from apps.estoque.models import Estoque
@@ -59,3 +61,20 @@ def test_guard_nao_concede_permissao_a_quem_nao_tem(
     assert Estoque.objects.exists() is False
 
     assert estoque_admin.has_add_permission(request_de(chefe_almoxarifado)) is False
+
+
+# ---------------------------------------------------------------------------
+# MaterialAdmin — derivação de papel antes da policy (issue #104)
+# ---------------------------------------------------------------------------
+
+
+def test_admin_index_responde_para_superusuario(client, superuser):
+    """Regressão #104: o admin inteiro caía em 500, não só as telas de Material.
+
+    `AdminSite.each_context` monta o menu lateral via `get_app_list`, que
+    consulta as permissões de todo `ModelAdmin` registrado. Um erro em
+    `MaterialAdmin` derruba `admin:index`, destino do redirect pós-login.
+    """
+    client.force_login(superuser)
+
+    assert client.get(reverse('admin:index')).status_code == 200
