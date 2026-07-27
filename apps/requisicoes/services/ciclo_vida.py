@@ -325,6 +325,12 @@ def enviar_para_autorizacao(
 
     RASCUNHO → AGUARDANDO_AUTORIZACAO.
 
+    Exige que o setor do beneficiário esteja ativo e tenha chefe ativo; sem
+    isso ninguém poderia autorizar a requisição e ela ficaria presa, então
+    levanta ``ConflitoDominio(code='setor_sem_autorizador')`` antes de emitir
+    o número (USR-04, USR-06). A checagem não é atômica em relação ao
+    cadastro: uma desativação concorrente de setor ou chefe ainda pode passar.
+
     No primeiro envio emite ``REQ-AAAA-NNNNNN`` via SequenciaRequisicao sob
     lock (ADR-0003). Reenvio de rascunho retornado preserva o número público
     (REQ-04). Não reserva nem baixa estoque (TR-005, EST-02).
