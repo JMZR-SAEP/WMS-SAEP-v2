@@ -91,6 +91,52 @@ def desativar_usuario(
 
 
 @transaction.atomic
+def desativar_setor(*, ator_id: int, setor_id: int) -> None:
+    """Desativa setor, bloqueando se há requisições aguardando autorização (USR-06).
+
+    Requisição em `aguardando_autorizacao` depende de um autorizador do próprio
+    setor para seguir; desativar o setor sob ela a deixaria presa. As saídas
+    sem autorização — TR-006 e TR-012 — têm criador ou beneficiário como ator,
+    não o admin, então o service bloqueia em vez de cascatear.
+
+    Não fecha a corrida com `enviar_para_autorizacao`: o guard de envio lê o
+    setor sem lock, de propósito, e o `select_for_update` daqui só serializa
+    contra outras escritas de cadastro.
+    """
+    from apps.accounts.policies import exigir_pode_gerir_cadastro
+    from apps.requisicoes.models import EstadoRequisicao, Requisicao
+
+    try:
+        ator = User.objects.get(pk=ator_id)
+        setor = Setor.objects.select_for_update().get(pk=setor_id)
+    except ObjectDoesNotExist as exc:
+        raise DadosInvalidos(
+            'Referência inválida.', code='referencia_invalida'
+        ) from exc
+
+    papel = papel_efetivo(ator)
+    exigir_pode_gerir_cadastro(papel)
+
+    if not setor.ativo:
+        return
+
+    em_voo = Requisicao.objects.filter(
+        setor_beneficiario=setor,
+        estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+    ).count()
+    if em_voo:
+        termo = 'requisição' if em_voo == 1 else 'requisições'
+        raise ConflitoDominio(
+            f"O setor '{setor.nome}' tem {em_voo} {termo} aguardando autorização. "
+            'Conclua ou cancele antes de desativar o setor.',
+            code='setor_com_requisicoes_em_voo',
+        )
+
+    setor.ativo = False
+    setor.save(update_fields=['ativo'])
+
+
+@transaction.atomic
 def ativar_vinculo_auxiliar(
     *, ator_id: int, usuario_id: int, setor_id: int
 ) -> VinculoAuxiliar:
