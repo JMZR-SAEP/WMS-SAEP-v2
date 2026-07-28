@@ -114,7 +114,26 @@ class SaldoEstoqueAdmin(admin.ModelAdmin):
     list_filter = ('estoque', 'material')
     search_fields = ('estoque__nome', 'material__nome', 'material__codigo')
     ordering = ('estoque', 'material')
-    readonly_fields = ('saldo_disponivel', 'divergente')
+    readonly_fields = (
+        'saldo_fisico',
+        'saldo_reservado',
+        'saldo_disponivel',
+        'divergente',
+    )
+
+    # Saldo é derivado do ledger (ADR-0015): toda mutação nasce de um service
+    # que emite `MovimentacaoEstoque` na mesma transação (LED-01), e a soma dos
+    # deltas tem de reconciliar com o saldo (LED-02). Criar, apagar ou reatribuir
+    # o `material` de uma linha pelo admin quebra a reconciliação sem deixar
+    # rastro. Leitura fica aberta.
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 class ItemSaidaExcepcionalInline(admin.TabularInline):
