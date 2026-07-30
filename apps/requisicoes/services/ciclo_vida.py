@@ -24,7 +24,10 @@ from apps.estoque.services import (
     reservar_saldos_para_autorizacao,
 )
 from apps.notificacoes.models import TipoNotificacao
-from apps.notificacoes.services import criar_notificacoes_para
+from apps.notificacoes.services import (
+    criar_notificacoes_para,
+    criar_notificacoes_para_destinatarios,
+)
 from apps.requisicoes.models import (
     EstadoRequisicao,
     EventoTimeline,
@@ -43,7 +46,10 @@ from apps.requisicoes.policies import (
     exigir_pode_recusar_requisicao,
     exigir_pode_retornar_para_rascunho,
 )
-from apps.requisicoes.selectors import material_eh_elegivel
+from apps.requisicoes.selectors import (
+    chefe_autorizador_do_setor,
+    material_eh_elegivel,
+)
 from apps.requisicoes.transitions import verificar_transicao_valida
 
 logger = logging.getLogger(__name__)
@@ -69,6 +75,33 @@ def _notificar_pos_commit(
             'Falha ao criar notificações pós-commit: tipo=%s requisicao_id=%s',
             tipo,
             req_id,
+        )
+
+
+def _notificar_chefe_pos_commit(*, setor_id: int, ator_id: int, req_id: int) -> None:
+    """Notifica o chefe autorizador do setor sobre requisição na fila (NOT-01).
+
+    Resolve o chefe pós-commit, e não na guarda de ``enviar_para_autorizacao``,
+    para que uma desativação concorrente entre a guarda e o commit deixe de
+    gerar notificação. Chefe ausente é caminho normal (``return`` silencioso);
+    só defeito vira ``logger.exception``, e nenhum dos dois desfaz a transição
+    já commitada.
+    """
+    try:
+        chefe_id = chefe_autorizador_do_setor(setor_id)
+        if chefe_id is None or chefe_id == ator_id:
+            return
+        criar_notificacoes_para_destinatarios(
+            destinatarios_ids=[chefe_id],
+            requisicao_id=req_id,
+            tipo=TipoNotificacao.ENVIO_AUTORIZACAO,
+        )
+    except Exception:
+        logger.exception(
+            'Falha ao criar notificação de envio pós-commit: '
+            'requisicao_id=%s setor_id=%s',
+            req_id,
+            setor_id,
         )
 
 
@@ -390,6 +423,14 @@ def enviar_para_autorizacao(
         evento=EventoTimeline.ENVIO_AUTORIZACAO,
         ator=ator,
         estado_resultante=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+    )
+
+    _setor_id = requisicao.setor_beneficiario_id
+    _req_id = requisicao.pk
+    transaction.on_commit(
+        lambda: _notificar_chefe_pos_commit(
+            setor_id=_setor_id, ator_id=ator_id, req_id=_req_id
+        )
     )
 
     return requisicao

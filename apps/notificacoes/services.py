@@ -1,8 +1,37 @@
 """Services de notificações in-app."""
 
+from collections.abc import Iterable
+
 from django.db import transaction
 
 from apps.notificacoes.models import Notificacao
+
+
+@transaction.atomic
+def criar_notificacoes_para_destinatarios(
+    *,
+    destinatarios_ids: Iterable[int | None],
+    requisicao_id: int,
+    tipo: str,
+) -> None:
+    """Cria notificações para os destinatários informados, deduplicando.
+
+    Ignora ``None`` e ids repetidos. É o primitivo de roteamento;
+    ``criar_notificacoes_para`` é o atalho para o par criador/beneficiário.
+    """
+    destinatarios = list(
+        dict.fromkeys(uid for uid in destinatarios_ids if uid is not None)
+    )
+    Notificacao.objects.bulk_create(
+        [
+            Notificacao(
+                destinatario_id=uid,
+                tipo=tipo,
+                requisicao_id=requisicao_id,
+            )
+            for uid in destinatarios
+        ]
+    )
 
 
 def criar_notificacoes_para(
@@ -13,16 +42,10 @@ def criar_notificacoes_para(
     tipo: str,
 ) -> None:
     """Cria notificações para criador e beneficiário, deduplicando se iguais."""
-    destinatarios = list(dict.fromkeys(uid for uid in [criador_id, beneficiario_id]))
-    Notificacao.objects.bulk_create(
-        [
-            Notificacao(
-                destinatario_id=uid,
-                tipo=tipo,
-                requisicao_id=requisicao_id,
-            )
-            for uid in destinatarios
-        ]
+    criar_notificacoes_para_destinatarios(
+        destinatarios_ids=[criador_id, beneficiario_id],
+        requisicao_id=requisicao_id,
+        tipo=tipo,
     )
 
 

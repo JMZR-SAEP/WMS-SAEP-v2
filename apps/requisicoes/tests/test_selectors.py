@@ -11,6 +11,7 @@ from apps.accounts.papeis import PapelEfetivo
 from apps.requisicoes.models import EstadoRequisicao, Operacao, Requisicao
 from apps.requisicoes.selectors import (
     acoes_disponiveis,
+    chefe_autorizador_do_setor,
     fila_atendimento,
     fila_autorizacao,
     filtrar_historico_requisicoes,
@@ -956,3 +957,62 @@ def test_setores_do_historico_distintos_e_ordenados_por_nome(
     visiveis = historico_requisicoes_visiveis_para(chefe_almoxarifado.pk)
     nomes = list(setores_do_historico(visiveis).values_list('nome', flat=True))
     assert nomes == ['Obras', 'TI']
+
+
+# ---------------------------------------------------------------------------
+# chefe_autorizador_do_setor
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_chefe_autorizador_setor_ativo_chefe_ativo(setor_obras, chefe_obras):
+    assert chefe_autorizador_do_setor(setor_obras.pk) == chefe_obras.pk
+
+
+@pytest.mark.django_db
+def test_chefe_autorizador_chefe_inativo(setor_obras, chefe_obras):
+    chefe_obras.is_active = False
+    chefe_obras.save(update_fields=['is_active'])
+    assert chefe_autorizador_do_setor(setor_obras.pk) is None
+
+
+@pytest.mark.django_db
+def test_chefe_autorizador_setor_inativo(setor_obras, chefe_obras):
+    setor_obras.ativo = False
+    setor_obras.save(update_fields=['ativo'])
+    assert chefe_autorizador_do_setor(setor_obras.pk) is None
+
+
+@pytest.mark.django_db
+def test_chefe_autorizador_sem_chefe_e_setor_inexistente(setor_ti):
+    assert setor_ti.chefe_id is None
+    assert chefe_autorizador_do_setor(setor_ti.pk) is None
+    assert chefe_autorizador_do_setor(999999) is None
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ('setor_ativo', 'chefe_ativo'),
+    [(True, True), (True, False), (False, True)],
+)
+def test_chefe_autorizador_equivale_a_fila_autorizacao(
+    setor_obras, chefe_obras, req_solicitante_enviada, setor_ativo, chefe_ativo
+):
+    """NOT-01: quem o selector resolve é exatamente quem vê a fila.
+
+    As duas funções espelham a mesma condição escrita de lados opostos
+    (setor→ator e ator→requisições) sem compartilhar código. Este teste é o que
+    impede os dois filtros de divergirem numa fatia futura; os casos acima
+    olham só um lado do espelho.
+    """
+    setor_obras.ativo = setor_ativo
+    setor_obras.save(update_fields=['ativo'])
+    chefe_obras.is_active = chefe_ativo
+    chefe_obras.save(update_fields=['is_active'])
+
+    resolve_chefe = chefe_autorizador_do_setor(setor_obras.pk) == chefe_obras.pk
+    ve_na_fila = req_solicitante_enviada in list(fila_autorizacao(chefe_obras.pk))
+
+    esperado = setor_ativo and chefe_ativo
+    assert resolve_chefe is ve_na_fila
+    assert resolve_chefe is esperado

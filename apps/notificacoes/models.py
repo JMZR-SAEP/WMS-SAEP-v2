@@ -7,6 +7,7 @@ class TipoNotificacao(models.TextChoices):
     RECUSA = 'recusa', 'Recusa'
     ATENDIMENTO = 'atendimento', 'Atendimento'
     DIVERGENCIA_ESTOQUE = 'divergencia_estoque', 'Divergência de estoque'
+    ENVIO_AUTORIZACAO = 'envio_autorizacao', 'Envio para autorização'
 
 
 class Notificacao(models.Model):

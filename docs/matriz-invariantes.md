@@ -67,6 +67,7 @@ Para cada mudança, localizar o invariante aplicável, implementar na camada ind
 | SAE-07 | Saída excepcional | Estorno é total only e recompõe integralmente o `saldo_fisico`. | Service transacional. | Sem estorno parcial; documento estornado preservado. | `docs/processos-saida-excepcional.md` |
 | SAE-08 | Saída excepcional | Consulta é mais ampla que mutação. | Policy/view/service. | Chefe/auxiliar/superuser consultam; só chefe ou override técnico registra/estorna. | `docs/processos-saida-excepcional.md` |
 | SAE-09 | Saída excepcional | Motivos do MVP são fechados e observação é obrigatória. | Form/service. | Rejeitar motivo fora do enum e observação vazia. | `docs/processos-saida-excepcional.md` |
+| NOT-01 | Notificações | Destinatário de `ENVIO_AUTORIZACAO` é chefe ativo de setor ativo — subconjunto de quem vê a requisição em `fila_autorizacao`. O superusuário vê a fila sem receber a notificação; o inverso, notificado sem ver, é proibido. | Selector `chefe_autorizador_do_setor` espelha a condição de `fila_autorizacao` (sem código compartilhado: sentidos e tipos de retorno são opostos); espelho travado por teste de equivalência. Hook pós-commit fail-open. | Equivalência `chefe_autorizador_do_setor` × `fila_autorizacao` nos mesmos estados de setor/chefe; chefe ativo notificado; chefe inativo, setor inativo e setor sem chefe não geram notificação; auto-envio do próprio chefe não notifica. | #108 |
 
 ## 4. Notas por tema
 
@@ -74,6 +75,7 @@ Para cada mudança, localizar o invariante aplicável, implementar na camada ind
 - **Requisições/itens:** estados e transições ficam em `estado-transicoes-requisicao.md`; este arquivo lista invariantes que não podem ser contornados.
 - **Estoque:** qualquer mutação de saldo/reserva é transacional, auditável e recalcula disponibilidade no ponto crítico.
 - **Saída excepcional:** fluxo próprio de estoque; detalhes de ciclo, número, permissões e front-end ficam em `processos-saida-excepcional.md`.
+- **Notificações:** efeito colateral pós-commit, nunca pré-condição de transição. Falha ao notificar é registrada em log e não desfaz a transição já commitada. O filtro de atividade na resolução do destinatário é proteção do caminho normal; a garantia de que pessoa inativa não lê notificação está na policy de leitura (`pode_ver_notificacao` exige `papel.ativo`).
 
 ## 5. Checklist para PRs
 

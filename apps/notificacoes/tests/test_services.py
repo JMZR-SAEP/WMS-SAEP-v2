@@ -5,7 +5,10 @@ from decimal import Decimal
 import pytest
 
 from apps.notificacoes.models import Notificacao, TipoNotificacao
-from apps.notificacoes.services import criar_notificacoes_para
+from apps.notificacoes.services import (
+    criar_notificacoes_para,
+    criar_notificacoes_para_destinatarios,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -40,6 +43,47 @@ def test_criar_notificacoes_mesmo_usuario_uma_notificacao(solicitante):
         tipo=TipoNotificacao.AUTORIZACAO,
     )
     notifs = Notificacao.objects.filter(requisicao_id=11)
+    assert notifs.count() == 1
+    assert notifs.first().destinatario_id == solicitante.pk
+
+
+# ---------------------------------------------------------------------------
+# criar_notificacoes_para_destinatarios — primitivo de roteamento
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_criar_notificacoes_destinatarios_deduplica_repetidos(
+    solicitante, outro_solicitante
+):
+    """Id repetido na entrada gera uma notificação só.
+
+    Assere contagem e conjunto, não ordem: `dict.fromkeys` preserva a ordem de
+    entrada no `bulk_create`, mas consulta sem `order_by` não tem ordem
+    garantida pelo banco, e ordem de destinatário não é contrato deste fluxo.
+    """
+    criar_notificacoes_para_destinatarios(
+        destinatarios_ids=[solicitante.pk, outro_solicitante.pk, solicitante.pk],
+        requisicao_id=20,
+        tipo=TipoNotificacao.ENVIO_AUTORIZACAO,
+    )
+    notifs = Notificacao.objects.filter(requisicao_id=20)
+    assert notifs.count() == 2
+    assert set(notifs.values_list('destinatario_id', flat=True)) == {
+        solicitante.pk,
+        outro_solicitante.pk,
+    }
+
+
+@pytest.mark.django_db
+def test_criar_notificacoes_destinatarios_ignora_none(solicitante):
+    """`None` na entrada é descartado; o chamador não repete a guarda."""
+    criar_notificacoes_para_destinatarios(
+        destinatarios_ids=[None, solicitante.pk],
+        requisicao_id=21,
+        tipo=TipoNotificacao.ENVIO_AUTORIZACAO,
+    )
+    notifs = Notificacao.objects.filter(requisicao_id=21)
     assert notifs.count() == 1
     assert notifs.first().destinatario_id == solicitante.pk
 
@@ -345,3 +389,165 @@ def test_divergencia_estoque_deduplica_criador_igual_beneficiario(
         tipo=TipoNotificacao.DIVERGENCIA_ESTOQUE,
     )
     assert notifs.count() == 1
+
+
+# ---------------------------------------------------------------------------
+# Hook de envio para autorização — notifica o chefe do setor beneficiário
+# ---------------------------------------------------------------------------
+
+
+def _criar_rascunho(*, criador, beneficiario, material):
+    from apps.requisicoes.services import criar_requisicao
+
+    return criar_requisicao(
+        ator_id=criador.pk,
+        beneficiario_id=beneficiario.pk,
+        itens=[
+            {
+                'material_id': material.pk,
+                'quantidade_solicitada': Decimal('1'),
+            }
+        ],
+    )
+
+
+@pytest.mark.django_db(transaction=True)
+def test_enviar_para_autorizacao_notifica_chefe(
+    chefe_obras, solicitante, material_disponivel
+):
+    """Envio notifica o chefe do setor beneficiário, e só ele.
+
+    Criador e beneficiário não recebem: sem esta segunda metade, um hook que
+    chamasse `criar_notificacoes_para` por engano passaria, e quem enviou
+    ganharia notificação do próprio envio.
+    """
+    from apps.requisicoes.services import enviar_para_autorizacao
+
+    req = _criar_rascunho(
+        criador=solicitante, beneficiario=solicitante, material=material_disponivel
+    )
+    enviar_para_autorizacao(ator_id=solicitante.pk, requisicao_id=req.pk)
+
+    notifs = Notificacao.objects.filter(
+        requisicao_id=req.pk,
+        tipo=TipoNotificacao.ENVIO_AUTORIZACAO,
+    )
+    assert notifs.count() == 1
+    assert notifs.first().destinatario_id == chefe_obras.pk
+
+
+@pytest.mark.django_db(transaction=True)
+def test_enviar_para_autorizacao_auto_envio_do_chefe_nao_notifica(
+    chefe_obras, material_disponivel
+):
+    """Chefe que envia a própria requisição não é notificado de si mesmo."""
+    from apps.requisicoes.services import enviar_para_autorizacao
+
+    req = _criar_rascunho(
+        criador=chefe_obras, beneficiario=chefe_obras, material=material_disponivel
+    )
+    enviar_para_autorizacao(ator_id=chefe_obras.pk, requisicao_id=req.pk)
+
+    assert not Notificacao.objects.filter(
+        requisicao_id=req.pk,
+        tipo=TipoNotificacao.ENVIO_AUTORIZACAO,
+    ).exists()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_reenvio_de_rascunho_retornado_gera_nova_notificacao(
+    chefe_obras, solicitante, material_disponivel
+):
+    """TR-006 → TR-005: reenvio avisa o chefe de novo (sem dedup por requisição).
+
+    Quem retorna para rascunho é o criador: `pode_retornar_para_rascunho`
+    concede a criador/beneficiário, não à chefia.
+    """
+    from apps.requisicoes.services import (
+        enviar_para_autorizacao,
+        retornar_para_rascunho,
+    )
+
+    req = _criar_rascunho(
+        criador=solicitante, beneficiario=solicitante, material=material_disponivel
+    )
+    enviar_para_autorizacao(ator_id=solicitante.pk, requisicao_id=req.pk)
+    retornar_para_rascunho(ator_id=solicitante.pk, requisicao_id=req.pk)
+    enviar_para_autorizacao(ator_id=solicitante.pk, requisicao_id=req.pk)
+
+    notifs = Notificacao.objects.filter(
+        requisicao_id=req.pk,
+        tipo=TipoNotificacao.ENVIO_AUTORIZACAO,
+        destinatario_id=chefe_obras.pk,
+    )
+    assert notifs.count() == 2
+
+
+@pytest.mark.django_db
+def test_chefe_desativado_antes_do_callback_nao_notifica(
+    chefe_obras,
+    solicitante,
+    material_disponivel,
+    django_capture_on_commit_callbacks,
+):
+    """Sem chefe ativo no momento do commit: não notifica, não quebra.
+
+    Sem `transaction=True` de propósito: a captura só intercepta callbacks
+    ainda pendentes num `atomic` aberto. Com commit real eles já teriam
+    rodado.
+    """
+    from apps.requisicoes.models import EstadoRequisicao
+    from apps.requisicoes.services import enviar_para_autorizacao
+
+    req = _criar_rascunho(
+        criador=solicitante, beneficiario=solicitante, material=material_disponivel
+    )
+    with django_capture_on_commit_callbacks(execute=False) as callbacks:
+        enviar_para_autorizacao(ator_id=solicitante.pk, requisicao_id=req.pk)
+
+    chefe_obras.is_active = False
+    chefe_obras.save(update_fields=['is_active'])
+    for callback in callbacks:
+        callback()
+
+    req.refresh_from_db()
+    assert req.estado == EstadoRequisicao.AGUARDANDO_AUTORIZACAO
+    assert not Notificacao.objects.filter(
+        requisicao_id=req.pk,
+        tipo=TipoNotificacao.ENVIO_AUTORIZACAO,
+    ).exists()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_falha_ao_notificar_nao_desfaz_transicao(
+    chefe_obras, solicitante, material_disponivel, monkeypatch, caplog
+):
+    """Fail-open: erro no hook é logado e a transição sobrevive.
+
+    O patch mira o símbolo já ligado em `ciclo_vida`, não em
+    `notificacoes.services`: o `from ... import` no topo do módulo consumidor
+    deixa de consultar o módulo de origem em runtime.
+    """
+    import logging
+
+    from apps.requisicoes.models import EstadoRequisicao
+    from apps.requisicoes.services import enviar_para_autorizacao
+
+    def _explode(**kwargs):
+        raise RuntimeError('banco fora')
+
+    monkeypatch.setattr(
+        'apps.requisicoes.services.ciclo_vida.criar_notificacoes_para_destinatarios',
+        _explode,
+    )
+
+    req = _criar_rascunho(
+        criador=solicitante, beneficiario=solicitante, material=material_disponivel
+    )
+    with caplog.at_level(logging.ERROR):
+        enviar_para_autorizacao(ator_id=solicitante.pk, requisicao_id=req.pk)
+
+    req.refresh_from_db()
+    assert req.estado == EstadoRequisicao.AGUARDANDO_AUTORIZACAO
+    assert not Notificacao.objects.filter(requisicao_id=req.pk).exists()
+    assert 'Falha ao criar notificação de envio pós-commit' in caplog.text

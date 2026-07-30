@@ -178,3 +178,37 @@ def test_badge_reflete_contagem_nao_lidas(client_logado, solicitante):
     )
     resp = client_logado.get('/notificacoes/')
     assert resp.context['notificacoes_nao_lidas'] == 1
+
+
+@pytest.mark.django_db
+def test_lista_exibe_rotulo_e_link_de_envio_autorizacao(
+    client, chefe_obras, solicitante, setor_obras
+):
+    """Rótulo PT-BR e link para o detalhe, sem edição de template.
+
+    Substitui a edição de `lista.html`: o template já usa
+    `get_tipo_display` genérico. Falha se o membro sumir, se o rótulo mudar,
+    ou se alguém trocar o display genérico por um `if` por tipo que esqueça
+    o membro novo.
+    """
+    req = Requisicao.objects.create(
+        estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+        numero_publico='REQ-2026-000108',
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+    )
+    Notificacao.objects.create(
+        destinatario=chefe_obras,
+        tipo=TipoNotificacao.ENVIO_AUTORIZACAO,
+        requisicao_id=req.pk,
+    )
+    client.force_login(chefe_obras)
+
+    resp = client.get(reverse('notificacoes:lista'))
+    corpo = resp.content.decode()
+
+    assert resp.status_code == 200
+    assert 'Envio para autorização' in corpo
+    assert reverse('requisicoes:detalhe', kwargs={'pk': req.pk}) in corpo
+    assert 'REQ-2026-000108' in corpo
