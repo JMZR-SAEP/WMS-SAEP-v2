@@ -3096,6 +3096,16 @@ class TestHistoricoRequisicoesView:
         response = client.get(URL_HISTORICO_REQUISICOES)
         assert response.status_code == 403
 
+    def test_aux_setor_acessa_sem_ver_requisicao_de_terceiro(
+        self, client, aux_obras, req_historico_obras
+    ):
+        """Aux entra na página (200, não 403) e não lista o que o detalhe nega (#106)."""
+        _login(client, aux_obras)
+        response = client.get(URL_HISTORICO_REQUISICOES)
+        assert response.status_code == 200
+        pks = {req.pk for req in response.context['page_obj']}
+        assert req_historico_obras.pk not in pks
+
     def test_anonimo_redirecionado_para_login(self, client):
         response = client.get(URL_HISTORICO_REQUISICOES)
         assert response.status_code == 302

@@ -452,10 +452,13 @@ def exigir_pode_estornar_requisicao(
 def pode_consultar_historico_requisicoes(papel: 'PapelEfetivo') -> bool:
     """Pode navegar o histórico system-wide de requisições.
 
-    Espelha o universo de ``historico_requisicoes_visiveis_para``: superuser,
-    almoxarifado (chefe/aux) ou chefe/aux de setor não-almox (setores_em_escopo
-    não vazio). Solicitante puro e inativo: não — continuam usando
-    ``requisicoes:minhas``.
+    Decide apenas o *acesso à página*: superuser, almoxarifado (chefe/aux) ou
+    chefe/aux de setor não-almox (``setores_em_escopo`` não vazio). Solicitante
+    puro e inativo: não — continuam usando ``requisicoes:minhas``.
+
+    Quanto cada um vê é decisão de ``historico_requisicoes_visiveis_para``, e
+    não coincide com esta: o auxiliar de setor entra na página, mas só enxerga
+    as requisições não-rascunho que ele mesmo criou (#106).
     """
     if not papel.ativo:
         return False

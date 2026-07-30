@@ -735,6 +735,84 @@ def test_historico_almoxarifado_nao_ve_proprio_rascunho(
 
 
 @pytest.mark.django_db
+def test_historico_aux_setor_nao_ve_requisicao_de_terceiro_do_setor(
+    aux_obras, req_historico_obras
+):
+    """Aux de setor não supervisiona o setor (matriz §4, "Ver requisições do setor")."""
+    visiveis = historico_requisicoes_visiveis_para(aux_obras.pk)
+    assert req_historico_obras.pk not in set(visiveis.values_list('pk', flat=True))
+
+
+@pytest.mark.django_db
+def test_historico_aux_setor_ve_o_que_criou(aux_obras, setor_obras):
+    """Como criador, o aux continua no histórico — e o detalhe abre (sem 404)."""
+    propria = Requisicao.objects.create(
+        estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+        numero_publico='REQ-2026-0012',
+        criador=aux_obras,
+        beneficiario=aux_obras,
+        setor_beneficiario=setor_obras,
+    )
+    visiveis = historico_requisicoes_visiveis_para(aux_obras.pk)
+    assert propria.pk in set(visiveis.values_list('pk', flat=True))
+
+
+@pytest.mark.django_db
+def test_historico_aux_setor_nao_ve_proprio_rascunho(aux_obras, setor_obras):
+    """Histórico não é 'minhas requisições' — vale para o aux como para os demais."""
+    proprio_rascunho = Requisicao.objects.create(
+        estado=EstadoRequisicao.RASCUNHO,
+        criador=aux_obras,
+        beneficiario=aux_obras,
+        setor_beneficiario=setor_obras,
+    )
+    visiveis = historico_requisicoes_visiveis_para(aux_obras.pk)
+    assert proprio_rascunho.pk not in set(visiveis.values_list('pk', flat=True))
+
+
+@pytest.mark.django_db
+def test_historico_aux_setor_e_subconjunto_do_detalhe(
+    aux_obras, setor_obras, req_historico_obras, req_historico_ti
+):
+    """Nada listado no histórico pode devolver 404 no detalhe (#106)."""
+    Requisicao.objects.create(
+        estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+        numero_publico='REQ-2026-0013',
+        criador=aux_obras,
+        beneficiario=aux_obras,
+        setor_beneficiario=setor_obras,
+    )
+    historico = set(
+        historico_requisicoes_visiveis_para(aux_obras.pk).values_list('pk', flat=True)
+    )
+    detalhe = set(requisicoes_visiveis_para(aux_obras.pk).values_list('pk', flat=True))
+    assert historico
+    assert historico - detalhe == set()
+
+
+@pytest.mark.django_db
+def test_historico_chefe_setor_ve_o_que_criou_fora_do_setor_chefiado(
+    chefe_obras, usuario_ti, setor_ti
+):
+    """Cláusula de criador também vale para o chefe — e o detalhe acompanha."""
+    criada_fora = Requisicao.objects.create(
+        estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+        numero_publico='REQ-2026-0014',
+        criador=chefe_obras,
+        beneficiario=usuario_ti,
+        setor_beneficiario=setor_ti,
+    )
+    historico = set(
+        historico_requisicoes_visiveis_para(chefe_obras.pk).values_list('pk', flat=True)
+    )
+    detalhe = set(
+        requisicoes_visiveis_para(chefe_obras.pk).values_list('pk', flat=True)
+    )
+    assert criada_fora.pk in historico
+    assert criada_fora.pk in detalhe
+
+
+@pytest.mark.django_db
 def test_historico_solicitante_puro_vazio(solicitante, req_historico_obras):
     visiveis = historico_requisicoes_visiveis_para(solicitante.pk)
     assert visiveis.count() == 0
