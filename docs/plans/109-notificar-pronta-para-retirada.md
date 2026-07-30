@@ -24,14 +24,17 @@ função nova em nenhuma camada: só o membro do enum, a chamada de
 - `apps/notificacoes/models.py` — novo membro
   `SEPARACAO_RETIRADA = 'separacao_retirada', 'Separação para retirada'` em
   `TipoNotificacao`. Valor e rótulo são contrato: o valor fica persistido em
-  `Notificacao.tipo`, e o rótulo é o texto exato que o teste 6 procura no HTML
+  `Notificacao.tipo`, e o rótulo é o texto exato que o teste 7 procura no HTML
   da lista, já que o template usa `get_tipo_display` sem tradução própria.
   Especificação em §1.
 - `apps/requisicoes/services/atendimento.py` — `separar_para_retirada` registra
   `transaction.on_commit` para `_notificar_pos_commit` com o tipo novo, no
   mesmo formato de `registrar_atendimento`.
-- `apps/notificacoes/tests/test_services.py` — 5 casos de hook, seção nova.
+- `apps/notificacoes/tests/test_services.py` — 6 casos de hook, seção nova.
 - `apps/notificacoes/tests/test_views.py` — 1 caso de renderização.
+- `apps/requisicoes/tests/test_services.py` — reforço de 4 testes de TR-015 já
+  existentes, que hoje param no `pytest.raises` e não asseram ausência de
+  escrita. Ver Estratégia de testes §"Camada de service".
 - `docs/estado-transicoes-requisicao.md` — TR-015 hoje diz "notifica quando
   aplicável"; passa a nomear os destinatários.
 
@@ -76,8 +79,9 @@ função nova em nenhuma camada: só o membro do enum, a chamada de
 |---|---|
 | `apps/notificacoes/models.py` | Novo membro `SEPARACAO_RETIRADA` em `TipoNotificacao` |
 | `apps/requisicoes/services/atendimento.py` | `transaction.on_commit` no fim de `separar_para_retirada` |
-| `apps/notificacoes/tests/test_services.py` | 5 casos de hook (seção nova) |
+| `apps/notificacoes/tests/test_services.py` | 6 casos de hook (seção nova) |
 | `apps/notificacoes/tests/test_views.py` | 1 caso de renderização de rótulo e link |
+| `apps/requisicoes/tests/test_services.py` | Reforço de 4 testes de TR-015: ausência de escrita nos caminhos negado/inválido |
 | `docs/estado-transicoes-requisicao.md` | TR-015 nomeia os destinatários da notificação |
 
 Migration: a mudança de `choices` gera `AlterField` em `Notificacao.tipo`. Sem
@@ -196,12 +200,15 @@ linha já diz que não altera timeline nem estado.
 ## Estratégia de testes
 
 Camada de hook — `apps/notificacoes/tests/test_services.py`, seção nova
-`Hook de separação para retirada`. Os casos 1-4 usam
+`Hook de separação para retirada`. Todos os seis casos usam
 `@pytest.mark.django_db(transaction=True)`, como os hooks já testados no
-arquivo, para que o `on_commit` dispare de verdade. O caso 5 também: ele
-precisa que o callback rode, e o `monkeypatch` já garante a falha.
+arquivo, para que o `on_commit` dispare de verdade — inclusive os casos 3 e 6,
+em que o ponto é justamente que **nada** dispara: sob
+`@pytest.mark.django_db` sem `transaction=True`, nenhum `on_commit` roda, e a
+ausência de notificação passaria a provar apenas isso — não que a transição
+bloqueada deixou de notificar.
 
-O cenário base dos casos 1, 4 e 5 é o de
+O cenário base dos casos 1, 4, 5 e 6 é o de
 `test_registrar_atendimento_gera_notificacoes` (`:167-215`), truncado uma
 transição antes: `criar_requisicao` (`chefe_obras` para `outro_solicitante`) →
 `enviar_para_autorizacao` → `autorizar_requisicao` → `separar_para_retirada`
@@ -217,6 +224,7 @@ nova; um helper local `_separar` para não repetir as quatro chamadas.
 | 3 | requisição autorizada, saldo físico rebaixado abaixo do reservado, `separar_para_retirada` levanta `DadosInvalidos(code='separacao_bloqueada')` | nenhuma notificação `SEPARACAO_RETIRADA`; requisição segue `AUTORIZADA` — TR-015B |
 | 4 | separação seguida de segunda chamada, que levanta `EstadoInvalido` | continuam 2 notificações, não 4 — idempotência |
 | 5 | `criar_notificacoes_para` monkeypatchado em `atendimento` para levantar | requisição em `PRONTA_PARA_RETIRADA`; `caplog` em `ERROR` contém `Falha ao criar notificações pós-commit`; nenhuma notificação; sem propagação — critério 2 |
+| 6 | `chefe_obras` (chefe do setor beneficiário, sem papel de Almoxarifado) tenta separar; levanta `PermissaoNegada` | nenhuma notificação `SEPARACAO_RETIRADA`; requisição segue `AUTORIZADA` |
 
 O caso 1 assere o conjunto exato, não só a contagem: sem a exclusão explícita
 do ator, um hook que roteasse para `{beneficiário, almoxarife}` passaria com
@@ -241,23 +249,65 @@ Camada de view — `apps/notificacoes/tests/test_views.py`:
 
 | # | Caso | Esperado |
 |---|---|---|
-| 6 | `outro_solicitante` autenticado faz GET em `notificacoes:lista` com uma `Notificacao` `SEPARACAO_RETIRADA` apontando para requisição numerada em `PRONTA_PARA_RETIRADA` | 200; `Separação para retirada` no HTML; `href` do `requisicoes:detalhe` daquele pk; número público no HTML — critério 3 |
+| 7 | `outro_solicitante` autenticado faz GET em `notificacoes:lista` com uma `Notificacao` `SEPARACAO_RETIRADA` apontando para requisição numerada em `PRONTA_PARA_RETIRADA` | 200; `Separação para retirada` no HTML; `href` do `requisicoes:detalhe` daquele pk; número público no HTML — critério 3 |
 
-O caso 6 substitui a edição de template: falha se o membro não existir, se o
+O caso 7 substitui a edição de template: falha se o membro não existir, se o
 rótulo mudar, ou se alguém trocar o `get_tipo_display` genérico por um `if` por
 tipo que esqueça o membro novo. Espelha
 `test_lista_exibe_rotulo_e_link_de_envio_autorizacao` (`test_views.py:184`),
 com estado e tipo desta fatia.
+
+Camada de service (TR-015) — `apps/requisicoes/tests/test_services.py`, seção
+`separar_para_retirada` já existente. A revisão do plano apontou que a matriz
+acima não fecha o contrato de service exigido pelas instruções de caminho do
+`.coderabbit.yaml`: caminho feliz com timeline e efeitos, estado inválido sem
+escrita, permissão negada sem escrita. Verificado contra o código vivo, o
+diagnóstico se confirma pela metade — e a metade que falta é justamente a que
+esta fatia torna arriscada.
+
+**Já coberto, referência nominal em vez de faixa de linhas:**
+`test_separar_para_retirada_aplica_estado_e_registra_timeline` (`:1426-1449`) é
+o caminho feliz completo — assere `estado == PRONTA_PARA_RETIRADA`, busca o
+`TimelineRequisicao` de `SEPARACAO_RETIRADA` com `.get()` (que falha se houver
+zero ou mais de um) e verifica `ator_id`, `estado_resultante` e
+`metadata == {}`, além de `saldo_fisico` e `saldo_reservado` inalterados. Nada
+a acrescentar ali; o caso 1 desta fatia cobre o efeito novo (notificação) do
+mesmo caminho.
+
+**Falta cobrir, e passa a ser desta fatia:** quatro testes param no
+`pytest.raises` e não asseram ausência de escrita —
+`test_separar_para_retirada_permissao_negada_chefe_setor` (`:1473`),
+`test_separar_para_retirada_permissao_negada_solicitante` (`:1484`),
+`test_separar_para_retirada_estado_invalido` (`:1495`) e
+`test_separar_para_retirada_idempotencia_bloqueia_segunda_execucao` (`:1542`).
+Cada um ganha, depois do `raises`, as asserções de que o estado não mudou e de
+que nenhum `TimelineRequisicao` de `SEPARACAO_RETIRADA` foi criado — no caso
+da idempotência, que continua havendo exatamente um, o da primeira separação.
+
+Reforçar testes pré-existentes normalmente seria escopo de outra fatia. Aqui
+não é: antes do #109 esses caminhos não tinham efeito colateral externo a
+vazar, e a asserção que faltava era só rigor. A partir desta fatia, uma
+regressão que movesse o `on_commit` para antes das guardas — ou uma guarda
+futura que passasse a rodar depois dele — avisaria o beneficiário para buscar
+material que ninguém separou e que ele talvez nem tenha permissão de receber.
+O teste que pega isso é o que assere ausência de escrita no caminho negado. É
+o mesmo raciocínio da decisão 3 de §2, um nível de teste abaixo.
 
 Não coberto, e por quê: badge de contagem
 (`apps/notificacoes/context_processors.py` conta por `lida=False`, sem olhar
 `tipo`); ordenação da lista (`ordering = ['-criado_em']` no `Meta`, não
 tocada); `marcar_lida`/`marcar_todas_lidas` (operam por `destinatario_id`,
 agnósticos ao tipo); permissão de leitura da notificação
-(`pode_ver_notificacao` não olha `tipo`, e já tem cobertura própria); as
-pré-condições de TR-015/TR-015B (cobertas em
-`apps/requisicoes/tests/test_services.py:1426-1647`, intocadas aqui — o caso 3
-olha só o efeito de notificação do caminho bloqueado).
+(`pode_ver_notificacao` não olha `tipo`, e já tem cobertura própria); e os
+demais testes de TR-015/TR-015B, por dois motivos distintos. Os dois de
+TR-015B (`:1563`, `:1593`) **já** asseram ausência de escrita — estado,
+`saldo_fisico`, `saldo_reservado` e contagem de `eventos` antes/depois — e
+portanto não entram no reforço; o que lhes falta é só a metade de notificação,
+que o caso 3 acrescenta do lado de `notificacoes`. Os de aceitação por papel
+(`:1453`, `:1464`), ator e requisição inexistentes (`:1522`, `:1532`) e sem
+itens autorizados (`:1504`) ficam de fora porque cobrem variações de entrada
+do mesmo par de caminhos já reforçado, sem contrato próprio que esta fatia
+mude.
 
 ## Invariantes
 
