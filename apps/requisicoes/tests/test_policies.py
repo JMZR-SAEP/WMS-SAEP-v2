@@ -742,6 +742,10 @@ class TestPodeConsultarHistoricoRequisicoes:
     def test_chefe_setor_nao_almox_pode(self):
         assert pode_consultar_historico_requisicoes(CHEFE_OBRAS) is True
 
+    def test_aux_setor_nao_almox_pode(self):
+        """Aux entra na página; o selector é que limita as linhas ao que ele criou (#106)."""
+        assert pode_consultar_historico_requisicoes(AUX_OBRAS) is True
+
     def test_solicitante_puro_nao_pode(self):
         assert pode_consultar_historico_requisicoes(SOLICITANTE) is False
 

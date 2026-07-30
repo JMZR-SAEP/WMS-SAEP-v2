@@ -270,14 +270,21 @@ def historico_requisicoes_visiveis_para(ator_id: int) -> QuerySet[Requisicao]:
     "minhas requisições" de qualquer solicitante): aqui, só quem tem
     visibilidade de papel sobre requisições de outras pessoas enxerga algo.
 
+    Nunca pode ser mais amplo que ``requisicoes_visiveis_para``: o botão "Ver"
+    do histórico aponta para o detalhe, e listar aqui o que lá é 404 quebra o
+    fluxo (#106).
+
     RBAC (fronteira de segurança — nunca na view/template):
     - superuser → tudo, incluindo rascunhos (de qualquer um).
     - almoxarifado (chefe ou auxiliar) → tudo, exceto rascunhos — inclusive
       o próprio: histórico não é "minhas requisições", rascunho não enviado
       não aparece aqui mesmo para quem o criou.
-    - chefe/aux de setor não-almox → requisições com ``setor_beneficiario``
-      nos setores do ator, exceto rascunhos (mesma regra: inclusive o
-      próprio rascunho).
+    - chefe de setor não-almox → requisições com ``setor_beneficiario`` igual
+      ao setor que ele chefia, mais as que ele criou, exceto rascunhos (mesma
+      regra: inclusive o próprio rascunho).
+    - auxiliar de setor não-almox → apenas as requisições que ele criou, fora
+      de rascunho: ser auxiliar não é supervisionar o setor
+      (``docs/matriz-permissoes.md`` §4, "Ver requisições do setor").
     - qualquer outro papel (solicitante puro, sem chefia) ou usuário
       inativo/inexistente → vazio.
     """
@@ -302,11 +309,14 @@ def historico_requisicoes_visiveis_para(ator_id: int) -> QuerySet[Requisicao]:
     if papel.eh_almoxarifado:
         return base_qs.filter(nao_rascunho)
 
-    setores = list(papel.setores_em_escopo)
-    if setores:
-        return base_qs.filter(setor_beneficiario_id__in=setores).filter(nao_rascunho)
+    if not papel.setores_em_escopo:
+        return base_qs.none()
 
-    return base_qs.none()
+    filtro = Q(criador_id=ator.pk)
+    if papel.setor_chefiado_ativo_id is not None:
+        filtro |= Q(setor_beneficiario_id=papel.setor_chefiado_ativo_id)
+
+    return base_qs.filter(filtro & nao_rascunho)
 
 
 def filtrar_historico_requisicoes(
