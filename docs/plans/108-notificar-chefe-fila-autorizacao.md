@@ -24,13 +24,17 @@ de `Setor`. Daí a única mudança de assinatura do issue.
 - `apps/notificacoes/services.py` — novo service irmão
   `criar_notificacoes_para_destinatarios`; `criar_notificacoes_para` passa a
   delegar nele, mantendo a assinatura atual intacta.
+- `apps/requisicoes/selectors.py` — novo selector
+  `chefe_autorizador_do_setor`, ao lado de `fila_autorizacao`.
 - `apps/requisicoes/services/ciclo_vida.py` — novo helper
   `_notificar_chefe_pos_commit`; `enviar_para_autorizacao` registra
   `transaction.on_commit`.
+- `apps/requisicoes/tests/test_selectors.py` — casos do selector novo.
 - `apps/notificacoes/tests/test_services.py` — casos de service e de hook.
 - `apps/notificacoes/tests/test_views.py` — renderização do rótulo e do link.
 - `docs/estado-transicoes-requisicao.md` — TR-005 passa a listar o efeito
   colateral de notificação, hoje ausente na descrição da transição.
+- `docs/matriz-invariantes.md` — nova linha `NOT-01`, tema Notificações.
 
 **Não muda:**
 
@@ -53,9 +57,10 @@ de `Setor`. Daí a única mudança de assinatura do issue.
 - `apps/notificacoes/policies.py` e `selectors.py` — `pode_ver_notificacao` e
   `notificacoes_com_numero_publico` operam sobre `destinatario_id` e
   `requisicao_id`, agnósticos ao `tipo`. Nada a ajustar.
-- `apps/requisicoes/selectors.py::fila_autorizacao` — a fila continua sendo a
-  fonte de verdade de *quem autoriza*; a notificação apenas avisa. Ver
-  Invariantes para o acoplamento entre as duas.
+- `fila_autorizacao` (comportamento) — a fila continua sendo a fonte de verdade
+  de *quem autoriza*; a notificação apenas avisa. O selector novo entra no mesmo
+  arquivo, mas não altera o corpo da fila. Ver Invariantes para o acoplamento
+  entre as duas.
 - Estoque, reservas, timeline — TR-005 não toca saldo (EST-02) e o
   `TimelineRequisicao` de `ENVIO_AUTORIZACAO` já existe e permanece igual.
 
@@ -65,10 +70,13 @@ de `Setor`. Daí a única mudança de assinatura do issue.
 |---|---|
 | `apps/notificacoes/models.py` | Novo membro em `TipoNotificacao` |
 | `apps/notificacoes/services.py` | Novo `criar_notificacoes_para_destinatarios`; `criar_notificacoes_para` delega |
+| `apps/requisicoes/selectors.py` | Novo `chefe_autorizador_do_setor` |
 | `apps/requisicoes/services/ciclo_vida.py` | Novo `_notificar_chefe_pos_commit`; `on_commit` em `enviar_para_autorizacao` |
+| `apps/requisicoes/tests/test_selectors.py` | 4 casos do selector novo |
 | `apps/notificacoes/tests/test_services.py` | 2 casos de service + 5 casos de hook |
 | `apps/notificacoes/tests/test_views.py` | 1 caso de renderização |
 | `docs/estado-transicoes-requisicao.md` | TR-005 ganha o efeito de notificação |
+| `docs/matriz-invariantes.md` | Linha `NOT-01` em §3 e bullet em §4 |
 
 Migration: a mudança de `choices` gera `AlterField` em `Notificacao.tipo`. Sem
 efeito no schema do Postgres (`CharField` sem constraint de choices), mas o
@@ -118,9 +126,8 @@ def criar_notificacoes_para_destinatarios(
 ) -> None:
     """Cria notificações para os destinatários informados, deduplicando.
 
-    Ignora ``None`` e ids repetidos preservando a ordem de entrada. É o
-    primitivo de roteamento; ``criar_notificacoes_para`` é o atalho para o par
-    criador/beneficiário.
+    Ignora ``None`` e ids repetidos. É o primitivo de roteamento;
+    ``criar_notificacoes_para`` é o atalho para o par criador/beneficiário.
     """
     destinatarios = list(
         dict.fromkeys(uid for uid in destinatarios_ids if uid is not None)
@@ -162,7 +169,35 @@ Continua um único `bulk_create` por chamada, sem `transaction.atomic` — igual
 que existe hoje. O helper não abre transação porque é chamado de dentro de
 `on_commit`, isto é, já fora da transação de domínio.
 
-### 3. Hook em `enviar_para_autorizacao`
+### 3. Selector de resolução do chefe
+
+`apps/requisicoes/selectors.py`, logo abaixo de `fila_autorizacao`:
+
+```python
+def chefe_autorizador_do_setor(setor_id: int) -> int | None:
+    """Id do chefe que hoje pode autorizar requisições do setor, ou ``None``.
+
+    Espelha, do lado do setor, a condição que ``fila_autorizacao`` aplica do
+    lado do ator: setor ativo e chefe ativo. Devolve ``None`` para setor
+    inexistente, setor inativo, setor sem chefe e chefe inativo — os quatro
+    casos em que ninguém veria a requisição na fila.
+    """
+    return (
+        Setor.objects.filter(pk=setor_id, ativo=True, chefe__is_active=True)
+        .values_list('chefe_id', flat=True)
+        .first()
+    )
+```
+
+A leitura fica aqui, e não num `apps/accounts/selectors.py` novo, por dois
+motivos: o arquivo não existe, e a regra que esta query codifica é "quem
+autoriza requisição deste setor" — a mesma de `fila_autorizacao`, uma função
+acima. Separá-las em apps diferentes deixaria as duas metades da mesma
+invariante longe uma da outra, e é justamente a distância entre elas que o
+`NOT-01` da matriz passa a proibir. `Setor` é import novo no módulo, que já
+importa `User` do mesmo pacote (`apps/requisicoes/selectors.py:15`).
+
+### 4. Hook em `enviar_para_autorizacao`
 
 `apps/requisicoes/services/ciclo_vida.py`, novo helper ao lado de
 `_notificar_pos_commit`:
@@ -170,11 +205,7 @@ que existe hoje. O helper não abre transação porque é chamado de dentro de
 ```python
 def _notificar_chefe_pos_commit(*, setor_id: int, ator_id: int, req_id: int) -> None:
     try:
-        chefe_id = (
-            Setor.objects.filter(pk=setor_id, ativo=True, chefe__is_active=True)
-            .values_list('chefe_id', flat=True)
-            .first()
-        )
+        chefe_id = chefe_autorizador_do_setor(setor_id)
         if chefe_id is None or chefe_id == ator_id:
             return
         criar_notificacoes_para_destinatarios(
@@ -208,22 +239,22 @@ e, no fim de `enviar_para_autorizacao`, depois do `TimelineRequisicao.objects.cr
 Quatro decisões que o código embute:
 
 1. **O chefe é resolvido pós-commit, não no corpo da transação.** A guarda
-   `setor_sem_autorizador` já consultou `Setor` com o mesmo filtro
-   (`ativo=True, chefe__is_active=True`) e poderia devolver o `chefe_id` de
-   graça, trocando `.exists()` por `.values_list(...).first()`. O plano **não**
-   faz isso: o critério de aceite 3 fala em "sem chefe ativo **no momento do
-   commit**", e só re-resolvendo é que uma desativação concorrente entre a
-   guarda e o commit deixa de gerar notificação para um chefe que já não
-   autoriza mais. O custo é uma query indexada por PK num callback já fora do
-   caminho crítico da transição. Snapshotar o id na guarda seria uma query a
-   menos e um destinatário errado na janela de corrida.
-2. **O filtro repete `fila_autorizacao`, e isso é o ponto.**
+   `setor_sem_autorizador` já consulta `Setor` com o mesmo filtro e poderia
+   devolver o `chefe_id` de graça — bastaria trocar o `.exists()` dela por uma
+   chamada a `chefe_autorizador_do_setor`. O plano **não** faz isso: o critério
+   de aceite 3 fala em "sem chefe ativo **no momento do commit**", e só
+   re-resolvendo é que uma desativação concorrente entre a guarda e o commit
+   deixa de gerar notificação para um chefe que já não autoriza mais. O custo é
+   uma query indexada por PK num callback já fora do caminho crítico da
+   transição. Snapshotar o id na guarda seria uma query a menos e um
+   destinatário errado na janela de corrida.
+2. **A condição do selector repete `fila_autorizacao`, e isso é o ponto.**
    `apps/requisicoes/selectors.py:139-176` concede a fila a quem tem
-   `ator.setor_chefiado` com `setor_chefiado.ativo` e `ator.is_active`. O
-   `Setor.objects.filter(pk=..., ativo=True, chefe__is_active=True)` é a mesma
-   condição escrita do lado do setor (`Setor.chefe` é `OneToOneField`, então
-   `setor.chefe` e `user.setor_chefiado` são o mesmo vínculo). Notificar quem
-   não vê a fila seria pior que não notificar. Ver Invariantes.
+   `ator.setor_chefiado` com `setor_chefiado.ativo` e `ator.is_active`;
+   `chefe_autorizador_do_setor` é a mesma condição escrita do lado do setor
+   (`Setor.chefe` é `OneToOneField`, então `setor.chefe` e `user.setor_chefiado`
+   são o mesmo vínculo). Notificar quem não vê a fila seria pior que não
+   notificar — é o que `NOT-01` passa a proibir.
 3. **`chefe_id == ator_id` cobre o auto-envio (critério 4).** O chefe que cria e
    envia a própria requisição — caso normal, a policy de criação permite
    beneficiário no próprio setor — não recebe notificação de algo que acabou de
@@ -242,7 +273,7 @@ próprio `on_commit`. A `Notificacao` não tem unicidade por
 comportamento desejado — o chefe precisa ser avisado de novo — e o teste 5 o
 trava contra uma futura deduplicação por requisição.
 
-### 4. Documentação
+### 5. Documentação
 
 `docs/estado-transicoes-requisicao.md`, linha TR-005 da tabela de transições
 (`:60`): a coluna de efeitos hoje diz "Registra envio; entra na fila do chefe do
@@ -253,6 +284,21 @@ carregam "notifica envolvidos quando aplicável"; TR-005 fica alinhada, e com
 redação mais específica porque o destinatário aqui não é o par
 criador/beneficiário.
 
+`docs/matriz-invariantes.md`, §3, nova linha após o bloco `SAE-*`:
+
+| ID | Tema | Invariante | Camada/reforço esperado | Testes mínimos | Ref. |
+|---|---|---|---|---|---|
+| NOT-01 | Notificações | Destinatário de `ENVIO_AUTORIZACAO` é chefe ativo de setor ativo — subconjunto de quem vê a requisição em `fila_autorizacao`. O superusuário vê a fila sem receber a notificação; o inverso (notificado sem ver) é proibido. | Selector `chefe_autorizador_do_setor` compartilhado entre a resolução do destinatário e a condição da fila; hook pós-commit fail-open. | Chefe ativo notificado; chefe inativo, setor inativo e setor sem chefe não geram notificação; auto-envio do próprio chefe não notifica. | #108 |
+
+E um bullet em §4 (Notas por tema): notificação é efeito colateral pós-commit,
+nunca pré-condição de transição; falha ao notificar não desfaz a transição já
+commitada.
+
+Esta linha existe porque o plano chamava a relação de invariante enquanto a
+deixava fora da matriz — inconsistência apontada na revisão do plano. Ou vira
+contrato, ou deixa de ser chamada de invariante; vira contrato, porque é o que
+justifica o selector compartilhado da decisão 2.
+
 ## Estratégia de testes
 
 Camada de service — `apps/notificacoes/tests/test_services.py`, seção nova
@@ -260,8 +306,15 @@ Camada de service — `apps/notificacoes/tests/test_services.py`, seção nova
 
 | # | Caso | Esperado |
 |---|---|---|
-| 1 | `destinatarios_ids=[a, b, a]` | 2 notificações, ordem de entrada preservada |
+| 1 | `destinatarios_ids=[a, b, a]` | 2 notificações; `set` de `destinatario_id` == `{a, b}` |
 | 2 | `destinatarios_ids=[None, a]` | 1 notificação, para `a` — `None` ignorado |
+
+O caso 1 asserta contagem e conjunto, **não** ordem. `dict.fromkeys` preserva a
+ordem de entrada dentro do `bulk_create`, mas uma consulta sem `order_by` não
+tem ordem garantida pelo banco, e ordem de destinatários não é contrato de nada
+neste fluxo — o que importa é que `a` repetido gere uma linha só. Vale a regra
+de `docs/CONVENTIONS.md`: comparar conjuntos de IDs. A docstring do service diz
+"deduplicando", sem prometer ordem.
 
 Camada de hook — mesmo arquivo, seção `Hooks em requisicoes.services`. Os casos
 3, 4, 5 e 7 usam `@pytest.mark.django_db(transaction=True)`, como os hooks já
@@ -297,13 +350,29 @@ símbolo já ligado no módulo consumidor, não `apps.notificacoes.services`, qu
 Asserta `caplog` em nível `ERROR` e o estado da requisição — a fail-open só vale
 se a transição sobreviver.
 
+Camada de selector — `apps/requisicoes/tests/test_selectors.py`, seção nova
+`chefe_autorizador_do_setor` (chamada direta, comparando IDs, conforme
+`docs/CONVENTIONS.md`):
+
+| # | Caso | Esperado |
+|---|---|---|
+| 8 | setor ativo com chefe ativo | `chefe_obras.pk` |
+| 9 | setor ativo com chefe inativo | `None` |
+| 10 | setor inativo com chefe ativo | `None` |
+| 11 | setor sem chefe (`chefe_id is None`) e `pk` inexistente | `None` nos dois |
+
+Os casos 9 a 11 são o contrato do `NOT-01` no nível em que ele é barato de
+testar: os quatro caminhos que devolvem `None` são exatamente os quatro em que
+`fila_autorizacao` não mostraria a requisição a ninguém. O caso 6 continua sendo
+o teste de que o hook *usa* esse contrato no momento certo.
+
 Camada de view — `apps/notificacoes/tests/test_views.py`:
 
 | # | Caso | Esperado |
 |---|---|---|
-| 8 | `chefe_obras` autenticado faz GET em `notificacoes:lista` com uma `Notificacao` `ENVIO_AUTORIZACAO` apontando para requisição numerada | 200; `Envio para autorização` no HTML; `href` para `requisicoes:detalhe` daquele pk — critério 5 |
+| 12 | `chefe_obras` autenticado faz GET em `notificacoes:lista` com uma `Notificacao` `ENVIO_AUTORIZACAO` apontando para requisição numerada | 200; `Envio para autorização` no HTML; `href` para `requisicoes:detalhe` daquele pk — critério 5 |
 
-O caso 8 é o que substitui a edição de template: ele falha se o novo membro não
+O caso 12 é o que substitui a edição de template: ele falha se o novo membro não
 existir, se o rótulo mudar, ou se alguém trocar o `get_tipo_display` genérico do
 template por um `if` por tipo que esqueça o membro novo.
 
@@ -317,25 +386,29 @@ muda aqui).
 
 ## Invariantes
 
-`docs/matriz-invariantes.md` não tem linha para notificações — elas são efeito
-colateral, não invariante de domínio. As linhas tocadas de lado:
+`docs/matriz-invariantes.md` não tinha linha para notificações. Esta fatia
+acrescenta `NOT-01` (ver Implementação §5): **quem recebe `ENVIO_AUTORIZACAO` é
+subconjunto de quem vê a requisição em `fila_autorizacao`.** O superusuário é o
+único que vê a fila sem receber notificação — direção segura (vê sem ser
+avisado); o inverso, avisado sem ver, é o que o selector compartilhado impede.
+Travada pelos testes 3, 6 e 9-11.
+
+Registrar em vez de deixar implícito é resposta direta à revisão do plano: uma
+regra que o código passa a depender e que nenhum documento carrega vira, na
+próxima fatia, um filtro divergente entre fila e notificação.
+
+As demais linhas tocadas de lado:
 
 | Regra | Relação com esta mudança |
 |---|---|
 | USR-04 (setor ativo tem chefe ativo) | A guarda `setor_sem_autorizador` já a reforça no envio. O hook **não** a assume verdadeira no commit: trata `chefe_id is None` como caminho normal, o que é a resposta correta enquanto USR-04 for invariante de backlog (ACE-002) e não constraint de banco. |
-| USR-06 (setor inativo não recebe nova requisição) | O filtro `ativo=True` no hook impede notificar chefe de setor desativado na janela entre guarda e commit. |
+| USR-06 (setor inativo não recebe nova requisição) | O filtro `ativo=True` do selector impede notificar chefe de setor desativado na janela entre guarda e commit. |
 | USR-01 (usuário inativo não acessa nem opera) | `chefe__is_active=True` impede criar notificação para usuário inativo, que não conseguiria abri-la. |
 | REQ-03 / REQ-04 (número público) | Intocados: o hook roda depois do `save`, lê só `pk` e `setor_beneficiario_id`, e não participa da emissão nem da preservação do número. |
 | REQ-08 (timeline registra eventos principais) | A timeline de `ENVIO_AUTORIZACAO` continua igual. Notificação não é evento de timeline e não duplica registro. |
 | EST-02 (envio não reserva nem baixa estoque) | Preservado: nenhuma linha de saldo é lida ou escrita. |
 | EST-06 (operações críticas em transação com lock) | Preservado e reforçado: o efeito de notificação fica **fora** da transação, via `on_commit`, então não estende o tempo de lock de `select_for_update` sobre a `Requisicao`. |
 | PER-06 (`setor_beneficiario` é o snapshot autoritativo da fila) | Respeitado: o hook parte de `requisicao.setor_beneficiario_id`, o mesmo campo que `fila_autorizacao` filtra. Destinatário e fila não podem divergir por caminho de roteamento. |
-
-Invariante nova, não escrita em matriz mas travada pelos testes 3 e 6:
-**quem recebe `ENVIO_AUTORIZACAO` é subconjunto de quem vê a requisição em
-`fila_autorizacao`.** O superusuário é o único que vê a fila sem receber
-notificação — direção segura (vê sem ser avisado), e o inverso (avisado sem ver)
-é o que os filtros `ativo`/`is_active` impedem.
 
 ## Riscos
 
