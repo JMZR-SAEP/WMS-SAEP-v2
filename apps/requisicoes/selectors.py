@@ -276,12 +276,12 @@ def historico_requisicoes_visiveis_para(ator_id: int) -> QuerySet[Requisicao]:
 
     RBAC (fronteira de segurança — nunca na view/template):
     - superuser → tudo, incluindo rascunhos (de qualquer um).
-    - almoxarifado (chefe ou auxiliar) → tudo, exceto rascunhos — inclusive
-      o próprio: histórico não é "minhas requisições", rascunho não enviado
-      não aparece aqui mesmo para quem o criou.
+    - almoxarifado (chefe ou auxiliar) → tudo, exceto rascunhos: histórico não
+      é "minhas requisições", então o rascunho que o próprio ator criou também
+      fica de fora.
     - chefe de setor não-almox → requisições com ``setor_beneficiario`` igual
-      ao setor que ele chefia, mais as que ele criou, exceto rascunhos (mesma
-      regra: inclusive o próprio rascunho).
+      ao setor que ele chefia, mais as que ele criou; rascunhos ficam de fora
+      nos dois casos, inclusive os do próprio ator.
     - auxiliar de setor não-almox → apenas as requisições que ele criou, fora
       de rascunho: ser auxiliar não é supervisionar o setor
       (``docs/matriz-permissoes.md`` §4, "Ver requisições do setor").
