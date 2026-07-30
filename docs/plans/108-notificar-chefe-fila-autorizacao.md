@@ -463,8 +463,8 @@ As demais linhas tocadas de lado:
 | Regra | Relação com esta mudança |
 |---|---|
 | USR-04 (setor ativo tem chefe ativo) | A guarda `setor_sem_autorizador` já a reforça no envio. O hook **não** a assume verdadeira no commit: trata `chefe_id is None` como caminho normal, o que é a resposta correta enquanto USR-04 for invariante de backlog (ACE-002) e não constraint de banco. |
-| USR-06 (setor inativo não recebe nova requisição) | O filtro `ativo=True` do selector impede notificar chefe de setor desativado na janela entre guarda e commit. |
-| USR-01 (usuário inativo não acessa nem opera) | `chefe__is_active=True` impede criar notificação para usuário inativo, que não conseguiria abri-la. |
+| USR-06 (setor inativo não recebe nova requisição) | O filtro `ativo=True` do selector cobre a janela entre a guarda e o commit: setor desativado nesse intervalo é resolvido como `None` e nada é notificado. A janela entre resolver e gravar tem o mesmo limite TOCTOU descrito acima, contido do mesmo jeito — chefe de setor desativado deixa de ver a fila, e a policy de leitura da notificação exige `papel.ativo`. |
+| USR-01 (usuário inativo não acessa nem opera) | Duas camadas, com forças diferentes. Na resolução, `chefe__is_active=True` faz o caminho normal não escolher usuário inativo como destinatário — proteção, não garantia: a janela TOCTOU documentada acima continua podendo persistir a linha. A garantia está na leitura: `pode_ver_notificacao` exige `papel.ativo`, então mesmo a linha criada na janela permanece inacessível. |
 | REQ-03 / REQ-04 (número público) | Intocados: o hook roda depois do `save`, lê só `pk` e `setor_beneficiario_id`, e não participa da emissão nem da preservação do número. |
 | REQ-08 (timeline registra eventos principais) | A timeline de `ENVIO_AUTORIZACAO` continua igual. Notificação não é evento de timeline e não duplica registro. |
 | EST-02 (envio não reserva nem baixa estoque) | Preservado: nenhuma linha de saldo é lida ou escrita. |
