@@ -219,7 +219,7 @@ nova; um helper local `_separar` para não repetir as quatro chamadas.
 
 | # | Caso | Esperado |
 |---|---|---|
-| 1 | criador (`chefe_obras`) ≠ beneficiário (`outro_solicitante`); separação por `chefe_almoxarifado` | 2 notificações `SEPARACAO_RETIRADA`; conjunto de `destinatario_id` == `{chefe_obras.pk, outro_solicitante.pk}`; `chefe_almoxarifado.pk` **não** está no conjunto — critério 1 |
+| 1 | criador (`chefe_obras`) ≠ beneficiário (`outro_solicitante`); separação por `chefe_almoxarifado`, dentro de um `atomic` externo | nenhuma notificação **antes** do commit externo; depois dele, 2 notificações `SEPARACAO_RETIRADA` com conjunto de `destinatario_id` == `{chefe_obras.pk, outro_solicitante.pk}`; `chefe_almoxarifado.pk` **não** está no conjunto — critério 1 |
 | 2 | criador == beneficiário (`solicitante` para si) | 1 notificação `SEPARACAO_RETIRADA`, para `solicitante` — critério 1, metade da dedup |
 | 3 | requisição autorizada, saldo físico rebaixado abaixo do reservado, `separar_para_retirada` levanta `DadosInvalidos(code='separacao_bloqueada')` | nenhuma notificação `SEPARACAO_RETIRADA`; requisição segue `AUTORIZADA` — TR-015B |
 | 4 | separação seguida de segunda chamada, que levanta `EstadoInvalido` | continuam 2 notificações, não 4 — idempotência |
@@ -229,6 +229,15 @@ nova; um helper local `_separar` para não repetir as quatro chamadas.
 O caso 1 assere o conjunto exato, não só a contagem: sem a exclusão explícita
 do ator, um hook que roteasse para `{beneficiário, almoxarife}` passaria com
 contagem 2.
+
+O `atomic` externo do caso 1 entrou na revisão da implementação e é o teste
+mais forte da fatia. Sem ele, `transaction.on_commit(lambda: ...)` e uma
+chamada síncrona a `_notificar_pos_commit(...)` são **indistinguíveis**: as
+duas deixam duas notificações no banco ao fim da chamada. Com o bloco externo,
+o `atomic` do service vira savepoint, o `on_commit` só dispara no commit de
+fora, e asserir ausência dentro do bloco separa as duas implementações —
+verificado por mutação (a chamada síncrona quebra em `assert not
+notifs.exists()`).
 
 O caso 3 monta a divergência do jeito mais próximo do real: autoriza primeiro
 (o que reserva o saldo) e só então rebaixa `saldo_fisico` para 0 por `update`
@@ -303,11 +312,11 @@ como prova: o `select_for_update` quebra antes, com
 O que estes testes de fato travam, e por que ficam mesmo assim:
 
 1. **O contrato de saída, independente do mecanismo.** Eles dizem "separação
-   que falha não anuncia nada" sem depender de *como* isso é garantido hoje. A
-   mudança realista que eles pegam é a notificação deixar de ser efeito
-   pós-commit: trocar `transaction.on_commit` por enfileiramento imediato
-   (`.delay()` de task, webhook, signal em `post_save`) dispara mesmo com
-   rollback — e aí os casos 3 e 6 acusam.
+   que falha não anuncia nada" sem depender de *como* isso é garantido hoje. O
+   que pegam, estreitamente: um despacho que **escape da transação** —
+   `.delay()` de task, webhook, signal em `post_save` — dispara mesmo com
+   rollback. Não pegam a troca de `on_commit` por chamada síncrona, porque o
+   rollback desfaz a notificação junto; essa é travada pelo caso 1, ver abaixo.
 2. **O contrato de service exigido pelas instruções de caminho** do
    `.coderabbit.yaml` — caminho feliz com timeline e efeitos, estado inválido
    sem escrita, permissão negada sem escrita —, que era o achado original da

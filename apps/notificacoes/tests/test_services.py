@@ -585,11 +585,23 @@ def _autorizar_nova_requisicao(*, criador, beneficiario, material, chefe):
 def test_separar_para_retirada_notifica_criador_e_beneficiario(
     chefe_obras, chefe_almoxarifado, outro_solicitante, material_disponivel
 ):
-    """TR-015 avisa quem espera o material, não quem separou.
+    """TR-015 avisa quem espera o material, não quem separou — e só após o commit.
 
-    Assere o conjunto exato de destinatários, não só a contagem: um hook que
-    roteasse para `{beneficiário, almoxarife}` também daria 2.
+    Duas garantias no mesmo cenário:
+
+    1. **Destinatários.** Assere o conjunto exato, não só a contagem: um hook
+       que roteasse para `{beneficiário, almoxarife}` também daria 2.
+    2. **Momento.** A chamada roda dentro de um `atomic` externo, então o
+       `atomic` do service vira savepoint e o `on_commit` só dispara no commit
+       de fora. Asserir ausência *antes* e presença *depois* é o que distingue
+       efeito pós-commit de criação síncrona: trocar
+       `transaction.on_commit(...)` por uma chamada direta a
+       `_notificar_pos_commit(...)` deixaria a notificação visível já dentro do
+       bloco, e é aí que este teste quebra. Sem o bloco externo, as duas
+       implementações são indistinguíveis.
     """
+    from django.db import transaction
+
     from apps.requisicoes.services import separar_para_retirada
 
     req = _autorizar_nova_requisicao(
@@ -598,12 +610,15 @@ def test_separar_para_retirada_notifica_criador_e_beneficiario(
         material=material_disponivel,
         chefe=chefe_obras,
     )
-    separar_para_retirada(ator_id=chefe_almoxarifado.pk, requisicao_id=req.pk)
-
     notifs = Notificacao.objects.filter(
         requisicao_id=req.pk,
         tipo=TipoNotificacao.SEPARACAO_RETIRADA,
     )
+
+    with transaction.atomic():
+        separar_para_retirada(ator_id=chefe_almoxarifado.pk, requisicao_id=req.pk)
+        assert not notifs.exists()
+
     assert notifs.count() == 2
     assert set(notifs.values_list('destinatario_id', flat=True)) == {
         chefe_obras.pk,
@@ -653,12 +668,19 @@ def test_separacao_bloqueada_por_divergencia_nao_notifica(
     *estruturalmente* pelo `@transaction.atomic` do service — a guarda levanta,
     a transação reverte e qualquer `on_commit` registrado é descartado. Mover o
     hook para antes das guardas **não** faz este teste falhar (verificado por
-    mutação). O que ele pega é a notificação deixar de ser efeito pós-commit:
-    trocar `transaction.on_commit` por um enfileiramento imediato (`.delay()`
-    de task, webhook, signal em `post_save`) dispara mesmo com rollback, e é aí
-    que este teste acusa. `transaction=True` é o que dá sentido à asserção
-    negativa — sob a marca comum nenhum `on_commit` rodaria e a ausência de
-    notificação não provaria nada.
+    mutação).
+
+    O que sobra para ele é estreito, e vale dizer qual é: um despacho que
+    escape da transação — `.delay()` de task, webhook, signal em `post_save` —
+    dispara mesmo com rollback, e aí este teste acusa. A troca de
+    `transaction.on_commit` por chamada síncrona **não** é pega aqui (o
+    rollback desfaz a notificação junto); quem trava isso é
+    `test_separar_para_retirada_notifica_criador_e_beneficiario`, que assere
+    ausência antes e presença depois do commit externo.
+
+    `transaction=True` é o que dá sentido à asserção negativa — sob a marca
+    comum nenhum `on_commit` rodaria e a ausência de notificação não provaria
+    nada.
     """
     from apps.core.exceptions import DadosInvalidos
     from apps.estoque.models import SaldoEstoque
