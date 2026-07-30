@@ -122,6 +122,7 @@ vai no fim para não sugerir reordenação de valores já persistidos.
 from collections.abc import Iterable
 
 
+@transaction.atomic
 def criar_notificacoes_para_destinatarios(
     *,
     destinatarios_ids: Iterable[int | None],
@@ -169,9 +170,18 @@ já fazia — está sendo movida, não reescrita, e os testes existentes dela
 teste de regressão da delegação. O filtro de `None` é novo e existe porque
 `Setor.chefe_id` é nullable: o chamador não deve precisar repetir a guarda.
 
-Continua um único `bulk_create` por chamada, sem `transaction.atomic` — igual ao
-que existe hoje. O helper não abre transação porque é chamado de dentro de
-`on_commit`, isto é, já fora da transação de domínio.
+Continua um único `bulk_create` por chamada. O `@transaction.atomic` é exigência
+de `docs/CONVENTIONS.md:48-51` — service é ponto de mutação, escrita vai dentro
+de `transaction.atomic` — e alinha o novo service com
+`marcar_notificacao_lida`/`marcar_todas_notificacoes_lidas`, que já o carregam.
+`criar_notificacoes_para` não ganha decorator próprio: delega, e o atomic
+aninhado seria savepoint sem escrita própria para proteger.
+
+`transaction.on_commit` **não** substitui isso: ele agenda *quando* o callback
+roda, não em que transação a escrita dele acontece. Rodar em autocommit deixaria
+o `bulk_create` sem bloco explícito num caminho que o projeto trata como
+mutação; um `bulk_create` de uma linha só sobreviveria por acidente do
+statement-level atomicity do Postgres, não por contrato.
 
 ### 3. Selector de resolução do chefe
 
@@ -411,7 +421,38 @@ subconjunto de quem vê a requisição em `fila_autorizacao`.** O superusuário 
 único que vê a fila sem receber notificação — direção segura (vê sem ser
 avisado); o inverso, avisado sem ver, é o que a condição espelhada impede — e o
 espelho só vale enquanto o teste de equivalência (caso 12) o segurar.
-Travada pelos testes 3, 6 e 9-11.
+Travada pelos testes 3, 6 e 9-12 — o 12 é o único que detecta divergência entre
+`chefe_autorizador_do_setor` e `fila_autorizacao`, e ficar de fora desta lista
+era resíduo da renumeração. A exceção do superusuário não ganha teste próprio
+aqui: ela não é regra nova, é `fila_autorizacao` devolvendo `base_qs` inteiro
+para `is_superuser` (`apps/requisicoes/selectors.py:165-166`), já coberto na
+seção de fila de `test_selectors.py`. O que esta fatia acrescenta é apenas *não*
+notificá-lo, o que o caso 3 já assere ao exigir exatamente um destinatário.
+
+**Limite conhecido — janela TOCTOU entre resolver e gravar.** O callback resolve
+o chefe e grava a notificação em dois statements; uma desativação concorrente
+entre os dois persiste uma linha `ENVIO_AUTORIZACAO` para chefe já inativo. O
+plano **não** fecha essa janela com lock, por três razões:
+
+1. **Lock não a fecha.** Uma desativação um instante *depois* do INSERT produz a
+   mesma linha. Atividade é estado mutável; notificação é registro histórico
+   imutável. Não existe ponto de serialização que torne "destinatário ativo"
+   durável — só se poderia estreitar a janela, nunca eliminá-la.
+2. **A contenção já existe, e é do lado da leitura.**
+   `pode_ver_notificacao` exige `papel.ativo`
+   (`apps/notificacoes/policies.py:13`), com teste próprio já verde
+   (`test_inativo_nao_pode_ver_propria_notificacao`), e USR-01 barra o login. A
+   linha órfã é inerte: ninguém consegue abri-la. A invariante que importa é
+   "inativo não lê notificação", e ela é garantida por policy, não pela ausência
+   do registro.
+3. **O custo cai no lugar errado.** `select_for_update` sobre `Setor` num
+   callback pós-commit abriria transação e lock num caminho cujo contrato é
+   justamente não afetar a transição já commitada — trocaria uma linha inerte
+   por contenção de lock no cadastro de setores.
+
+O caso 6 continua cobrindo a janela que *importa* e que é fechável: desativação
+entre o commit da transição e a execução do callback, em que o chefe é resolvido
+já inativo e nada é gravado.
 
 Registrar em vez de deixar implícito é resposta direta à revisão do plano: uma
 regra que o código passa a depender e que nenhum documento carrega vira, na
