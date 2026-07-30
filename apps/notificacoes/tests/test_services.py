@@ -643,6 +643,12 @@ def test_separacao_bloqueada_por_divergencia_nao_notifica(
     Notificar aqui seria mandar o beneficiário buscar material que o
     Almoxarifado não separou.
 
+    Assere só a ausência de notificação. O contrato de domínio do bloqueio —
+    `code='separacao_bloqueada'`, estado preservado, saldos e timeline
+    intocados — pertence a `requisicoes` e vive em
+    `test_tr015b_bloqueia_por_divergencia_critica`; duplicá-lo aqui acoplaria
+    este arquivo às regras do app dono do caso de uso.
+
     Sobre o que este teste trava, sem exagero: hoje o resultado é garantido
     *estruturalmente* pelo `@transaction.atomic` do service — a guarda levanta,
     a transação reverte e qualquer `on_commit` registrado é descartado. Mover o
@@ -656,7 +662,6 @@ def test_separacao_bloqueada_por_divergencia_nao_notifica(
     """
     from apps.core.exceptions import DadosInvalidos
     from apps.estoque.models import SaldoEstoque
-    from apps.requisicoes.models import EstadoRequisicao
     from apps.requisicoes.services import separar_para_retirada
 
     req = _autorizar_nova_requisicao(
@@ -669,12 +674,9 @@ def test_separacao_bloqueada_por_divergencia_nao_notifica(
     # pela autorização, que é o que a separação confere item a item.
     SaldoEstoque.objects.filter(material=material_disponivel).update(saldo_fisico=0)
 
-    with pytest.raises(DadosInvalidos) as excinfo:
+    with pytest.raises(DadosInvalidos):
         separar_para_retirada(ator_id=chefe_almoxarifado.pk, requisicao_id=req.pk)
-    assert excinfo.value.code == 'separacao_bloqueada'
 
-    req.refresh_from_db()
-    assert req.estado == EstadoRequisicao.AUTORIZADA
     assert not Notificacao.objects.filter(
         requisicao_id=req.pk,
         tipo=TipoNotificacao.SEPARACAO_RETIRADA,
@@ -691,9 +693,12 @@ def test_separacao_sem_permissao_nao_notifica(
     é do Almoxarifado — a policy nega, e nada deve ser anunciado. Mesmo alcance
     e mesma limitação do teste de TR-015B acima: trava o contrato de saída, não
     a posição do hook.
+
+    A negação em si e a ausência de escrita são contrato de `requisicoes`, em
+    `test_separar_para_retirada_permissao_negada_chefe_setor`. Aqui fica só a
+    metade de notificação.
     """
     from apps.core.exceptions import PermissaoNegada
-    from apps.requisicoes.models import EstadoRequisicao
     from apps.requisicoes.services import separar_para_retirada
 
     req = _autorizar_nova_requisicao(
@@ -706,8 +711,6 @@ def test_separacao_sem_permissao_nao_notifica(
     with pytest.raises(PermissaoNegada):
         separar_para_retirada(ator_id=chefe_obras.pk, requisicao_id=req.pk)
 
-    req.refresh_from_db()
-    assert req.estado == EstadoRequisicao.AUTORIZADA
     assert not Notificacao.objects.filter(
         requisicao_id=req.pk,
         tipo=TipoNotificacao.SEPARACAO_RETIRADA,
