@@ -20,7 +20,11 @@ de `Setor`. Daí a única mudança de assinatura do issue.
 **Muda:**
 
 - `apps/notificacoes/models.py` — novo membro
-  `TipoNotificacao.ENVIO_AUTORIZACAO`.
+  `ENVIO_AUTORIZACAO = 'envio_autorizacao', 'Envio para autorização'` em
+  `TipoNotificacao`. O par valor/rótulo é contrato: o valor é o que fica
+  persistido em `Notificacao.tipo`, e o rótulo é o texto exato que o teste 13
+  procura no HTML da lista, já que o template usa `get_tipo_display` sem
+  tradução própria. Especificação completa em §1.
 - `apps/notificacoes/services.py` — novo service irmão
   `criar_notificacoes_para_destinatarios`; `criar_notificacoes_para` passa a
   delegar nele, mantendo a assinatura atual intacta.
@@ -72,7 +76,7 @@ de `Setor`. Daí a única mudança de assinatura do issue.
 | `apps/notificacoes/services.py` | Novo `criar_notificacoes_para_destinatarios`; `criar_notificacoes_para` delega |
 | `apps/requisicoes/selectors.py` | Novo `chefe_autorizador_do_setor` |
 | `apps/requisicoes/services/ciclo_vida.py` | Novo `_notificar_chefe_pos_commit`; `on_commit` em `enviar_para_autorizacao` |
-| `apps/requisicoes/tests/test_selectors.py` | 4 casos do selector novo |
+| `apps/requisicoes/tests/test_selectors.py` | 4 casos do selector novo + equivalência com `fila_autorizacao` |
 | `apps/notificacoes/tests/test_services.py` | 2 casos de service + 5 casos de hook |
 | `apps/notificacoes/tests/test_views.py` | 1 caso de renderização |
 | `docs/estado-transicoes-requisicao.md` | TR-005 ganha o efeito de notificação |
@@ -248,13 +252,20 @@ Quatro decisões que o código embute:
    uma query indexada por PK num callback já fora do caminho crítico da
    transição. Snapshotar o id na guarda seria uma query a menos e um
    destinatário errado na janela de corrida.
-2. **A condição do selector repete `fila_autorizacao`, e isso é o ponto.**
-   `apps/requisicoes/selectors.py:139-176` concede a fila a quem tem
-   `ator.setor_chefiado` com `setor_chefiado.ativo` e `ator.is_active`;
-   `chefe_autorizador_do_setor` é a mesma condição escrita do lado do setor
+2. **A condição é espelhada, não compartilhada — e o teste 12 é o que segura o
+   espelho.** `apps/requisicoes/selectors.py:139-176` concede a fila partindo do
+   ator (`ator.setor_chefiado`, `setor_chefiado.ativo`, `ator.is_active`);
+   `chefe_autorizador_do_setor` escreve a mesma condição partindo do setor
    (`Setor.chefe` é `OneToOneField`, então `setor.chefe` e `user.setor_chefiado`
-   são o mesmo vínculo). Notificar quem não vê a fila seria pior que não
-   notificar — é o que `NOT-01` passa a proibir.
+   são o mesmo vínculo). As duas **não** compartilham código: têm sentidos
+   opostos (ator→requisições vs. setor→ator) e tipos de retorno diferentes
+   (`QuerySet[Requisicao]` vs. `int | None`), e forçar um predicado comum
+   exigiria reescrever `fila_autorizacao`, que esta fatia decidiu não tocar.
+   Espelho sem trava é exatamente o risco que a revisão do plano apontou: os
+   dois filtros podem divergir numa fatia futura. A trava é o teste de
+   equivalência (caso 12), que assere os dois lados sob os mesmos estados de
+   setor/chefe. Notificar quem não vê a fila seria pior que não notificar — é o
+   que `NOT-01` proíbe.
 3. **`chefe_id == ator_id` cobre o auto-envio (critério 4).** O chefe que cria e
    envia a própria requisição — caso normal, a policy de criação permite
    beneficiário no próprio setor — não recebe notificação de algo que acabou de
@@ -288,7 +299,7 @@ criador/beneficiário.
 
 | ID | Tema | Invariante | Camada/reforço esperado | Testes mínimos | Ref. |
 |---|---|---|---|---|---|
-| NOT-01 | Notificações | Destinatário de `ENVIO_AUTORIZACAO` é chefe ativo de setor ativo — subconjunto de quem vê a requisição em `fila_autorizacao`. O superusuário vê a fila sem receber a notificação; o inverso (notificado sem ver) é proibido. | Selector `chefe_autorizador_do_setor` compartilhado entre a resolução do destinatário e a condição da fila; hook pós-commit fail-open. | Chefe ativo notificado; chefe inativo, setor inativo e setor sem chefe não geram notificação; auto-envio do próprio chefe não notifica. | #108 |
+| NOT-01 | Notificações | Destinatário de `ENVIO_AUTORIZACAO` é chefe ativo de setor ativo — subconjunto de quem vê a requisição em `fila_autorizacao`. O superusuário vê a fila sem receber a notificação; o inverso (notificado sem ver) é proibido. | Selector `chefe_autorizador_do_setor` espelha a condição de `fila_autorizacao` (não há código compartilhado: sentidos e tipos de retorno são opostos); o espelho é travado por teste de equivalência. Hook pós-commit fail-open. | Equivalência `chefe_autorizador_do_setor` × `fila_autorizacao` nos mesmos estados de setor/chefe; chefe ativo notificado; chefe inativo, setor inativo e setor sem chefe não geram notificação; auto-envio do próprio chefe não notifica. | #108 |
 
 E um bullet em §4 (Notas por tema): notificação é efeito colateral pós-commit,
 nunca pré-condição de transição; falha ao notificar não desfaz a transição já
@@ -297,7 +308,7 @@ commitada.
 Esta linha existe porque o plano chamava a relação de invariante enquanto a
 deixava fora da matriz — inconsistência apontada na revisão do plano. Ou vira
 contrato, ou deixa de ser chamada de invariante; vira contrato, porque é o que
-justifica o selector compartilhado da decisão 2.
+justifica o teste de equivalência da decisão 2.
 
 ## Estratégia de testes
 
@@ -360,19 +371,27 @@ Camada de selector — `apps/requisicoes/tests/test_selectors.py`, seção nova
 | 9 | setor ativo com chefe inativo | `None` |
 | 10 | setor inativo com chefe ativo | `None` |
 | 11 | setor sem chefe (`chefe_id is None`) e `pk` inexistente | `None` nos dois |
+| 12 | equivalência, parametrizada em (setor ativo × chefe ativo), (setor ativo × chefe inativo), (setor inativo × chefe ativo): `chefe_autorizador_do_setor(setor.pk) == chefe.pk` **sse** a requisição do setor aparece em `fila_autorizacao(chefe.pk)` | os dois lados concordam nos três estados |
 
 Os casos 9 a 11 são o contrato do `NOT-01` no nível em que ele é barato de
 testar: os quatro caminhos que devolvem `None` são exatamente os quatro em que
 `fila_autorizacao` não mostraria a requisição a ninguém. O caso 6 continua sendo
 o teste de que o hook *usa* esse contrato no momento certo.
 
+O caso 12 é o que a revisão do plano exigiu ao apontar que "espelhado" não é
+"compartilhado": ele falha assim que `fila_autorizacao` e
+`chefe_autorizador_do_setor` divergirem em qualquer um dos três estados, o que
+nenhum dos casos 8-11 pegaria sozinho — eles só olham um lado do espelho. O
+estado "setor sem chefe" fica fora da parametrização porque não há usuário para
+passar a `fila_autorizacao`; ele já é o caso 11.
+
 Camada de view — `apps/notificacoes/tests/test_views.py`:
 
 | # | Caso | Esperado |
 |---|---|---|
-| 12 | `chefe_obras` autenticado faz GET em `notificacoes:lista` com uma `Notificacao` `ENVIO_AUTORIZACAO` apontando para requisição numerada | 200; `Envio para autorização` no HTML; `href` para `requisicoes:detalhe` daquele pk — critério 5 |
+| 13 | `chefe_obras` autenticado faz GET em `notificacoes:lista` com uma `Notificacao` `ENVIO_AUTORIZACAO` apontando para requisição numerada | 200; `Envio para autorização` no HTML; `href` para `requisicoes:detalhe` daquele pk — critério 5 |
 
-O caso 12 é o que substitui a edição de template: ele falha se o novo membro não
+O caso 13 é o que substitui a edição de template: ele falha se o novo membro não
 existir, se o rótulo mudar, ou se alguém trocar o `get_tipo_display` genérico do
 template por um `if` por tipo que esqueça o membro novo.
 
@@ -390,7 +409,8 @@ muda aqui).
 acrescenta `NOT-01` (ver Implementação §5): **quem recebe `ENVIO_AUTORIZACAO` é
 subconjunto de quem vê a requisição em `fila_autorizacao`.** O superusuário é o
 único que vê a fila sem receber notificação — direção segura (vê sem ser
-avisado); o inverso, avisado sem ver, é o que o selector compartilhado impede.
+avisado); o inverso, avisado sem ver, é o que a condição espelhada impede — e o
+espelho só vale enquanto o teste de equivalência (caso 12) o segurar.
 Travada pelos testes 3, 6 e 9-11.
 
 Registrar em vez de deixar implícito é resposta direta à revisão do plano: uma
