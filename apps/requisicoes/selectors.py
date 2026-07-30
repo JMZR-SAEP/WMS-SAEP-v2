@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Callable
 
 from django.db.models import Count, F, OuterRef, Q, QuerySet, Subquery
 
-from apps.accounts.models import User
+from apps.accounts.models import Setor, User
 from apps.accounts.papeis import papel_efetivo
 from apps.estoque.models import Material
 from apps.requisicoes import policies
@@ -174,6 +174,21 @@ def fila_autorizacao(ator_id: int) -> QuerySet[Requisicao]:
         return base_qs.none()
 
     return base_qs.filter(setor_beneficiario_id=setor_chefiado.pk)
+
+
+def chefe_autorizador_do_setor(setor_id: int) -> int | None:
+    """Id do chefe que hoje pode autorizar requisições do setor, ou ``None``.
+
+    Espelha, do lado do setor, a condição que ``fila_autorizacao`` aplica do
+    lado do ator: setor ativo e chefe ativo. Devolve ``None`` para setor
+    inexistente, setor inativo, setor sem chefe e chefe inativo — os quatro
+    casos em que ninguém veria a requisição na fila (NOT-01).
+    """
+    return (
+        Setor.objects.filter(pk=setor_id, ativo=True, chefe__is_active=True)
+        .values_list('chefe_id', flat=True)
+        .first()
+    )
 
 
 def fila_atendimento(ator_id: int) -> QuerySet[Requisicao]:
