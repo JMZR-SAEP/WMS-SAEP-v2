@@ -609,3 +609,181 @@ def test_separar_para_retirada_notifica_criador_e_beneficiario(
         chefe_obras.pk,
         outro_solicitante.pk,
     }
+
+
+@pytest.mark.django_db(transaction=True)
+def test_separar_para_retirada_criador_igual_beneficiario_uma_notificacao(
+    chefe_obras, chefe_almoxarifado, solicitante, material_disponivel
+):
+    """criador == beneficiário → 1 notificação (deduplicação)."""
+    from apps.requisicoes.services import separar_para_retirada
+
+    req = _autorizar_nova_requisicao(
+        criador=solicitante,
+        beneficiario=solicitante,
+        material=material_disponivel,
+        chefe=chefe_obras,
+    )
+    separar_para_retirada(ator_id=chefe_almoxarifado.pk, requisicao_id=req.pk)
+
+    notifs = Notificacao.objects.filter(
+        requisicao_id=req.pk,
+        tipo=TipoNotificacao.SEPARACAO_RETIRADA,
+    )
+    assert notifs.count() == 1
+    assert notifs.first().destinatario_id == solicitante.pk
+
+
+@pytest.mark.django_db(transaction=True)
+def test_separacao_bloqueada_por_divergencia_nao_notifica(
+    chefe_obras, chefe_almoxarifado, outro_solicitante, material_disponivel
+):
+    """TR-015B: separação bloqueada não avisa ninguém.
+
+    Notificar aqui seria mandar o beneficiário buscar material que o
+    Almoxarifado não separou.
+
+    Sobre o que este teste trava, sem exagero: hoje o resultado é garantido
+    *estruturalmente* pelo `@transaction.atomic` do service — a guarda levanta,
+    a transação reverte e qualquer `on_commit` registrado é descartado. Mover o
+    hook para antes das guardas **não** faz este teste falhar (verificado por
+    mutação). O que ele pega é a notificação deixar de ser efeito pós-commit:
+    trocar `transaction.on_commit` por um enfileiramento imediato (`.delay()`
+    de task, webhook, signal em `post_save`) dispara mesmo com rollback, e é aí
+    que este teste acusa. `transaction=True` é o que dá sentido à asserção
+    negativa — sob a marca comum nenhum `on_commit` rodaria e a ausência de
+    notificação não provaria nada.
+    """
+    from apps.core.exceptions import DadosInvalidos
+    from apps.estoque.models import SaldoEstoque
+    from apps.requisicoes.models import EstadoRequisicao
+    from apps.requisicoes.services import separar_para_retirada
+
+    req = _autorizar_nova_requisicao(
+        criador=chefe_obras,
+        beneficiario=outro_solicitante,
+        material=material_disponivel,
+        chefe=chefe_obras,
+    )
+    # divergência crítica superveniente (EST-07): físico cai abaixo do reservado
+    # pela autorização, que é o que a separação confere item a item.
+    SaldoEstoque.objects.filter(material=material_disponivel).update(saldo_fisico=0)
+
+    with pytest.raises(DadosInvalidos) as excinfo:
+        separar_para_retirada(ator_id=chefe_almoxarifado.pk, requisicao_id=req.pk)
+    assert excinfo.value.code == 'separacao_bloqueada'
+
+    req.refresh_from_db()
+    assert req.estado == EstadoRequisicao.AUTORIZADA
+    assert not Notificacao.objects.filter(
+        requisicao_id=req.pk,
+        tipo=TipoNotificacao.SEPARACAO_RETIRADA,
+    ).exists()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_separacao_sem_permissao_nao_notifica(
+    chefe_obras, outro_solicitante, material_disponivel
+):
+    """Permissão negada não vaza notificação.
+
+    `chefe_obras` chefia o setor beneficiário e criou a requisição, mas separar
+    é do Almoxarifado — a policy nega, e nada deve ser anunciado. Mesmo alcance
+    e mesma limitação do teste de TR-015B acima: trava o contrato de saída, não
+    a posição do hook.
+    """
+    from apps.core.exceptions import PermissaoNegada
+    from apps.requisicoes.models import EstadoRequisicao
+    from apps.requisicoes.services import separar_para_retirada
+
+    req = _autorizar_nova_requisicao(
+        criador=chefe_obras,
+        beneficiario=outro_solicitante,
+        material=material_disponivel,
+        chefe=chefe_obras,
+    )
+
+    with pytest.raises(PermissaoNegada):
+        separar_para_retirada(ator_id=chefe_obras.pk, requisicao_id=req.pk)
+
+    req.refresh_from_db()
+    assert req.estado == EstadoRequisicao.AUTORIZADA
+    assert not Notificacao.objects.filter(
+        requisicao_id=req.pk,
+        tipo=TipoNotificacao.SEPARACAO_RETIRADA,
+    ).exists()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_segunda_separacao_nao_gera_notificacao_extra(
+    chefe_obras, chefe_almoxarifado, outro_solicitante, material_disponivel
+):
+    """Repetir TR-015 falha com EstadoInvalido e não duplica o par."""
+    from apps.core.exceptions import EstadoInvalido
+    from apps.requisicoes.services import separar_para_retirada
+
+    req = _autorizar_nova_requisicao(
+        criador=chefe_obras,
+        beneficiario=outro_solicitante,
+        material=material_disponivel,
+        chefe=chefe_obras,
+    )
+    separar_para_retirada(ator_id=chefe_almoxarifado.pk, requisicao_id=req.pk)
+
+    with pytest.raises(EstadoInvalido):
+        separar_para_retirada(ator_id=chefe_almoxarifado.pk, requisicao_id=req.pk)
+
+    assert (
+        Notificacao.objects.filter(
+            requisicao_id=req.pk,
+            tipo=TipoNotificacao.SEPARACAO_RETIRADA,
+        ).count()
+        == 2
+    )
+
+
+@pytest.mark.django_db(transaction=True)
+def test_falha_ao_notificar_separacao_nao_desfaz_transicao(
+    chefe_obras,
+    chefe_almoxarifado,
+    outro_solicitante,
+    material_disponivel,
+    monkeypatch,
+    caplog,
+):
+    """Fail-open: erro no hook é logado e a separação sobrevive.
+
+    O patch mira o símbolo já ligado em `atendimento`, não em
+    `notificacoes.services`: o `from ... import` no topo do módulo consumidor
+    deixa de consultar o módulo de origem em runtime.
+    """
+    import logging
+
+    from apps.requisicoes.models import EstadoRequisicao
+    from apps.requisicoes.services import separar_para_retirada
+
+    req = _autorizar_nova_requisicao(
+        criador=chefe_obras,
+        beneficiario=outro_solicitante,
+        material=material_disponivel,
+        chefe=chefe_obras,
+    )
+
+    def _explode(**kwargs):
+        raise RuntimeError('banco fora')
+
+    monkeypatch.setattr(
+        'apps.requisicoes.services.atendimento.criar_notificacoes_para',
+        _explode,
+    )
+
+    with caplog.at_level(logging.ERROR):
+        separar_para_retirada(ator_id=chefe_almoxarifado.pk, requisicao_id=req.pk)
+
+    req.refresh_from_db()
+    assert req.estado == EstadoRequisicao.PRONTA_PARA_RETIRADA
+    assert 'Falha ao criar notificações pós-commit' in caplog.text
+    assert not Notificacao.objects.filter(
+        requisicao_id=req.pk,
+        tipo=TipoNotificacao.SEPARACAO_RETIRADA,
+    ).exists()

@@ -286,12 +286,36 @@ da idempotência, que continua havendo exatamente um, o da primeira separação.
 
 Reforçar testes pré-existentes normalmente seria escopo de outra fatia. Aqui
 não é: antes do #109 esses caminhos não tinham efeito colateral externo a
-vazar, e a asserção que faltava era só rigor. A partir desta fatia, uma
-regressão que movesse o `on_commit` para antes das guardas — ou uma guarda
-futura que passasse a rodar depois dele — avisaria o beneficiário para buscar
-material que ninguém separou e que ele talvez nem tenha permissão de receber.
-O teste que pega isso é o que assere ausência de escrita no caminho negado. É
-o mesmo raciocínio da decisão 3 de §2, um nível de teste abaixo.
+vazar, e a asserção que faltava era só rigor.
+
+**Correção sobre o alcance destes testes, apurada por mutação durante a
+implementação.** A primeira redação deste plano afirmava que eles pegariam uma
+regressão que movesse o `on_commit` para antes das guardas. Testado: não
+pegam. Mover o hook para logo depois do `select_for_update`, antes de
+`exigir_pode_separar_para_retirada`, mantém os casos 3 e 6 verdes — o
+`@transaction.atomic` do service reverte a transação quando a guarda levanta, e
+todo callback registrado é descartado junto. É a decisão 3 de §2 funcionando;
+a consequência é que o resultado é garantido *estruturalmente*, não por estes
+testes. Remover o `@transaction.atomic` para forçar a falha também não serve
+como prova: o `select_for_update` quebra antes, com
+`TransactionManagementError`.
+
+O que estes testes de fato travam, e por que ficam mesmo assim:
+
+1. **O contrato de saída, independente do mecanismo.** Eles dizem "separação
+   que falha não anuncia nada" sem depender de *como* isso é garantido hoje. A
+   mudança realista que eles pegam é a notificação deixar de ser efeito
+   pós-commit: trocar `transaction.on_commit` por enfileiramento imediato
+   (`.delay()` de task, webhook, signal em `post_save`) dispara mesmo com
+   rollback — e aí os casos 3 e 6 acusam.
+2. **O contrato de service exigido pelas instruções de caminho** do
+   `.coderabbit.yaml` — caminho feliz com timeline e efeitos, estado inválido
+   sem escrita, permissão negada sem escrita —, que era o achado original da
+   revisão do plano.
+
+O que **não** se deve escrever sobre eles: que travam a posição do hook dentro
+da função. Não travam, e a docstring de cada um diz isso explicitamente para
+que a próxima pessoa não confie em garantia que não existe.
 
 Não coberto, e por quê: badge de contagem
 (`apps/notificacoes/context_processors.py` conta por `lida=False`, sem olhar

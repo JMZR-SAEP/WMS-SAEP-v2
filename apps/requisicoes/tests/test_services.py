@@ -1473,31 +1473,58 @@ def test_separar_para_retirada_aceita_superuser(requisicao_autorizada, superuser
 def test_separar_para_retirada_permissao_negada_chefe_setor(
     requisicao_autorizada, chefe_obras
 ):
+    eventos_antes = requisicao_autorizada.eventos.count()
+
     with pytest.raises(PermissaoNegada):
         separar_para_retirada(
             ator_id=chefe_obras.pk,
             requisicao_id=requisicao_autorizada.pk,
         )
 
+    requisicao_autorizada.refresh_from_db()
+    assert requisicao_autorizada.estado == EstadoRequisicao.AUTORIZADA
+    assert requisicao_autorizada.eventos.count() == eventos_antes
+    assert not requisicao_autorizada.eventos.filter(
+        evento=EventoTimeline.SEPARACAO_RETIRADA
+    ).exists()
+
 
 @pytest.mark.django_db
 def test_separar_para_retirada_permissao_negada_solicitante(
     requisicao_autorizada, solicitante
 ):
+    eventos_antes = requisicao_autorizada.eventos.count()
+
     with pytest.raises(PermissaoNegada):
         separar_para_retirada(
             ator_id=solicitante.pk,
             requisicao_id=requisicao_autorizada.pk,
         )
 
+    requisicao_autorizada.refresh_from_db()
+    assert requisicao_autorizada.estado == EstadoRequisicao.AUTORIZADA
+    assert requisicao_autorizada.eventos.count() == eventos_antes
+    assert not requisicao_autorizada.eventos.filter(
+        evento=EventoTimeline.SEPARACAO_RETIRADA
+    ).exists()
+
 
 @pytest.mark.django_db
 def test_separar_para_retirada_estado_invalido(requisicao_aguardando, aux_almoxarifado):
+    eventos_antes = requisicao_aguardando.eventos.count()
+
     with pytest.raises(EstadoInvalido):
         separar_para_retirada(
             ator_id=aux_almoxarifado.pk,
             requisicao_id=requisicao_aguardando.pk,
         )
+
+    requisicao_aguardando.refresh_from_db()
+    assert requisicao_aguardando.estado == EstadoRequisicao.AGUARDANDO_AUTORIZACAO
+    assert requisicao_aguardando.eventos.count() == eventos_antes
+    assert not requisicao_aguardando.eventos.filter(
+        evento=EventoTimeline.SEPARACAO_RETIRADA
+    ).exists()
 
 
 @pytest.mark.django_db
@@ -1542,16 +1569,32 @@ def test_separar_para_retirada_requisicao_inexistente(aux_almoxarifado):
 def test_separar_para_retirada_idempotencia_bloqueia_segunda_execucao(
     requisicao_autorizada, aux_almoxarifado
 ):
-    """Após separar, repetir falha com EstadoInvalido (estado origem inválido)."""
+    """Após separar, repetir falha com EstadoInvalido (estado origem inválido).
+
+    A segunda tentativa não escreve: continua havendo exatamente um evento de
+    `SEPARACAO_RETIRADA`, o da primeira separação.
+    """
     separar_para_retirada(
         ator_id=aux_almoxarifado.pk,
         requisicao_id=requisicao_autorizada.pk,
     )
+    eventos_antes = requisicao_autorizada.eventos.count()
+
     with pytest.raises(EstadoInvalido):
         separar_para_retirada(
             ator_id=aux_almoxarifado.pk,
             requisicao_id=requisicao_autorizada.pk,
         )
+
+    requisicao_autorizada.refresh_from_db()
+    assert requisicao_autorizada.estado == EstadoRequisicao.PRONTA_PARA_RETIRADA
+    assert requisicao_autorizada.eventos.count() == eventos_antes
+    assert (
+        requisicao_autorizada.eventos.filter(
+            evento=EventoTimeline.SEPARACAO_RETIRADA
+        ).count()
+        == 1
+    )
 
 
 # ---------------------------------------------------------------------------

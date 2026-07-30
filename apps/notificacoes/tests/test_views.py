@@ -212,3 +212,36 @@ def test_lista_exibe_rotulo_e_link_de_envio_autorizacao(
     assert 'Envio para autorização' in corpo
     assert reverse('requisicoes:detalhe', kwargs={'pk': req.pk}) in corpo
     assert 'REQ-2026-000108' in corpo
+
+
+@pytest.mark.django_db
+def test_lista_exibe_rotulo_e_link_de_separacao_retirada(
+    client, outro_solicitante, solicitante, setor_obras
+):
+    """Rótulo PT-BR e link para o detalhe, sem edição de template.
+
+    Falha se o membro sumir, se o rótulo mudar, ou se alguém trocar o
+    `get_tipo_display` genérico de `lista.html` por um `if` por tipo que
+    esqueça o membro novo.
+    """
+    req = Requisicao.objects.create(
+        estado=EstadoRequisicao.PRONTA_PARA_RETIRADA,
+        numero_publico='REQ-2026-000109',
+        criador=solicitante,
+        beneficiario=outro_solicitante,
+        setor_beneficiario=setor_obras,
+    )
+    Notificacao.objects.create(
+        destinatario=outro_solicitante,
+        tipo=TipoNotificacao.SEPARACAO_RETIRADA,
+        requisicao_id=req.pk,
+    )
+    client.force_login(outro_solicitante)
+
+    resp = client.get(reverse('notificacoes:lista'))
+    corpo = resp.content.decode()
+
+    assert resp.status_code == 200
+    assert 'Separação para retirada' in corpo
+    assert reverse('requisicoes:detalhe', kwargs={'pk': req.pk}) in corpo
+    assert 'REQ-2026-000109' in corpo
