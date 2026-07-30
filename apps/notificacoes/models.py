@@ -8,6 +8,7 @@ class TipoNotificacao(models.TextChoices):
     ATENDIMENTO = 'atendimento', 'Atendimento'
     DIVERGENCIA_ESTOQUE = 'divergencia_estoque', 'Divergência de estoque'
     ENVIO_AUTORIZACAO = 'envio_autorizacao', 'Envio para autorização'
+    SEPARACAO_RETIRADA = 'separacao_retirada', 'Separação para retirada'
 
 
 class Notificacao(models.Model):
