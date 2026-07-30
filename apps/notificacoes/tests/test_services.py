@@ -5,7 +5,10 @@ from decimal import Decimal
 import pytest
 
 from apps.notificacoes.models import Notificacao, TipoNotificacao
-from apps.notificacoes.services import criar_notificacoes_para
+from apps.notificacoes.services import (
+    criar_notificacoes_para,
+    criar_notificacoes_para_destinatarios,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -40,6 +43,47 @@ def test_criar_notificacoes_mesmo_usuario_uma_notificacao(solicitante):
         tipo=TipoNotificacao.AUTORIZACAO,
     )
     notifs = Notificacao.objects.filter(requisicao_id=11)
+    assert notifs.count() == 1
+    assert notifs.first().destinatario_id == solicitante.pk
+
+
+# ---------------------------------------------------------------------------
+# criar_notificacoes_para_destinatarios — primitivo de roteamento
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_criar_notificacoes_destinatarios_deduplica_repetidos(
+    solicitante, outro_solicitante
+):
+    """Id repetido na entrada gera uma notificação só.
+
+    Assere contagem e conjunto, não ordem: `dict.fromkeys` preserva a ordem de
+    entrada no `bulk_create`, mas consulta sem `order_by` não tem ordem
+    garantida pelo banco, e ordem de destinatário não é contrato deste fluxo.
+    """
+    criar_notificacoes_para_destinatarios(
+        destinatarios_ids=[solicitante.pk, outro_solicitante.pk, solicitante.pk],
+        requisicao_id=20,
+        tipo=TipoNotificacao.ENVIO_AUTORIZACAO,
+    )
+    notifs = Notificacao.objects.filter(requisicao_id=20)
+    assert notifs.count() == 2
+    assert set(notifs.values_list('destinatario_id', flat=True)) == {
+        solicitante.pk,
+        outro_solicitante.pk,
+    }
+
+
+@pytest.mark.django_db
+def test_criar_notificacoes_destinatarios_ignora_none(solicitante):
+    """`None` na entrada é descartado; o chamador não repete a guarda."""
+    criar_notificacoes_para_destinatarios(
+        destinatarios_ids=[None, solicitante.pk],
+        requisicao_id=21,
+        tipo=TipoNotificacao.ENVIO_AUTORIZACAO,
+    )
+    notifs = Notificacao.objects.filter(requisicao_id=21)
     assert notifs.count() == 1
     assert notifs.first().destinatario_id == solicitante.pk
 
