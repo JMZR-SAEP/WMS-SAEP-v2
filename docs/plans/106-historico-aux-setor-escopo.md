@@ -43,7 +43,8 @@ não ampliar o detalhe.
 - `pode_consultar_historico_requisicoes` (comportamento) — o auxiliar continua
   entrando na página. Negar o acesso resolveria o 404 também, mas contraria o
   critério de aceite 2 ("aux continua vendo, no histórico, as requisições que
-  ele criou") e transformaria um bug de listagem num 403 novo.
+  ele criou" — leia-se as **não-rascunho** que ele criou, ver abaixo) e
+  transformaria um bug de listagem num 403 novo.
 - `pode_filtrar_historico_por_setor` / `setores_do_historico` — o filtro de
   setor já é exclusivo de almoxarifado e superusuário; nada a ajustar.
 - `estoque/selectors.py::movimentacoes_visiveis_para` (US-17) — continua
@@ -59,7 +60,7 @@ não ampliar o detalhe.
 |---|---|
 | `apps/requisicoes/selectors.py` | Corpo de `historico_requisicoes_visiveis_para` (filtro + docstring) |
 | `apps/requisicoes/policies.py` | Docstring de `pode_consultar_historico_requisicoes` |
-| `apps/requisicoes/tests/test_selectors.py` | 4 casos novos na seção de histórico |
+| `apps/requisicoes/tests/test_selectors.py` | 5 casos novos na seção de histórico |
 | `apps/requisicoes/tests/test_policies.py` | 1 caso em `TestPodeConsultarHistoricoRequisicoes` |
 | `apps/requisicoes/tests/test_views.py` | 1 caso em `TestHistoricoRequisicoesView` |
 | `docs/matriz-permissoes.md` | §5 — bullet de visibilidade do histórico de requisições |
@@ -94,8 +95,15 @@ Quatro decisões que o código embute:
    que `requisicoes_visiveis_para` precisa carregar não tem análogo neste ramo.
 2. **Cláusula de criador, para atender o critério 2.** Sem ela o auxiliar
    passaria a ver histórico vazio, e a página deixaria de fazer sentido para
-   ele. Com ela, o auxiliar vê exatamente o que criou — que é o que o detalhe
-   já lhe concede como criador.
+   ele. Com ela, o auxiliar vê o que criou — que é o que o detalhe já lhe
+   concede como criador. **Qualificação do critério 2:** o `& nao_rascunho`
+   se aplica à cláusula de criador como a todas as outras, então o auxiliar vê
+   as requisições **não-rascunho** que criou. Não é uma exceção inventada aqui:
+   é a mesma regra já testada para chefe de setor
+   (`test_historico_chefe_setor_nao_ve_proprio_rascunho`) e para o almoxarifado
+   (`test_historico_almoxarifado_nao_ve_proprio_rascunho`) — histórico não é
+   "minhas requisições", e o rascunho próprio continua acessível em
+   `requisicoes:minhas` e no detalhe.
 3. **A cláusula de criador vale para todo papel de setor, não só para o
    auxiliar.** Para o chefe ela é quase sempre redundante: a policy de criação
    (`resolver_escopo_criacao_requisicao`) limita o beneficiário a
@@ -141,10 +149,19 @@ Camada de selector, `apps/requisicoes/tests/test_selectors.py`, seção
 | 2 | `aux_obras` + requisição não-rascunho criada pelo próprio `aux_obras` | aparece — critério de aceite 2 |
 | 3 | `aux_obras` + rascunho próprio | **não** aparece — histórico não é "minhas requisições", mesma regra já testada para chefe e almoxarifado |
 | 4 | `aux_obras`: histórico ⊆ `requisicoes_visiveis_para` | conjunto vazio na diferença — regressão direta do 404 |
+| 5 | `chefe_obras` + requisição não-rascunho criada por ele com `setor_beneficiario` = setor TI | aparece no histórico **e** em `requisicoes_visiveis_para` — fixa a decisão 3 |
 
 O caso 4 é o teste do bug, não do sintoma: ele falha para qualquer regra futura
 que volte a listar no histórico algo que o detalhe recusa, inclusive por um
 caminho diferente do `setores_em_escopo`.
+
+O caso 5 fixa a única linha que a cláusula de criador acrescenta ao chefe
+(decisão 3), e a fixa nos dois lados: sem a asserção sobre
+`requisicoes_visiveis_para`, o teste passaria a valer como licença para listar
+no histórico algo que o detalhe recusa — exatamente o defeito que este issue
+corrige. A requisição é criada direto pelo ORM, como as demais fixtures de
+histórico; a policy de criação (que normalmente impediria esse beneficiário)
+não participa da regra sob teste, que é de leitura.
 
 `test_historico_chefe_setor_ve_so_proprio_setor` já cobre a segunda metade do
 critério 3 (chefe do setor vê a requisição de terceiro) e continua verde sem
@@ -155,16 +172,16 @@ Camada de policy, `apps/requisicoes/tests/test_policies.py`,
 
 | # | Caso | Esperado |
 |---|---|---|
-| 5 | `AUX_OBRAS` (persona já existente, `setor_chefiado_ativo_id=None`) | `True` — a página continua acessível ao auxiliar |
+| 6 | `AUX_OBRAS` (persona já existente, `setor_chefiado_ativo_id=None`) | `True` — a página continua acessível ao auxiliar |
 
 Camada de view, `apps/requisicoes/tests/test_views.py`,
 `TestHistoricoRequisicoesView`:
 
 | # | Caso | Esperado |
 |---|---|---|
-| 6 | `aux_obras` faz GET no histórico com `req_historico_obras` no banco | 200 (não 403) e `req_historico_obras` fora do `page_obj` |
+| 7 | `aux_obras` faz GET no histórico com `req_historico_obras` no banco | 200 (não 403) e `req_historico_obras` fora do `page_obj` |
 
-O caso 6 amarra policy e selector: sozinhos, o 5 e o 1 permitiriam uma
+O caso 7 amarra policy e selector: sozinhos, o 6 e o 1 permitiriam uma
 regressão em que o auxiliar recebe 403 (policy endurecida) ou volta a ver a
 linha (selector afrouxado) sem que nenhum dos dois quebre.
 
