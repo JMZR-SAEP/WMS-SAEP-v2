@@ -551,3 +551,61 @@ def test_falha_ao_notificar_nao_desfaz_transicao(
     assert req.estado == EstadoRequisicao.AGUARDANDO_AUTORIZACAO
     assert not Notificacao.objects.filter(requisicao_id=req.pk).exists()
     assert 'Falha ao criar notificação de envio pós-commit' in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# Hook de separação para retirada — notifica criador e beneficiário
+# ---------------------------------------------------------------------------
+
+
+def _autorizar_nova_requisicao(*, criador, beneficiario, material, chefe):
+    """Requisição em AUTORIZADA, um passo antes de TR-015."""
+    from apps.requisicoes.services import (
+        autorizar_requisicao,
+        criar_requisicao,
+        enviar_para_autorizacao,
+    )
+
+    req = criar_requisicao(
+        ator_id=criador.pk,
+        beneficiario_id=beneficiario.pk,
+        itens=[
+            {
+                'material_id': material.pk,
+                'quantidade_solicitada': Decimal('1'),
+            }
+        ],
+    )
+    enviar_para_autorizacao(ator_id=criador.pk, requisicao_id=req.pk)
+    autorizar_requisicao(ator_id=chefe.pk, requisicao_id=req.pk)
+    return req
+
+
+@pytest.mark.django_db(transaction=True)
+def test_separar_para_retirada_notifica_criador_e_beneficiario(
+    chefe_obras, chefe_almoxarifado, outro_solicitante, material_disponivel
+):
+    """TR-015 avisa quem espera o material, não quem separou.
+
+    Assere o conjunto exato de destinatários, não só a contagem: um hook que
+    roteasse para `{beneficiário, almoxarife}` também daria 2.
+    """
+    from apps.requisicoes.services import separar_para_retirada
+
+    req = _autorizar_nova_requisicao(
+        criador=chefe_obras,
+        beneficiario=outro_solicitante,
+        material=material_disponivel,
+        chefe=chefe_obras,
+    )
+    separar_para_retirada(ator_id=chefe_almoxarifado.pk, requisicao_id=req.pk)
+
+    notifs = Notificacao.objects.filter(
+        requisicao_id=req.pk,
+        tipo=TipoNotificacao.SEPARACAO_RETIRADA,
+    )
+    assert notifs.count() == 2
+    assert set(notifs.values_list('destinatario_id', flat=True)) == {
+        chefe_obras.pk,
+        outro_solicitante.pk,
+    }

@@ -163,6 +163,18 @@ def separar_para_retirada(
         estado_resultante=EstadoRequisicao.PRONTA_PARA_RETIRADA,
     )
 
+    _criador_id = requisicao.criador_id
+    _beneficiario_id = requisicao.beneficiario_id
+    _req_id = requisicao.pk
+    transaction.on_commit(
+        lambda: _notificar_pos_commit(
+            _criador_id,
+            _beneficiario_id,
+            _req_id,
+            TipoNotificacao.SEPARACAO_RETIRADA,
+        )
+    )
+
     return requisicao
 
 
