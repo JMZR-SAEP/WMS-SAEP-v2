@@ -71,7 +71,7 @@ CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8000
 
 ### Implantação piloto
 
-O piloto usa um módulo de settings próprio, `config.settings.piloto`. Ele existe porque nenhum dos outros serve: `dev` publicaria `DEBUG=True` em rede, e `base` não sobe com `ALLOWED_HOSTS=[]`.
+O piloto usa um módulo de settings próprio, `config.settings.piloto`. Ele existe porque nenhum dos outros serve: `dev` publicaria `DEBUG=True` em rede, e `base` traz `ALLOWED_HOSTS` com default `[]` — o processo sobe normalmente, mas com `DEBUG=False` o Django passa a rejeitar **todas** as requisições, sem que nada no boot indique o motivo.
 
 O piloto **recusa a inicialização** quando a configuração está ausente, vazia ou permissiva — falhar no boot é deliberado, porque o modo de falha oposto é silencioso:
 
@@ -87,7 +87,9 @@ O `.env.example` traz o bloco comentado com todas elas.
 
 Ligue `PILOTO_ATRAS_DE_PROXY_TLS=true` **apenas** quando houver um proxy à frente que termine TLS e sobrescreva `X-Forwarded-Proto`. Ligado sem esse proxy, qualquer cliente consegue se declarar HTTPS; desligado atrás de um proxy, o `SECURE_SSL_REDIRECT` entra em laço de redirecionamento.
 
-O piloto envia HSTS com `preload`. A diretiva no cabeçalho não coloca o domínio na lista dos navegadores por si só — isso exige submissão manual —, mas indica essa intenção, então confirme o domínio antes de expor o piloto.
+O HSTS começa curto de propósito: `PILOTO_HSTS_SECONDS` tem default de 1 hora. O cabeçalho fica gravado no navegador de quem visitou e não há como revogá-lo remotamente — se o domínio precisar servir HTTP depois, os navegadores seguem forçando HTTPS até o `max-age` expirar, e `includeSubDomains` estende isso aos subdomínios. Suba por etapas (1h → 1 dia → 1 semana → 1 ano) só depois de confirmar que todo o tráfego funciona em HTTPS.
+
+O piloto também envia a diretiva `preload`. Ela não inscreve o domínio na lista dos navegadores por si só — isso exige submissão manual, e os navegadores só a consideram a partir de `max-age` de 1 ano — mas declara essa intenção, então confirme o domínio antes de expor o piloto.
 
 Antes de publicar, valide a configuração:
 

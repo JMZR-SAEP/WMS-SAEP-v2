@@ -71,7 +71,7 @@ Constantes fixas (não parametrizadas por ambiente) para que o critério de acei
 | `CSRF_COOKIE_SECURE` | `True` | W016 |
 | `SECURE_CONTENT_TYPE_NOSNIFF` | `True` | W006 |
 | `SECURE_SSL_REDIRECT` | `True` | W008 |
-| `SECURE_HSTS_SECONDS` | `31536000` | W004 |
+| `SECURE_HSTS_SECONDS` | `PILOTO_HSTS_SECONDS`, default `3600` | W004 |
 | `SECURE_HSTS_INCLUDE_SUBDOMAINS` | `True` | W005 |
 | `SECURE_HSTS_PRELOAD` | `True` | W021 |
 | `X_FRAME_OPTIONS` | `'DENY'` | W019 |

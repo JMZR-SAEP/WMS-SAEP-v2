@@ -287,10 +287,28 @@ def test_valores_efetivos_de_seguranca():
     assert efetivos['CSRF_COOKIE_SECURE'] is True
     assert efetivos['SECURE_CONTENT_TYPE_NOSNIFF'] is True
     assert efetivos['SECURE_SSL_REDIRECT'] is True
-    assert efetivos['SECURE_HSTS_SECONDS'] == 31536000
     assert efetivos['SECURE_HSTS_INCLUDE_SUBDOMAINS'] is True
     assert efetivos['SECURE_HSTS_PRELOAD'] is True
     assert efetivos['X_FRAME_OPTIONS'] == 'DENY'
+
+
+def test_hsts_comeca_curto_no_piloto():
+    """HSTS não é revogável remotamente: o piloto começa em 1h, não em 1 ano."""
+    assert _settings_efetivos()['SECURE_HSTS_SECONDS'] == 3600
+
+
+def test_hsts_pode_subir_por_variavel():
+    efetivos = _settings_efetivos(PILOTO_HSTS_SECONDS='31536000')
+
+    assert efetivos['SECURE_HSTS_SECONDS'] == 31536000
+
+
+def test_check_deploy_continua_limpo_com_hsts_curto():
+    """O `max-age` curto não pode reintroduzir o warning W004."""
+    resultado, saida = _saida_do_check()
+
+    assert resultado.returncode == 0, saida
+    assert 'security.W004' not in saida
 
 
 def test_debug_do_ambiente_nao_reabre_o_modo_debug():
@@ -336,3 +354,60 @@ def test_check_deploy_aceita_secret_key_de_50_caracteres():
     _, saida = _saida_do_check(SECRET_KEY=SECRET_KEY_FORTE)
 
     assert 'security.W009' not in saida
+
+
+# --- Normalização de espaços ------------------------------------------------
+#
+# `env.list` não faz strip: `ALLOWED_HOSTS=a.exemplo.br, b.exemplo.br` — a forma
+# natural de escrever — chega como `['a.exemplo.br', ' b.exemplo.br']`. O Django
+# compara host por igualdade exata, então o espaço faria o segundo domínio
+# rejeitar toda requisição legítima, em silêncio. É a mesma classe de falha que
+# esta issue existe para fechar, por isso os casos abaixo usam a saída real do
+# `env.list`, não uma lista montada à mão.
+
+
+def _env_list(valor):
+    """Devolve exatamente o que `env.list` produziria para `valor`."""
+    import environ
+
+    os.environ['_LISTA_DE_TESTE'] = valor
+    try:
+        return environ.Env().list('_LISTA_DE_TESTE')
+    finally:
+        del os.environ['_LISTA_DE_TESTE']
+
+
+def test_env_list_realmente_preserva_espacos():
+    """Trava a premissa: se o django-environ passar a fazer strip, isto avisa."""
+    assert _env_list('a.exemplo.br, b.exemplo.br') == ['a.exemplo.br', ' b.exemplo.br']
+
+
+def test_hosts_permitidos_normaliza_espacos_do_env_list():
+    bruto = 'a.exemplo.br, b.exemplo.br'
+
+    assert exigir_hosts_permitidos(bruto, _env_list(bruto)) == [
+        'a.exemplo.br',
+        'b.exemplo.br',
+    ]
+
+
+def test_origens_csrf_normaliza_espacos_do_env_list():
+    bruto = 'https://a.exemplo.br, https://b.exemplo.br'
+
+    assert exigir_origens_csrf_confiaveis(bruto, _env_list(bruto)) == [
+        'https://a.exemplo.br',
+        'https://b.exemplo.br',
+    ]
+
+
+def test_curinga_com_espaco_ainda_e_recusado():
+    bruto = 'a.exemplo.br, *'
+
+    with pytest.raises(ImproperlyConfigured):
+        exigir_hosts_permitidos(bruto, _env_list(bruto))
+
+
+def test_hosts_efetivos_no_boot_nao_tem_espacos():
+    efetivos = _settings_efetivos(ALLOWED_HOSTS='a.exemplo.br, b.exemplo.br')
+
+    assert efetivos['ALLOWED_HOSTS'] == ['a.exemplo.br', 'b.exemplo.br']

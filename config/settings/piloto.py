@@ -54,10 +54,18 @@ CSRF_COOKIE_SECURE = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_SSL_REDIRECT = True
 
-SECURE_HSTS_SECONDS = 31536000  # 1 ano
+# HSTS fica gravado no navegador de quem visitou, e não há como revogar
+# remotamente: se o domínio do piloto precisar servir HTTP depois — desativação,
+# reaproveitamento —, os navegadores continuam forçando HTTPS até o `max-age`
+# expirar, e `includeSubDomains` estende isso aos subdomínios. Num ambiente de
+# validação isso é risco real, então o default é curto e a subida é deliberada:
+# confirme que todo o tráfego funciona em HTTPS, depois aumente por etapas
+# (1h → 1 dia → 1 semana → 1 ano).
+SECURE_HSTS_SECONDS = env_piloto.int('PILOTO_HSTS_SECONDS', default=3600)
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-# `preload` apenas emite a diretiva no cabeçalho; entrar de fato na lista dos
-# navegadores exige submissão manual do domínio.
+# Os navegadores só consideram `preload` a partir de `max-age` de 1 ano, e a
+# entrada na lista exige submissão manual do domínio — a diretiva aqui declara a
+# intenção e satisfaz o `check --deploy`, não inscreve nada sozinha.
 SECURE_HSTS_PRELOAD = True
 
 X_FRAME_OPTIONS = 'DENY'

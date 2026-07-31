@@ -44,6 +44,12 @@ def _exigir_lista_util(bruto: str, itens: list[str], *, variavel: str) -> list[s
     como ``[]`` — indistinguíveis de uma lista legítima vazia, que é justamente o
     default permissivo que o piloto não pode ter. Por isso a validação olha o
     texto original, não só o resultado do parsing.
+
+    ``env.list`` também não faz ``strip``: ``VAR=a.exemplo.br, b.exemplo.br`` — a
+    forma natural de escrever — chega como ``['a.exemplo.br', ' b.exemplo.br']``.
+    Como o Django compara host e origem por igualdade exata, esse espaço
+    rejeitaria toda requisição legítima do segundo item, sem erro visível. Por
+    isso os itens são normalizados aqui, e não na chamada.
     """
     if not bruto.strip(', \t'):
         raise ImproperlyConfigured(
@@ -59,12 +65,14 @@ def _exigir_lista_util(bruto: str, itens: list[str], *, variavel: str) -> list[s
             f'a configurada. Remova as vírgulas sobrando.'
         )
 
-    if not itens:
+    normalizados = [item.strip() for item in itens]
+
+    if not normalizados:
         raise ImproperlyConfigured(
             f'{variavel} não produziu nenhum item a partir de {bruto!r}.'
         )
 
-    return itens
+    return normalizados
 
 
 def exigir_hosts_permitidos(bruto: str, itens: list[str]) -> list[str]:
@@ -76,7 +84,7 @@ def exigir_hosts_permitidos(bruto: str, itens: list[str]) -> list[str]:
     """
     hosts = _exigir_lista_util(bruto, itens, variavel='ALLOWED_HOSTS')
 
-    if any(host.strip() == '*' for host in hosts):
+    if any(host == '*' for host in hosts):
         raise ImproperlyConfigured(
             "ALLOWED_HOSTS contém o curinga '*', que aceita qualquer Host header. "
             'No piloto isso só seria seguro se um proxy à frente já validasse o '
