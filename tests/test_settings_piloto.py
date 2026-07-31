@@ -14,6 +14,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import environ
 import pytest
 from django.core.exceptions import ImproperlyConfigured
 
@@ -366,45 +367,50 @@ def test_check_deploy_aceita_secret_key_de_50_caracteres():
 # `env.list`, não uma lista montada à mão.
 
 
-def _env_list(valor):
-    """Devolve exatamente o que `env.list` produziria para `valor`."""
-    import environ
+@pytest.fixture
+def env_list(monkeypatch):
+    """Devolve exatamente o que `env.list` produziria para um valor bruto.
 
-    os.environ['_LISTA_DE_TESTE'] = valor
-    try:
+    Passa por `monkeypatch` para que a variável sentinela seja restaurada ao
+    estado original ao fim de cada teste, inclusive quando ela já existir no
+    ambiente do processo.
+    """
+
+    def _env_list(valor):
+        monkeypatch.setenv('_LISTA_DE_TESTE', valor)
         return environ.Env().list('_LISTA_DE_TESTE')
-    finally:
-        del os.environ['_LISTA_DE_TESTE']
+
+    return _env_list
 
 
-def test_env_list_realmente_preserva_espacos():
+def test_env_list_realmente_preserva_espacos(env_list):
     """Trava a premissa: se o django-environ passar a fazer strip, isto avisa."""
-    assert _env_list('a.exemplo.br, b.exemplo.br') == ['a.exemplo.br', ' b.exemplo.br']
+    assert env_list('a.exemplo.br, b.exemplo.br') == ['a.exemplo.br', ' b.exemplo.br']
 
 
-def test_hosts_permitidos_normaliza_espacos_do_env_list():
+def test_hosts_permitidos_normaliza_espacos_do_env_list(env_list):
     bruto = 'a.exemplo.br, b.exemplo.br'
 
-    assert exigir_hosts_permitidos(bruto, _env_list(bruto)) == [
+    assert exigir_hosts_permitidos(bruto, env_list(bruto)) == [
         'a.exemplo.br',
         'b.exemplo.br',
     ]
 
 
-def test_origens_csrf_normaliza_espacos_do_env_list():
+def test_origens_csrf_normaliza_espacos_do_env_list(env_list):
     bruto = 'https://a.exemplo.br, https://b.exemplo.br'
 
-    assert exigir_origens_csrf_confiaveis(bruto, _env_list(bruto)) == [
+    assert exigir_origens_csrf_confiaveis(bruto, env_list(bruto)) == [
         'https://a.exemplo.br',
         'https://b.exemplo.br',
     ]
 
 
-def test_curinga_com_espaco_ainda_e_recusado():
+def test_curinga_com_espaco_ainda_e_recusado(env_list):
     bruto = 'a.exemplo.br, *'
 
     with pytest.raises(ImproperlyConfigured):
-        exigir_hosts_permitidos(bruto, _env_list(bruto))
+        exigir_hosts_permitidos(bruto, env_list(bruto))
 
 
 def test_hosts_efetivos_no_boot_nao_tem_espacos():
