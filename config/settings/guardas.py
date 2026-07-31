@@ -35,3 +35,68 @@ def exigir_bancos_postgresql(databases: Mapping[str, Mapping[str, Any]]) -> None
                 f'Corrija para algo como '
                 f'DATABASE_URL=postgres://USUARIO:SENHA@HOST:5432/BANCO.'
             )
+
+
+def _exigir_lista_util(bruto: str, itens: list[str], *, variavel: str) -> list[str]:
+    """Valida o valor bruto de uma variável de lista antes de aceitar o parsing.
+
+    ``env.list`` descarta itens vazios, então ``VAR=`` e ``VAR=,,`` chegam aqui
+    como ``[]`` — indistinguíveis de uma lista legítima vazia, que é justamente o
+    default permissivo que o piloto não pode ter. Por isso a validação olha o
+    texto original, não só o resultado do parsing.
+    """
+    if not bruto.strip(', \t'):
+        raise ImproperlyConfigured(
+            f'{variavel} está vazia. O piloto exige a variável preenchida: uma '
+            f'lista vazia desliga a proteção em vez de configurá-la. Defina '
+            f'{variavel} com os valores reais da implantação, separados por vírgula.'
+        )
+
+    if any(not parte.strip() for parte in bruto.split(',')):
+        raise ImproperlyConfigured(
+            f'{variavel} tem item vazio: {bruto!r}. Itens vazios são descartados '
+            f'silenciosamente no parsing, então a lista efetiva fica menor do que '
+            f'a configurada. Remova as vírgulas sobrando.'
+        )
+
+    if not itens:
+        raise ImproperlyConfigured(
+            f'{variavel} não produziu nenhum item a partir de {bruto!r}.'
+        )
+
+    return itens
+
+
+def exigir_hosts_permitidos(bruto: str, itens: list[str]) -> list[str]:
+    """Valida ``ALLOWED_HOSTS``: lista útil e sem curinga.
+
+    O curinga é recusado porque delega a validação de Host header a um proxy que
+    o piloto não garante ter na frente — e sem esse proxy, ``*`` equivale a não
+    ter proteção nenhuma.
+    """
+    hosts = _exigir_lista_util(bruto, itens, variavel='ALLOWED_HOSTS')
+
+    if any(host.strip() == '*' for host in hosts):
+        raise ImproperlyConfigured(
+            "ALLOWED_HOSTS contém o curinga '*', que aceita qualquer Host header. "
+            'No piloto isso só seria seguro se um proxy à frente já validasse o '
+            'Host, o que esta configuração não garante. Liste os domínios reais, '
+            'como ALLOWED_HOSTS=piloto.exemplo.gov.br.'
+        )
+
+    return hosts
+
+
+def exigir_origens_csrf_confiaveis(bruto: str, itens: list[str]) -> list[str]:
+    """Valida ``CSRF_TRUSTED_ORIGINS``: lista útil e com esquema em cada origem."""
+    origens = _exigir_lista_util(bruto, itens, variavel='CSRF_TRUSTED_ORIGINS')
+
+    sem_esquema = [origem for origem in origens if '://' not in origem]
+    if sem_esquema:
+        raise ImproperlyConfigured(
+            f'CSRF_TRUSTED_ORIGINS exige o esquema em cada origem, e estas estão '
+            f'sem ele: {sem_esquema}. Use a forma completa, como '
+            f'CSRF_TRUSTED_ORIGINS=https://piloto.exemplo.gov.br.'
+        )
+
+    return origens
