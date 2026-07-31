@@ -153,7 +153,14 @@ Cada caso roda `python -c "import django; django.setup()"` com `DJANGO_SETTINGS_
 
 `manage.py check --deploy` com settings de piloto, `SECRET_KEY` forte e as variáveis obrigatórias preenchidas: exit code 0 e nenhuma ocorrência de `security.W0` em `stdout` **nem** em `stderr` — o `check` escreve os warnings em `stderr`, então capturar só `stdout` daria um verde falso. `check` não abre conexão com o banco.
 
-Um segundo caso roda o mesmo comando com `SECRET_KEY` fraca e espera `security.W009` na saída. Isso prova que o caminho de verificação está de fato ligado; a fronteira exata de 49 vs. 50 caracteres não é testada, porque é regra interna do Django, não deste repositório.
+A fronteira de `SECRET_KEY` é exercitada nos dois lados, com o mesmo comando e a mesma captura de `stdout` + `stderr`:
+
+| `SECRET_KEY` | Expectativa |
+|---|---|
+| 49 caracteres, ≥ 5 distintos, sem prefixo inseguro | saída contém `security.W009` |
+| 50 caracteres, ≥ 5 distintos, sem prefixo inseguro | saída **não** contém `security.W009` |
+
+Os dois casos isolam o comprimento como única variável — mesma diversidade de caracteres, mesmo prefixo —, de modo que o par documenta para o operador exatamente onde está o corte, e não apenas que existe um corte.
 
 ## Invariantes
 
