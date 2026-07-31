@@ -69,6 +69,32 @@ CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8000
 
 `DATABASE_URL` precisa apontar para uma instância PostgreSQL acessível — o `make setup` derruba e recria o schema `public` a partir dela.
 
+### Implantação piloto
+
+O piloto usa um módulo de settings próprio, `config.settings.piloto`. Ele existe porque nenhum dos outros serve: `dev` publicaria `DEBUG=True` em rede, e `base` não sobe com `ALLOWED_HOSTS=[]`.
+
+O piloto **recusa a inicialização** quando a configuração está ausente, vazia ou permissiva — falhar no boot é deliberado, porque o modo de falha oposto é silencioso:
+
+| Variável | Regra | O que acontece se relaxar |
+|---|---|---|
+| `SECRET_KEY` | ≥ 50 caracteres, ≥ 5 distintos, sem prefixo `django-insecure-` | `check --deploy` acusa `security.W009` |
+| `ALLOWED_HOSTS` | obrigatória, sem default; `*` recusado | lista vazia ou curinga desliga a proteção de Host header |
+| `CSRF_TRUSTED_ORIGINS` | obrigatória, sem default; esquema em cada origem | origem sem esquema não é reconhecida pelo Django |
+| `DATABASE_URL` | obrigatoriamente PostgreSQL | em SQLite, `select_for_update` vira no-op e as garantias da [ADR-0005](docs/adr/0005-concorrencia-transicoes-requisicao.md) somem sem sintoma |
+| `PILOTO_ATRAS_DE_PROXY_TLS` | opcional, default `false` | ver abaixo |
+
+O `.env.example` traz o bloco comentado com todas elas.
+
+Ligue `PILOTO_ATRAS_DE_PROXY_TLS=true` **apenas** quando houver um proxy à frente que termine TLS e sobrescreva `X-Forwarded-Proto`. Ligado sem esse proxy, qualquer cliente consegue se declarar HTTPS; desligado atrás de um proxy, o `SECURE_SSL_REDIRECT` entra em laço de redirecionamento.
+
+O piloto envia HSTS com `preload`. A diretiva no cabeçalho não coloca o domínio na lista dos navegadores por si só — isso exige submissão manual —, mas indica essa intenção, então confirme o domínio antes de expor o piloto.
+
+Antes de publicar, valide a configuração:
+
+```bash
+DJANGO_SETTINGS_MODULE=config.settings.piloto uv run python manage.py check --deploy
+```
+
 Compile o CSS do Tailwind ao menos uma vez antes de subir o servidor:
 
 ```bash
