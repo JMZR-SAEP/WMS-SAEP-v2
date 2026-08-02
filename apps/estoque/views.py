@@ -215,6 +215,21 @@ def nova_saida_excepcional_view(request):
     )
 
     if form.is_valid() and formset.is_valid():
+        # A baixa pode empurrar o físico abaixo do reservado e criar divergência
+        # crítica (EST-07). Ela continua permitida — TR-013 é o caminho de
+        # resolução —, mas as requisições autorizadas afetadas precisam ser
+        # avisadas, e o operador precisa saber que criou o problema.
+        from apps.requisicoes.services.ciclo_vida import (
+            registrar_timeline_divergencia_saida_excepcional,
+        )
+
+        requisicoes_avisadas: list[int] = []
+
+        def _avisar_divergencia(**kwargs):
+            avisadas = registrar_timeline_divergencia_saida_excepcional(**kwargs)
+            requisicoes_avisadas.extend(avisadas)
+            return avisadas
+
         try:
             saida = registrar_saida_excepcional(
                 ator_id=request.user.pk,
@@ -222,6 +237,7 @@ def nova_saida_excepcional_view(request):
                 motivo=form.cleaned_data['motivo'],
                 observacao=form.cleaned_data['observacao'],
                 itens=formset.linhas_validas(),
+                _pos_saida_hook=_avisar_divergencia,
             )
         except PermissaoNegada as exc:
             raise PermissionDenied(str(exc))
@@ -233,6 +249,18 @@ def nova_saida_excepcional_view(request):
             messages.success(
                 request, f'Saída {saida.numero_publico} registrada com sucesso.'
             )
+            if requisicoes_avisadas:
+                total = len(requisicoes_avisadas)
+                plural = (
+                    'requisições autorizadas' if total > 1 else 'requisição autorizada'
+                )
+                foram = 'foram avisadas' if total > 1 else 'foi avisada'
+                messages.warning(
+                    request,
+                    f'Esta baixa criou divergência crítica de estoque: '
+                    f'{total} {plural} {foram}. A separação delas fica bloqueada '
+                    f'até o estoque ser reposto ou a requisição ser cancelada.',
+                )
             return htmx_redirect(request, reverse('estoque:listar_saidas_excepcionais'))
 
     return render(

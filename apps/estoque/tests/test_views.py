@@ -1756,3 +1756,77 @@ class TestNovaLinhaItemSaidaExcepcionalView:
         response = client.get(URL_NOVA_LINHA_ITEM)
         assert response.status_code == 302
         assert 'login' in response['Location']
+
+
+class TestNovaSaidaExcepcionalAvisoDivergencia:
+    """Issue #111: a view liga o hook de aviso e avisa o operador."""
+
+    def _post(self, client, material, quantidade):
+        return client.post(
+            URL_NOVA,
+            data={
+                'motivo': 'avaria',
+                'observacao': 'Material avariado em vistoria',
+                'itens-TOTAL_FORMS': '1',
+                'itens-INITIAL_FORMS': '0',
+                'itens-MIN_NUM_FORMS': '0',
+                'itens-MAX_NUM_FORMS': '1000',
+                'itens-0-material_id': str(material.pk),
+                'itens-0-quantidade': quantidade,
+            },
+            follow=False,
+        )
+
+    def test_view_injeta_o_hook_de_divergencia(
+        self, client, chefe_almoxarifado, estoque_principal, material_disponivel
+    ):
+        """O service é chamado com _pos_saida_hook não nulo."""
+        from unittest.mock import patch
+
+        from apps.estoque.models import SaidaExcepcional
+
+        client.force_login(chefe_almoxarifado)
+        with patch(
+            'apps.estoque.views.registrar_saida_excepcional',
+            return_value=SaidaExcepcional(numero_publico='SXP-2026-000001'),
+        ) as service:
+            self._post(client, material_disponivel, '5')
+
+        assert service.call_count == 1
+        assert service.call_args.kwargs['_pos_saida_hook'] is not None
+
+    def test_baixa_que_cria_divergencia_avisa_o_operador(
+        self,
+        client,
+        chefe_almoxarifado,
+        estoque_principal,
+        material_disponivel,
+        requisicao_autorizada,
+    ):
+        """messages.warning além do success, citando as requisições afetadas."""
+        client.force_login(chefe_almoxarifado)
+        response = self._post(client, material_disponivel, '98')
+
+        mensagens = list(response.wsgi_request._messages)
+        niveis = [m.level_tag for m in mensagens]
+        assert 'success' in niveis
+        assert 'warning' in niveis
+
+        aviso = next(m for m in mensagens if m.level_tag == 'warning')
+        assert 'divergência' in str(aviso).lower()
+        assert '1' in str(aviso)
+
+    def test_baixa_sem_divergencia_nao_avisa_o_operador(
+        self,
+        client,
+        chefe_almoxarifado,
+        estoque_principal,
+        material_disponivel,
+        requisicao_autorizada,
+    ):
+        """Sem divergência criada, só o success de sempre."""
+        client.force_login(chefe_almoxarifado)
+        response = self._post(client, material_disponivel, '5')
+
+        mensagens = list(response.wsgi_request._messages)
+        assert [m.level_tag for m in mensagens] == ['success']
