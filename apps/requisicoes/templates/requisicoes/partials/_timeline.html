@@ -39,6 +39,31 @@ Parâmetro: eventos (lista de TimelineRequisicao com select_related('ator')).
               {{ evento.justificativa }}
             </p>
           {% endif %}
+          {% if evento.evento == "atualizacao_estoque_relevante" %}
+            {# EST-07: o saldo físico caiu abaixo do reservado. O rótulo do evento
+               sozinho não diz o que houve nem o que fazer — ver issue #111. #}
+            <div class="mt-1 rounded-md border border-warning-border bg-warning-subtle px-2.5 py-1.5 text-xs text-warning-text-strong leading-relaxed">
+              <p class="font-medium">
+                {% if evento.metadata.numero_publico %}
+                  Saída excepcional {{ evento.metadata.numero_publico }}
+                {% else %}
+                  Importação SCPI
+                {% endif %}
+                deixou o saldo físico abaixo do reservado.
+              </p>
+              {% if evento.metadata.materiais %}
+                <ul class="mt-1 list-disc space-y-0.5 pl-4">
+                  {% for material in evento.metadata.materiais %}
+                    <li>{{ material.codigo }} — {{ material.nome }}</li>
+                  {% endfor %}
+                </ul>
+              {% endif %}
+              <p class="mt-1">
+                A separação para retirada fica bloqueada até o estoque ser reposto
+                ou esta requisição ser cancelada.
+              </p>
+            </div>
+          {% endif %}
         </div>
       </li>
     {% endfor %}
