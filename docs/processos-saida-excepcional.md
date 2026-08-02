@@ -106,8 +106,41 @@ Regras de saldo:
 - se houver mais de um saldo elegível, falha com `saldo_ambiguo`;
 - o registro baixa somente `saldo_fisico`;
 - o registro não altera `saldo_reservado`;
+- o registro **não** valida `saldo_disponivel`: a baixa pode deixar o físico
+  abaixo do reservado (ver 1.5.1);
 - o estorno recompõe integralmente o `saldo_fisico` dos itens originais;
 - o estorno não gera novo documento numerado.
+
+### 1.5.1 Divergência crítica criada pela baixa
+
+A saída excepcional pode empurrar `saldo_fisico` abaixo de `saldo_reservado` e
+criar divergência crítica (EST-07). **A baixa continua permitida.** Bloqueá-la
+inverteria o contrato da ADR-0013 — a reserva de uma requisição passaria a vetar
+o registro da realidade física — e deixaria o operador sem saída, já que a
+reserva só é liberada pelo cancelamento da requisição.
+
+O que muda é que a divergência deixa de ser silenciosa. No mesmo registro, dentro
+da mesma transação:
+
+- cada requisição `autorizada` que usa um material afetado recebe **um** evento
+  `atualizacao_estoque_relevante` na sua timeline, agregando todos os materiais
+  daquela requisição, com o id e o número público da saída no `metadata`;
+- criador e beneficiário de cada requisição afetada recebem notificação
+  `divergencia_estoque` (uma só quando são a mesma pessoa), entregue após o
+  commit;
+- o operador que registrou a baixa recebe um aviso de nível `warning` informando
+  quantas requisições autorizadas foram afetadas.
+
+A resolução permanece sendo repor o estoque ou cancelar a requisição pela
+transição TR-013 — a divergência não muda o estado de nenhuma requisição
+automaticamente, e a separação para retirada segue bloqueada por TR-015B
+enquanto ela existir.
+
+Ausência de reserva ou de requisição autorizada nunca impede o registro: nesse
+caso a baixa é gravada normalmente e nenhum aviso é emitido.
+
+O estorno da saída pode resolver a divergência (EST-09), mas não emite aviso de
+resolução.
 
 ## 1.6 Permissões
 
@@ -249,7 +282,13 @@ Observação:
 - saldo ausente ou ambíguo rejeita o documento;
 - registro baixa apenas `saldo_fisico`;
 - estorno recompõe integralmente o `saldo_fisico`;
-- documento estornado não pode ser estornado novamente.
+- documento estornado não pode ser estornado novamente;
+- baixa que cria divergência crítica gera um evento agregado por requisição
+  autorizada afetada e notifica criador e beneficiário;
+- baixa que não cria divergência não gera evento nem notificação;
+- ausência de reserva ou de requisição autorizada não impede o registro;
+- falha no aviso antes do commit derruba o documento inteiro; falha na entrega
+  da notificação após o commit apenas registra log.
 
 ## 1.12 Referências
 
