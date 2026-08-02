@@ -48,9 +48,9 @@ vez de introduzir arquitetura nova.
   `itens`, dentro do mesmo bloco `*`.
 - Novo hook `registrar_timeline_divergencia_saida_excepcional` em
   `apps/requisicoes/services/ciclo_vida.py`, irmão do hook já existente da
-  importação SCPI. Retorna a lista de ids das requisições avisadas (o hook SCPI
-  passa a retornar o mesmo); o service **ignora** o retorno, mantendo seu
-  contrato de retornar `SaidaExcepcional`.
+  importação SCPI. Retorna `list[int]` com os ids das requisições avisadas; o
+  hook SCPI passa a retornar o mesmo. O service **ignora** o retorno, mantendo
+  seu contrato de retornar `SaidaExcepcional`.
 - Núcleo compartilhado entre os dois hooks, extraído do corpo atual de
   `registrar_timeline_divergencia_importacao`.
 - `nova_saida_excepcional_view` injeta o hook, espelhando o que
@@ -128,7 +128,8 @@ evento por requisição, `bulk_create` da timeline e agendar as notificações e
 `transaction.on_commit`.
 
 Só duas coisas variam por origem: de onde vêm código e nome do material, e o que
-entra no `metadata` do evento. Então o núcleo recebe ambos prontos:
+entra no `metadata` do evento. Então o núcleo recebe ambos prontos e devolve
+quem foi avisado:
 
 ```python
 def _registrar_divergencia_para_autorizadas(
@@ -138,17 +139,27 @@ def _registrar_divergencia_para_autorizadas(
     ator,
     material_info: dict[int, dict],   # {material_id: {'codigo': ..., 'nome': ...}}
     metadata_origem: dict,            # ex.: {'saida_excepcional_id': 7, 'numero_publico': 'SXP-...'}
-) -> None:
+) -> list[int]:                       # ids das requisições avisadas; [] quando não há divergência
 ```
+
+Os dois hooks propagam esse `list[int]` como retorno próprio. Todos os caminhos
+de saída antecipada do núcleo (sem materiais, sem saldo crítico, sem requisição
+autorizada) devolvem `[]`, nunca `None` — o chamador nunca precisa de guarda de
+nulo.
 
 O `metadata` final de cada evento fica `{**metadata_origem, 'materiais': [...]}`,
 o que preserva byte a byte o formato atual do hook SCPI
 (`{'importacao_id': ..., 'materiais': [...]}`) — os testes existentes em
 `apps/estoque/tests/test_services.py:471` continuam válidos sem edição.
 
-`registrar_timeline_divergencia_importacao` mantém assinatura e nome públicos.
-É refactor interno, não quebra de contrato: `apps/requisicoes/views.py:1083` e
-os testes que o importam seguem funcionando.
+**Sobre o contrato do hook SCPI.** `registrar_timeline_divergencia_importacao`
+mantém nome e assinatura, mas o retorno deixa de ser `None` e passa a ser
+`list[int]`. É mudança aditiva e retrocompatível — o único chamador de produção
+(`apps/requisicoes/views.py:1119`) descarta o retorno, e
+`confirmar_importacao_scpi` também o ignora — mas é **observável**, então não é
+refactor puramente interno. Ganha teste próprio: o hook SCPI retorna os ids das
+requisições avisadas no caminho com divergência e `[]` nos caminhos sem, e a
+importação continua devolvendo a mesma `ImportacaoSCPI` de antes.
 
 ### Onde o hook é chamado dentro de `registrar_saida_excepcional`
 
@@ -168,7 +179,8 @@ Três razões para essa posição:
    depois do commit e não reverte nada. Ver "Duas classes de falha".
 
 A consulta que o hook faz — saldos críticos e requisições `autorizada` — serve
-**apenas para selecionar destinatários**. Ela nunca é pré-condição da baixa.
+**apenas para selecionar quem será notificado**. Ela nunca é pré-condição da
+baixa.
 Saldo sem reserva, saldo sem divergência ou material sem nenhuma requisição
 autorizada resultam em zero eventos e zero notificações, com a
 `SaidaExcepcional`, os `ItemSaidaExcepcional`, as `MovimentacaoEstoque` e o
@@ -263,7 +275,7 @@ Todos em `apps/estoque/tests/test_services.py`, salvo indicação. Nova classe
 |---|---|
 | Saída rebaixa físico abaixo do reservado, existe requisição `autorizada` com o material | Exatamente 1 `TimelineRequisicao` com evento `ATUALIZACAO_ESTOQUE_RELEVANTE`; `metadata['saida_excepcional_id'] == saida.pk`; `metadata['numero_publico'] == saida.numero_publico`; `metadata['materiais']` contém código e nome do material |
 | Mesma saída, dois materiais críticos na mesma requisição | 1 evento agregado, `len(metadata['materiais']) == 2` — trava o "um evento agregado por requisição" do critério de aceite |
-| **Duas requisições autorizadas distintas compartilhando o mesmo material crítico** | Exatamente 1 evento **por requisição** (2 no total), cada um com o `saida_excepcional_id` e o `numero_publico` da mesma saída e com o material em `metadata['materiais']`; notificações emitidas para os destinatários de cada requisição. Trava a ausência de agregação cruzada e de omissão: a agregação é por requisição, nunca por material nem global |
+| **Duas requisições autorizadas distintas compartilhando o mesmo material crítico** | Exatamente 1 evento **por requisição** (2 no total), cada um com o `saida_excepcional_id` e o `numero_publico` da mesma saída e com o material em `metadata['materiais']`; notificações emitidas para os usuários notificados de cada requisição (criador e beneficiário). Trava a ausência de agregação cruzada e de omissão: a agregação é por requisição, nunca por material nem global |
 | Notificações | 1 `Notificacao` de tipo `DIVERGENCIA_ESTOQUE` para o criador e 1 para o beneficiário |
 | Criador == beneficiário | 1 notificação só (dedup já garantida por `criar_notificacoes_para`) |
 
@@ -273,7 +285,7 @@ Todos em `apps/estoque/tests/test_services.py`, salvo indicação. Nova classe
 |---|---|
 | Baixa que mantém `saldo_fisico >= saldo_reservado` | Nenhum evento, nenhuma notificação |
 | Material crítico, mas requisição em `rascunho` / `aguardando_autorizacao` | Nenhum evento — só `autorizada` é avisada |
-| **`saldo_reservado == 0` e nenhuma requisição `autorizada`** | Nenhum evento, nenhuma notificação — **e** `SaidaExcepcional` gravada com `numero_publico` emitido, `ItemSaidaExcepcional` gravado, `MovimentacaoEstoque` de `saida_excepcional` gravada e `saldo_fisico` reduzido pelo valor exato. Prova que o hook seleciona destinatários e nunca vira pré-condição da baixa (SAE-01) |
+| **`saldo_reservado == 0` e nenhuma requisição `autorizada`** | Nenhum evento, nenhuma notificação — **e** `SaidaExcepcional` gravada com `numero_publico` emitido, `ItemSaidaExcepcional` gravado, `MovimentacaoEstoque` de `saida_excepcional` gravada e `saldo_fisico` reduzido pelo valor exato. Prova que o hook apenas seleciona usuários notificados e nunca vira pré-condição da baixa (SAE-01) |
 | `_pos_saida_hook=None` (default) | Saída registra normalmente, zero eventos — compatibilidade retroativa do service para todos os chamadores existentes, inclusive a fixture `saida_registrada` |
 
 O filtro `quantidade_autorizada__gt=0` do núcleo não ganha teste próprio: sob
@@ -310,9 +322,14 @@ Dois testes, um para cada classe de falha descrita em "Duas classes de falha":
 
 Teste de integração: requisição `autorizada` → saída excepcional que cria a
 divergência → `separar_para_retirada` levanta `DadosInvalidos` com
-`code='separacao_bloqueada_divergencia'`, requisição segue `AUTORIZADA`, estoque
-inalterado. Trava o critério de aceite final da issue: o aviso é aditivo, não
-substitui o bloqueio.
+`code='separacao_bloqueada_divergencia'` e a requisição segue `AUTORIZADA`.
+
+A asserção de estoque compara o estado **imediatamente após a saída excepcional**
+com o estado após a tentativa bloqueada — não com o estado inicial, que a baixa
+legitimamente já alterou. Ou seja: `saldo_fisico` e `saldo_reservado` idênticos
+antes e depois da tentativa, e nenhuma `MovimentacaoEstoque` nova criada pela
+separação. Trava o critério de aceite final da issue: o aviso é aditivo, não
+substitui o bloqueio, e o caminho bloqueado continua sem efeito colateral.
 
 Os testes existentes de TR-015B (`apps/requisicoes/tests/test_services.py:1601+`)
 não são tocados.
@@ -349,7 +366,7 @@ template não quebra nem exibe rótulo vazio.
 | **EST-09** (divergência resolve quando físico >= reservado) | Inalterado. A resolução continua não gerando aviso — ver Fora de escopo. |
 | **EST-06** (transação e lock) | Preservado. Hook roda dentro do `atomic` existente e só re-seleciona saldos já travados. |
 | **EST-01/EST-02** (disponível = físico − reservado; reserva não baixa físico) | Inalterados. A baixa continua mexendo só em `saldo_fisico`. |
-| **SAE-01** (fluxo próprio, fora de Requisição) | Preservado em duas frentes: `estoque/services.py` continua sem importar `requisicoes` (inversão por parâmetro), e a existência de reserva ou de requisição autorizada nunca condiciona o registro da baixa — o hook só seleciona destinatários. Teste dedicado com `saldo_reservado == 0`. |
+| **SAE-01** (fluxo próprio, fora de Requisição) | Preservado em duas frentes: `estoque/services.py` continua sem importar `requisicoes` (inversão por parâmetro), e a existência de reserva ou de requisição autorizada nunca condiciona o registro da baixa — o hook só seleciona os usuários a notificar. Teste dedicado com `saldo_reservado == 0`. |
 | **SAE-04** (registro indivisível, all-or-nothing) | Reforçado até a fronteira do commit: o hook e a timeline entram no all-or-nothing; a entrega da notificação, que roda depois do commit, não. Um teste para cada lado da fronteira. |
 | **LED-01/LED-03** (ledger) | Inalterados. As movimentações da baixa continuam iguais; o hook não escreve no ledger. |
 | **REQ-08** (timeline registra eventos principais) | Novo caso de uso do evento já existente `atualizacao_estoque_relevante`. |
