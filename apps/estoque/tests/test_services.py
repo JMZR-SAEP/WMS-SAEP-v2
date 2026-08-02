@@ -641,6 +641,62 @@ class TestConfirmarImportacaoScpiTimelineRequisicoes:
         assert codigos == {m1.codigo, m2.codigo}
         assert eventos.first().metadata['importacao_id'] == importacao.pk
 
+    def test_hook_retorna_ids_das_requisicoes_avisadas(
+        self,
+        db,
+        superuser,
+        estoque_principal,
+        material_scpi_critico,
+        requisicao_autorizada_critico,
+    ):
+        """O hook devolve os ids das requisições avisadas, para o chamador reagir."""
+        from apps.estoque.services import confirmar_importacao_scpi
+        from apps.requisicoes.services.ciclo_vida import (
+            registrar_timeline_divergencia_importacao,
+        )
+
+        capturado: list[list[int]] = []
+
+        def _hook(**kwargs):
+            capturado.append(registrar_timeline_divergencia_importacao(**kwargs))
+
+        csv_bytes = self._csv(material_scpi_critico.codigo, 'Tinta Branca 18L', '1.000')
+        confirmar_importacao_scpi(
+            ator_id=superuser.pk,
+            conteudo_bytes=csv_bytes,
+            arquivo_nome='retorno.csv',
+            estoque_id=estoque_principal.pk,
+            _pos_importacao_hook=_hook,
+        )
+
+        assert capturado == [[requisicao_autorizada_critico.pk]]
+
+    def test_hook_retorna_lista_vazia_sem_divergencia(
+        self, db, superuser, estoque_principal, material_scpi
+    ):
+        """Sem divergência crítica o hook devolve lista vazia, nunca None."""
+        from apps.estoque.services import confirmar_importacao_scpi
+        from apps.requisicoes.services.ciclo_vida import (
+            registrar_timeline_divergencia_importacao,
+        )
+
+        capturado: list[list[int]] = []
+
+        def _hook(**kwargs):
+            capturado.append(registrar_timeline_divergencia_importacao(**kwargs))
+
+        csv_bytes = self._csv(material_scpi.codigo, 'Parafuso M6', '100.000')
+        importacao = confirmar_importacao_scpi(
+            ator_id=superuser.pk,
+            conteudo_bytes=csv_bytes,
+            arquivo_nome='sem_divergencia.csv',
+            estoque_id=estoque_principal.pk,
+            _pos_importacao_hook=_hook,
+        )
+
+        assert capturado == [[]]
+        assert importacao.pk is not None
+
 
 class TestMovimentacaoEstoqueImutavel:
     @pytest.mark.django_db
