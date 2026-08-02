@@ -833,3 +833,32 @@ def registrar_timeline_divergencia_importacao(
         material_info=material_info,
         metadata_origem={'importacao_id': importacao.pk},
     )
+
+
+def registrar_timeline_divergencia_saida_excepcional(
+    *, saida, estoque, material_ids, ator
+) -> list[int]:
+    """Cria TimelineRequisicao para requisições autorizadas afetadas por saída excepcional.
+
+    Chamado como hook por registrar_saida_excepcional dentro da mesma transação.
+    Divergência crítica = saldo_fisico < saldo_reservado após a baixa (EST-07).
+    A baixa permanece permitida: TR-013 é o caminho de resolução, e este aviso
+    existe para que o Almoxarifado e os envolvidos saibam que ele é necessário.
+    Devolve os ids das requisições avisadas.
+    """
+    material_info = {
+        material.pk: {'codigo': material.codigo, 'nome': material.nome}
+        for material in Material.objects.filter(pk__in=material_ids).only(
+            'id', 'codigo', 'nome'
+        )
+    }
+    return _registrar_divergencia_para_autorizadas(
+        material_ids=list(material_ids),
+        estoque=estoque,
+        ator=ator,
+        material_info=material_info,
+        metadata_origem={
+            'saida_excepcional_id': saida.pk,
+            'numero_publico': saida.numero_publico,
+        },
+    )

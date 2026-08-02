@@ -434,11 +434,18 @@ def registrar_saida_excepcional(
     motivo: str,
     observacao: str,
     itens: list[dict],
+    _pos_saida_hook=None,
 ) -> SaidaExcepcional:
     """Registra baixa administrativa direta de materiais no estoque.
 
     Cria SaidaExcepcional + ItemSaidaExcepcional, baixa saldo_fisico e emite
     SXP-AAAA-NNNNNN. Totalmente atômico (EST-saida-01).
+
+    `_pos_saida_hook` é o ponto de extensão para efeitos de outros domínios sobre
+    a baixa já aplicada — hoje, avisar as requisições autorizadas que a baixa
+    empurrou para divergência crítica (EST-07). Roda dentro desta transação, de
+    modo que uma falha nele reverte a saída inteira (SAE-04). O retorno do hook é
+    ignorado aqui; quem precisa dele é o chamador, que injeta o hook.
     """
     from apps.estoque.policies import exigir_pode_registrar_saida_excepcional
 
@@ -537,6 +544,14 @@ def registrar_saida_excepcional(
     sequencia.save(update_fields=['ultimo_numero'])
     saida.numero_publico = f'SXP-{ano}-{sequencia.ultimo_numero:06d}'
     saida.save(update_fields=['numero_publico'])
+
+    if _pos_saida_hook is not None:
+        _pos_saida_hook(
+            saida=saida,
+            estoque=estoque,
+            material_ids=material_ids,
+            ator=ator,
+        )
 
     return saida
 
