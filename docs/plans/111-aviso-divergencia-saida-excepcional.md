@@ -322,7 +322,7 @@ Dois testes, um para cada classe de falha descrita em "Duas classes de falha":
 
 Teste de integração: requisição `autorizada` → saída excepcional que cria a
 divergência → `separar_para_retirada` levanta `DadosInvalidos` com
-`code='separacao_bloqueada_divergencia'` e a requisição segue `AUTORIZADA`.
+`code='separacao_bloqueada'` e a requisição segue `AUTORIZADA`.
 
 A asserção de estoque compara o estado **imediatamente após a saída excepcional**
 com o estado após a tentativa bloqueada — não com o estado inicial, que a baixa

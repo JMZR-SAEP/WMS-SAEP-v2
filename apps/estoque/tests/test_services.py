@@ -1825,3 +1825,104 @@ class TestSaidaExcepcionalDivergenciaTimeline:
             estoque=estoque_principal, material=material_disponivel
         )
         assert saldo.saldo_fisico == Decimal(saldo_antes)
+
+
+@pytest.mark.django_db(transaction=True)
+def test_falha_ao_notificar_pos_commit_nao_reverte_a_saida(
+    chefe_almoxarifado,
+    estoque_principal,
+    material_disponivel,
+    requisicao_autorizada,
+    caplog,
+):
+    """A entrega da notificação é best-effort: falha depois do commit não reverte nada."""
+    from decimal import Decimal
+    from unittest.mock import patch
+
+    from apps.estoque.models import MovimentacaoEstoque, SaidaExcepcional, SaldoEstoque
+    from apps.estoque.services import registrar_saida_excepcional
+    from apps.notificacoes.models import Notificacao
+    from apps.requisicoes.models import EventoTimeline, TimelineRequisicao
+    from apps.requisicoes.services.ciclo_vida import (
+        registrar_timeline_divergencia_saida_excepcional,
+    )
+
+    req, _item = requisicao_autorizada
+
+    with patch(
+        'apps.requisicoes.services.ciclo_vida.criar_notificacoes_para',
+        side_effect=RuntimeError('falha forçada na notificação'),
+    ):
+        with caplog.at_level('ERROR', logger='apps.requisicoes.services.ciclo_vida'):
+            saida = registrar_saida_excepcional(
+                ator_id=chefe_almoxarifado.pk,
+                estoque_id=estoque_principal.pk,
+                motivo='Descarte por avaria',
+                observacao='Material avariado em vistoria',
+                itens=[{'material_id': material_disponivel.pk, 'quantidade': '98'}],
+                _pos_saida_hook=registrar_timeline_divergencia_saida_excepcional,
+            )
+
+    assert SaidaExcepcional.objects.filter(pk=saida.pk).exists()
+    assert MovimentacaoEstoque.objects.filter(saida_excepcional=saida).count() == 1
+    assert TimelineRequisicao.objects.filter(
+        requisicao=req, evento=EventoTimeline.ATUALIZACAO_ESTOQUE_RELEVANTE
+    ).exists()
+
+    saldo = SaldoEstoque.objects.get(
+        estoque=estoque_principal, material=material_disponivel
+    )
+    assert saldo.saldo_fisico == Decimal('2')
+
+    assert not Notificacao.objects.exists()
+    assert 'Falha ao criar notificação de divergência pós-commit' in caplog.text
+
+
+def test_tr_015b_continua_bloqueando_separacao_apos_saida_excepcional(
+    db,
+    chefe_almoxarifado,
+    estoque_principal,
+    material_disponivel,
+    requisicao_autorizada,
+):
+    """TR-015B intacto: o aviso é aditivo, não substitui o bloqueio da separação."""
+    from apps.core.exceptions import DadosInvalidos
+    from apps.estoque.models import MovimentacaoEstoque, SaldoEstoque
+    from apps.estoque.services import registrar_saida_excepcional
+    from apps.requisicoes.models import EstadoRequisicao
+    from apps.requisicoes.services.atendimento import separar_para_retirada
+    from apps.requisicoes.services.ciclo_vida import (
+        registrar_timeline_divergencia_saida_excepcional,
+    )
+
+    req, _item = requisicao_autorizada
+
+    registrar_saida_excepcional(
+        ator_id=chefe_almoxarifado.pk,
+        estoque_id=estoque_principal.pk,
+        motivo='Descarte por avaria',
+        observacao='Material avariado em vistoria',
+        itens=[{'material_id': material_disponivel.pk, 'quantidade': '98'}],
+        _pos_saida_hook=registrar_timeline_divergencia_saida_excepcional,
+    )
+
+    saldo_pos_saida = SaldoEstoque.objects.get(
+        estoque=estoque_principal, material=material_disponivel
+    )
+    fisico_pos_saida = saldo_pos_saida.saldo_fisico
+    reservado_pos_saida = saldo_pos_saida.saldo_reservado
+    ledger_pos_saida = MovimentacaoEstoque.objects.count()
+
+    with pytest.raises(DadosInvalidos) as exc:
+        separar_para_retirada(requisicao_id=req.pk, ator_id=chefe_almoxarifado.pk)
+    assert exc.value.code == 'separacao_bloqueada'
+
+    req.refresh_from_db()
+    assert req.estado == EstadoRequisicao.AUTORIZADA
+
+    saldo_pos_tentativa = SaldoEstoque.objects.get(
+        estoque=estoque_principal, material=material_disponivel
+    )
+    assert saldo_pos_tentativa.saldo_fisico == fisico_pos_saida
+    assert saldo_pos_tentativa.saldo_reservado == reservado_pos_saida
+    assert MovimentacaoEstoque.objects.count() == ledger_pos_saida
