@@ -812,3 +812,134 @@ def test_falha_ao_notificar_separacao_nao_desfaz_transicao(
         requisicao_id=req.pk,
         tipo=TipoNotificacao.SEPARACAO_RETIRADA,
     ).exists()
+
+
+# ---------------------------------------------------------------------------
+# Issue #111 — divergência criada por saída excepcional notifica os envolvidos
+# ---------------------------------------------------------------------------
+
+
+def _material_com_reserva(estoque, *, codigo, fisico, reservado):
+    """Material com saldo controlado, para forçar (ou não) divergência na baixa."""
+    from apps.estoque.models import Material, SaldoEstoque, UnidadeMedida
+
+    m = Material.objects.create(
+        codigo=codigo,
+        nome='Material Saída Excepcional',
+        unidade=UnidadeMedida.UNIDADE,
+        ativo=True,
+    )
+    SaldoEstoque.objects.create(
+        estoque=estoque,
+        material=m,
+        saldo_fisico=fisico,
+        saldo_reservado=reservado,
+    )
+    return m
+
+
+def _baixar_com_aviso(*, ator, estoque, material, quantidade):
+    from apps.estoque.services import registrar_saida_excepcional
+    from apps.requisicoes.services.ciclo_vida import (
+        registrar_timeline_divergencia_saida_excepcional,
+    )
+
+    return registrar_saida_excepcional(
+        ator_id=ator.pk,
+        estoque_id=estoque.pk,
+        motivo='Descarte por avaria',
+        observacao='Material avariado em vistoria',
+        itens=[{'material_id': material.pk, 'quantidade': quantidade}],
+        _pos_saida_hook=registrar_timeline_divergencia_saida_excepcional,
+    )
+
+
+@pytest.mark.django_db(transaction=True)
+def test_saida_excepcional_com_divergencia_notifica_criador_e_beneficiario(
+    chefe_obras, chefe_almoxarifado, setor_obras, outro_solicitante, estoque_principal
+):
+    """Baixa que cria EST-07 → notifica criador e beneficiário da requisição autorizada."""
+    material = _material_com_reserva(
+        estoque_principal, codigo='SXP.NOTIF.01', fisico=20, reservado=10
+    )
+    req = _criar_requisicao_autorizada(
+        criador=chefe_obras,
+        beneficiario=outro_solicitante,
+        setor=setor_obras,
+        material=material,
+    )
+
+    _baixar_com_aviso(
+        ator=chefe_almoxarifado,
+        estoque=estoque_principal,
+        material=material,
+        quantidade='15',
+    )
+
+    notifs = Notificacao.objects.filter(
+        requisicao_id=req.pk,
+        tipo=TipoNotificacao.DIVERGENCIA_ESTOQUE,
+    )
+    assert notifs.count() == 2
+    assert set(notifs.values_list('destinatario_id', flat=True)) == {
+        chefe_obras.pk,
+        outro_solicitante.pk,
+    }
+
+
+@pytest.mark.django_db(transaction=True)
+def test_saida_excepcional_deduplica_criador_igual_beneficiario(
+    chefe_almoxarifado, setor_obras, solicitante, estoque_principal
+):
+    """Criador == beneficiário → 1 notificação."""
+    material = _material_com_reserva(
+        estoque_principal, codigo='SXP.NOTIF.02', fisico=20, reservado=10
+    )
+    req = _criar_requisicao_autorizada(
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor=setor_obras,
+        material=material,
+    )
+
+    _baixar_com_aviso(
+        ator=chefe_almoxarifado,
+        estoque=estoque_principal,
+        material=material,
+        quantidade='15',
+    )
+
+    assert (
+        Notificacao.objects.filter(
+            requisicao_id=req.pk,
+            tipo=TipoNotificacao.DIVERGENCIA_ESTOQUE,
+        ).count()
+        == 1
+    )
+
+
+@pytest.mark.django_db(transaction=True)
+def test_saida_excepcional_sem_divergencia_nao_notifica(
+    chefe_almoxarifado, setor_obras, solicitante, estoque_principal
+):
+    """Baixa que mantém físico >= reservado não gera notificação."""
+    material = _material_com_reserva(
+        estoque_principal, codigo='SXP.NOTIF.03', fisico=20, reservado=5
+    )
+    _criar_requisicao_autorizada(
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor=setor_obras,
+        material=material,
+    )
+
+    _baixar_com_aviso(
+        ator=chefe_almoxarifado,
+        estoque=estoque_principal,
+        material=material,
+        quantidade='10',
+    )
+
+    assert not Notificacao.objects.filter(
+        tipo=TipoNotificacao.DIVERGENCIA_ESTOQUE
+    ).exists()

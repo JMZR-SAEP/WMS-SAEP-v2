@@ -715,24 +715,31 @@ def estornar_requisicao(
     return requisicao
 
 
-def registrar_timeline_divergencia_importacao(
-    *, linhas, estoque, importacao, ator
-) -> None:
-    """Cria TimelineRequisicao para requisições autorizadas afetadas por divergência crítica.
+def _registrar_divergencia_para_autorizadas(
+    *,
+    material_ids: list[int],
+    estoque,
+    ator,
+    material_info: dict[int, dict],
+    metadata_origem: dict,
+) -> list[int]:
+    """Avisa requisições autorizadas afetadas por divergência crítica de estoque.
 
-    Chamado como hook por confirmar_importacao_scpi dentro da mesma transação.
-    Divergência crítica = saldo_fisico < saldo_reservado após importação SCPI.
+    Cria um TimelineRequisicao agregado por requisição e agenda as notificações
+    pós-commit. Devolve os ids das requisições avisadas; lista vazia quando não há
+    divergência crítica ou quando nenhuma requisição autorizada usa os materiais.
+
+    Núcleo compartilhado pelas origens de EST-07 (importação SCPI e saída
+    excepcional). Roda dentro da transação do service que mutou o estoque, para
+    que a consulta enxergue o saldo já atualizado.
     """
-    existing_material_ids = [
-        linha.material_id for linha in linhas if linha.material_id is not None
-    ]
-    if not existing_material_ids:
-        return
+    if not material_ids:
+        return []
 
     saldos_criticos = {
         s.material_id: s
         for s in SaldoEstoque.objects.filter(
-            material_id__in=existing_material_ids,
+            material_id__in=material_ids,
             estoque=estoque,
             saldo_fisico__lt=F('saldo_reservado'),
         )
@@ -741,16 +748,7 @@ def registrar_timeline_divergencia_importacao(
         .only('material_id', 'saldo_fisico', 'saldo_reservado')
     }
     if not saldos_criticos:
-        return
-
-    material_info = {
-        linha.material_id: {
-            'codigo': linha.cadpro,
-            'nome': linha.nome_material or linha.denominacao_scpi,
-        }
-        for linha in linhas
-        if linha.material_id in saldos_criticos
-    }
+        return []
 
     itens = list(
         ItemRequisicao.objects.filter(
@@ -760,7 +758,7 @@ def registrar_timeline_divergencia_importacao(
         ).select_related('requisicao')
     )
     if not itens:
-        return
+        return []
 
     req_materiais: dict[int, list[dict]] = {}
     for item in itens:
@@ -778,10 +776,7 @@ def registrar_timeline_divergencia_importacao(
                 evento=EventoTimeline.ATUALIZACAO_ESTOQUE_RELEVANTE,
                 ator=ator,
                 estado_resultante=None,
-                metadata={
-                    'importacao_id': importacao.pk,
-                    'materiais': mats,
-                },
+                metadata={**metadata_origem, 'materiais': mats},
             )
             for req_id, mats in req_materiais.items()
         ]
@@ -807,3 +802,63 @@ def registrar_timeline_divergencia_importacao(
                 )
 
     transaction.on_commit(_notificar_divergencia)
+
+    return list(req_materiais.keys())
+
+
+def registrar_timeline_divergencia_importacao(
+    *, linhas, estoque, importacao, ator
+) -> list[int]:
+    """Cria TimelineRequisicao para requisições autorizadas afetadas por divergência crítica.
+
+    Chamado como hook por confirmar_importacao_scpi dentro da mesma transação.
+    Divergência crítica = saldo_fisico < saldo_reservado após importação SCPI.
+    Devolve os ids das requisições avisadas.
+    """
+    material_ids = [
+        linha.material_id for linha in linhas if linha.material_id is not None
+    ]
+    material_info = {
+        linha.material_id: {
+            'codigo': linha.cadpro,
+            'nome': linha.nome_material or linha.denominacao_scpi,
+        }
+        for linha in linhas
+        if linha.material_id is not None
+    }
+    return _registrar_divergencia_para_autorizadas(
+        material_ids=material_ids,
+        estoque=estoque,
+        ator=ator,
+        material_info=material_info,
+        metadata_origem={'importacao_id': importacao.pk},
+    )
+
+
+def registrar_timeline_divergencia_saida_excepcional(
+    *, saida, estoque, material_ids, ator
+) -> list[int]:
+    """Cria TimelineRequisicao para requisições autorizadas afetadas por saída excepcional.
+
+    Chamado como hook por registrar_saida_excepcional dentro da mesma transação.
+    Divergência crítica = saldo_fisico < saldo_reservado após a baixa (EST-07).
+    A baixa permanece permitida: TR-013 é o caminho de resolução, e este aviso
+    existe para que o Almoxarifado e os envolvidos saibam que ele é necessário.
+    Devolve os ids das requisições avisadas.
+    """
+    material_info = {
+        material.pk: {'codigo': material.codigo, 'nome': material.nome}
+        for material in Material.objects.filter(pk__in=material_ids).only(
+            'id', 'codigo', 'nome'
+        )
+    }
+    return _registrar_divergencia_para_autorizadas(
+        material_ids=list(material_ids),
+        estoque=estoque,
+        ator=ator,
+        material_info=material_info,
+        metadata_origem={
+            'saida_excepcional_id': saida.pk,
+            'numero_publico': saida.numero_publico,
+        },
+    )

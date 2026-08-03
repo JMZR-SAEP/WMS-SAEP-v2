@@ -3621,3 +3621,99 @@ def test_detalhe_pronta_retirada_registrar_antes_cancelar(
     )
     html = response.content.decode('utf-8')
     assert html.index('atender-retirada-titulo') < html.index('cancelamento-titulo')
+
+
+# ---------------------------------------------------------------------------
+# Issue #111 — timeline mostra o que a divergência de estoque significa
+# ---------------------------------------------------------------------------
+
+
+def _bloco_timeline(conteudo: str) -> str:
+    """Recorta só a timeline da página, para não asserir contra o HTML inteiro."""
+    inicio = conteudo.index('aria-label="Histórico da requisição"')
+    fim = conteudo.index('</ol>', inicio)
+    return conteudo[inicio:fim]
+
+
+def _req_com_evento_divergencia(*, solicitante, setor_obras, material, metadata, ator):
+    """Requisição autorizada com um evento de atualização de estoque relevante."""
+    req = Requisicao.objects.create(
+        estado=EstadoRequisicao.AUTORIZADA,
+        numero_publico='REQ-2026-000111',
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+    )
+    ItemRequisicao.objects.create(
+        requisicao=req,
+        material=material,
+        quantidade_solicitada=Decimal('3'),
+        quantidade_autorizada=Decimal('3'),
+    )
+    TimelineRequisicao.objects.create(
+        requisicao=req,
+        evento=EventoTimeline.ATUALIZACAO_ESTOQUE_RELEVANTE,
+        ator=ator,
+        estado_resultante=None,
+        metadata=metadata,
+    )
+    return req
+
+
+@pytest.mark.django_db
+def test_timeline_mostra_origem_saida_excepcional_e_orientacao(
+    client, solicitante, setor_obras, material_disponivel
+):
+    """Origem saída excepcional: número público, materiais e orientação de resolução."""
+    _login(client, solicitante)
+    req = _req_com_evento_divergencia(
+        solicitante=solicitante,
+        setor_obras=setor_obras,
+        material=material_disponivel,
+        ator=solicitante,
+        metadata={
+            'saida_excepcional_id': 7,
+            'numero_publico': 'SXP-2026-000042',
+            'materiais': [
+                {'codigo': material_disponivel.codigo, 'nome': material_disponivel.nome}
+            ],
+        },
+    )
+
+    response = client.get(reverse('requisicoes:detalhe', kwargs={'pk': req.pk}))
+    assert response.status_code == 200
+
+    timeline = _bloco_timeline(response.content.decode())
+    assert 'Saída excepcional SXP-2026-000042' in timeline
+    assert 'deixou o saldo físico abaixo do reservado' in timeline
+    assert f'{material_disponivel.codigo} — {material_disponivel.nome}' in timeline
+    assert 'A separação para retirada fica bloqueada até a divergência ser' in timeline
+    assert 'resolvida ou esta requisição ser cancelada' in timeline
+
+
+@pytest.mark.django_db
+def test_timeline_mostra_origem_importacao_scpi_sem_numero_publico(
+    client, solicitante, setor_obras, material_disponivel
+):
+    """Origem SCPI não tem numero_publico: template não quebra nem exibe rótulo vazio."""
+    _login(client, solicitante)
+    req = _req_com_evento_divergencia(
+        solicitante=solicitante,
+        setor_obras=setor_obras,
+        material=material_disponivel,
+        ator=solicitante,
+        metadata={
+            'importacao_id': 3,
+            'materiais': [
+                {'codigo': material_disponivel.codigo, 'nome': material_disponivel.nome}
+            ],
+        },
+    )
+
+    response = client.get(reverse('requisicoes:detalhe', kwargs={'pk': req.pk}))
+    assert response.status_code == 200
+
+    timeline = _bloco_timeline(response.content.decode())
+    assert 'Importação SCPI' in timeline
+    assert 'Saída excepcional' not in timeline
+    assert f'{material_disponivel.codigo} — {material_disponivel.nome}' in timeline

@@ -641,6 +641,62 @@ class TestConfirmarImportacaoScpiTimelineRequisicoes:
         assert codigos == {m1.codigo, m2.codigo}
         assert eventos.first().metadata['importacao_id'] == importacao.pk
 
+    def test_hook_retorna_ids_das_requisicoes_avisadas(
+        self,
+        db,
+        superuser,
+        estoque_principal,
+        material_scpi_critico,
+        requisicao_autorizada_critico,
+    ):
+        """O hook devolve os ids das requisições avisadas, para o chamador reagir."""
+        from apps.estoque.services import confirmar_importacao_scpi
+        from apps.requisicoes.services.ciclo_vida import (
+            registrar_timeline_divergencia_importacao,
+        )
+
+        capturado: list[list[int]] = []
+
+        def _hook(**kwargs):
+            capturado.append(registrar_timeline_divergencia_importacao(**kwargs))
+
+        csv_bytes = self._csv(material_scpi_critico.codigo, 'Tinta Branca 18L', '1.000')
+        confirmar_importacao_scpi(
+            ator_id=superuser.pk,
+            conteudo_bytes=csv_bytes,
+            arquivo_nome='retorno.csv',
+            estoque_id=estoque_principal.pk,
+            _pos_importacao_hook=_hook,
+        )
+
+        assert capturado == [[requisicao_autorizada_critico.pk]]
+
+    def test_hook_retorna_lista_vazia_sem_divergencia(
+        self, db, superuser, estoque_principal, material_scpi
+    ):
+        """Sem divergência crítica o hook devolve lista vazia, nunca None."""
+        from apps.estoque.services import confirmar_importacao_scpi
+        from apps.requisicoes.services.ciclo_vida import (
+            registrar_timeline_divergencia_importacao,
+        )
+
+        capturado: list[list[int]] = []
+
+        def _hook(**kwargs):
+            capturado.append(registrar_timeline_divergencia_importacao(**kwargs))
+
+        csv_bytes = self._csv(material_scpi.codigo, 'Parafuso M6', '100.000')
+        importacao = confirmar_importacao_scpi(
+            ator_id=superuser.pk,
+            conteudo_bytes=csv_bytes,
+            arquivo_nome='sem_divergencia.csv',
+            estoque_id=estoque_principal.pk,
+            _pos_importacao_hook=_hook,
+        )
+
+        assert capturado == [[]]
+        assert importacao.pk is not None
+
 
 class TestMovimentacaoEstoqueImutavel:
     @pytest.mark.django_db
@@ -1359,3 +1415,514 @@ class TestEstornarRequisicaoEstoque:
             ).count()
             == ledger_antes
         )
+
+
+# ---------------------------------------------------------------------------
+# Issue #111 — saída excepcional que cria divergência crítica (EST-07) avisa
+# as requisições autorizadas afetadas
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def _hook_divergencia_saida():
+    """Hook real de divergência da saída excepcional, capturando o retorno."""
+    from apps.requisicoes.services.ciclo_vida import (
+        registrar_timeline_divergencia_saida_excepcional,
+    )
+
+    capturado: list[list[int]] = []
+
+    def _hook(**kwargs):
+        avisadas = registrar_timeline_divergencia_saida_excepcional(**kwargs)
+        capturado.append(avisadas)
+        return avisadas
+
+    _hook.capturado = capturado
+    return _hook
+
+
+class TestSaidaExcepcionalDivergenciaTimeline:
+    """EST-07 criada por saída excepcional avisa as requisições autorizadas."""
+
+    def _baixar(self, *, ator, estoque, material, quantidade, hook):
+        from apps.estoque.services import registrar_saida_excepcional
+
+        return registrar_saida_excepcional(
+            ator_id=ator.pk,
+            estoque_id=estoque.pk,
+            motivo='Descarte por avaria',
+            observacao='Material avariado em vistoria',
+            itens=[{'material_id': material.pk, 'quantidade': quantidade}],
+            _pos_saida_hook=hook,
+        )
+
+    def test_cria_evento_e_notifica_quando_baixa_gera_divergencia(
+        self,
+        db,
+        chefe_almoxarifado,
+        estoque_principal,
+        material_disponivel,
+        requisicao_autorizada,
+        _hook_divergencia_saida,
+    ):
+        """Happy path: baixa empurra físico abaixo do reservado → evento com metadata da saída."""
+        from apps.requisicoes.models import EventoTimeline, TimelineRequisicao
+
+        req, _item = requisicao_autorizada
+
+        saida = self._baixar(
+            ator=chefe_almoxarifado,
+            estoque=estoque_principal,
+            material=material_disponivel,
+            quantidade='98',
+            hook=_hook_divergencia_saida,
+        )
+
+        eventos = TimelineRequisicao.objects.filter(
+            requisicao=req,
+            evento=EventoTimeline.ATUALIZACAO_ESTOQUE_RELEVANTE,
+        )
+        assert eventos.count() == 1
+        evento = eventos.first()
+        assert evento.metadata['saida_excepcional_id'] == saida.pk
+        assert evento.metadata['numero_publico'] == saida.numero_publico
+        assert evento.metadata['materiais'] == [
+            {'codigo': material_disponivel.codigo, 'nome': material_disponivel.nome}
+        ]
+        assert _hook_divergencia_saida.capturado == [[req.pk]]
+
+    def test_nao_cria_evento_quando_baixa_nao_gera_divergencia(
+        self,
+        db,
+        chefe_almoxarifado,
+        estoque_principal,
+        material_disponivel,
+        requisicao_autorizada,
+        _hook_divergencia_saida,
+    ):
+        """Baixa que mantém físico >= reservado não avisa ninguém."""
+        from apps.requisicoes.models import EventoTimeline, TimelineRequisicao
+
+        self._baixar(
+            ator=chefe_almoxarifado,
+            estoque=estoque_principal,
+            material=material_disponivel,
+            quantidade='5',
+            hook=_hook_divergencia_saida,
+        )
+
+        assert not TimelineRequisicao.objects.filter(
+            evento=EventoTimeline.ATUALIZACAO_ESTOQUE_RELEVANTE
+        ).exists()
+        assert _hook_divergencia_saida.capturado == [[]]
+
+    def test_nao_avisa_requisicao_que_nao_esta_autorizada(
+        self,
+        db,
+        chefe_almoxarifado,
+        estoque_principal,
+        material_disponivel,
+        requisicao_autorizavel,
+        _hook_divergencia_saida,
+    ):
+        """Só requisição AUTORIZADA é avisada; aguardando autorização não é."""
+        from apps.estoque.models import SaldoEstoque
+        from apps.requisicoes.models import EventoTimeline, TimelineRequisicao
+
+        saldo = SaldoEstoque.objects.get(
+            estoque=estoque_principal, material=material_disponivel
+        )
+        saldo.saldo_reservado = 50
+        saldo.save(update_fields=['saldo_reservado'])
+
+        self._baixar(
+            ator=chefe_almoxarifado,
+            estoque=estoque_principal,
+            material=material_disponivel,
+            quantidade='60',
+            hook=_hook_divergencia_saida,
+        )
+
+        assert not TimelineRequisicao.objects.filter(
+            evento=EventoTimeline.ATUALIZACAO_ESTOQUE_RELEVANTE
+        ).exists()
+        assert _hook_divergencia_saida.capturado == [[]]
+
+    def test_evento_agregado_com_dois_materiais_criticos_na_mesma_requisicao(
+        self,
+        db,
+        chefe_almoxarifado,
+        solicitante,
+        setor_obras,
+        estoque_principal,
+        _hook_divergencia_saida,
+    ):
+        """Um evento por requisição, agregando os dois materiais afetados."""
+        from decimal import Decimal
+
+        from apps.estoque.models import Material, SaldoEstoque, UnidadeMedida
+        from apps.estoque.services import registrar_saida_excepcional
+        from apps.requisicoes.models import (
+            EstadoRequisicao,
+            EventoTimeline,
+            ItemRequisicao,
+            Requisicao,
+            TimelineRequisicao,
+        )
+
+        materiais = []
+        for indice in (1, 2):
+            material = Material.objects.create(
+                codigo=f'AGG00{indice}',
+                nome=f'Material agregado {indice}',
+                unidade=UnidadeMedida.UNIDADE,
+                ativo=True,
+            )
+            SaldoEstoque.objects.create(
+                estoque=estoque_principal,
+                material=material,
+                saldo_fisico=10,
+                saldo_reservado=8,
+            )
+            materiais.append(material)
+
+        req = Requisicao.objects.create(
+            estado=EstadoRequisicao.AUTORIZADA,
+            numero_publico='REQ-2025-000201',
+            criador=solicitante,
+            beneficiario=solicitante,
+            setor_beneficiario=setor_obras,
+        )
+        for material in materiais:
+            ItemRequisicao.objects.create(
+                requisicao=req,
+                material=material,
+                quantidade_solicitada=Decimal('8'),
+                quantidade_autorizada=Decimal('8'),
+            )
+
+        saida = registrar_saida_excepcional(
+            ator_id=chefe_almoxarifado.pk,
+            estoque_id=estoque_principal.pk,
+            motivo='Descarte por avaria',
+            observacao='Lote inteiro avariado',
+            itens=[{'material_id': m.pk, 'quantidade': '5'} for m in materiais],
+            _pos_saida_hook=_hook_divergencia_saida,
+        )
+
+        eventos = TimelineRequisicao.objects.filter(
+            requisicao=req, evento=EventoTimeline.ATUALIZACAO_ESTOQUE_RELEVANTE
+        )
+        assert eventos.count() == 1
+        evento = eventos.first()
+        assert evento.metadata['saida_excepcional_id'] == saida.pk
+        codigos = sorted(m['codigo'] for m in evento.metadata['materiais'])
+        assert codigos == ['AGG001', 'AGG002']
+
+    def test_duas_requisicoes_autorizadas_compartilhando_material_critico(
+        self,
+        db,
+        chefe_almoxarifado,
+        solicitante,
+        setor_obras,
+        estoque_principal,
+        material_disponivel,
+        _hook_divergencia_saida,
+    ):
+        """Um evento por requisição, sem agregação cruzada nem omissão."""
+        from decimal import Decimal
+
+        from apps.accounts.models import User
+        from apps.estoque.models import SaldoEstoque
+        from apps.requisicoes.models import (
+            EstadoRequisicao,
+            EventoTimeline,
+            ItemRequisicao,
+            Requisicao,
+            TimelineRequisicao,
+        )
+
+        outro_solicitante = User.objects.create_user(
+            matricula='0111',
+            nome='Carla Solicitante',
+            password='senha',
+            setor=setor_obras,
+        )
+
+        saldo = SaldoEstoque.objects.get(
+            estoque=estoque_principal, material=material_disponivel
+        )
+        saldo.saldo_reservado = 20
+        saldo.save(update_fields=['saldo_reservado'])
+
+        requisicoes = []
+        for indice, usuario in enumerate((solicitante, outro_solicitante), start=1):
+            req = Requisicao.objects.create(
+                estado=EstadoRequisicao.AUTORIZADA,
+                numero_publico=f'REQ-2025-00030{indice}',
+                criador=usuario,
+                beneficiario=usuario,
+                setor_beneficiario=setor_obras,
+            )
+            ItemRequisicao.objects.create(
+                requisicao=req,
+                material=material_disponivel,
+                quantidade_solicitada=Decimal('10'),
+                quantidade_autorizada=Decimal('10'),
+            )
+            requisicoes.append(req)
+
+        saida = self._baixar(
+            ator=chefe_almoxarifado,
+            estoque=estoque_principal,
+            material=material_disponivel,
+            quantidade='90',
+            hook=_hook_divergencia_saida,
+        )
+
+        for req in requisicoes:
+            eventos = TimelineRequisicao.objects.filter(
+                requisicao=req, evento=EventoTimeline.ATUALIZACAO_ESTOQUE_RELEVANTE
+            )
+            assert eventos.count() == 1
+            evento = eventos.first()
+            assert evento.metadata['saida_excepcional_id'] == saida.pk
+            assert evento.metadata['numero_publico'] == saida.numero_publico
+            assert evento.metadata['materiais'] == [
+                {'codigo': material_disponivel.codigo, 'nome': material_disponivel.nome}
+            ]
+
+        assert sorted(_hook_divergencia_saida.capturado[0]) == sorted(
+            r.pk for r in requisicoes
+        )
+
+    def test_baixa_persiste_sem_reserva_nem_requisicao_autorizada(
+        self,
+        db,
+        chefe_almoxarifado,
+        estoque_principal,
+        _hook_divergencia_saida,
+    ):
+        """SAE-01: o hook seleciona quem notificar, nunca condiciona a baixa."""
+        from decimal import Decimal
+
+        from apps.estoque.models import (
+            ItemSaidaExcepcional,
+            Material,
+            MovimentacaoEstoque,
+            SaldoEstoque,
+            TipoMovimentacaoEstoque,
+            UnidadeMedida,
+        )
+        from apps.requisicoes.models import EventoTimeline, TimelineRequisicao
+
+        material = Material.objects.create(
+            codigo='SEMRESERVA',
+            nome='Material sem reserva',
+            unidade=UnidadeMedida.UNIDADE,
+            ativo=True,
+        )
+        SaldoEstoque.objects.create(
+            estoque=estoque_principal,
+            material=material,
+            saldo_fisico=40,
+            saldo_reservado=0,
+        )
+
+        saida = self._baixar(
+            ator=chefe_almoxarifado,
+            estoque=estoque_principal,
+            material=material,
+            quantidade='15',
+            hook=_hook_divergencia_saida,
+        )
+
+        assert saida.numero_publico.startswith('SXP-')
+        assert ItemSaidaExcepcional.objects.filter(saida=saida).count() == 1
+        assert MovimentacaoEstoque.objects.filter(
+            saida_excepcional=saida,
+            material=material,
+            tipo=TipoMovimentacaoEstoque.SAIDA_EXCEPCIONAL,
+            delta_fisico=Decimal('-15'),
+        ).exists()
+
+        saldo = SaldoEstoque.objects.get(estoque=estoque_principal, material=material)
+        assert saldo.saldo_fisico == Decimal('25')
+
+        assert not TimelineRequisicao.objects.filter(
+            evento=EventoTimeline.ATUALIZACAO_ESTOQUE_RELEVANTE
+        ).exists()
+        assert _hook_divergencia_saida.capturado == [[]]
+
+    def test_sem_hook_a_baixa_funciona_e_nao_avisa(
+        self,
+        db,
+        chefe_almoxarifado,
+        estoque_principal,
+        material_disponivel,
+        requisicao_autorizada,
+    ):
+        """Compatibilidade retroativa: _pos_saida_hook é opcional."""
+        from apps.estoque.services import registrar_saida_excepcional
+        from apps.requisicoes.models import EventoTimeline, TimelineRequisicao
+
+        saida = registrar_saida_excepcional(
+            ator_id=chefe_almoxarifado.pk,
+            estoque_id=estoque_principal.pk,
+            motivo='Descarte por avaria',
+            observacao='Material avariado em vistoria',
+            itens=[{'material_id': material_disponivel.pk, 'quantidade': '98'}],
+        )
+
+        assert saida.numero_publico.startswith('SXP-')
+        assert not TimelineRequisicao.objects.filter(
+            evento=EventoTimeline.ATUALIZACAO_ESTOQUE_RELEVANTE
+        ).exists()
+
+    def test_falha_no_hook_reverte_a_saida_inteira(
+        self,
+        db,
+        chefe_almoxarifado,
+        estoque_principal,
+        material_disponivel,
+        requisicao_autorizada,
+    ):
+        """SAE-04: exceção no hook acontece antes do commit e derruba tudo."""
+        from decimal import Decimal
+
+        from apps.estoque.models import (
+            MovimentacaoEstoque,
+            SaidaExcepcional,
+            SaldoEstoque,
+        )
+        from apps.requisicoes.models import EventoTimeline, TimelineRequisicao
+
+        saldo_antes = SaldoEstoque.objects.get(
+            estoque=estoque_principal, material=material_disponivel
+        ).saldo_fisico
+
+        def _hook_que_falha(**kwargs):
+            raise RuntimeError('falha forçada no hook')
+
+        with pytest.raises(RuntimeError):
+            self._baixar(
+                ator=chefe_almoxarifado,
+                estoque=estoque_principal,
+                material=material_disponivel,
+                quantidade='98',
+                hook=_hook_que_falha,
+            )
+
+        assert not SaidaExcepcional.objects.exists()
+        assert not MovimentacaoEstoque.objects.filter(
+            saida_excepcional__isnull=False
+        ).exists()
+        assert not TimelineRequisicao.objects.filter(
+            evento=EventoTimeline.ATUALIZACAO_ESTOQUE_RELEVANTE
+        ).exists()
+
+        saldo = SaldoEstoque.objects.get(
+            estoque=estoque_principal, material=material_disponivel
+        )
+        assert saldo.saldo_fisico == Decimal(saldo_antes)
+
+
+@pytest.mark.django_db(transaction=True)
+def test_falha_ao_notificar_pos_commit_nao_reverte_a_saida(
+    chefe_almoxarifado,
+    estoque_principal,
+    material_disponivel,
+    requisicao_autorizada,
+    caplog,
+):
+    """A entrega da notificação é best-effort: falha depois do commit não reverte nada."""
+    from decimal import Decimal
+    from unittest.mock import patch
+
+    from apps.estoque.models import MovimentacaoEstoque, SaidaExcepcional, SaldoEstoque
+    from apps.estoque.services import registrar_saida_excepcional
+    from apps.notificacoes.models import Notificacao
+    from apps.requisicoes.models import EventoTimeline, TimelineRequisicao
+    from apps.requisicoes.services.ciclo_vida import (
+        registrar_timeline_divergencia_saida_excepcional,
+    )
+
+    req, _item = requisicao_autorizada
+
+    with patch(
+        'apps.requisicoes.services.ciclo_vida.criar_notificacoes_para',
+        side_effect=RuntimeError('falha forçada na notificação'),
+    ):
+        with caplog.at_level('ERROR', logger='apps.requisicoes.services.ciclo_vida'):
+            saida = registrar_saida_excepcional(
+                ator_id=chefe_almoxarifado.pk,
+                estoque_id=estoque_principal.pk,
+                motivo='Descarte por avaria',
+                observacao='Material avariado em vistoria',
+                itens=[{'material_id': material_disponivel.pk, 'quantidade': '98'}],
+                _pos_saida_hook=registrar_timeline_divergencia_saida_excepcional,
+            )
+
+    assert SaidaExcepcional.objects.filter(pk=saida.pk).exists()
+    assert MovimentacaoEstoque.objects.filter(saida_excepcional=saida).count() == 1
+    assert TimelineRequisicao.objects.filter(
+        requisicao=req, evento=EventoTimeline.ATUALIZACAO_ESTOQUE_RELEVANTE
+    ).exists()
+
+    saldo = SaldoEstoque.objects.get(
+        estoque=estoque_principal, material=material_disponivel
+    )
+    assert saldo.saldo_fisico == Decimal('2')
+
+    assert not Notificacao.objects.exists()
+    assert 'Falha ao criar notificação de divergência pós-commit' in caplog.text
+
+
+def test_tr_015b_continua_bloqueando_separacao_apos_saida_excepcional(
+    db,
+    chefe_almoxarifado,
+    estoque_principal,
+    material_disponivel,
+    requisicao_autorizada,
+):
+    """TR-015B intacto: o aviso é aditivo, não substitui o bloqueio da separação."""
+    from apps.core.exceptions import DadosInvalidos
+    from apps.estoque.models import MovimentacaoEstoque, SaldoEstoque
+    from apps.estoque.services import registrar_saida_excepcional
+    from apps.requisicoes.models import EstadoRequisicao
+    from apps.requisicoes.services.atendimento import separar_para_retirada
+    from apps.requisicoes.services.ciclo_vida import (
+        registrar_timeline_divergencia_saida_excepcional,
+    )
+
+    req, _item = requisicao_autorizada
+
+    registrar_saida_excepcional(
+        ator_id=chefe_almoxarifado.pk,
+        estoque_id=estoque_principal.pk,
+        motivo='Descarte por avaria',
+        observacao='Material avariado em vistoria',
+        itens=[{'material_id': material_disponivel.pk, 'quantidade': '98'}],
+        _pos_saida_hook=registrar_timeline_divergencia_saida_excepcional,
+    )
+
+    saldo_pos_saida = SaldoEstoque.objects.get(
+        estoque=estoque_principal, material=material_disponivel
+    )
+    fisico_pos_saida = saldo_pos_saida.saldo_fisico
+    reservado_pos_saida = saldo_pos_saida.saldo_reservado
+    ledger_pos_saida = MovimentacaoEstoque.objects.count()
+
+    with pytest.raises(DadosInvalidos) as exc:
+        separar_para_retirada(requisicao_id=req.pk, ator_id=chefe_almoxarifado.pk)
+    assert exc.value.code == 'separacao_bloqueada'
+
+    req.refresh_from_db()
+    assert req.estado == EstadoRequisicao.AUTORIZADA
+
+    saldo_pos_tentativa = SaldoEstoque.objects.get(
+        estoque=estoque_principal, material=material_disponivel
+    )
+    assert saldo_pos_tentativa.saldo_fisico == fisico_pos_saida
+    assert saldo_pos_tentativa.saldo_reservado == reservado_pos_saida
+    assert MovimentacaoEstoque.objects.count() == ledger_pos_saida
