@@ -3628,6 +3628,13 @@ def test_detalhe_pronta_retirada_registrar_antes_cancelar(
 # ---------------------------------------------------------------------------
 
 
+def _bloco_timeline(conteudo: str) -> str:
+    """Recorta só a timeline da página, para não asserir contra o HTML inteiro."""
+    inicio = conteudo.index('aria-label="Histórico da requisição"')
+    fim = conteudo.index('</ol>', inicio)
+    return conteudo[inicio:fim]
+
+
 def _req_com_evento_divergencia(*, solicitante, setor_obras, material, metadata, ator):
     """Requisição autorizada com um evento de atualização de estoque relevante."""
     req = Requisicao.objects.create(
@@ -3674,12 +3681,14 @@ def test_timeline_mostra_origem_saida_excepcional_e_orientacao(
     )
 
     response = client.get(reverse('requisicoes:detalhe', kwargs={'pk': req.pk}))
-    conteudo = response.content.decode()
-
     assert response.status_code == 200
-    assert 'Saída excepcional SXP-2026-000042' in conteudo
-    assert material_disponivel.codigo in conteudo
-    assert 'cancelar' in conteudo.lower()
+
+    timeline = _bloco_timeline(response.content.decode())
+    assert 'Saída excepcional SXP-2026-000042' in timeline
+    assert 'deixou o saldo físico abaixo do reservado' in timeline
+    assert f'{material_disponivel.codigo} — {material_disponivel.nome}' in timeline
+    assert 'A separação para retirada fica bloqueada até a divergência ser' in timeline
+    assert 'resolvida ou esta requisição ser cancelada' in timeline
 
 
 @pytest.mark.django_db
@@ -3702,9 +3711,9 @@ def test_timeline_mostra_origem_importacao_scpi_sem_numero_publico(
     )
 
     response = client.get(reverse('requisicoes:detalhe', kwargs={'pk': req.pk}))
-    conteudo = response.content.decode()
-
     assert response.status_code == 200
-    assert 'Importação SCPI' in conteudo
-    assert 'Saída excepcional' not in conteudo
-    assert material_disponivel.codigo in conteudo
+
+    timeline = _bloco_timeline(response.content.decode())
+    assert 'Importação SCPI' in timeline
+    assert 'Saída excepcional' not in timeline
+    assert f'{material_disponivel.codigo} — {material_disponivel.nome}' in timeline

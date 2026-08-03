@@ -1792,8 +1792,14 @@ class TestNovaSaidaExcepcionalAvisoDivergencia:
         ) as service:
             self._post(client, material_disponivel, '5')
 
+        # A view envolve o hook num closure para capturar os ids avisados, então
+        # não dá para comparar identidade com
+        # registrar_timeline_divergencia_saida_excepcional. O efeito real é
+        # travado pelos dois testes de integração abaixo.
         assert service.call_count == 1
-        assert service.call_args.kwargs['_pos_saida_hook'] is not None
+        hook = service.call_args.kwargs['_pos_saida_hook']
+        assert hook is not None
+        assert callable(hook)
 
     def test_baixa_que_cria_divergencia_avisa_o_operador(
         self,
@@ -1812,9 +1818,14 @@ class TestNovaSaidaExcepcionalAvisoDivergencia:
         assert 'success' in niveis
         assert 'warning' in niveis
 
+        # Texto completo: a contagem faz parte do contrato, e uma asserção de
+        # substring aceitaria qualquer dígito solto vindo do número da saída.
         aviso = next(m for m in mensagens if m.level_tag == 'warning')
-        assert 'divergência' in str(aviso).lower()
-        assert '1' in str(aviso)
+        assert str(aviso) == (
+            'Esta baixa criou divergência crítica de estoque: '
+            '1 requisição autorizada foi avisada. A separação delas fica bloqueada '
+            'até a divergência ser resolvida ou a requisição ser cancelada.'
+        )
 
     def test_baixa_sem_divergencia_nao_avisa_o_operador(
         self,

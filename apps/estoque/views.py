@@ -259,7 +259,7 @@ def nova_saida_excepcional_view(request):
                     request,
                     f'Esta baixa criou divergência crítica de estoque: '
                     f'{total} {plural} {foram}. A separação delas fica bloqueada '
-                    f'até o estoque ser reposto ou a requisição ser cancelada.',
+                    f'até a divergência ser resolvida ou a requisição ser cancelada.',
                 )
             return htmx_redirect(request, reverse('estoque:listar_saidas_excepcionais'))
 
