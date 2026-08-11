@@ -74,8 +74,8 @@ registro explícito de que a decisão da #106 prevalece sobre a ratificação an
 Fronteira de segurança vive no selector, então o peso dos testes fica em `test_selectors.py`; a view
 ganha apenas o caso de contrato HTTP.
 
-Duas fixtures novas em `apps/estoque/tests/conftest.py`, ambas montando requisição em `AUTORIZADA`
-mais uma `MovimentacaoEstoque` vinculada:
+Quatro fixtures novas em `apps/estoque/tests/conftest.py`. Cada uma monta uma requisição mais a
+`MovimentacaoEstoque` vinculada; o estado é `AUTORIZADA`, salvo onde indicado:
 
 - `movimentacao_requisicao_do_aux` — `criador=aux_obras`, `setor_beneficiario=setor_obras`.
   Necessária porque a fixture `requisicao_autorizada` tem `criador=solicitante`; sob a regra nova ela
