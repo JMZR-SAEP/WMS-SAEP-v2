@@ -32,11 +32,12 @@ registro explícito de que a decisão da #106 prevalece sobre a ratificação an
   comportar bem. Espelha o `nao_rascunho` de `historico_requisicoes_visiveis_para` (#106). Os ramos de
   almoxarifado e superusuário seguem sem filtro de estado — lá a regra é "vê tudo", e é justamente o
   ramo de setor que precisa de não-vazamento.
-  Forma do import: `EstadoRequisicao` entra por **import local dentro da função**, no padrão de
-  `apps/estoque/views.py:221`. Hoje `apps/estoque/selectors.py` não importa nada de
-  `apps.requisicoes`, enquanto `apps/requisicoes/selectors.py:15` importa `apps.estoque.models` no
-  topo; um import de topo no sentido inverso cria dependência circular entre os dois apps na carga do
-  módulo. Verificação: `uv run mypy apps` mais a suíte completa — um ciclo estoura em import time.
+  Forma do import: `from apps.requisicoes.models import EstadoRequisicao` **no topo** de
+  `apps/estoque/selectors.py`. Não há risco de ciclo: `apps/requisicoes/models.py` e
+  `apps/estoque/models.py` não importam nada de `apps.*` (verificado), então a aresta nova
+  `estoque.selectors → requisicoes.models` não fecha ciclo algum. O import lazy de
+  `apps/estoque/views.py:221` é para `services.ciclo_vida`, que de fato importa estoque de volta —
+  caso diferente, não precedente aqui. Verificação: `uv run mypy apps` mais a suíte completa.
 - `apps/estoque/policies.py::pode_consultar_movimentacoes_estoque` — **corpo inalterado**; só a
   docstring, que hoje afirma espelhar o universo do selector. Passa a explicitar, nos moldes de
   `pode_consultar_historico_requisicoes`, que a policy decide apenas o acesso à página; o auxiliar de
