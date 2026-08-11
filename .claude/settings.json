@@ -1,0 +1,30 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/bloqueia_migrations.py\"",
+            "timeout": 10,
+            "statusMessage": "Checando migrations…"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/formata_python.py\"",
+            "timeout": 45,
+            "statusMessage": "Aplicando ruff…"
+          }
+        ]
+      }
+    ]
+  }
+}
