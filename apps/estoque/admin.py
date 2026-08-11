@@ -140,6 +140,19 @@ class ItemSaidaExcepcionalInline(admin.TabularInline):
     model = ItemSaidaExcepcional
     extra = 1
 
+    # `InlineModelAdmin.has_add_permission` não herda de `SaidaExcepcionalAdmin`
+    # — sem guard próprio, um staff com permissão Django de `ItemSaidaExcepcional`
+    # continuaria adicionando/mudando itens pelo formset mesmo com o parent
+    # bloqueado.
+    def has_add_permission(self, request, obj):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
 
 @admin.register(SaidaExcepcional)
 class SaidaExcepcionalAdmin(admin.ModelAdmin):
@@ -155,11 +168,36 @@ class SaidaExcepcionalAdmin(admin.ModelAdmin):
     ordering = ('-criado_em',)
     inlines = [ItemSaidaExcepcionalInline]
 
+    # Criar/mudar/apagar pelo admin gera documento sem baixa de saldo e sem
+    # ledger (EST-saida-01 só vale no service `registrar_saida_excepcional`).
+    # Leitura via changelist fica aberta.
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
 
 @admin.register(SequenciaSaidaExcepcional)
 class SequenciaSaidaExcepcionalAdmin(admin.ModelAdmin):
     list_display = ('ano', 'ultimo_numero')
     ordering = ('-ano',)
+    readonly_fields = ('ano', 'ultimo_numero')
+
+    # Linha nasce por `get_or_create` no service na primeira emissão de
+    # número do ano; sem caminho legítimo de add pelo admin. Regredir
+    # `ultimo_numero` à mão colide com `numero_publico` unique no próximo
+    # envio (`IntegrityError` → 500). Apagar ou trocar `ano` tem o mesmo
+    # efeito prático: o ano original fica sem sequência e o próximo
+    # `get_or_create` recria do zero, reemitindo números já usados.
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(ImportacaoSCPI)
@@ -177,6 +215,20 @@ class ImportacaoSCPIAdmin(admin.ModelAdmin):
     ordering = ('-importado_em',)
     readonly_fields = ('arquivo_hash', 'importado_em')
 
+    # Importação nasce por `confirmar_importacao_scpi`; add manual não tem
+    # caminho legítimo (sem CSV nem preview por trás). `status`/`total_*`/
+    # `importado_por` são metadados de auditoria da confirmação — editá-los
+    # falsifica a trilha de quem importou o quê. Apagar libera reimportação
+    # do mesmo arquivo (dedup por `arquivo_hash`).
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
 
 @admin.register(MovimentacaoEstoque)
 class MovimentacaoEstoqueAdmin(admin.ModelAdmin):
@@ -192,3 +244,17 @@ class MovimentacaoEstoqueAdmin(admin.ModelAdmin):
     search_fields = ('material__nome', 'material__codigo')
     ordering = ('-criado_em',)
     readonly_fields = ('criado_em',)
+
+    # Ledger imutável (LED-01/LED-02): toda linha nasce de um service que
+    # também muta o saldo na mesma transação. Add pelo admin insere ledger
+    # sem tocar o saldo; change/delete colidiriam com `save()`/`delete()` do
+    # model, que já levantam `MovimentacaoEstoqueImutavel` — sem o guard aqui
+    # isso vira 500 em vez de 403. Leitura fica aberta.
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

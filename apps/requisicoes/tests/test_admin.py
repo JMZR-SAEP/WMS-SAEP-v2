@@ -18,6 +18,7 @@ from apps.requisicoes.admin import (
     ItemRequisicaoAdmin,
     ItemRequisicaoInline,
     RequisicaoAdmin,
+    SequenciaRequisicaoAdmin,
     TimelineRequisicaoAdmin,
 )
 from apps.requisicoes.models import (
@@ -25,6 +26,7 @@ from apps.requisicoes.models import (
     EventoTimeline,
     ItemRequisicao,
     Requisicao,
+    SequenciaRequisicao,
     TimelineRequisicao,
 )
 
@@ -418,3 +420,167 @@ def test_changelist_de_timeline_permanece_legivel(
     resposta = client.get(reverse('admin:requisicoes_timelinerequisicao_changelist'))
 
     assert resposta.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# SequenciaRequisicaoAdmin — numeração não pode regredir (issue #113)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def sequencia_admin():
+    return SequenciaRequisicaoAdmin(SequenciaRequisicao, AdminSite())
+
+
+@pytest.fixture
+def sequencia_requisicao(db):
+    return SequenciaRequisicao.objects.create(ano=2026, ultimo_numero=10)
+
+
+def test_sequencia_requisicao_admin_nega_add(sequencia_admin, request_de, superuser):
+    assert sequencia_admin.has_add_permission(request_de(superuser)) is False
+
+
+def test_ultimo_numero_de_sequencia_requisicao_declarado_readonly(sequencia_admin):
+    assert 'ultimo_numero' in sequencia_admin.readonly_fields
+    assert 'ano' in sequencia_admin.readonly_fields
+
+
+def test_ultimo_numero_de_sequencia_requisicao_fora_do_formulario(
+    sequencia_admin, request_de, superuser, sequencia_requisicao
+):
+    formulario = sequencia_admin.get_form(
+        request_de(superuser), obj=sequencia_requisicao
+    )
+
+    assert 'ultimo_numero' not in formulario.base_fields
+    assert 'ano' not in formulario.base_fields
+
+
+def test_post_no_admin_nao_regride_ultimo_numero_de_requisicao(
+    client, superuser, sequencia_requisicao
+):
+    client.force_login(superuser)
+
+    resposta = client.post(
+        reverse(
+            'admin:requisicoes_sequenciarequisicao_change',
+            args=[sequencia_requisicao.pk],
+        ),
+        {'ano': '2026', 'ultimo_numero': '0'},
+    )
+
+    assert resposta.status_code == 302
+    sequencia_requisicao.refresh_from_db()
+    assert sequencia_requisicao.ultimo_numero == 10
+
+
+def test_post_no_admin_nao_muda_ano_de_sequencia_requisicao(
+    client, superuser, sequencia_requisicao
+):
+    """Trocar `ano` "move" o contador — mesmo efeito prático de apagar."""
+    client.force_login(superuser)
+
+    resposta = client.post(
+        reverse(
+            'admin:requisicoes_sequenciarequisicao_change',
+            args=[sequencia_requisicao.pk],
+        ),
+        {'ano': '2027', 'ultimo_numero': '10'},
+    )
+
+    assert resposta.status_code == 302
+    sequencia_requisicao.refresh_from_db()
+    assert sequencia_requisicao.ano == 2026
+
+
+def test_sequencia_requisicao_admin_nega_delete(sequencia_admin, request_de, superuser):
+    assert sequencia_admin.has_delete_permission(request_de(superuser)) is False
+
+
+def test_delete_de_sequencia_requisicao_nega(client, superuser, sequencia_requisicao):
+    """Apagar reseta a numeração — próximo `get_or_create` recria do zero e
+    colide com `numero_publico` já emitido para o mesmo ano."""
+    client.force_login(superuser)
+
+    resposta = client.post(
+        reverse(
+            'admin:requisicoes_sequenciarequisicao_delete',
+            args=[sequencia_requisicao.pk],
+        ),
+        {'post': 'yes'},
+    )
+
+    assert resposta.status_code == 403
+    assert SequenciaRequisicao.objects.filter(pk=sequencia_requisicao.pk).exists()
+
+
+# ---------------------------------------------------------------------------
+# RequisicaoAdmin — sem add/delete pelo admin (issue #113)
+# ---------------------------------------------------------------------------
+
+
+def test_requisicao_admin_nega_add_e_delete(requisicao_admin, request_de, superuser):
+    requisicao = request_de(superuser)
+
+    assert requisicao_admin.has_add_permission(requisicao) is False
+    assert requisicao_admin.has_delete_permission(requisicao) is False
+
+
+def test_add_de_requisicao_nega(client, staff_de_requisicao):
+    """Criação passa a ser exclusiva do service `criar_requisicao`.
+
+    Sem o guard, os três campos de pessoa virando readonly deixaria o POST de
+    add sem valor pra eles — `IntegrityError` (NOT NULL) em vez de 403.
+    """
+    client.force_login(staff_de_requisicao)
+
+    resposta = client.get(reverse('admin:requisicoes_requisicao_add'))
+
+    assert resposta.status_code == 403
+
+
+def test_delete_de_requisicao_nega(client, staff_de_requisicao, req_historico_obras):
+    client.force_login(staff_de_requisicao)
+
+    resposta = client.post(
+        reverse('admin:requisicoes_requisicao_delete', args=[req_historico_obras.pk]),
+        {'post': 'yes'},
+    )
+
+    assert resposta.status_code == 403
+    assert Requisicao.objects.filter(pk=req_historico_obras.pk).exists()
+
+
+def test_pessoas_da_requisicao_declaradas_readonly(requisicao_admin):
+    for campo in ('criador', 'beneficiario', 'setor_beneficiario'):
+        assert campo in requisicao_admin.readonly_fields
+
+
+def test_pessoas_da_requisicao_fora_do_formulario(
+    requisicao_admin, request_de, superuser, req_historico_obras
+):
+    formulario = requisicao_admin.get_form(
+        request_de(superuser), obj=req_historico_obras
+    )
+
+    assert 'criador' not in formulario.base_fields
+    assert 'beneficiario' not in formulario.base_fields
+    assert 'setor_beneficiario' not in formulario.base_fields
+
+
+def test_post_no_admin_nao_troca_beneficiario_da_requisicao(
+    client, superuser, req_historico_obras, outro_usuario_obras
+):
+    client.force_login(superuser)
+    beneficiario_original_id = req_historico_obras.beneficiario_id
+
+    client.post(
+        reverse('admin:requisicoes_requisicao_change', args=[req_historico_obras.pk]),
+        _payload_requisicao(
+            req_historico_obras, beneficiario=str(outro_usuario_obras.pk)
+        ),
+    )
+
+    req_historico_obras.refresh_from_db()
+    assert req_historico_obras.beneficiario_id == beneficiario_original_id
