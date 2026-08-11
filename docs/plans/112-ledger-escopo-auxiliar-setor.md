@@ -24,13 +24,23 @@ registro explícito de que a decisão da #106 prevalece sobre a ratificação an
 ### Muda
 
 - `apps/estoque/selectors.py::movimentacoes_visiveis_para` — ramo de setor não-almox passa de
-  `filter(requisicao__setor_beneficiario_id__in=setores)` para
-  `filter(Q(requisicao__criador_id=ator.pk) | Q(requisicao__setor_beneficiario_id=setor_chefiado_ativo_id))`,
-  com o segundo termo presente apenas quando `setor_chefiado_ativo_id is not None`.
+  `filter(requisicao__setor_beneficiario_id__in=setores)` para o predicado completo
+  `filter((Q(requisicao__criador_id=ator.pk) | Q(requisicao__setor_beneficiario_id=setor_chefiado_ativo_id)) & ~Q(requisicao__estado=EstadoRequisicao.RASCUNHO))`,
+  com o termo do setor chefiado presente apenas quando `setor_chefiado_ativo_id is not None`.
+  A exclusão de rascunho é explícita, e não presumida: `MovimentacaoEstoque.requisicao` é anulável e
+  o model não tem constraint de estado, então o predicado não pode depender de nenhum service se
+  comportar bem. Espelha o `nao_rascunho` de `historico_requisicoes_visiveis_para` (#106). Os ramos de
+  almoxarifado e superusuário seguem sem filtro de estado — lá a regra é "vê tudo", e é justamente o
+  ramo de setor que precisa de não-vazamento.
+  Forma do import: `EstadoRequisicao` entra por **import local dentro da função**, no padrão de
+  `apps/estoque/views.py:221`. Hoje `apps/estoque/selectors.py` não importa nada de
+  `apps.requisicoes`, enquanto `apps/requisicoes/selectors.py:15` importa `apps.estoque.models` no
+  topo; um import de topo no sentido inverso cria dependência circular entre os dois apps na carga do
+  módulo. Verificação: `uv run mypy apps` mais a suíte completa — um ciclo estoura em import time.
 - `apps/estoque/policies.py::pode_consultar_movimentacoes_estoque` — **corpo inalterado**; só a
   docstring, que hoje afirma espelhar o universo do selector. Passa a explicitar, nos moldes de
-  `pode_consultar_historico_requisicoes`, que decide apenas o acesso à página e que o auxiliar de
-  setor entra mas vê só o que criou.
+  `pode_consultar_historico_requisicoes`, que a policy decide apenas o acesso à página; o auxiliar de
+  setor entra, mas vê apenas o que criou.
 - `docs/matriz-permissoes.md` — §4 (linha "Consultar histórico de movimentações"), §5 (bullet do
   ledger) e §7 (item resolvido da US-17, que hoje repete a regra antiga).
 - Testes: `apps/estoque/tests/conftest.py`, `test_selectors.py`, `test_views.py`.
@@ -55,8 +65,8 @@ registro explícito de que a decisão da #106 prevalece sobre a ratificação an
 | `apps/estoque/selectors.py` | `movimentacoes_visiveis_para` | Restringir ramo de setor + atualizar docstring RBAC |
 | `apps/estoque/policies.py` | `pode_consultar_movimentacoes_estoque` | Só docstring (deixa de prometer espelho exato) |
 | `docs/matriz-permissoes.md` | §4, §5, §7 | Emendar a regra e registrar a decisão da #112 |
-| `apps/estoque/tests/conftest.py` | novas fixtures | `movimentacao_requisicao_do_aux` e `movimentacao_criada_pelo_chefe` |
-| `apps/estoque/tests/test_selectors.py` | `TestMovimentacoesVisiveisPara` | Reescrever caso do auxiliar; reforçar caso do chefe |
+| `apps/estoque/tests/conftest.py` | novas fixtures | `movimentacao_requisicao_do_aux`, `movimentacao_criada_pelo_chefe`, `movimentacao_requisicao_rascunho`, `aux_lotacao_divergente` |
+| `apps/estoque/tests/test_selectors.py` | `TestMovimentacoesVisiveisPara` | Reescrever caso do auxiliar; reforçar caso do chefe; converter asserções para conjuntos exatos de IDs |
 | `apps/estoque/tests/test_views.py` | `TestHistoricoMovimentacoesView` | Caso de view para auxiliar de setor |
 
 ## Estratégia de testes
@@ -72,29 +82,51 @@ mais uma `MovimentacaoEstoque` vinculada:
   deixa de ser visível ao auxiliar, e sem esta fixture não haveria caso positivo para ele.
 - `movimentacao_criada_pelo_chefe` — `criador=chefe_obras`, `setor_beneficiario` em um setor que ele
   **não** chefia. Cobre o termo `Q(requisicao__criador_id=...)` no ramo do chefe.
+- `movimentacao_requisicao_rascunho` — requisição em `RASCUNHO` com `criador=aux_obras`, mais uma
+  `MovimentacaoEstoque` construída direto no model (nenhum service produz esse par). Cobre o termo
+  `~Q(requisicao__estado=RASCUNHO)`.
+- `aux_lotacao_divergente` — usuário com `User.setor` = setor TI e `VinculoAuxiliar` ativo em obras,
+  mais uma requisição criada por ele para si (`setor_beneficiario` = TI) e a movimentação
+  correspondente. Materializa o contraexemplo da invariante de ampliação.
+
+**Forma das asserções**: todo caso do selector compara o **conjunto exato de IDs** retornado com o
+conjunto esperado (`set(qs.values_list('pk', flat=True)) == {...}`), nunca `exists()` /
+`filter(...).exists()` isolados. Asserção de inclusão deixa passar movimentação extra vazada, que é
+exatamente a classe de bug desta issue. Os casos existentes de `TestMovimentacoesVisiveisPara` que
+hoje usam inclusão/ausência isolada são convertidos junto.
 
 Selector (`TestMovimentacoesVisiveisPara`):
 
-1. **Auxiliar de setor vê o que criou** — com `movimentacao_requisicao_do_aux`, o selector para
-   `aux_obras` contém essa movimentação.
-2. **Auxiliar de setor não vê o resto do setor** (regressão da #112) — a movimentação de
-   `requisicao_autorizada` (criada pelo `solicitante`, mesmo setor obras) **não** aparece para
-   `aux_obras`. Substitui o `test_aux_setor_ve_so_proprio_setor` atual, que asseverava o oposto.
-3. **Auxiliar de setor não vê saída excepcional** — mantido.
-4. **Chefe de setor mantém a visão de setor** — `requisicao_autorizada` continua visível ao
-   `chefe_obras`; sem saída excepcional; sem `movimentacao_outro_setor`.
-5. **Chefe de setor vê também o que criou fora do setor chefiado** — movimentação de requisição
-   criada pelo `chefe_obras` com `setor_beneficiario` = outro setor aparece. Fecha o espelho com
-   `historico_requisicoes_visiveis_para`.
-6. **Almoxarifado (chefe e auxiliar) e superusuário** — inalterados, veem tudo incluindo saídas
-   excepcionais.
-7. **Solicitante puro, inativo, inexistente** — inalterados, vazio.
+1. **Auxiliar de setor vê o que criou** — para `aux_obras`, o conjunto de IDs é exatamente
+   `{movimentacao_requisicao_do_aux.pk}`, com `requisicao_autorizada`, `saida_registrada` e
+   `movimentacao_outro_setor` no cenário.
+2. **Auxiliar de setor não vê o resto do setor** (regressão da #112) — coberto pela igualdade do
+   caso 1: a movimentação de `requisicao_autorizada` (criada pelo `solicitante`, mesmo setor obras)
+   fica fora do conjunto. Substitui o `test_aux_setor_ve_so_proprio_setor` atual, que asseverava o
+   oposto.
+3. **Auxiliar lotado e vinculado em setores distintos** — com a fixture `aux_lotacao_divergente`
+   (lotação em TI, vínculo de auxiliar em obras, requisição criada para si com `setor_beneficiario` =
+   TI), o conjunto contém exatamente essa movimentação: prova executável da ampliação intencional
+   descrita nas invariantes, e do não-vazamento de obras para ele.
+4. **Movimentação vinculada a rascunho não aparece** — `MovimentacaoEstoque` construída diretamente
+   sobre uma requisição em `RASCUNHO` criada pelo `aux_obras` (o model permite; nenhum service faz).
+   Conjunto do `aux_obras` e do `chefe_obras` a exclui. Cobre o termo `~Q(...RASCUNHO)`.
+5. **Chefe de setor mantém a visão de setor** — conjunto do `chefe_obras` é exatamente as
+   movimentações de `requisicao_autorizada`: sem saída excepcional, sem `movimentacao_outro_setor`,
+   sem a de rascunho.
+6. **Chefe de setor vê também o que criou fora do setor chefiado** — com
+   `movimentacao_criada_pelo_chefe`, o conjunto do `chefe_obras` cresce exatamente por esse ID.
+   Fecha o espelho com `historico_requisicoes_visiveis_para`.
+7. **Almoxarifado (chefe e auxiliar) e superusuário** — conjunto igual ao de todas as
+   `MovimentacaoEstoque` do cenário, incluindo saídas excepcionais. Inalterado no comportamento.
+8. **Solicitante puro, inativo, inexistente** — conjunto vazio. Inalterados.
 
 View (`TestHistoricoMovimentacoesView`):
 
-8. **Auxiliar de setor recebe 200** — acesso à página preservado (a policy não mudou).
-9. **`page_obj.paginator.count` do auxiliar bate com `movimentacoes_visiveis_para(aux_obras.pk)`** e
-   é menor que o do `chefe_obras` no mesmo cenário — prova de que o recorte chegou à tela.
+9. **Auxiliar de setor recebe 200** — acesso à página preservado (a policy não mudou).
+10. **IDs em `page_obj.object_list` do auxiliar** batem exatamente com
+    `movimentacoes_visiveis_para(aux_obras.pk)`, e o conjunto do `chefe_obras` no mesmo cenário é
+    estritamente maior — prova de que o recorte chegou à tela.
 
 Policies (`test_policies.py`): sem mudança de asserção — `pode_consultar_movimentacoes_estoque(AUX_OBRAS)`
 continua `True`. Os testes existentes seguem verdes e viram regressão da decisão.
@@ -103,13 +135,23 @@ continua `True`. Os testes existentes seguem verdes e viram regressão da decis�
 
 - **Fronteira de segurança no selector** (ADR-0004 / `docs/CONVENTIONS.md`): a view e o template
   nunca decidem visibilidade. A mudança fica inteiramente no selector.
-- **Não-ampliação para o auxiliar de setor**: o universo novo é subconjunto estrito do anterior.
-  Para o chefe de setor há uma ampliação deliberada e delimitada — as requisições que ele mesmo criou
-  com `setor_beneficiario` fora do setor que chefia, que `historico_requisicoes_visiveis_para` já lhe
-  concede desde a #106. Alinhar as duas fronteiras é o objetivo da entrega, e o ganho é restrito a
-  requisições de autoria do próprio ator. Nenhum outro papel muda.
+- **Recorte por autoria, não subconjunto estrito**: o universo do auxiliar de setor **não** é
+  subconjunto estrito do anterior. `VinculoAuxiliar` é independente de `User.setor`
+  (`apps/accounts/papeis.py::papel_efetivo` monta `setores_em_escopo` a partir dos vínculos ativos e
+  do setor chefiado, nunca da lotação), e `pode_criar_para_beneficiario` deixa qualquer usuário com
+  setor criar para si. Logo, um auxiliar lotado no setor A e vinculado ao setor B pode criar uma
+  requisição para si com `setor_beneficiario = A`: o filtro antigo por `setores_em_escopo` = {B} a
+  excluía; o termo `Q(requisicao__criador_id=ator.pk)` a inclui. **A ampliação é intencional** — é
+  exatamente o que `historico_requisicoes_visiveis_para` já concede ao auxiliar desde a #106, e o
+  detalhe da requisição também abre para o criador, então não há metadado listado que o detalhe
+  negue. O mesmo vale para o chefe de setor com requisições que criou fora do setor que chefia.
+  O ganho, nos dois casos, é restrito a requisições de **autoria do próprio ator**; para requisições
+  de terceiros o recorte só encolhe. Nenhum outro papel muda.
 - **Coerência com o detalhe (#106)**: o ledger deixa de listar metadados de requisições cujo detalhe
   devolve 404 ao auxiliar.
+- **Rascunho fora do ramo de setor**: o predicado exclui `EstadoRequisicao.RASCUNHO` explicitamente,
+  sem depender de nenhum service se comportar bem — o model aceita `requisicao` anulável e não tem
+  constraint de estado. Mesma regra do histórico de requisições (#106).
 - **Saída excepcional fora do escopo de setor**: preservado por construção (`requisicao` nulo nunca
   casa com os dois termos do `Q`).
 - **Policy ≠ selector é intencional e documentado**: `pode_consultar_movimentacoes_estoque` decide
@@ -125,8 +167,13 @@ continua `True`. Os testes existentes seguem verdes e viram regressão da decis�
   citam a ratificação de grill da US-17. A emenda precisa dizer explicitamente que a #112 substitui
   aquela regra, senão a próxima auditoria reabre o mesmo achado. O brief de design é handoff de UI e
   não normativo sobre RBAC — não será reescrito; a matriz é a fonte.
-- **Performance**: o `Q(...)` novo troca um `IN` por um `OR` de duas colunas indexadas
-  (`requisicao__criador_id`, `requisicao__setor_beneficiario_id`) sobre um queryset já `select_related`.
-  Sem mudança de plano relevante no volume do MVP.
+- **Performance a verificar, não a presumir**: o predicado novo troca um `IN` por um `OR` entre duas
+  colunas mais um `NOT` de estado. `OR` entre colunas indexadas pode virar plano diferente (varredura
+  em vez de uso de índice), e `select_related` não influencia o filtro. Critério: rodar
+  `movimentacoes_visiveis_para(<chefe>).explain()` e `.explain()` do auxiliar contra o volume do
+  `seed_dev`, comparando com o predicado antigo; o que se checa é se o acesso a
+  `requisicao__setor_beneficiario_id` deixou de usar índice e virou varredura sequencial. Se virar,
+  fica registrado aqui como dívida com número medido — não se afirma ausência de impacto sem esse
+  passo.
 - **Sem risco de concorrência, contrato OpenAPI, mutação de estoque ou transição de estado**: a
   mudança é somente de leitura.
