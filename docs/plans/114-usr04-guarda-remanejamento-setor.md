@@ -31,10 +31,10 @@ expor o conflito antes de implementar):
    setor"; `apps/accounts/models.py` declara `setor` com `null=True, blank=True`
    e comentário justificando a nulidade, e `seed_dev` semeia o ADMIN sem setor.
    O plano segue o model — ver decisão 8 — e registra a reconciliação como
-   follow-up.
+   continuação.
 2. `remanejar_usuario` bloqueia por qualquer setor chefiado; `desativar_usuario`
    bloqueia só por setor `ativo=True`. A assimetria é deliberada neste recorte —
-   ver decisão 5 — e alinhar os dois é follow-up, porque muda USR-07.
+   ver decisão 5 — e alinhar os dois é continuação, porque muda USR-07.
 
 **Muda:**
 
@@ -88,12 +88,18 @@ def remanejar_usuario(
     novo_setor_id: int | None,
     novo_chefe_id: int | None = None,
 ) -> None:
-    """Muda a lotação, bloqueando se chefia setor ativo sem substituto (USR-04)."""
+    """Muda a lotação, bloqueando se chefia setor sem substituto (USR-04).
+
+    Bloqueia a saída de qualquer chefe de setor, ativo ou inativo — o
+    invariante `chefe.setor_id == setor.id` não é qualificado por `ativo`.
+    `desativar_usuario` mantém o recorte `ativo=True`; a assimetria é
+    deliberada e está declarada no plano do #114.
+    """
     from apps.accounts.policies import exigir_pode_gerir_cadastro
 
     try:
         ator = User.objects.get(pk=ator_id)
-        usuario = User.objects.select_for_update().get(pk=usuario_id)
+        User.objects.get(pk=usuario_id)  # existência; o lock vem na ordem global
         if novo_setor_id is not None:
             Setor.objects.get(pk=novo_setor_id)
     except ObjectDoesNotExist as exc:
@@ -104,10 +110,15 @@ def remanejar_usuario(
     papel = papel_efetivo(ator)
     exigir_pode_gerir_cadastro(papel)
 
+    # Ordem global de locks: Setor antes de User, a mesma de trocar_chefe_setor.
+    setor_chefiado = (
+        Setor.objects.select_for_update().filter(chefe_id=usuario_id).first()
+    )
+    usuario = User.objects.select_for_update().get(pk=usuario_id)
+
     if usuario.setor_id == novo_setor_id:
         return
 
-    setor_chefiado = Setor.objects.select_for_update().filter(chefe=usuario).first()
     if setor_chefiado:
         if novo_chefe_id is None:
             raise ConflitoDominio(
@@ -162,22 +173,42 @@ Oito decisões que o código embute:
    gravado. O filtro é `chefe=usuario`, sem `ativo=True`.
    **Assimetria declarada:** `desativar_usuario` filtra por `ativo=True` e
    continua assim — alinhar os dois é mudança de comportamento em USR-07, fora
-   do escopo deste issue, e fica registrada como follow-up.
+   do escopo deste issue, e fica registrada como continuação.
    **Saída para o caso preso:** um chefe de setor inativo sem nenhum outro
    usuário lotado nele não tem substituto possível e fica sem remanejamento pelo
    admin (`SetorAdmin` recusa `chefe=None` com `chefe_nulo`). É o mesmo tipo de
    travamento que USR-07 já aceita, e resolvê-lo exige decidir se chefia pode
    ser removida sem substituto — questão do backlog ACE-002, não deste issue.
-6. **`select_for_update` no setor chefiado, antes de decidir.** Sem o lock, uma
-   `trocar_chefe_setor` concorrente pode designar outro chefe entre a leitura e
-   o commit, e a chamada de substituição daqui sobrescreveria essa designação —
-   perda de atualização. Com o lock, quando existe chefia a decidir, as duas
-   escritas serializam. **O que o lock não fecha:** se o usuário ainda **não** é
-   chefe de nada, não há linha para travar, e uma `trocar_chefe_setor`
-   concorrente pode torná-lo chefe logo após a checagem (leitura fantasma sob
-   READ COMMITTED). Fechar isso exigiria lock de tabela ou serialização de todo
-   o cadastro; fora de escopo, e o desfecho é o mesmo estado que este issue
-   corrige no próximo remanejamento.
+6. **`select_for_update` no setor chefiado, antes de decidir — e `Setor` antes
+   de `User`.** Sem o lock, uma `trocar_chefe_setor` concorrente pode designar
+   outro chefe entre a leitura e o commit, e a chamada de substituição daqui
+   sobrescreveria essa designação — perda de atualização. Com o lock, quando
+   existe chefia a decidir, as duas escritas serializam.
+
+   A **ordem** dos locks é escolha deliberada. `trocar_chefe_setor` trava
+   `Setor` e só depois `User` (o novo chefe). Se este service travasse o
+   `usuario` primeiro — como faz `desativar_usuario` — teríamos duas ordens
+   opostas no mesmo par de tabelas, que é a receita de deadlock: uma transação
+   segurando `User` e esperando `Setor`, outra segurando `Setor` e esperando
+   `User`. Por isso o `usuario` é lido sem lock só para validar existência, e o
+   lock dele é adquirido **depois** do `Setor`. Não há TOCTOU nessa leitura: a
+   consulta de chefia usa `chefe_id=usuario_id`, e `usuario_id` é imutável.
+
+   **O que ainda não é fechado, e fica como continuação:**
+   - Ciclo `User`×`User`. Duas chamadas concorrentes que travam dois usuários em
+     ordens opostas (cada chefe indicado como substituto do outro) ainda podem
+     formar deadlock, porque `trocar_chefe_setor` trava o novo chefe sem ordenar
+     por pk. Ordenar só aqui não elimina o ciclo — `desativar_usuario` e o
+     `trocar_chefe_setor` chamado direto pelo `SetorAdmin` continuariam fora da
+     ordem — e daria a aparência de uma garantia que não existe. A ordenação
+     global por pk precisa entrar nos três services de uma vez, em issue
+     própria. Enquanto isso, o desfecho de um ciclo é `OperationalError`
+     (deadlock detected) do PostgreSQL, que **não** é `ErroDominio` e portanto
+     escapa de `_changeform_com_captura_dominio` como HTTP 500 — ver Riscos.
+   - Leitura fantasma. Se o usuário ainda **não** é chefe de nada, não há linha
+     para travar, e uma `trocar_chefe_setor` concorrente pode torná-lo chefe
+     logo após a checagem (READ COMMITTED). Fechar exigiria lock de tabela; o
+     desfecho é o mesmo estado que este issue corrige no próximo remanejamento.
 7. **Idempotente depois da policy.** `novo_setor_id` igual à lotação atual
    retorna sem erro — inclusive `None == None`. O early return vem **depois** de
    `exigir_pode_gerir_cadastro`, para não vazar estado de cadastro por diferença
@@ -193,7 +224,7 @@ Oito decisões que o código embute:
    recusar `None` transformaria uma operação legal em erro — mudança de
    comportamento não pedida pelo issue. Reconciliar `CONTEXT.md`/USR-03 com o
    model é decisão de contrato canônico (ADR ou ajuste do model), registrada
-   como follow-up e sinalizada aqui conforme AGENTS.md.
+   como continuação e sinalizada aqui conforme AGENTS.md.
 
 ### Roteamento no admin
 
@@ -307,7 +338,7 @@ escopo, sem saneamento) e lotação em setor inativo (fora de escopo).
 | USR-04 | "Todo setor operacional ativo possui um chefe ativo." A verificação hoje existe só na designação; o service acrescenta o outro lado — o chefe não sai do setor sem que a chefia saia antes. A linha da matriz ganha o ponto de verificação; a definição não muda. O backlog ACE-002 (setor ativo sem chefe) segue aberto e não é tocado aqui. |
 | USR-05 | Reforçada de graça: o caminho com substituto passa por `trocar_chefe_setor`, que já bloqueia `chefe_duplicado`. Nenhuma regra nova. |
 | USR-06 | Não muda. Remanejar não ativa nem desativa setor, e a lotação em setor inativo continua permitida como hoje. |
-| USR-07 | Não muda. `desativar_usuario` continua o caminho de desativação; os dois services não se chamam. Um chefe pode ser bloqueado por qualquer um dos dois, com mensagens distintas. **Assimetria conhecida:** `desativar_usuario` só bloqueia por setor `ativo=True`, enquanto `remanejar_usuario` bloqueia por qualquer setor chefiado (decisão 5). Alinhar os dois muda comportamento de USR-07 e fica como follow-up. |
+| USR-07 | Não muda. `desativar_usuario` continua o caminho de desativação; os dois services não se chamam. Um chefe pode ser bloqueado por qualquer um dos dois, com mensagens distintas. **Assimetria conhecida:** `desativar_usuario` só bloqueia por setor `ativo=True`, enquanto `remanejar_usuario` bloqueia por qualquer setor chefiado (decisão 5). Alinhar os dois muda comportamento de USR-07 e fica como continuação. |
 | USR-03 | "Usuário pertence a um único setor." Divergente do model, que declara `setor` nulo (decisão 8). O plano sinaliza a divergência e não a resolve; nenhuma linha da matriz é alterada por causa dela. |
 | REQ-* | Nenhuma requisição é criada, transicionada ou apagada. O efeito prático é indireto e desejado: o ex-chefe deixa de aparecer como autorizador do setor antigo, porque não fica mais como ex-chefe. |
 | EST-* | Nenhum saldo é tocado. |
@@ -319,6 +350,7 @@ escopo, sem saneamento) e lotação em setor inativo (fora de escopo).
 | Divergência já existente no banco continua vazando autorização | Real e aceito. A guarda é para frente; nenhuma varredura de saneamento entra neste issue. Saneamento é issue própria. |
 | Nem todo caminho de escrita de `User.setor` fica guardado | Verificado: fora de fixtures de teste, há dois. O admin, que este plano fecha; e `_seed_usuarios` em `apps/core/management/commands/seed_dev.py`, que grava `setor` num `update_or_create` sem passar por service. O seed fica de fora de propósito — é comando de ambiente local descartável (ADR-0009), com elenco fixo, e grava as chefias **depois** das lotações (`_seed_chefias`), então produz estado consistente por construção. Submetê-lo ao service exigiria um ator superusuário antes de o elenco existir, invertendo a ordem do bootstrap. |
 | Leitura fantasma na chefia | O `select_for_update` da decisão 6 fecha a perda de atualização quando a chefia **já existe**. O que resta: se o usuário não chefia nada, não há linha para travar, e uma `trocar_chefe_setor` concorrente pode designá-lo chefe logo após a checagem, sob READ COMMITTED. Aceito — fechar exigiria lock de tabela ou serializar todo o cadastro, e o estado resultante é exatamente o que o próximo remanejamento corrige. |
+| Deadlock por ordem de locks | Real, parcialmente mitigado, e **pré-existente ao issue**. Este service adota `Setor` antes de `User`, alinhado a `trocar_chefe_setor` (decisão 6), o que elimina o ciclo `User`×`Setor` no caminho do remanejamento. Sobra o ciclo `User`×`User` entre dois chefes indicados como substitutos um do outro, e sobra a ordem invertida de `desativar_usuario`, que trava `usuario` antes de chamar `trocar_chefe_setor` — ou seja, o par `desativar_usuario`/`trocar_chefe_setor` já convive com ordens opostas hoje, sem este issue. Consequência de um ciclo: `OperationalError` do PostgreSQL, que não é `ErroDominio` e vira HTTP 500 em vez de mensagem no admin. Ordenação global por pk nos três services é continuação registrada; fazê-la em um só daria garantia aparente sem eliminar o ciclo. |
 | `papel_efetivo` segue sem checagem de leitura | Declarado no Escopo. É defesa em profundidade que troca "impedir" por "mascarar", e mudaria o significado de `setor_chefiado_ativo_id` para todo consumidor. Se um dia entrar, entra como issue com revisão das policies que leem esse campo. |
 | Chefe de setor inativo fica preso quando não há outro lotado no setor | Real e aceito, e é o preço de bloquear em qualquer setor chefiado (decisão 5). `SetorAdmin` recusa `chefe=None`, então sem outro usuário lotado no setor arquivado não existe substituto e o remanejamento fica travado. Mesmo tipo de travamento que USR-07 já aceita; destravar exige decidir se chefia pode ser removida sem substituto — backlog ACE-002. |
 | POST isolado exigido para remanejar | O guard `remanejamento_com_campos_extras` obriga o admin a trocar a lotação separadamente de nome/e-mail/permissões. É custo de UX assumido em troca de um único ponto de persistência de `User.setor` (decisão 1 do admin), e é o mesmo custo que desativar usuário ou setor já cobra. |
