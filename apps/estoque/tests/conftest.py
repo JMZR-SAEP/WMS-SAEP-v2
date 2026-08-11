@@ -231,6 +231,140 @@ def requisicao_autorizada_critico(db, solicitante, setor_obras, material_scpi_cr
 
 
 @pytest.fixture
+def movimentacao_requisicao_do_aux(
+    db, aux_obras, setor_obras, material_disponivel, estoque_principal
+):
+    """CONSUMO de requisição do setor obras criada pelo próprio ``aux_obras``."""
+    from decimal import Decimal
+
+    from apps.estoque.models import MovimentacaoEstoque, TipoMovimentacaoEstoque
+    from apps.requisicoes.models import EstadoRequisicao, Requisicao
+
+    req = Requisicao.objects.create(
+        estado=EstadoRequisicao.AUTORIZADA,
+        numero_publico='REQ-2025-000112',
+        criador=aux_obras,
+        beneficiario=aux_obras,
+        setor_beneficiario=setor_obras,
+    )
+    return MovimentacaoEstoque.objects.create(
+        tipo=TipoMovimentacaoEstoque.CONSUMO,
+        material=material_disponivel,
+        estoque=estoque_principal,
+        delta_fisico=Decimal('-2'),
+        delta_reservado=Decimal('-2'),
+        requisicao=req,
+        ator=aux_obras,
+    )
+
+
+@pytest.fixture
+def movimentacao_criada_pelo_chefe(
+    db, chefe_obras, material_disponivel, estoque_principal
+):
+    """Movimentação de requisição criada pelo chefe de obras para setor que ele não chefia."""
+    from decimal import Decimal
+
+    from apps.accounts.models import Setor, SetorClassificacao
+    from apps.estoque.models import MovimentacaoEstoque, TipoMovimentacaoEstoque
+    from apps.requisicoes.models import EstadoRequisicao, Requisicao
+
+    setor_adm = Setor.objects.create(
+        codigo='ADM', nome='Administrativo', classificacao=SetorClassificacao.COMUM
+    )
+    req = Requisicao.objects.create(
+        estado=EstadoRequisicao.AUTORIZADA,
+        numero_publico='REQ-2025-000113',
+        criador=chefe_obras,
+        beneficiario=chefe_obras,
+        setor_beneficiario=setor_adm,
+    )
+    return MovimentacaoEstoque.objects.create(
+        tipo=TipoMovimentacaoEstoque.CONSUMO,
+        material=material_disponivel,
+        estoque=estoque_principal,
+        delta_fisico=Decimal('-1'),
+        delta_reservado=Decimal('-1'),
+        requisicao=req,
+        ator=chefe_obras,
+    )
+
+
+@pytest.fixture
+def movimentacao_requisicao_rascunho(
+    db, aux_obras, setor_obras, material_disponivel, estoque_principal
+):
+    """Par que nenhum service produz: movimentação sobre requisição em RASCUNHO.
+
+    O model aceita (``requisicao`` é anulável, sem constraint de estado), então o
+    não-vazamento do ledger não pode depender do comportamento dos services.
+    """
+    from decimal import Decimal
+
+    from apps.estoque.models import MovimentacaoEstoque, TipoMovimentacaoEstoque
+    from apps.requisicoes.models import EstadoRequisicao, Requisicao
+
+    req = Requisicao.objects.create(
+        estado=EstadoRequisicao.RASCUNHO,
+        numero_publico='REQ-2025-000114',
+        criador=aux_obras,
+        beneficiario=aux_obras,
+        setor_beneficiario=setor_obras,
+    )
+    return MovimentacaoEstoque.objects.create(
+        tipo=TipoMovimentacaoEstoque.RESERVA,
+        material=material_disponivel,
+        estoque=estoque_principal,
+        delta_fisico=Decimal('0'),
+        delta_reservado=Decimal('1'),
+        requisicao=req,
+        ator=aux_obras,
+    )
+
+
+@pytest.fixture
+def aux_lotacao_divergente(db, setor_obras, material_disponivel, estoque_principal):
+    """Auxiliar lotado num setor e com vínculo de auxiliar em outro.
+
+    ``VinculoAuxiliar`` é independente de ``User.setor``: aqui a lotação é
+    financeiro e o vínculo é obras. A requisição que ele cria para si fica em
+    financeiro, fora de ``setores_em_escopo``.
+    """
+    from decimal import Decimal
+
+    from apps.estoque.models import MovimentacaoEstoque, TipoMovimentacaoEstoque
+    from apps.requisicoes.models import EstadoRequisicao, Requisicao
+
+    setor_financeiro = Setor.objects.create(
+        codigo='FIN', nome='Financeiro', classificacao=SetorClassificacao.COMUM
+    )
+    usuario = User.objects.create_user(
+        matricula='012',
+        nome='Dora Aux Lotacao Divergente',
+        password='senha',
+        setor=setor_financeiro,
+    )
+    VinculoAuxiliar.objects.create(usuario=usuario, setor=setor_obras, ativo=True)
+    req = Requisicao.objects.create(
+        estado=EstadoRequisicao.AUTORIZADA,
+        numero_publico='REQ-2025-000115',
+        criador=usuario,
+        beneficiario=usuario,
+        setor_beneficiario=setor_financeiro,
+    )
+    movimentacao = MovimentacaoEstoque.objects.create(
+        tipo=TipoMovimentacaoEstoque.CONSUMO,
+        material=material_disponivel,
+        estoque=estoque_principal,
+        delta_fisico=Decimal('-1'),
+        delta_reservado=Decimal('-1'),
+        requisicao=req,
+        ator=usuario,
+    )
+    return usuario, movimentacao
+
+
+@pytest.fixture
 def requisicao_autorizavel(db, solicitante, setor_obras, material_disponivel):
     """Requisição em AGUARDANDO_AUTORIZACAO pronta para reservar saldo."""
     from decimal import Decimal

@@ -124,10 +124,15 @@ def _eh_chefe_ou_aux_setor_nao_almox(papel: 'PapelEfetivo') -> bool:
 
 
 def pode_consultar_movimentacoes_estoque(papel: 'PapelEfetivo') -> bool:
-    """Pode navegar o ledger de movimentações = tem visibilidade por papel.
+    """Pode navegar o ledger de movimentações.
 
-    Espelha o universo de ``movimentacoes_visiveis_para``: superuser, almoxarifado
-    (chefe/aux) ou chefe/aux de setor não-almox. Solicitante puro e inativo: não.
+    Decide apenas o *acesso à página*: superuser, almoxarifado (chefe/aux) ou
+    chefe/aux de setor não-almox (``setores_em_escopo`` não vazio). Solicitante
+    puro e inativo: não.
+
+    Quanto cada um vê é decisão de ``movimentacoes_visiveis_para``, e não
+    coincide com esta: o auxiliar de setor entra na página, mas só enxerga
+    movimentações de requisições que ele mesmo criou (#112, estendendo a #106).
     """
     if not papel.ativo:
         return False
