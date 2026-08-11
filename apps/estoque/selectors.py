@@ -8,6 +8,7 @@ from django.db.models import Count, Q, QuerySet
 
 from apps.accounts.models import User
 from apps.accounts.papeis import papel_efetivo
+from apps.requisicoes.models import EstadoRequisicao
 from apps.estoque.models import (
     MovimentacaoEstoque,
     SaidaExcepcional,
@@ -314,10 +315,18 @@ def movimentacoes_visiveis_para(ator_id: int) -> QuerySet[MovimentacaoEstoque]:
     RBAC (fronteira de segurança — nunca na view/template):
     - superuser → tudo.
     - almoxarifado (chefe ou auxiliar) → tudo, incluindo saídas excepcionais.
-    - chefe/aux de setor não-almox → só movimentações com
-      ``requisicao__setor_beneficiario`` nos setores do ator; saídas excepcionais
-      ficam de fora por construção (têm ``requisicao`` nulo).
+    - chefe de setor não-almox → movimentações de requisições com
+      ``setor_beneficiario`` igual ao setor que ele chefia, mais as de
+      requisições que ele criou; rascunho fica de fora nos dois casos.
+    - auxiliar de setor não-almox → apenas movimentações de requisições que ele
+      criou, fora de rascunho: ser auxiliar não é supervisionar o setor
+      (``docs/matriz-permissoes.md`` §5; decisão da #106 estendida ao ledger
+      pela #112). O ledger nunca lista metadado de requisição cujo detalhe
+      devolve 404 a quem está olhando.
     - usuário inativo/inexistente → vazio.
+
+    Saída excepcional (``requisicao`` nulo) fica fora do ramo de setor por
+    construção: nenhum dos termos do predicado casa com requisição nula.
     """
     base_qs = MovimentacaoEstoque.objects.select_related(
         'material',
@@ -343,11 +352,19 @@ def movimentacoes_visiveis_para(ator_id: int) -> QuerySet[MovimentacaoEstoque]:
     if papel.eh_almoxarifado:
         return base_qs
 
-    setores = list(papel.setores_em_escopo)
-    if setores:
-        return base_qs.filter(requisicao__setor_beneficiario_id__in=setores)
+    if not papel.setores_em_escopo:
+        return base_qs.none()
 
-    return base_qs.none()
+    filtro = Q(requisicao__criador_id=ator.pk)
+    if papel.setor_chefiado_ativo_id is not None:
+        filtro |= Q(requisicao__setor_beneficiario_id=papel.setor_chefiado_ativo_id)
+
+    # Rascunho é excluído explicitamente: ``requisicao`` é anulável e o model não
+    # tem constraint de estado, então o não-vazamento não pode depender de os
+    # services nunca produzirem esse par.
+    nao_rascunho = ~Q(requisicao__estado=EstadoRequisicao.RASCUNHO)
+
+    return base_qs.filter(filtro & nao_rascunho)
 
 
 def filtrar_movimentacoes(

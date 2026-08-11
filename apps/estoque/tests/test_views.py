@@ -1297,6 +1297,30 @@ class TestHistoricoMovimentacoesView:
         esperado = movimentacoes_visiveis_para(chefe_obras.pk).count()
         assert response.context['page_obj'].paginator.count == esperado
 
+    def test_aux_setor_acessa_e_ve_apenas_o_que_criou(
+        self,
+        client,
+        aux_obras,
+        chefe_obras,
+        requisicao_autorizada,
+        movimentacao_requisicao_do_aux,
+        saida_registrada,
+        movimentacao_outro_setor,
+    ):
+        # A policy não mudou (#112): o auxiliar entra na página. O recorte é do
+        # selector, e precisa chegar à tela.
+        from apps.estoque.selectors import movimentacoes_visiveis_para
+
+        client.force_login(aux_obras)
+        response = client.get(URL_MOVIMENTACOES)
+
+        assert response.status_code == 200
+        ids_na_tela = {m.pk for m in response.context['page_obj'].object_list}
+        assert ids_na_tela == {movimentacao_requisicao_do_aux.pk}
+        assert ids_na_tela < set(
+            movimentacoes_visiveis_para(chefe_obras.pk).values_list('pk', flat=True)
+        )
+
     def test_paginacao_server_side(
         self,
         client,

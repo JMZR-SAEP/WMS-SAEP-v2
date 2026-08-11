@@ -544,33 +544,138 @@ class TestMovimentacoesVisiveisPara:
         assert visiveis.filter(requisicao__isnull=False).exists()
 
     @pytest.mark.django_db
-    def test_chefe_setor_ve_so_proprio_setor_sem_saida_nem_outro_setor(
+    def test_chefe_setor_ve_setor_chefiado_sem_saida_outro_setor_nem_rascunho(
         self,
         chefe_obras,
         requisicao_autorizada,
+        movimentacao_requisicao_do_aux,
         saida_registrada,
         movimentacao_outro_setor,
+        movimentacao_requisicao_rascunho,
     ):
+        # Cenário base. O chefe supervisiona o setor: vê o que o solicitante e o
+        # auxiliar criaram em obras, e nada além disso.
+        from apps.estoque.models import MovimentacaoEstoque
         from apps.estoque.selectors import movimentacoes_visiveis_para
+
+        req, _ = requisicao_autorizada
+        esperado = set(
+            MovimentacaoEstoque.objects.filter(requisicao=req).values_list(
+                'pk', flat=True
+            )
+        ) | {movimentacao_requisicao_do_aux.pk}
 
         visiveis = movimentacoes_visiveis_para(chefe_obras.pk)
 
-        # Vê movimentação da requisição do próprio setor (obras).
-        assert visiveis.filter(requisicao__isnull=False).exists()
-        # Não-vazamento: nenhuma saída excepcional.
-        assert not visiveis.filter(saida_excepcional__isnull=False).exists()
-        # Não-vazamento: nenhuma movimentação de outro setor.
-        assert not visiveis.filter(pk=movimentacao_outro_setor.pk).exists()
+        assert set(visiveis.values_list('pk', flat=True)) == esperado
 
     @pytest.mark.django_db
-    def test_aux_setor_ve_so_proprio_setor(
-        self, aux_obras, requisicao_autorizada, saida_registrada
+    def test_chefe_setor_ve_tambem_o_que_criou_fora_do_setor_chefiado(
+        self,
+        chefe_obras,
+        requisicao_autorizada,
+        movimentacao_requisicao_do_aux,
+        saida_registrada,
+        movimentacao_outro_setor,
+        movimentacao_requisicao_rascunho,
+        movimentacao_criada_pelo_chefe,
     ):
+        # Cenário base + a requisição que o próprio chefe criou para o setor
+        # administrativo. Espelha historico_requisicoes_visiveis_para (#106).
+        from apps.estoque.models import MovimentacaoEstoque
+        from apps.estoque.selectors import movimentacoes_visiveis_para
+
+        req, _ = requisicao_autorizada
+        esperado = (
+            set(
+                MovimentacaoEstoque.objects.filter(requisicao=req).values_list(
+                    'pk', flat=True
+                )
+            )
+            | {movimentacao_requisicao_do_aux.pk}
+            | {movimentacao_criada_pelo_chefe.pk}
+        )
+
+        visiveis = movimentacoes_visiveis_para(chefe_obras.pk)
+
+        assert set(visiveis.values_list('pk', flat=True)) == esperado
+
+    @pytest.mark.django_db
+    def test_aux_setor_ve_so_o_que_criou(
+        self,
+        aux_obras,
+        requisicao_autorizada,
+        movimentacao_requisicao_do_aux,
+        saida_registrada,
+        movimentacao_outro_setor,
+        movimentacao_requisicao_rascunho,
+    ):
+        # Regressão da #112: ser auxiliar não é supervisionar o setor (#106).
+        # A movimentação de requisicao_autorizada é do mesmo setor obras, mas de
+        # terceiro (solicitante) — o ledger não pode listar metadado cujo
+        # detalhe da requisição devolve 404 a ele.
         from apps.estoque.selectors import movimentacoes_visiveis_para
 
         visiveis = movimentacoes_visiveis_para(aux_obras.pk)
-        assert visiveis.filter(requisicao__isnull=False).exists()
-        assert not visiveis.filter(saida_excepcional__isnull=False).exists()
+
+        assert set(visiveis.values_list('pk', flat=True)) == {
+            movimentacao_requisicao_do_aux.pk
+        }
+
+    @pytest.mark.django_db
+    def test_aux_com_lotacao_divergente_do_vinculo_ve_so_a_propria(
+        self, aux_lotacao_divergente, requisicao_autorizada
+    ):
+        # Ampliação intencional: VinculoAuxiliar é independente de User.setor, e
+        # a requisição que ele criou para si fica fora de setores_em_escopo.
+        # requisicao_autorizada é de terceiro no setor do vínculo (obras) — sem
+        # ela a asserção passaria mesmo se o selector devolvesse obras inteiro.
+        from apps.estoque.selectors import movimentacoes_visiveis_para
+
+        usuario, movimentacao_propria = aux_lotacao_divergente
+
+        visiveis = movimentacoes_visiveis_para(usuario.pk)
+
+        assert set(visiveis.values_list('pk', flat=True)) == {movimentacao_propria.pk}
+
+    @pytest.mark.django_db
+    def test_movimentacao_de_rascunho_nao_aparece_para_setor(
+        self, aux_obras, chefe_obras, movimentacao_requisicao_rascunho
+    ):
+        # O criador do rascunho é o aux_obras e o chefe chefia o setor: os dois
+        # termos do predicado casam, e mesmo assim a movimentação fica fora.
+        from apps.estoque.selectors import movimentacoes_visiveis_para
+
+        assert movimentacao_requisicao_rascunho.pk not in set(
+            movimentacoes_visiveis_para(aux_obras.pk).values_list('pk', flat=True)
+        )
+        assert movimentacao_requisicao_rascunho.pk not in set(
+            movimentacoes_visiveis_para(chefe_obras.pk).values_list('pk', flat=True)
+        )
+
+    @pytest.mark.django_db
+    def test_almox_e_superuser_veem_tudo_inclusive_rascunho(
+        self,
+        chefe_almoxarifado,
+        aux_almoxarifado,
+        superuser,
+        requisicao_autorizada,
+        movimentacao_requisicao_do_aux,
+        saida_registrada,
+        movimentacao_outro_setor,
+        movimentacao_requisicao_rascunho,
+    ):
+        # O filtro de rascunho é do ramo de setor. Almoxarifado e superusuário
+        # veem o ledger inteiro — inclusive saída excepcional e rascunho.
+        from apps.estoque.models import MovimentacaoEstoque
+        from apps.estoque.selectors import movimentacoes_visiveis_para
+
+        todas = set(MovimentacaoEstoque.objects.values_list('pk', flat=True))
+        assert movimentacao_requisicao_rascunho.pk in todas
+
+        for ator in (chefe_almoxarifado, aux_almoxarifado, superuser):
+            visiveis = movimentacoes_visiveis_para(ator.pk)
+            assert set(visiveis.values_list('pk', flat=True)) == todas
 
     @pytest.mark.django_db
     def test_usuario_inativo_nao_ve_nada(
