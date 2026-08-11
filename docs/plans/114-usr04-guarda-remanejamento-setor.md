@@ -58,15 +58,17 @@ permanecendo como risco declarado.
 
 - `apps/accounts/services.py` — novo
   `remanejar_usuario(*, ator_id, usuario_id, novo_setor_id, novo_chefe_id=None)`;
-  novo helper `_travar_usuarios`; `desativar_usuario` passa a travar `Setor`
-  antes de `User` e a usar o helper; `trocar_chefe_setor` passa a usar o helper
-  para travar o novo chefe (já estava na ordem certa).
+  novos helpers `_travar_setores` e `_travar_usuarios`; `desativar_usuario`
+  passa a travar `Setor` antes de `User` e a usar os helpers;
+  `trocar_chefe_setor` passa a usar os helpers (já estava na ordem certa).
 - `apps/accounts/admin.py` — `UserAdmin.save_model` roteia a troca de `setor`
   pelo service; `_changeform_com_captura_dominio` passa a traduzir
-  `OperationalError` de deadlock em mensagem, em vez de deixar virar HTTP 500.
+  `OperationalError` retentável (SQLSTATE `40P01`/`40001`) em mensagem, em vez
+  de deixar virar HTTP 500; os demais SQLSTATEs continuam propagando.
 - `apps/accounts/tests/test_services.py` — classe `TestRemanejarUsuario`.
 - `apps/accounts/tests/test_admin.py` — casos de `UserAdmin` (o arquivo hoje só
-  cobre `SetorAdmin`) e o caso de contenção de `OperationalError`.
+  cobre `SetorAdmin`) e os dois casos de contenção seletiva de
+  `OperationalError`.
 - `docs/matriz-invariantes.md` — USR-04 registra o novo ponto de reforço.
 
 **Não muda:**
@@ -91,31 +93,48 @@ permanecendo como risco declarado.
 
 | Arquivo | Ação |
 |---|---|
-| `apps/accounts/services.py` | Helper `_travar_usuarios`; `remanejar_usuario` após `desativar_usuario`; ordem de locks unificada em `desativar_usuario` e `trocar_chefe_setor` |
-| `apps/accounts/admin.py` | Ramo de `setor` em `UserAdmin.save_model`, depois do ramo de `is_active`; captura de `OperationalError` em `_changeform_com_captura_dominio` |
-| `apps/accounts/tests/test_services.py` | `TestRemanejarUsuario` — 12 casos |
-| `apps/accounts/tests/test_admin.py` | 5 casos de `UserAdmin` (roteamento, tradução HTTP e contenção de deadlock); a docstring do módulo hoje só cita o #107 e passa a cobrir os dois admins |
+| `apps/accounts/services.py` | Helpers `_travar_setores` e `_travar_usuarios`; `remanejar_usuario` após `desativar_usuario`; ordem de locks unificada em `desativar_usuario` e `trocar_chefe_setor` |
+| `apps/accounts/admin.py` | Ramo de `setor` em `UserAdmin.save_model`, depois do ramo de `is_active`; captura seletiva de `OperationalError` em `_changeform_com_captura_dominio` |
+| `apps/accounts/tests/test_services.py` | `TestRemanejarUsuario` — 14 casos |
+| `apps/accounts/tests/test_admin.py` | 6 casos de `UserAdmin` (roteamento, tradução HTTP e contenção seletiva de `OperationalError`); a docstring do módulo hoje só cita o #107 e passa a cobrir os dois admins |
 | `docs/matriz-invariantes.md` | Coluna de verificação de USR-04 |
 
 ## Implementação
 
-### Ordem canônica de locks (helper compartilhado)
+### Ordem canônica de locks (helpers compartilhados)
+
+**A ordem é: todas as linhas de `Setor`, por pk crescente; depois todas as de
+`User`, por pk crescente.** Duas transações que travem as mesmas linhas em
+ordens opostas formam um ciclo, e o desfecho é `OperationalError` do PostgreSQL
+— não um erro de domínio. Ordenar remove o ciclo.
 
 ```python
+def _travar_setores(**criterios: Q) -> dict[int, Setor]:
+    """Trava setores por pk crescente numa única consulta, indexados por pk."""
+    filtro = Q()
+    for parcial in criterios.values():
+        filtro |= parcial
+    travados = Setor.objects.select_for_update().filter(filtro).order_by('pk')
+    return {s.pk: s for s in travados}
+
+
 def _travar_usuarios(*usuario_ids: int | None) -> dict[int, User]:
     """Trava usuários por pk crescente e devolve os encontrados, indexados por pk.
 
-    Ordem canônica de aquisição de locks em `accounts`: primeiro as linhas de
-    `Setor`, depois as de `User` por pk crescente. Duas transações que travem o
-    mesmo par de usuários em ordens opostas formam um ciclo, e o desfecho é
-    `OperationalError` do PostgreSQL — não um erro de domínio. Ordenar remove o
-    ciclo. Ids ausentes vêm no retorno como chaves faltando; a tradução para
-    `DadosInvalidos` fica com o chamador, que sabe qual id era obrigatório.
+    Ids ausentes vêm no retorno como chaves faltando; a tradução para
+    `DadosInvalidos` fica com o chamador, que sabe quais ids eram obrigatórios.
     """
     ids = sorted({i for i in usuario_ids if i is not None})
     travados = User.objects.select_for_update().filter(pk__in=ids).order_by('pk')
     return {u.pk: u for u in travados}
 ```
+
+Os setores são travados em **uma consulta só**, com os critérios combinados por
+`OR`. Isso não é detalhe de estilo: o setor chefiado é encontrado por
+`chefe_id`, e o de destino por `pk`, então não dá para saber os dois pks antes
+de consultar. Duas consultas travariam em ordem não determinística; uma consulta
+com `ORDER BY pk` trava as duas linhas na ordem canônica, e a busca por
+`chefe_id` continua sendo feita **sob lock**, sem TOCTOU.
 
 ### Service
 
@@ -139,9 +158,6 @@ def remanejar_usuario(
 
     try:
         ator = User.objects.get(pk=ator_id)
-        User.objects.get(pk=usuario_id)  # existência; o lock vem na ordem global
-        if novo_setor_id is not None:
-            Setor.objects.get(pk=novo_setor_id)
     except ObjectDoesNotExist as exc:
         raise DadosInvalidos(
             'Referência inválida.', code='referencia_invalida'
@@ -150,16 +166,22 @@ def remanejar_usuario(
     papel = papel_efetivo(ator)
     exigir_pode_gerir_cadastro(papel)
 
-    # Ordem canônica de locks: Setor primeiro, depois User por pk crescente.
-    setor_chefiado = (
-        Setor.objects.select_for_update().filter(chefe_id=usuario_id).first()
+    # Ordem canônica: Setor antes de User, cada grupo por pk crescente.
+    setores = _travar_setores(
+        chefiado=Q(chefe_id=usuario_id),
+        destino=Q(pk=novo_setor_id) if novo_setor_id is not None else Q(pk__in=[]),
     )
-    try:
-        usuario = _travar_usuarios(usuario_id, novo_chefe_id)[usuario_id]
-    except KeyError as exc:
-        raise DadosInvalidos(
-            'Referência inválida.', code='referencia_invalida'
-        ) from exc
+    if novo_setor_id is not None and novo_setor_id not in setores:
+        raise DadosInvalidos('Referência inválida.', code='referencia_invalida')
+    setor_chefiado = next(
+        (s for s in setores.values() if s.chefe_id == usuario_id), None
+    )
+
+    usuarios = _travar_usuarios(usuario_id, novo_chefe_id)
+    obrigatorios = {usuario_id} | ({novo_chefe_id} - {None})
+    if not obrigatorios <= usuarios.keys():
+        raise DadosInvalidos('Referência inválida.', code='referencia_invalida')
+    usuario = usuarios[usuario_id]
 
     if usuario.setor_id == novo_setor_id:
         return
@@ -232,32 +254,37 @@ Nove decisões que o código embute:
 
    A **ordem** dos locks é escolha deliberada. `trocar_chefe_setor` trava
    `Setor` e só depois `User` (o novo chefe). Se este service travasse o
-   `usuario` primeiro — como faz `desativar_usuario` — teríamos duas ordens
+   `usuario` primeiro — como faz `desativar_usuario` hoje — teríamos duas ordens
    opostas no mesmo par de tabelas, que é a receita de deadlock: uma transação
    segurando `User` e esperando `Setor`, outra segurando `Setor` e esperando
-   `User`. Por isso o `usuario` é lido sem lock só para validar existência, e o
-   lock dele é adquirido **depois** do `Setor`. Não há TOCTOU nessa leitura: a
-   consulta de chefia usa `chefe_id=usuario_id`, e `usuario_id` é imutável.
+   `User`. Daí a ordem canônica: `Setor` primeiro, `User` depois.
 
    O ciclo `User`×`User` — dois chefes indicados como substituto um do outro —
    é fechado pelo `_travar_usuarios`, que trava por pk crescente e é usado pelos
    três services. Como o helper trava os dois usuários de uma vez, a chamada a
    `trocar_chefe_setor` de dentro do fluxo já encontra os locks adquiridos e não
-   introduz ordem nova.
+   introduz ordem nova. O ciclo `Setor`×`Setor` — chefiado e destino — é fechado
+   pela consulta única de `_travar_setores`, com `ORDER BY pk`.
 
-   **O que ainda não é fechado:** leitura fantasma. Se o usuário ainda **não** é
-   chefe de nada, não há linha de `Setor` para travar, e uma
+   **O que ainda não está resolvido:** a leitura fantasma. Se o usuário ainda
+   **não** é chefe de nada, não há linha de `Setor` para travar, e uma
    `trocar_chefe_setor` concorrente pode torná-lo chefe logo após a checagem
    (READ COMMITTED). Fechar exigiria lock de tabela; o desfecho é o mesmo estado
    que este issue corrige no próximo remanejamento. Não é deadlock — é janela de
    escrita perdida, e não produz HTTP 500.
-7. **Exclusão concorrente vira erro de domínio.** A validação de existência é
-   feita sem lock, então entre ela e o `_travar_usuarios` outra transação pode
-   apagar o usuário. Sem tratamento, o `KeyError` do dicionário (ou o
-   `DoesNotExist` de um `.get()` direto) escaparia como HTTP 500. O `try/except`
-   em volta do helper converte isso em `DadosInvalidos(code='referencia_invalida')`,
-   o mesmo código da validação preliminar — do ponto de vista de quem chamou, a
-   referência era inválida, e não importa em que instante deixou de existir.
+7. **Toda referência é validada sob lock, e a validação preliminar sai.** A
+   versão anterior deste plano validava existência sem lock e só conferia
+   `usuario_id` depois. Isso deixava dois furos: um `novo_chefe_id` inexistente
+   passava batido quando o usuário não chefiava nada (o ramo que chamaria
+   `trocar_chefe_setor` nunca rodava), e o setor de destino podia ser apagado
+   entre a validação e o `UPDATE`, virando `IntegrityError` em vez de erro de
+   domínio. Agora não há validação preliminar de `usuario_id`, `novo_chefe_id`
+   ou `novo_setor_id`: os três são conferidos **depois** dos locks, contra as
+   chaves que os helpers devolveram. Referência que não existe — ou que deixou
+   de existir na janela — recebe `DadosInvalidos(code='referencia_invalida')`,
+   o mesmo código nos dois casos: para quem chamou, a referência era inválida, e
+   o instante em que deixou de existir não muda a resposta. Só `ator_id`
+   continua fora, porque não é travado nem mutado, só lido para derivar o papel.
 8. **Idempotente depois da policy.** `novo_setor_id` igual à lotação atual
    retorna sem erro — inclusive `None == None`. O early return vem **depois** de
    `exigir_pode_gerir_cadastro`, para não vazar estado de cadastro por diferença
@@ -266,7 +293,7 @@ Nove decisões que o código embute:
    `apps/accounts/models.py` declara `setor` com `null=True, blank=True` e
    comentário explícito ("nula para bootstrap, superusuário técnico e cadastro
    incompleto"), e `_seed_usuarios` em `seed_dev` semeia o ADMIN com
-   `'setor': None`. Já o `CONTEXT.md` §12/§170 e o USR-03 da matriz dizem que
+   `'setor': None`. Já o `CONTEXT.md` 12/170 e o USR-03 da matriz dizem que
    "usuário pertence a exatamente um setor", sem ressalva.
    **A divergência é anterior a este issue e não é resolvida aqui.** O service
    aceita `None` porque o admin hoje permite limpar a lotação (`blank=True`), e
@@ -330,9 +357,14 @@ A tradução para mensagem já existe: `UserAdmin.changeform_view` usa
 `_changeform_com_captura_dominio` ganha um ramo para `OperationalError`:
 
 ```python
+# 40P01 deadlock_detected, 40001 serialization_failure: a transação foi abortada
+# por concorrência e a mesma operação, repetida, tende a passar.
+SQLSTATES_RETENTAVEIS = frozenset({'40P01', '40001'})
+
 except OperationalError as exc:
-    # Deadlock detectado pelo banco aborta a transação sem ser erro de domínio;
-    # sem este ramo o admin devolveria 500 numa operação que basta repetir.
+    if getattr(exc.__cause__, 'sqlstate', None) not in SQLSTATES_RETENTAVEIS:
+        raise  # conexão caída, disco cheio etc.: não é retentável, não mascarar
+    logger.warning('remanejamento abortado por concorrência', exc_info=exc)
     admin_instance.message_user(
         request,
         'A operação não pôde ser concluída por concorrência com outra '
@@ -342,10 +374,13 @@ except OperationalError as exc:
     return HttpResponseRedirect(request.get_full_path())
 ```
 
-Duas observações. O ramo é **contenção, não prevenção** — a prevenção é a ordem
-canônica de locks; isto existe para o caso em que um ciclo escape mesmo assim, e
-para qualquer outro `OperationalError` transitório. E ele vale para os três
-admins do módulo, não só para `UserAdmin`, porque a função é compartilhada:
+Três observações. O ramo é **contenção, não prevenção** — a prevenção é a ordem
+canônica de locks; isto existe para o caso em que um ciclo escape mesmo assim.
+A captura é **restrita por SQLSTATE**: `OperationalError` cobre desde deadlock
+até queda de conexão, e dizer "tente novamente" para um banco fora do ar seria
+transformar indisponibilidade em erro de formulário — por isso o que não for
+`40P01`/`40001` é propagado, e vira o 500 que de fato é. E o ramo vale para os
+três admins do módulo, não só para `UserAdmin`, porque a função é compartilhada:
 `SetorAdmin` e `VinculoAuxiliarAdmin` passam a ter a mesma contenção sem
 mudança de comportamento em nenhum caminho que hoje funciona.
 
@@ -366,8 +401,10 @@ Camada de service, `apps/accounts/tests/test_services.py`, classe
 | 8 | Ator não superusuário | `PermissaoNegada`; lotação intacta |
 | 9 | Remanejar para `None` usuário sem chefia | `setor_id` vira `None` — cobre a decisão 9 |
 | 10 | `trocar_chefe_setor` e depois `remanejar_usuario`, em duas chamadas | passa; é o fluxo que a mensagem de erro do caso 1 instrui |
-| 11 | `usuario_id` inexistente | `DadosInvalidos`, `code == 'referencia_invalida'` — validação preliminar |
-| 12 | Usuário apagado **entre** a validação preliminar e o lock | `DadosInvalidos`, `code == 'referencia_invalida'`, não `KeyError`/HTTP 500 — cobre a decisão 7 |
+| 11 | `usuario_id` inexistente | `DadosInvalidos`, `code == 'referencia_invalida'` |
+| 12 | Usuário apagado **durante** a consulta de setores, antes do lock de `User` | `DadosInvalidos`, `code == 'referencia_invalida'`, não `KeyError`/HTTP 500 — cobre a decisão 7 |
+| 13 | `novo_chefe_id` inexistente, usuário que **não** chefia nada | `DadosInvalidos`, `code == 'referencia_invalida'`; lotação intacta. Sem a conferência de todas as chaves obrigatórias, o ramo de chefia nunca roda e o id inválido passa batido |
+| 14 | Setor de destino apagado **durante** a consulta de setores | `DadosInvalidos`, `code == 'referencia_invalida'`, não `IntegrityError` |
 
 Casos 2, 1 e 8 são a anatomia obrigatória de ADR-0010 (caminho feliz, violação
 de domínio sem escrita, permissão negada sem escrita). O caso 10 é o critério de
@@ -383,23 +420,31 @@ com `SetorAdmin`):
 
 | # | Caso | Esperado |
 |---|---|---|
-| 11 | `save_model` com `setor` alterado, usuário sem chefia | lotação nova no banco — roteou pelo service |
-| 12 | `save_model` com `setor` alterado de um chefe | `ConflitoDominio` propagado; lotação intacta |
-| 13 | `save_model` com `setor` e `nome` alterados juntos | `ConflitoDominio`, `code == 'remanejamento_com_campos_extras'`; nada persistido — cobre as decisões 1 e 2 do admin |
-| 14 | POST no changeform de um chefe trocando o setor | 302 e mensagem `warning` com o texto exato, não 500 — cobre `_changeform_com_captura_dominio` |
-| 15 | `save_model` levantando `OperationalError` de deadlock (service com `monkeypatch`) | 302 e mensagem de erro, não 500 — cobre a contenção nova |
+| 15 | `save_model` com `setor` alterado, usuário sem chefia | lotação nova no banco — roteou pelo service |
+| 16 | `save_model` com `setor` alterado de um chefe | `ConflitoDominio` propagado; lotação intacta |
+| 17 | `save_model` com `setor` e `nome` alterados juntos | `ConflitoDominio`, `code == 'remanejamento_com_campos_extras'`; nada persistido — cobre as decisões 1 e 2 do admin |
+| 18 | POST no changeform de um chefe trocando o setor | 302 e mensagem `warning` com o texto exato, não 500 — cobre `_changeform_com_captura_dominio` |
+| 19a | `save_model` levantando `OperationalError` com SQLSTATE `40P01` (service com `monkeypatch`) | 302 e mensagem de erro, não 500 — cobre a contenção nova |
+| 19b | Idem, com SQLSTATE não retentável | exceção **propaga**; a captura não mascara indisponibilidade de banco |
 
-Os testes 11 a 13 chamam `UserAdmin.save_model` diretamente com `RequestFactory`
-e o `_FormFake` que o arquivo já define. Os 14 e 15 usam o `client` de verdade
+Os testes 15 a 17 chamam `UserAdmin.save_model` diretamente com `RequestFactory`
+e o `_FormFake` que o arquivo já define. Os 18 e 19 usam o `client` de verdade
 porque o contrato sob teste é a tradução HTTP, não a decisão de domínio; ambos
 assertam a mensagem, porque o 302 sozinho não distingue esses redirects do de um
 save bem-sucedido.
 
-Os casos 12 e 15 substituem o teste concorrente com threads, e são melhores para
-o que precisa ser fixado. O 12 usa `monkeypatch` para apagar o usuário durante a
-consulta de chefia, reproduzindo a corrida de forma determinística; o 15 faz o
-service levantar `OperationalError` para exercitar a contenção no admin. Os dois
-rodam em qualquer ordem e não dependem de duas transações se entrelaçarem.
+Os casos 12, 14 e 19 substituem o teste concorrente com threads, e são melhores
+para o que precisa ser fixado. Os 12 e 14 usam `monkeypatch` para apagar o
+usuário e o setor de destino durante a consulta de setores, reproduzindo as duas
+corridas de forma determinística; o 19 faz o service levantar `OperationalError`
+para exercitar a contenção no admin. Os três rodam em qualquer ordem e não
+dependem de duas transações se entrelaçarem.
+
+O 19 tem duas variantes, porque a captura é seletiva: `OperationalError` com
+SQLSTATE `40P01` vira mensagem e 302; com um SQLSTATE não retentável (conexão
+caída, por exemplo) a exceção **propaga**. Testar só a primeira deixaria passar
+uma captura larga demais, que transformaria indisponibilidade de banco em erro
+de formulário.
 
 Não coberto, e por quê: **deadlock real com duas transações em paralelo**. A
 suíte roda contra PostgreSQL, então seria tecnicamente possível com
@@ -408,9 +453,9 @@ desse formato (os `transaction=True` de `apps/notificacoes/tests/test_services.p
 existem para `on_commit`, não para concorrência), a suíte roda em paralelo com
 `-n logical`, e um teste que depende de duas transações se entrelaçarem numa
 ordem específica é a receita clássica de flake intermitente. O que ficou coberto
-é o que é do código: a **ordem** de aquisição (um único helper, usado pelos três
-services, que ordena por pk) e o **desfecho** caso um ciclo ainda ocorra (caso
-15, sem HTTP 500). O escalonamento em si é propriedade do banco. Também não
+é o que é do código: a **ordem** de aquisição (helpers únicos, usados pelos três
+services, que ordenam por pk) e o **desfecho** caso um ciclo ainda ocorra (caso
+19, sem HTTP 500). O escalonamento em si é propriedade do banco. Também não
 coberto: divergência pré-existente no banco (fora de escopo, sem saneamento) e
 lotação em setor inativo (fora de escopo).
 
@@ -431,7 +476,7 @@ lotação em setor inativo (fora de escopo).
 | Risco | Avaliação |
 |---|---|
 | Divergência já existente no banco continua vazando autorização | Real e aceito. A guarda é para frente; nenhuma varredura de saneamento entra neste issue. Saneamento é issue própria. |
-| Nem todo caminho de escrita de `User.setor` fica guardado | Verificado: fora de fixtures de teste, há dois. O admin, que este plano fecha; e `_seed_usuarios` em `apps/core/management/commands/seed_dev.py`, que grava `setor` num `update_or_create` sem passar por service. O seed fica de fora de propósito — é comando de ambiente local descartável (ADR-0009), com elenco fixo, e grava as chefias **depois** das lotações (`_seed_chefias`), então produz estado consistente por construção. Submetê-lo ao service exigiria um ator superusuário antes de o elenco existir, invertendo a ordem do bootstrap. |
+| Nem todo caminho de escrita de `User.setor` fica guardado | Verificado: fora de fixtures de teste, há dois. O admin, que este plano fecha; e `_seed_usuarios` em `apps/core/management/commands/seed_dev.py`, que grava `setor` num `update_or_create` sem passar por service. O seed **não** é declarado autorizado por este plano — ele é uma exceção pré-existente ao contrato de `docs/CONVENTIONS.md`, que este issue nem cria nem legitima. Fica de fora por três motivos de fato: é comando de ambiente local descartável (ADR-0009), tem elenco fixo, e grava as chefias **depois** das lotações (`_seed_chefias`), produzindo estado consistente por construção. Submetê-lo ao service esbarra na ordem do bootstrap — exigiria um ator superusuário antes de o elenco existir. Formalizar a exceção em ADR-0009 e `docs/CONVENTIONS.md`, ou dar ao seed um caminho de service próprio, é decisão de contrato registrada como continuação. |
 | Leitura fantasma na chefia | O `select_for_update` da decisão 6 fecha a perda de atualização quando a chefia **já existe**. O que resta: se o usuário não chefia nada, não há linha para travar, e uma `trocar_chefe_setor` concorrente pode designá-lo chefe logo após a checagem, sob READ COMMITTED. Aceito — fechar exigiria lock de tabela ou serializar todo o cadastro, e o estado resultante é exatamente o que o próximo remanejamento corrige. |
 | Deadlock por ordem de locks | Endereçado nas duas pontas, com expansão de escopo declarada no Escopo. **Prevenção:** ordem canônica única — `Setor`, depois `User` por pk crescente — aplicada aos três services via `_travar_usuarios`, o que elimina o ciclo `User`×`Setor` e o ciclo `User`×`User`. Isso corrige de passagem a ordem invertida que `desativar_usuario` já tinha antes deste issue. **Contenção:** `_changeform_com_captura_dominio` passa a traduzir `OperationalError`, então mesmo um ciclo remanescente vira mensagem, não HTTP 500. O que continua sem cobertura é o escalonamento concorrente em si, por ser propriedade do banco e teste inerentemente flaky — ver Estratégia de testes. |
 | Expansão de escopo para `desativar_usuario` e `trocar_chefe_setor` | Assumida e declarada. Restrita a mecânica de locks: nenhuma pré-condição, mensagem ou código de exceção muda, e os testes existentes dos dois services continuam válidos sem edição. O risco residual é o de qualquer mudança em service com uso estabelecido — mitigado por a suíte inteira ter de passar antes do merge, e reversível removendo o helper e as duas chamadas. |
