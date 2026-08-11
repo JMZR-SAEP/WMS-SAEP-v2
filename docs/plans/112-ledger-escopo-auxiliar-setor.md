@@ -96,12 +96,13 @@ conjunto esperado (`set(qs.values_list('pk', flat=True)) == {...}`), nunca `exis
 exatamente a classe de bug desta issue. Os casos existentes de `TestMovimentacoesVisiveisPara` que
 hoje usam inclusão/ausência isolada são convertidos junto.
 
-**Cenário canônico**: os casos 1, 4, 5 e 6 compartilham o mesmo conjunto de fixtures, para que os
+**Cenário base**: os casos 1, 4 e 5 compartilham exatamente o mesmo conjunto de fixtures, para que os
 conjuntos esperados sejam comparáveis entre papéis — `requisicao_autorizada` (criador `solicitante`,
 setor obras), `movimentacao_requisicao_do_aux` (criador `aux_obras`, setor obras), `saida_registrada`
-(sem requisição), `movimentacao_outro_setor` (setor TI) e `movimentacao_requisicao_rascunho`. Cada
-caso declara o conjunto esperado por completo, nomeando as fixtures. Os casos 3, 7 e 8 usam cenários
-próprios, declarados no próprio teste.
+(sem requisição), `movimentacao_outro_setor` (setor TI) e `movimentacao_requisicao_rascunho`. O caso 6
+usa o cenário base **acrescido** de `movimentacao_criada_pelo_chefe`, e é o único que a inclui. Cada
+caso declara o conjunto esperado por completo, nomeando as fixtures. Os casos 3, 7 e 8 montam
+cenários próprios, declarados no próprio teste.
 
 Selector (`TestMovimentacoesVisiveisPara`):
 
@@ -111,10 +112,13 @@ Selector (`TestMovimentacoesVisiveisPara`):
    caso 1: a movimentação de `requisicao_autorizada` (criada pelo `solicitante`, mesmo setor obras)
    fica fora do conjunto. Substitui o `test_aux_setor_ve_so_proprio_setor` atual, que asseverava o
    oposto.
-3. **Auxiliar lotado e vinculado em setores distintos** — com a fixture `aux_lotacao_divergente`
+3. **Auxiliar lotado e vinculado em setores distintos** — cenário com `aux_lotacao_divergente`
    (lotação em TI, vínculo de auxiliar em obras, requisição criada para si com `setor_beneficiario` =
-   TI), o conjunto contém exatamente essa movimentação: prova executável da ampliação intencional
-   descrita nas invariantes, e do não-vazamento de obras para ele.
+   TI) **mais** `requisicao_autorizada`, que é de terceiro (`solicitante`) no setor obras, onde ele
+   tem o vínculo. O conjunto esperado é exatamente `{movimentação própria de aux_lotacao_divergente}`.
+   Sem a movimentação de terceiro no cenário, o teste passaria mesmo se o selector devolvesse todo o
+   setor obras — é ela que torna a asserção capaz de falhar. Prova, em um só caso, a ampliação
+   intencional descrita nas invariantes e o não-vazamento de obras.
 4. **Movimentação vinculada a rascunho não aparece** — `movimentacao_requisicao_rascunho` fica fora
    do conjunto tanto de `aux_obras` (que criou o rascunho) quanto de `chefe_obras` (que chefia o
    setor). Coberto pelas igualdades dos casos 1 e 5; o caso 4 existe para nomear o termo
