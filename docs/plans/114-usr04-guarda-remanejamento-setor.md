@@ -50,9 +50,9 @@ A expansão é **de mecânica de locks, não de regra de domínio**: nenhuma
 pré-condição, mensagem, código de exceção ou comportamento observável de
 `desativar_usuario` e `trocar_chefe_setor` muda, e os testes existentes dos dois
 seguem válidos sem edição. Se o mantenedor preferir isolar essa parte em issue
-própria, é só remover a seção "Ordem canônica de locks" e as duas linhas
-correspondentes abaixo — o resto do plano fica de pé, com o deadlock
-permanecendo como risco declarado.
+própria, é só remover as seções "Ordem canônica de locks" e "Adoção nos
+services irmãos", junto com as linhas correspondentes de "Muda" — o resto do
+plano fica de pé, com o deadlock permanecendo como risco declarado.
 
 **Muda:**
 
@@ -67,8 +67,8 @@ permanecendo como risco declarado.
   de deixar virar HTTP 500; os demais SQLSTATEs continuam propagando.
 - `apps/accounts/tests/test_services.py` — classe `TestRemanejarUsuario`.
 - `apps/accounts/tests/test_admin.py` — casos de `UserAdmin` (o arquivo hoje só
-  cobre `SetorAdmin`) e os dois casos de contenção seletiva de
-  `OperationalError`.
+  cobre `SetorAdmin`), o POST que mistura `setor` com `is_active`, e os dois
+  casos de contenção seletiva de `OperationalError`.
 - `docs/matriz-invariantes.md` — USR-04 registra o novo ponto de reforço.
 
 **Não muda:**
@@ -96,7 +96,7 @@ permanecendo como risco declarado.
 | `apps/accounts/services.py` | Helpers `_travar_setores` e `_travar_usuarios`; `remanejar_usuario` após `desativar_usuario`; ordem de locks unificada em `desativar_usuario` e `trocar_chefe_setor` |
 | `apps/accounts/admin.py` | Ramo de `setor` em `UserAdmin.save_model`, depois do ramo de `is_active`; captura seletiva de `OperationalError` em `_changeform_com_captura_dominio` |
 | `apps/accounts/tests/test_services.py` | `TestRemanejarUsuario` — 14 casos |
-| `apps/accounts/tests/test_admin.py` | 6 casos de `UserAdmin` (roteamento, tradução HTTP e contenção seletiva de `OperationalError`); a docstring do módulo hoje só cita o #107 e passa a cobrir os dois admins |
+| `apps/accounts/tests/test_admin.py` | 8 casos de `UserAdmin` (roteamento, POST misto, tradução HTTP e contenção seletiva de `OperationalError`); a docstring do módulo hoje só cita o #107 e passa a cobrir os dois admins |
 | `docs/matriz-invariantes.md` | Coluna de verificação de USR-04 |
 
 ## Implementação
@@ -135,6 +135,73 @@ Os setores são travados em **uma consulta só**, com os critérios combinados p
 de consultar. Duas consultas travariam em ordem não determinística; uma consulta
 com `ORDER BY pk` trava as duas linhas na ordem canônica, e a busca por
 `chefe_id` continua sendo feita **sob lock**, sem TOCTOU.
+
+### Adoção nos services irmãos
+
+A ordem canônica só vale se os três services a seguirem. O que muda em cada um,
+mostrado explicitamente para não sobrar ambiguidade na implementação.
+
+**`trocar_chefe_setor`** — já travava `Setor` antes de `User`; troca só o
+mecanismo. A validação preliminar continua **antes** da policy, exatamente como
+hoje:
+
+```python
+    try:
+        ator = User.objects.get(pk=ator_id)
+        Setor.objects.get(pk=setor_id)
+        User.objects.get(pk=novo_chefe_id)
+    except ObjectDoesNotExist as exc:
+        raise DadosInvalidos(
+            'Referência inválida.', code='referencia_invalida'
+        ) from exc
+
+    papel = papel_efetivo(ator)
+    exigir_pode_gerir_cadastro(papel)
+
+    setores = _travar_setores(alvo=Q(pk=setor_id))
+    usuarios = _travar_usuarios(novo_chefe_id)
+    if setor_id not in setores or novo_chefe_id not in usuarios:
+        raise DadosInvalidos('Referência inválida.', code='referencia_invalida')
+    setor, novo_chefe = setores[setor_id], usuarios[novo_chefe_id]
+    # ... daqui para baixo, inalterado
+```
+
+**`desativar_usuario`** — é o que hoje trava `User` **antes** de `Setor`, a
+ponta errada da ordem. O lock antecipado sai:
+
+```python
+    papel = papel_efetivo(ator)
+    exigir_pode_gerir_cadastro(papel)
+
+    # Ordem canônica: Setor antes de User. Antes, o usuário era travado no
+    # bloco de validação, acima da policy — ordem inversa à de trocar_chefe_setor.
+    setores = _travar_setores(chefiado=Q(chefe_id=usuario_id, ativo=True))
+    usuarios = _travar_usuarios(usuario_id, novo_chefe_id)
+    if usuario_id not in usuarios:
+        raise DadosInvalidos('Referência inválida.', code='referencia_invalida')
+    usuario = usuarios[usuario_id]
+
+    if not usuario.is_active:
+        return
+
+    setor_chefiado = next(iter(setores.values()), None)
+    # ... daqui para baixo, inalterado
+```
+
+Duas escolhas conservadoras, para a promessa de "nada observável muda" valer de
+fato:
+
+1. **`desativar_usuario` exige só `usuario_id` presente.** Ele tem o mesmo furo
+   que o caso 13 corrige em `remanejar_usuario` — um `novo_chefe_id` inexistente
+   passa batido quando o usuário não chefia setor ativo, porque o ramo que
+   chamaria `trocar_chefe_setor` não roda. Fechar isso é mudança de
+   comportamento em USR-07, fora do que esta expansão se propôs a fazer.
+   Registrado como continuação, junto com o alinhamento do recorte `ativo=True`.
+2. **A validação preliminar de `trocar_chefe_setor` fica onde está.** Movê-la
+   para depois da policy — como `remanejar_usuario` faz — trocaria
+   `DadosInvalidos` por `PermissaoNegada` para quem não pode gerir cadastro e
+   manda id inválido. Seria melhor (não vaza existência), mas é observável, e
+   nenhum teste atual cobre essa combinação — ou seja, mudaria em silêncio.
 
 ### Service
 
@@ -364,7 +431,7 @@ SQLSTATES_RETENTAVEIS = frozenset({'40P01', '40001'})
 except OperationalError as exc:
     if getattr(exc.__cause__, 'sqlstate', None) not in SQLSTATES_RETENTAVEIS:
         raise  # conexão caída, disco cheio etc.: não é retentável, não mascarar
-    logger.warning('remanejamento abortado por concorrência', exc_info=exc)
+    logger.warning('operação administrativa abortada por concorrência', exc_info=exc)
     admin_instance.message_user(
         request,
         'A operação não pôde ser concluída por concorrência com outra '
@@ -426,6 +493,8 @@ com `SetorAdmin`):
 | 18 | POST no changeform de um chefe trocando o setor | 302 e mensagem `warning` com o texto exato, não 500 — cobre `_changeform_com_captura_dominio` |
 | 19a | `save_model` levantando `OperationalError` com SQLSTATE `40P01` (service com `monkeypatch`) | 302 e mensagem de erro, não 500 — cobre a contenção nova |
 | 19b | Idem, com SQLSTATE não retentável | exceção **propaga**; a captura não mascara indisponibilidade de banco |
+| 20 | `save_model` com `setor` e `is_active` alterados juntos, `is_active` desmarcado | `ConflitoDominio`, `code == 'desativacao_com_campos_extras'`; `setor` não persistido |
+| 21 | `save_model` com `setor` e `is_active` alterados juntos, `is_active` marcado | `ConflitoDominio`, `code == 'remanejamento_com_campos_extras'`; `setor` não persistido |
 
 Os testes 15 a 17 chamam `UserAdmin.save_model` diretamente com `RequestFactory`
 e o `_FormFake` que o arquivo já define. Os 18 e 19 usam o `client` de verdade
