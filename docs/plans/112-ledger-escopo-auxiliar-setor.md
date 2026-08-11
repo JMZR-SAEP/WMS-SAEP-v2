@@ -95,11 +95,17 @@ conjunto esperado (`set(qs.values_list('pk', flat=True)) == {...}`), nunca `exis
 exatamente a classe de bug desta issue. Os casos existentes de `TestMovimentacoesVisiveisPara` que
 hoje usam inclusão/ausência isolada são convertidos junto.
 
+**Cenário canônico**: os casos 1, 4, 5 e 6 compartilham o mesmo conjunto de fixtures, para que os
+conjuntos esperados sejam comparáveis entre papéis — `requisicao_autorizada` (criador `solicitante`,
+setor obras), `movimentacao_requisicao_do_aux` (criador `aux_obras`, setor obras), `saida_registrada`
+(sem requisição), `movimentacao_outro_setor` (setor TI) e `movimentacao_requisicao_rascunho`. Cada
+caso declara o conjunto esperado por completo, nomeando as fixtures. Os casos 3, 7 e 8 usam cenários
+próprios, declarados no próprio teste.
+
 Selector (`TestMovimentacoesVisiveisPara`):
 
-1. **Auxiliar de setor vê o que criou** — para `aux_obras`, o conjunto de IDs é exatamente
-   `{movimentacao_requisicao_do_aux.pk}`, com `requisicao_autorizada`, `saida_registrada` e
-   `movimentacao_outro_setor` no cenário.
+1. **Auxiliar de setor vê o que criou** — no cenário canônico, o conjunto de `aux_obras` é
+   exatamente `{movimentacao_requisicao_do_aux.pk}`.
 2. **Auxiliar de setor não vê o resto do setor** (regressão da #112) — coberto pela igualdade do
    caso 1: a movimentação de `requisicao_autorizada` (criada pelo `solicitante`, mesmo setor obras)
    fica fora do conjunto. Substitui o `test_aux_setor_ve_so_proprio_setor` atual, que asseverava o
@@ -108,17 +114,21 @@ Selector (`TestMovimentacoesVisiveisPara`):
    (lotação em TI, vínculo de auxiliar em obras, requisição criada para si com `setor_beneficiario` =
    TI), o conjunto contém exatamente essa movimentação: prova executável da ampliação intencional
    descrita nas invariantes, e do não-vazamento de obras para ele.
-4. **Movimentação vinculada a rascunho não aparece** — `MovimentacaoEstoque` construída diretamente
-   sobre uma requisição em `RASCUNHO` criada pelo `aux_obras` (o model permite; nenhum service faz).
-   Conjunto do `aux_obras` e do `chefe_obras` a exclui. Cobre o termo `~Q(...RASCUNHO)`.
-5. **Chefe de setor mantém a visão de setor** — conjunto do `chefe_obras` é exatamente as
-   movimentações de `requisicao_autorizada`: sem saída excepcional, sem `movimentacao_outro_setor`,
-   sem a de rascunho.
-6. **Chefe de setor vê também o que criou fora do setor chefiado** — com
-   `movimentacao_criada_pelo_chefe`, o conjunto do `chefe_obras` cresce exatamente por esse ID.
-   Fecha o espelho com `historico_requisicoes_visiveis_para`.
+4. **Movimentação vinculada a rascunho não aparece** — `movimentacao_requisicao_rascunho` fica fora
+   do conjunto tanto de `aux_obras` (que criou o rascunho) quanto de `chefe_obras` (que chefia o
+   setor). Coberto pelas igualdades dos casos 1 e 5; o caso 4 existe para nomear o termo
+   `~Q(...RASCUNHO)` como comportamento asseverado, e não como efeito colateral.
+5. **Chefe de setor mantém a visão de setor** — no cenário canônico, o conjunto de `chefe_obras` é
+   exatamente `{movimentacoes de requisicao_autorizada} | {movimentacao_requisicao_do_aux.pk}`. A
+   segunda entra porque `movimentacao_requisicao_do_aux` tem `setor_beneficiario = setor_obras`, que
+   é o setor chefiado — o chefe supervisiona o setor, incluindo o que o auxiliar criou. Ficam de fora
+   `saida_registrada`, `movimentacao_outro_setor` e `movimentacao_requisicao_rascunho`.
+6. **Chefe de setor vê também o que criou fora do setor chefiado** — acrescentando
+   `movimentacao_criada_pelo_chefe` ao cenário canônico, o conjunto de `chefe_obras` é o do caso 5
+   mais exatamente esse ID. Fecha o espelho com `historico_requisicoes_visiveis_para`.
 7. **Almoxarifado (chefe e auxiliar) e superusuário** — conjunto igual ao de todas as
-   `MovimentacaoEstoque` do cenário, incluindo saídas excepcionais. Inalterado no comportamento.
+   `MovimentacaoEstoque` do cenário, incluindo saídas excepcionais e a de rascunho (esses ramos não
+   filtram estado). Inalterado no comportamento.
 8. **Solicitante puro, inativo, inexistente** — conjunto vazio. Inalterados.
 
 View (`TestHistoricoMovimentacoesView`):
