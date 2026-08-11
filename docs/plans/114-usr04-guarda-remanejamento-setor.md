@@ -30,21 +30,43 @@ expor o conflito antes de implementar):
 1. `CONTEXT.md` §12/§170 e USR-03 dizem que "usuário pertence a exatamente um
    setor"; `apps/accounts/models.py` declara `setor` com `null=True, blank=True`
    e comentário justificando a nulidade, e `seed_dev` semeia o ADMIN sem setor.
-   O plano segue o model — ver decisão 8 — e registra a reconciliação como
+   O plano segue o model — ver decisão 9 — e registra a reconciliação como
    continuação.
 2. `remanejar_usuario` bloqueia por qualquer setor chefiado; `desativar_usuario`
    bloqueia só por setor `ativo=True`. A assimetria é deliberada neste recorte —
    ver decisão 5 — e alinhar os dois é continuação, porque muda USR-07.
 
+**Expansão de escopo declarada — ordem de locks.** Este plano passou a alterar
+dois services que o issue #114 não menciona: `desativar_usuario` e
+`trocar_chefe_setor`. O motivo é que a ordem de aquisição de locks só existe
+como propriedade **global**: hoje `desativar_usuario` trava `User` antes de
+`Setor`, e `trocar_chefe_setor` trava `Setor` antes de `User` — ordens opostas
+no mesmo par de tabelas, o que já hoje admite deadlock entre os dois. Introduzir
+um terceiro service que trava as duas tabelas sem unificar a ordem tornaria o
+problema maior, e corrigir só o service novo daria aparência de garantia sem
+eliminar o ciclo.
+
+A expansão é **de mecânica de locks, não de regra de domínio**: nenhuma
+pré-condição, mensagem, código de exceção ou comportamento observável de
+`desativar_usuario` e `trocar_chefe_setor` muda, e os testes existentes dos dois
+seguem válidos sem edição. Se o mantenedor preferir isolar essa parte em issue
+própria, é só remover a seção "Ordem canônica de locks" e as duas linhas
+correspondentes abaixo — o resto do plano fica de pé, com o deadlock
+permanecendo como risco declarado.
+
 **Muda:**
 
 - `apps/accounts/services.py` — novo
-  `remanejar_usuario(*, ator_id, usuario_id, novo_setor_id, novo_chefe_id=None)`.
+  `remanejar_usuario(*, ator_id, usuario_id, novo_setor_id, novo_chefe_id=None)`;
+  novo helper `_travar_usuarios`; `desativar_usuario` passa a travar `Setor`
+  antes de `User` e a usar o helper; `trocar_chefe_setor` passa a usar o helper
+  para travar o novo chefe (já estava na ordem certa).
 - `apps/accounts/admin.py` — `UserAdmin.save_model` roteia a troca de `setor`
-  pelo service.
+  pelo service; `_changeform_com_captura_dominio` passa a traduzir
+  `OperationalError` de deadlock em mensagem, em vez de deixar virar HTTP 500.
 - `apps/accounts/tests/test_services.py` — classe `TestRemanejarUsuario`.
 - `apps/accounts/tests/test_admin.py` — casos de `UserAdmin` (o arquivo hoje só
-  cobre `SetorAdmin`).
+  cobre `SetorAdmin`) e o caso de contenção de `OperationalError`.
 - `docs/matriz-invariantes.md` — USR-04 registra o novo ponto de reforço.
 
 **Não muda:**
@@ -69,13 +91,31 @@ expor o conflito antes de implementar):
 
 | Arquivo | Ação |
 |---|---|
-| `apps/accounts/services.py` | `remanejar_usuario` após `desativar_usuario` |
-| `apps/accounts/admin.py` | Ramo de `setor` em `UserAdmin.save_model`, depois do ramo de `is_active` |
-| `apps/accounts/tests/test_services.py` | `TestRemanejarUsuario` — 10 casos |
-| `apps/accounts/tests/test_admin.py` | 4 casos de `UserAdmin` (roteamento e tradução HTTP); a docstring do módulo hoje só cita o #107 e passa a cobrir os dois admins |
+| `apps/accounts/services.py` | Helper `_travar_usuarios`; `remanejar_usuario` após `desativar_usuario`; ordem de locks unificada em `desativar_usuario` e `trocar_chefe_setor` |
+| `apps/accounts/admin.py` | Ramo de `setor` em `UserAdmin.save_model`, depois do ramo de `is_active`; captura de `OperationalError` em `_changeform_com_captura_dominio` |
+| `apps/accounts/tests/test_services.py` | `TestRemanejarUsuario` — 12 casos |
+| `apps/accounts/tests/test_admin.py` | 5 casos de `UserAdmin` (roteamento, tradução HTTP e contenção de deadlock); a docstring do módulo hoje só cita o #107 e passa a cobrir os dois admins |
 | `docs/matriz-invariantes.md` | Coluna de verificação de USR-04 |
 
 ## Implementação
+
+### Ordem canônica de locks (helper compartilhado)
+
+```python
+def _travar_usuarios(*usuario_ids: int | None) -> dict[int, User]:
+    """Trava usuários por pk crescente e devolve os encontrados, indexados por pk.
+
+    Ordem canônica de aquisição de locks em `accounts`: primeiro as linhas de
+    `Setor`, depois as de `User` por pk crescente. Duas transações que travem o
+    mesmo par de usuários em ordens opostas formam um ciclo, e o desfecho é
+    `OperationalError` do PostgreSQL — não um erro de domínio. Ordenar remove o
+    ciclo. Ids ausentes vêm no retorno como chaves faltando; a tradução para
+    `DadosInvalidos` fica com o chamador, que sabe qual id era obrigatório.
+    """
+    ids = sorted({i for i in usuario_ids if i is not None})
+    travados = User.objects.select_for_update().filter(pk__in=ids).order_by('pk')
+    return {u.pk: u for u in travados}
+```
 
 ### Service
 
@@ -110,11 +150,16 @@ def remanejar_usuario(
     papel = papel_efetivo(ator)
     exigir_pode_gerir_cadastro(papel)
 
-    # Ordem global de locks: Setor antes de User, a mesma de trocar_chefe_setor.
+    # Ordem canônica de locks: Setor primeiro, depois User por pk crescente.
     setor_chefiado = (
         Setor.objects.select_for_update().filter(chefe_id=usuario_id).first()
     )
-    usuario = User.objects.select_for_update().get(pk=usuario_id)
+    try:
+        usuario = _travar_usuarios(usuario_id, novo_chefe_id)[usuario_id]
+    except KeyError as exc:
+        raise DadosInvalidos(
+            'Referência inválida.', code='referencia_invalida'
+        ) from exc
 
     if usuario.setor_id == novo_setor_id:
         return
@@ -143,7 +188,7 @@ def remanejar_usuario(
     usuario.save(update_fields=['setor'])
 ```
 
-Oito decisões que o código embute:
+Nove decisões que o código embute:
 
 1. **Guarda na escrita, não na leitura.** A divergência entre `Setor.chefe` e
    `User.setor` só nasce em um UPDATE. Fechar o UPDATE mantém uma única fonte de
@@ -194,26 +239,30 @@ Oito decisões que o código embute:
    lock dele é adquirido **depois** do `Setor`. Não há TOCTOU nessa leitura: a
    consulta de chefia usa `chefe_id=usuario_id`, e `usuario_id` é imutável.
 
-   **O que ainda não é fechado, e fica como continuação:**
-   - Ciclo `User`×`User`. Duas chamadas concorrentes que travam dois usuários em
-     ordens opostas (cada chefe indicado como substituto do outro) ainda podem
-     formar deadlock, porque `trocar_chefe_setor` trava o novo chefe sem ordenar
-     por pk. Ordenar só aqui não elimina o ciclo — `desativar_usuario` e o
-     `trocar_chefe_setor` chamado direto pelo `SetorAdmin` continuariam fora da
-     ordem — e daria a aparência de uma garantia que não existe. A ordenação
-     global por pk precisa entrar nos três services de uma vez, em issue
-     própria. Enquanto isso, o desfecho de um ciclo é `OperationalError`
-     (deadlock detected) do PostgreSQL, que **não** é `ErroDominio` e portanto
-     escapa de `_changeform_com_captura_dominio` como HTTP 500 — ver Riscos.
-   - Leitura fantasma. Se o usuário ainda **não** é chefe de nada, não há linha
-     para travar, e uma `trocar_chefe_setor` concorrente pode torná-lo chefe
-     logo após a checagem (READ COMMITTED). Fechar exigiria lock de tabela; o
-     desfecho é o mesmo estado que este issue corrige no próximo remanejamento.
-7. **Idempotente depois da policy.** `novo_setor_id` igual à lotação atual
+   O ciclo `User`×`User` — dois chefes indicados como substituto um do outro —
+   é fechado pelo `_travar_usuarios`, que trava por pk crescente e é usado pelos
+   três services. Como o helper trava os dois usuários de uma vez, a chamada a
+   `trocar_chefe_setor` de dentro do fluxo já encontra os locks adquiridos e não
+   introduz ordem nova.
+
+   **O que ainda não é fechado:** leitura fantasma. Se o usuário ainda **não** é
+   chefe de nada, não há linha de `Setor` para travar, e uma
+   `trocar_chefe_setor` concorrente pode torná-lo chefe logo após a checagem
+   (READ COMMITTED). Fechar exigiria lock de tabela; o desfecho é o mesmo estado
+   que este issue corrige no próximo remanejamento. Não é deadlock — é janela de
+   escrita perdida, e não produz HTTP 500.
+7. **Exclusão concorrente vira erro de domínio.** A validação de existência é
+   feita sem lock, então entre ela e o `_travar_usuarios` outra transação pode
+   apagar o usuário. Sem tratamento, o `KeyError` do dicionário (ou o
+   `DoesNotExist` de um `.get()` direto) escaparia como HTTP 500. O `try/except`
+   em volta do helper converte isso em `DadosInvalidos(code='referencia_invalida')`,
+   o mesmo código da validação preliminar — do ponto de vista de quem chamou, a
+   referência era inválida, e não importa em que instante deixou de existir.
+8. **Idempotente depois da policy.** `novo_setor_id` igual à lotação atual
    retorna sem erro — inclusive `None == None`. O early return vem **depois** de
    `exigir_pode_gerir_cadastro`, para não vazar estado de cadastro por diferença
    de resposta a quem não pode gerir. Mesma ordem de `desativar_usuario`.
-8. **`novo_setor_id` aceita `None`, e isso expõe uma divergência de contrato.**
+9. **`novo_setor_id` aceita `None`, e isso expõe uma divergência de contrato.**
    `apps/accounts/models.py` declara `setor` com `null=True, blank=True` e
    comentário explícito ("nula para bootstrap, superusuário técnico e cadastro
    incompleto"), e `_seed_usuarios` em `seed_dev` semeia o ADMIN com
@@ -276,6 +325,30 @@ A tradução para mensagem já existe: `UserAdmin.changeform_view` usa
 `message_user(level=WARNING)` + redirect, `DadosInvalidos` em
 `level=ERROR`, e `PermissaoNegada` em `PermissionDenied` (HTTP 403).
 
+### Contenção de deadlock no admin
+
+`_changeform_com_captura_dominio` ganha um ramo para `OperationalError`:
+
+```python
+except OperationalError as exc:
+    # Deadlock detectado pelo banco aborta a transação sem ser erro de domínio;
+    # sem este ramo o admin devolveria 500 numa operação que basta repetir.
+    admin_instance.message_user(
+        request,
+        'A operação não pôde ser concluída por concorrência com outra '
+        'alteração de cadastro. Tente novamente.',
+        level=messages.ERROR,
+    )
+    return HttpResponseRedirect(request.get_full_path())
+```
+
+Duas observações. O ramo é **contenção, não prevenção** — a prevenção é a ordem
+canônica de locks; isto existe para o caso em que um ciclo escape mesmo assim, e
+para qualquer outro `OperationalError` transitório. E ele vale para os três
+admins do módulo, não só para `UserAdmin`, porque a função é compartilhada:
+`SetorAdmin` e `VinculoAuxiliarAdmin` passam a ter a mesma contenção sem
+mudança de comportamento em nenhum caminho que hoje funciona.
+
 ## Estratégia de testes
 
 Camada de service, `apps/accounts/tests/test_services.py`, classe
@@ -291,8 +364,10 @@ Camada de service, `apps/accounts/tests/test_services.py`, classe
 | 6 | `novo_setor_id` inexistente | `DadosInvalidos`, `code == 'referencia_invalida'` |
 | 7 | `novo_setor_id` igual à lotação atual | no-op sem exceção |
 | 8 | Ator não superusuário | `PermissaoNegada`; lotação intacta |
-| 9 | Remanejar para `None` usuário sem chefia | `setor_id` vira `None` — cobre a decisão 8 |
+| 9 | Remanejar para `None` usuário sem chefia | `setor_id` vira `None` — cobre a decisão 9 |
 | 10 | `trocar_chefe_setor` e depois `remanejar_usuario`, em duas chamadas | passa; é o fluxo que a mensagem de erro do caso 1 instrui |
+| 11 | `usuario_id` inexistente | `DadosInvalidos`, `code == 'referencia_invalida'` — validação preliminar |
+| 12 | Usuário apagado **entre** a validação preliminar e o lock | `DadosInvalidos`, `code == 'referencia_invalida'`, não `KeyError`/HTTP 500 — cobre a decisão 7 |
 
 Casos 2, 1 e 8 são a anatomia obrigatória de ADR-0010 (caminho feliz, violação
 de domínio sem escrita, permissão negada sem escrita). O caso 10 é o critério de
@@ -312,24 +387,32 @@ com `SetorAdmin`):
 | 12 | `save_model` com `setor` alterado de um chefe | `ConflitoDominio` propagado; lotação intacta |
 | 13 | `save_model` com `setor` e `nome` alterados juntos | `ConflitoDominio`, `code == 'remanejamento_com_campos_extras'`; nada persistido — cobre as decisões 1 e 2 do admin |
 | 14 | POST no changeform de um chefe trocando o setor | 302 e mensagem `warning` com o texto exato, não 500 — cobre `_changeform_com_captura_dominio` |
+| 15 | `save_model` levantando `OperationalError` de deadlock (service com `monkeypatch`) | 302 e mensagem de erro, não 500 — cobre a contenção nova |
 
 Os testes 11 a 13 chamam `UserAdmin.save_model` diretamente com `RequestFactory`
-e o `_FormFake` que o arquivo já define. O 14 usa o `client` de verdade porque o
-contrato sob teste é a tradução HTTP, não a decisão de domínio; asserta a
-mensagem, porque o 302 sozinho não distingue este redirect do de um save
-bem-sucedido.
+e o `_FormFake` que o arquivo já define. Os 14 e 15 usam o `client` de verdade
+porque o contrato sob teste é a tradução HTTP, não a decisão de domínio; ambos
+assertam a mensagem, porque o 302 sozinho não distingue esses redirects do de um
+save bem-sucedido.
 
-Não coberto, e por quê: **teste de concorrência com threads**. A suíte roda
-contra PostgreSQL, então `select_for_update` tem efeito real e o teste seria
-tecnicamente possível com `django_db(transaction=True)` e duas threads — mas o
-repositório não tem nenhum teste desse formato (os `transaction=True` de
-`apps/notificacoes/tests/test_services.py` existem para `on_commit`, não para
-concorrência), a suíte roda em paralelo com `-n logical`, e um teste que depende
-de duas transações se entrelaçarem numa ordem específica é a receita clássica de
-flake intermitente. O que o lock garante é propriedade do banco, não do código
-deste service; o que é do código — a ordem lock → validação → substituição — o
-caso 3 já fixa. Também não coberto: divergência pré-existente no banco (fora de
-escopo, sem saneamento) e lotação em setor inativo (fora de escopo).
+Os casos 12 e 15 substituem o teste concorrente com threads, e são melhores para
+o que precisa ser fixado. O 12 usa `monkeypatch` para apagar o usuário durante a
+consulta de chefia, reproduzindo a corrida de forma determinística; o 15 faz o
+service levantar `OperationalError` para exercitar a contenção no admin. Os dois
+rodam em qualquer ordem e não dependem de duas transações se entrelaçarem.
+
+Não coberto, e por quê: **deadlock real com duas transações em paralelo**. A
+suíte roda contra PostgreSQL, então seria tecnicamente possível com
+`django_db(transaction=True)` e threads, mas o repositório não tem nenhum teste
+desse formato (os `transaction=True` de `apps/notificacoes/tests/test_services.py`
+existem para `on_commit`, não para concorrência), a suíte roda em paralelo com
+`-n logical`, e um teste que depende de duas transações se entrelaçarem numa
+ordem específica é a receita clássica de flake intermitente. O que ficou coberto
+é o que é do código: a **ordem** de aquisição (um único helper, usado pelos três
+services, que ordena por pk) e o **desfecho** caso um ciclo ainda ocorra (caso
+15, sem HTTP 500). O escalonamento em si é propriedade do banco. Também não
+coberto: divergência pré-existente no banco (fora de escopo, sem saneamento) e
+lotação em setor inativo (fora de escopo).
 
 ## Invariantes
 
@@ -350,7 +433,8 @@ escopo, sem saneamento) e lotação em setor inativo (fora de escopo).
 | Divergência já existente no banco continua vazando autorização | Real e aceito. A guarda é para frente; nenhuma varredura de saneamento entra neste issue. Saneamento é issue própria. |
 | Nem todo caminho de escrita de `User.setor` fica guardado | Verificado: fora de fixtures de teste, há dois. O admin, que este plano fecha; e `_seed_usuarios` em `apps/core/management/commands/seed_dev.py`, que grava `setor` num `update_or_create` sem passar por service. O seed fica de fora de propósito — é comando de ambiente local descartável (ADR-0009), com elenco fixo, e grava as chefias **depois** das lotações (`_seed_chefias`), então produz estado consistente por construção. Submetê-lo ao service exigiria um ator superusuário antes de o elenco existir, invertendo a ordem do bootstrap. |
 | Leitura fantasma na chefia | O `select_for_update` da decisão 6 fecha a perda de atualização quando a chefia **já existe**. O que resta: se o usuário não chefia nada, não há linha para travar, e uma `trocar_chefe_setor` concorrente pode designá-lo chefe logo após a checagem, sob READ COMMITTED. Aceito — fechar exigiria lock de tabela ou serializar todo o cadastro, e o estado resultante é exatamente o que o próximo remanejamento corrige. |
-| Deadlock por ordem de locks | Real, parcialmente mitigado, e **pré-existente ao issue**. Este service adota `Setor` antes de `User`, alinhado a `trocar_chefe_setor` (decisão 6), o que elimina o ciclo `User`×`Setor` no caminho do remanejamento. Sobra o ciclo `User`×`User` entre dois chefes indicados como substitutos um do outro, e sobra a ordem invertida de `desativar_usuario`, que trava `usuario` antes de chamar `trocar_chefe_setor` — ou seja, o par `desativar_usuario`/`trocar_chefe_setor` já convive com ordens opostas hoje, sem este issue. Consequência de um ciclo: `OperationalError` do PostgreSQL, que não é `ErroDominio` e vira HTTP 500 em vez de mensagem no admin. Ordenação global por pk nos três services é continuação registrada; fazê-la em um só daria garantia aparente sem eliminar o ciclo. |
+| Deadlock por ordem de locks | Endereçado nas duas pontas, com expansão de escopo declarada no Escopo. **Prevenção:** ordem canônica única — `Setor`, depois `User` por pk crescente — aplicada aos três services via `_travar_usuarios`, o que elimina o ciclo `User`×`Setor` e o ciclo `User`×`User`. Isso corrige de passagem a ordem invertida que `desativar_usuario` já tinha antes deste issue. **Contenção:** `_changeform_com_captura_dominio` passa a traduzir `OperationalError`, então mesmo um ciclo remanescente vira mensagem, não HTTP 500. O que continua sem cobertura é o escalonamento concorrente em si, por ser propriedade do banco e teste inerentemente flaky — ver Estratégia de testes. |
+| Expansão de escopo para `desativar_usuario` e `trocar_chefe_setor` | Assumida e declarada. Restrita a mecânica de locks: nenhuma pré-condição, mensagem ou código de exceção muda, e os testes existentes dos dois services continuam válidos sem edição. O risco residual é o de qualquer mudança em service com uso estabelecido — mitigado por a suíte inteira ter de passar antes do merge, e reversível removendo o helper e as duas chamadas. |
 | `papel_efetivo` segue sem checagem de leitura | Declarado no Escopo. É defesa em profundidade que troca "impedir" por "mascarar", e mudaria o significado de `setor_chefiado_ativo_id` para todo consumidor. Se um dia entrar, entra como issue com revisão das policies que leem esse campo. |
 | Chefe de setor inativo fica preso quando não há outro lotado no setor | Real e aceito, e é o preço de bloquear em qualquer setor chefiado (decisão 5). `SetorAdmin` recusa `chefe=None`, então sem outro usuário lotado no setor arquivado não existe substituto e o remanejamento fica travado. Mesmo tipo de travamento que USR-07 já aceita; destravar exige decidir se chefia pode ser removida sem substituto — backlog ACE-002. |
 | POST isolado exigido para remanejar | O guard `remanejamento_com_campos_extras` obriga o admin a trocar a lotação separadamente de nome/e-mail/permissões. É custo de UX assumido em troca de um único ponto de persistência de `User.setor` (decisão 1 do admin), e é o mesmo custo que desativar usuário ou setor já cobra. |
