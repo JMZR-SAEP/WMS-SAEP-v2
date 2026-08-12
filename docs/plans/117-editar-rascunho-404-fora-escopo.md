@@ -34,7 +34,7 @@ existência. Para ação proibida em objeto visível: `403`.").
 | Arquivo | Mudança |
 |---------|---------|
 | `apps/requisicoes/views.py` | `editar_rascunho_view`: troca do queryset cru pelo selector de visibilidade + docstring registrando a fronteira |
-| `apps/requisicoes/tests/test_views.py` | atualiza o teste do caso "não-criador" para `404` e adiciona teste do `403` de ator visível não-criador |
+| `apps/requisicoes/tests/test_views.py` | atualiza o teste do caso "não-criador" para `404`; adiciona teste do `403` de ator visível não-criador e teste do `404` fora do escopo via POST |
 | `docs/plans/117-editar-rascunho-404-fora-escopo.md` | este arquivo |
 
 ## Implementação
@@ -74,8 +74,9 @@ O selector devolve rascunho apenas para o criador (`Q(criador_id=ator.pk)`, sem 
 `nao_rascunho`) e para superusuário. Beneficiário, chefe de setor e almoxarifado só enxergam
 requisições fora de rascunho. Consequências:
 
-- **Rascunho de terceiro** → fora do queryset → `404`. É o critério 1 e fecha o probing de
-  pk descrito na issue.
+- **Rascunho de terceiro** → fora do queryset → `404`. Vale para `GET` e `POST`, já que o
+  `get_object_or_404` está acima do `if request.method == 'POST'`. É o critério 1 e fecha o
+  probing de pk descrito na issue.
 - **Requisição visível, ator não-criador** → só é possível fora de rascunho (beneficiário,
   chefia, almoxarifado). Passa pelo `get_object_or_404`, cai em
   `exigir_pode_editar_rascunho`, que exige criador ou superusuário → `PermissaoNegada` →
@@ -103,6 +104,7 @@ inspecionar HTML.
 | Visível, criador, estado ≠ rascunho | `solicitante` | requisição própria em `aguardando_autorizacao` | `403` |
 | pk inexistente | `solicitante` | `pk=99999` | `404` |
 | Happy path | `solicitante` | `rascunho_solicitante` | `200` |
+| POST fora do escopo (rascunho de terceiro) | `outro_usuario_obras` | `rascunho_solicitante` | `404` |
 
 Mudanças concretas em `apps/requisicoes/tests/test_views.py`:
 
@@ -119,8 +121,15 @@ Mudanças concretas em `apps/requisicoes/tests/test_views.py`:
 - `test_editar_rascunho_get_pk_inexistente_retorna_404` e
   `test_editar_rascunho_get_criador_retorna_200` permanecem intactos.
 
-Os testes de POST (`test_editar_rascunho_post_*`) usam o criador sobre o próprio rascunho e
-não tocam a fronteira alterada.
+- Novo `test_editar_rascunho_post_fora_do_escopo_retorna_404`: mesmo cenário do primeiro
+  caso, via POST. O `get_object_or_404` está acima do `if request.method == 'POST'`, logo a
+  fronteira vale para os dois verbos — a view aceita `GET` e `POST`
+  (`@require_http_methods(['GET', 'POST'])`) e o contrato "fora do escopo → `404`" precisa de
+  teste em ambos, senão uma regressão que reintroduza o queryset cru só no caminho de POST
+  passaria despercebida.
+
+Os testes de POST existentes (`test_editar_rascunho_post_*`) usam o criador sobre o próprio
+rascunho: continuam passando pelo selector e não mudam de comportamento.
 
 ## Invariantes
 
@@ -131,8 +140,9 @@ pela checagem de estado da view e pelo service.
 A regra de visibilidade de `docs/matriz-permissoes.md` §5 é a que passa a ser respeitada
 pela view — antes ela era contornada pelo queryset cru.
 
-ADR-0010 (fronteira 404 vs 403) sai de violado para respeitado nesta view. Nenhum ADR precisa
-ser alterado ou suplementado: a mudança implementa uma decisão já aceita.
+Após a implementação planejada, ADR-0010 (fronteira 404 vs 403) passará a ser respeitado
+nesta view — hoje ela ainda o viola. Nenhum ADR precisa ser alterado ou suplementado: a
+mudança implementa uma decisão já aceita.
 
 ## Riscos
 
