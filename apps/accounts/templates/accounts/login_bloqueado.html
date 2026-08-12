@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% comment %}
+Página de bloqueio por tentativas repetidas, renderizada pelo AxesMiddleware com
+status 429. O contexto vem do axes (failure_limit, failure_count, username,
+cooloff_time, cooloff_timedelta).
+
+`username` é deliberadamente ignorado: repetir a matrícula tentada
+transformaria esta página em oráculo de enumeração de contas.
+{% endcomment %}
+
+{% block title %}Acesso bloqueado — WMS-SAEP{% endblock %}
+
+{% block body %}
+<main>
+  <div class="flex min-h-screen items-center justify-center bg-bg-page px-4 py-10 sm:px-6">
+    <section class="w-full max-w-sm rounded-lg border border-border bg-surface p-6 shadow-sm" aria-labelledby="bloqueio-title">
+      <div class="mb-8 text-center">
+        <p class="text-xs font-semibold uppercase tracking-wide text-primary-text">Acesso institucional</p>
+        <h1 id="bloqueio-title" class="mt-2 text-2xl font-semibold text-text-primary">Acesso bloqueado</h1>
+        <p class="mt-2 text-sm text-text-secondary">Sistema interno de gestão de materiais</p>
+      </div>
+
+      {% include "components/alert.html" with variant="danger" id="bloqueio-error" message="Tentativas de acesso demais. O acesso foi bloqueado temporariamente." class="mb-5" %}
+
+      <p class="text-sm text-text-secondary">
+        Aguarde <strong>15 minutos</strong> e tente novamente. O bloqueio vale para
+        esta matrícula a partir deste computador, e cada nova tentativa durante a
+        espera reinicia a contagem.
+      </p>
+
+      <p class="mt-4 text-sm text-text-secondary">
+        Se você não reconhece essas tentativas, ou precisa de acesso antes do prazo,
+        procure o administrador do sistema.
+      </p>
+
+      <p class="mt-6 text-center text-xs text-text-tertiary">Acesso restrito a funcionários autorizados.</p>
+    </section>
+  </div>
+</main>
+{% endblock %}

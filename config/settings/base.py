@@ -5,6 +5,7 @@ Valores sensíveis e específicos de ambiente vêm de variáveis de ambiente
 ``DATABASE_URL`` deve apontar para um PostgreSQL.
 """
 
+from datetime import timedelta
 from pathlib import Path
 
 import environ
@@ -33,6 +34,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     # Terceiros
+    'axes',
     'django_htmx',
     # Apps de domínio
     'apps.accounts',
@@ -52,6 +54,9 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'django_htmx.middleware.HtmxMiddleware',
+    # Precisa ser o último: age na fase de resposta, só para trocar a resposta
+    # de uma tentativa de login já bloqueada pela página de bloqueio.
+    'axes.middleware.AxesMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -104,6 +109,62 @@ AUTH_USER_MODEL = 'accounts.User'
 LOGIN_URL = 'accounts:login'
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = 'core:home'
+
+
+# Lockout de login — django-axes (ADR-0018)
+#
+# O login por matrícula é a única porta do sistema, e o namespace de matrículas
+# é curto e adivinhável (`OBRAS001`, `ALMOX001`). Sem lockout, força bruta custa
+# só largura de banda. Nada disso vive na view nem no formulário: entra por
+# backend de autenticação mais middleware.
+
+AUTHENTICATION_BACKENDS = [
+    # Primeiro da lista de propósito: é ele que aborta a autenticação de um
+    # cliente já bloqueado, antes de qualquer verificação de senha.
+    'axes.backends.AxesStandaloneBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
+
+# O default do axes é `get_user_model().USERNAME_FIELD`, que aqui seria
+# `matricula`. Mas quem posta é o `AuthenticationForm` do Django, cujo campo se
+# chama sempre `username` — é essa a chave que chega em `request.POST` e no
+# `credentials` de `authenticate()`. Sem esta linha o axes procuraria
+# `matricula`, não acharia, e agruparia as falhas sob `(None, ip_address)`: um
+# balde por IP, com a matrícula fora da chave, em que erros de pessoas
+# diferentes se somam e trancam todas elas.
+AXES_USERNAME_FORM_FIELD = 'username'
+
+# Lista aninhada = bloqueia a *combinação* matrícula+IP. A forma plana
+# (`['username', 'ip_address']`) bloquearia por matrícula OU por IP, o que
+# deixaria qualquer um trancar a conta alheia de qualquer lugar.
+AXES_LOCKOUT_PARAMETERS = [['username', 'ip_address']]
+
+AXES_FAILURE_LIMIT = 5
+AXES_COOLOFF_TIME = timedelta(minutes=15)
+
+# Janela deslizante: tentativa expirada deixa de contar, em vez de acumular
+# para sempre.
+AXES_USE_ATTEMPT_EXPIRATION = True
+
+# Quem prova saber a própria senha zera o contador. É o que impede que erros
+# esparsos ao longo do dia somem até trancar um usuário legítimo.
+AXES_RESET_ON_SUCCESS = True
+
+# Default do pacote, declarado por ser decisão de segurança: cada tentativa
+# durante o bloqueio reinicia os 15 minutos. Com IP real por cliente isso só
+# prolonga o bloqueio de quem ataca.
+AXES_RESET_COOL_OFF_ON_FAILURE_DURING_LOCKOUT = True
+
+# Sem isto não há trilha auditável: `AccessAttempt` é agregado e some no
+# primeiro login bem-sucedido, por causa de `AXES_RESET_ON_SUCCESS`. O
+# crescimento é limitado por `AXES_ACCESS_FAILURE_LOG_PER_USER_LIMIT` (1000).
+AXES_ENABLE_ACCESS_FAILURE_LOG = True
+
+# Sem `Retry-After` na resposta de bloqueio: `AXES_ENABLE_RETRY_AFTER_HEADER`
+# só existe no master do axes, não na 8.3.1 que este projeto fixa. Declarar a
+# setting não daria erro — o Django aceita qualquer nome — e o header
+# simplesmente nunca apareceria. O prazo é comunicado pela página de bloqueio.
+AXES_LOCKOUT_TEMPLATE = 'accounts/login_bloqueado.html'
 
 
 # Internationalization

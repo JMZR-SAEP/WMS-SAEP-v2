@@ -49,3 +49,92 @@ saldos e do ledger.
 
 Se o segundo estoque foi criado por engano e ainda **não** tem saldos nem
 movimentações, apagá-lo resolve o item.
+
+## Autenticação
+
+### GL-02 — Lockout de login ativo e ancorado no IP certo
+
+**Por quê?** O login por matrícula é a única porta do sistema, e o namespace de
+matrículas é adivinhável. O lockout do `django-axes` (ADR-0018) é o que impede
+força bruta, mas ele depende de duas coisas que só se confirmam no ambiente
+real: as tabelas do pacote existirem, e o IP resolvido corresponder ao cliente
+de verdade.
+
+Os dois modos de falha são silenciosos de formas opostas. Migration não
+aplicada quebra o login inteiro no primeiro acesso. Resolução de IP errada não
+quebra nada — só faz o bloqueio proteger a coisa errada.
+
+**Como conferir?**
+
+1. **Migrations aplicadas.** As quatro tabelas do axes precisam existir:
+
+   ```sql
+   SELECT tablename FROM pg_tables
+   WHERE tablename LIKE 'axes_%'
+   ORDER BY tablename;
+   ```
+
+   Esperado: `axes_accessattempt`, `axes_accessattemptexpiration`,
+   `axes_accessfailurelog`, `axes_accesslog`. Faltando qualquer uma, rode
+   `manage.py migrate`.
+
+2. **Resolução de IP bate com a topologia.** Faça uma tentativa de login com
+   senha errada, de uma máquina cliente comum, e confira o IP registrado:
+
+   ```sql
+   SELECT username, ip_address, attempt_time
+   FROM axes_accessattempt
+   ORDER BY attempt_time DESC
+   LIMIT 5;
+   ```
+
+   Esperado: o IP da máquina do cliente. Dois resultados errados possíveis:
+
+   - **IP do proxy em todas as linhas** — `PILOTO_ATRAS_DE_PROXY_TLS` está
+     desligado, mas há proxy na frente. Todos os usuários compartilham um balde
+     de bloqueio: quem souber uma matrícula tranca aquela pessoa. Ligue a
+     variável.
+   - **`ip_address` nulo** — a requisição chegou ao Django **sem** passar pelo
+     proxy, e `AXES_IPWARE_PROXY_COUNT` a descartou. Isso significa que o Django
+     está exposto diretamente. Feche o acesso: ele deve escutar só em localhost
+     ou atrás de firewall, alcançável apenas pelo proxy.
+
+3. **O bloqueio dispara.** Com uma matrícula descartável, erre a senha cinco
+   vezes. Esperado: a quinta responde a página de acesso bloqueado (HTTP 429).
+   Depois, desbloqueie a matrícula de teste (comandos abaixo).
+
+**Se falhar.** Não libere o sistema até os três itens passarem. O item 1 é
+correção direta (`migrate`); o item 2 é configuração de implantação; o item 3
+falhando com 1 e 2 corretos indica configuração de `AXES_*` divergente do
+ADR-0018.
+
+### Operação do lockout
+
+Comandos que a equipe de suporte vai precisar:
+
+```bash
+python manage.py axes_list_attempts
+```
+
+```bash
+python manage.py axes_reset_username <matricula>
+```
+
+```bash
+python manage.py axes_reset_ip_username <ip> <matricula>
+```
+
+O expurgo dos registros de auditoria usa **comandos distintos** — um não cobre o
+outro:
+
+```bash
+python manage.py axes_reset_logs --age <dias>
+```
+
+```bash
+python manage.py axes_reset_failure_logs --age <dias>
+```
+
+`axes_reset_logs` apaga `AccessLog` (acessos bem-sucedidos);
+`axes_reset_failure_logs` apaga `AccessFailureLog` (falhas). Ambos guardam
+matrícula, IP e user-agent, e não há rotina agendada de expurgo nesta fase.
