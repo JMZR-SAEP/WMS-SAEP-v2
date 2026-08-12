@@ -344,6 +344,60 @@ class TestConfirmarImportacaoScpi:
             assert arquivo.read() == csv_bytes
         assert do_banco.arquivo.name.endswith('.csv')
 
+    def test_hash_confere_com_sha256_do_arquivo_persistido(
+        self, db, settings, tmp_path, superuser, estoque_principal
+    ):
+        """O hash gravado descreve o arquivo que ficou no storage, não outro."""
+        import hashlib
+
+        from apps.estoque.models import ImportacaoSCPI
+        from apps.estoque.services import confirmar_importacao_scpi
+
+        settings.MEDIA_ROOT = str(tmp_path)
+        csv_bytes = self._csv('000.999.610', 'Bucha S8', '3.000')
+        importacao = confirmar_importacao_scpi(
+            ator_id=superuser.pk,
+            conteudo_bytes=csv_bytes,
+            arquivo_nome='conferencia.csv',
+            estoque_id=estoque_principal.pk,
+        )
+        do_banco = ImportacaoSCPI.objects.get(pk=importacao.pk)
+        with do_banco.arquivo.open('rb') as arquivo:
+            hash_do_arquivo = hashlib.sha256(arquivo.read()).hexdigest()
+        assert hash_do_arquivo == do_banco.arquivo_hash
+
+    def test_falha_ao_persistir_arquivo_desfaz_importacao(
+        self, db, settings, tmp_path, monkeypatch, superuser, estoque_principal
+    ):
+        """Erro de storage desfaz a confirmação inteira — as três tabelas do mesmo atomic."""
+        import pytest
+        from django.core.files.storage import FileSystemStorage
+
+        from apps.estoque.models import ImportacaoSCPI, Material, SaldoEstoque
+        from apps.estoque.services import confirmar_importacao_scpi
+
+        settings.MEDIA_ROOT = str(tmp_path)
+
+        def _disco_cheio(self, name, content, max_length=None):
+            raise OSError('sem espaço em disco')
+
+        monkeypatch.setattr(FileSystemStorage, '_save', _disco_cheio)
+
+        csv_bytes = self._csv('000.999.700', 'Cantoneira 40mm', '9.000')
+        with pytest.raises(OSError):
+            confirmar_importacao_scpi(
+                ator_id=superuser.pk,
+                conteudo_bytes=csv_bytes,
+                arquivo_nome='rollback.csv',
+                estoque_id=estoque_principal.pk,
+            )
+
+        assert not ImportacaoSCPI.objects.filter(arquivo_nome='rollback.csv').exists()
+        assert not Material.objects.filter(codigo='000.999.700').exists()
+        assert not SaldoEstoque.objects.filter(
+            material__codigo='000.999.700'
+        ).exists()
+
     def test_cria_material_novo_com_saldo_inicial(
         self, db, superuser, estoque_principal
     ):
