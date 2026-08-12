@@ -85,9 +85,14 @@ estrutural, não parâmetro de implantação.
     AXES_RESET_ON_SUCCESS = True
     AXES_RESET_COOL_OFF_ON_FAILURE_DURING_LOCKOUT = True
     AXES_ENABLE_ACCESS_FAILURE_LOG = True
-    AXES_ENABLE_RETRY_AFTER_HEADER = True
     AXES_LOCKOUT_TEMPLATE = 'accounts/login_bloqueado.html'
     ```
+    Uma versão anterior deste plano previa também
+    `AXES_ENABLE_RETRY_AFTER_HEADER = True`, para que a resposta de bloqueio
+    trouxesse `Retry-After`. **A setting não existe na 8.3.1** — é feature do
+    master, ainda não lançada. O Django aceitaria o nome em silêncio e o header
+    nunca apareceria; a linha ficou de fora, e o prazo é comunicado só pela
+    página de bloqueio.
     `AXES_USERNAME_FORM_FIELD = 'username'` **não** é redundante, apesar de
     `'username'` parecer o óbvio: o default do axes é
     `get_user_model().USERNAME_FIELD`, que neste projeto é `'matricula'`. Mas
@@ -124,23 +129,27 @@ estrutural, não parâmetro de implantação.
   deixa o cliente escolher o próprio IP (e, aqui, escapar do lockout trocando o
   cabeçalho a cada tentativa).
 
-  `REMOTE_ADDR` fica na lista como **segundo** item, e não pode ser omitido: a
-  precedência substitui o default `('REMOTE_ADDR',)` em vez de estendê-lo, então
-  uma lista só com `HTTP_X_FORWARDED_FOR` faria requisição sem o cabeçalho
-  resolver IP `None` — e aí as falhas voltam a se agrupar sob
-  `(matricula, None)`, um bucket que ignora origem. Com o fallback, o pior caso
-  é o IP do próprio proxy: bucket compartilhado, degradado, mas ainda ancorado
-  em algo. Fora do bloco de proxy, a precedência continua sendo o default do
-  axes (`REMOTE_ADDR` apenas), o que faz um `X-Forwarded-For` forjado pelo
-  cliente ser simplesmente ignorado.
+  `REMOTE_ADDR` fica na lista como **segundo** item porque a precedência
+  substitui o default `('REMOTE_ADDR',)` em vez de estendê-lo. **Mas ele não é
+  o recuo geral que uma versão anterior deste plano afirmava** — a
+  implementação mostrou o contrário. `AXES_IPWARE_PROXY_COUNT` faz o ipware
+  validar a contagem de proxies **por origem** (`is_proxy_count_valid`), e
+  `REMOTE_ADDR` sozinho tem zero proxies: é descartado igual ao cabeçalho
+  ausente, e o IP sai `None`. A tentativa então fica chaveada só pela matrícula.
+  Isso ainda bloqueia e não contamina outros usuários, mas sinaliza que alguém
+  alcançou o Django por fora do proxy — o GL-02 cobra que isso seja impossível.
+  Fora do bloco de proxy, a precedência continua sendo o default do axes
+  (`REMOTE_ADDR` apenas), o que faz um `X-Forwarded-For` forjado pelo cliente
+  ser simplesmente ignorado.
 
-  **Contrato de resolução de IP** (fixado pelos testes 10–12):
+  **Contrato de resolução de IP** (fixado pelos testes 10–13):
 
   | Cenário | IP usado |
   |---|---|
   | Proxy desligado, cliente envia `X-Forwarded-For` | `REMOTE_ADDR`; o cabeçalho é ignorado. |
   | Proxy ligado, cadeia válida com 1 proxy | IP do cliente, extraído da cadeia. |
-  | Proxy ligado, cabeçalho ausente ou inválido | `REMOTE_ADDR` (o do proxy), pelo fallback. |
+  | Proxy ligado, requisição direta (sem cabeçalho) | `None` — chave só pela matrícula. |
+  | Proxy ligado, cabeçalho forjado com contagem errada | `None` — descartado pela validação. |
 
 - **`apps/accounts/templates/accounts/login_bloqueado.html`** — nova página de
   bloqueio, servida pelo `AxesMiddleware` com status **429 Too Many Requests**
@@ -189,13 +198,24 @@ estrutural, não parâmetro de implantação.
   "Decisão registrada") vêm com migrations do próprio pacote e não
   ficam sob `apps/**/migrations/` — a regra de migrations efêmeras do projeto
   não se aplica a elas.
-- **Testes existentes.** Nenhum é editado. Toda a suíte autentica via
-  `client.force_login`, que não passa pelo pipeline de `authenticate()` e
-  portanto não dispara o axes; e não há uma única chamada a `client.login()` no
-  repositório (que seria o caso problemático, por não repassar `request` ao
-  backend). Os testes de `test_login.py` que postam senha errada fazem **uma**
-  falha por teste, e cada teste roda em transação própria — nenhum se aproxima
-  do limite de 5.
+- **Testes existentes.** Quase nenhum é editado — mas **dois** são, e a versão
+  anterior deste plano errou ao afirmar que nenhum seria. A quase totalidade da
+  suíte autentica via `client.force_login`, que não passa pelo pipeline de
+  `authenticate()` e portanto não dispara o axes. As duas exceções autenticam
+  por caminhos que o `AxesStandaloneBackend` recusa sem um `request`:
+
+  - `apps/requisicoes/tests/test_views.py`, helper `_login` — usava
+    `client.login()`, que o test client chama sem repassar `request`. Passa a
+    usar `force_login`, idioma do resto da suíte. Uma linha; 363 testes
+    dependiam dela.
+  - `apps/core/tests/test_seed_dev.py` — chama `authenticate()` direto para
+    provar que a senha do seed funciona. Passa a receber `rf.post('/')`, o que
+    mantém o teste exercitando a cadeia de backends real em vez de desligar o
+    axes para contorná-la.
+
+  Os testes de `test_login.py` que postam senha errada fazem **uma** falha por
+  teste, e cada teste roda em transação própria — nenhum se aproxima do limite
+  de 5.
 - **`config/settings/test.py`.** O axes fica **ligado** na suíte. `AXES_ENABLED =
   False` existe e é tentador, mas desligá-lo tornaria os testes de lockout deste
   plano impossíveis de escrever contra o comportamento real.
@@ -254,8 +274,9 @@ Comportamentos cobertos:
 2. **Abaixo do limite não bloqueia** — 4 falhas seguidas e a 4ª ainda responde
    200 com o formulário de login, não a página de bloqueio. Fixa o limiar por
    baixo.
-3. **No limite bloqueia** — a 5ª falha responde **429**, renderiza
-   `accounts/login_bloqueado.html` e traz `Retry-After: 900`.
+3. **No limite bloqueia** — a 5ª falha responde **429** e renderiza
+   `accounts/login_bloqueado.html`. Sem asserção de `Retry-After`: a 8.3.1 não
+   emite o header (ver acima).
 4. **Bloqueio vale contra senha correta** — depois de bloqueado, POST com a
    senha **certa** ainda responde 429 e
    `resposta.wsgi_request.user.is_authenticated` é falso. Este é o teste que
@@ -286,15 +307,22 @@ Comportamentos cobertos:
 11. **Proxy ligado usa o IP da cadeia** — sob `override_settings` com a
     precedência e `AXES_IPWARE_PROXY_COUNT = 1`, cadeia
     `X-Forwarded-For: 203.0.113.9, 10.0.0.1` resolve `203.0.113.9`.
-12. **Proxy ligado sem cabeçalho cai em `REMOTE_ADDR`** — mesmas settings, sem
-    `X-Forwarded-For`: a tentativa é gravada com o `REMOTE_ADDR` e **não** com
-    `ip_address=None`. Fixa a razão de `REMOTE_ADDR` estar na precedência.
-13. **Página de bloqueio** — 429, PT-BR, herda `base.html`, traz a janela de 15
-    minutos no texto, e **não** contém a matrícula tentada (não-oráculo). A
-    asserção de ausência usa uma matrícula que não aparece em nenhum outro
-    lugar do HTML, para não passar por acidente.
+12. **Proxy ligado, requisição direta, fica sem IP** — mesmas settings, sem
+    `X-Forwarded-For`: a tentativa é gravada com `ip_address=None`, e **não**
+    com o `REMOTE_ADDR`. Documenta o limite real da precedência: com
+    `AXES_IPWARE_PROXY_COUNT = 1`, o ipware descarta `REMOTE_ADDR` por ter zero
+    proxies.
+13. **Proxy ligado, cabeçalho forjado sem cadeia, é descartado** — cliente que
+    inventa um `X-Forwarded-For` de uma entrada só não vira dono do próprio IP:
+    o proxy real acrescentaria uma entrada, e a contagem errada reprova.
+14. **Página de bloqueio** — 429, PT-BR, herda `base.html`, e **não** contém a
+    matrícula tentada (não-oráculo), com uma matrícula que não aparece em
+    nenhum outro lugar do HTML para a asserção não passar por acidente. A
+    janela exibida é comparada contra `settings.AXES_COOLOFF_TIME`, não contra
+    um número digitado no teste: mudar a setting sem mexer no template derruba
+    o teste em vez de deixar a página mentindo.
 
-Os testes 10–12 leem `AccessAttempt.ip_address` diretamente, sem passar do
+Os testes 10–13 leem `AccessAttempt.ip_address` diretamente, sem passar do
 limite de falhas: o que está sob teste é a **chave** da tentativa, não o
 bloqueio.
 
