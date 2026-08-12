@@ -10,7 +10,7 @@ filtros ativos ao navegar. Alvos de toque min-h-11, focáveis.
     class="mt-6 flex items-center justify-between gap-3"
     aria-label="{{ aria_label|default:'Paginação' }}"
   >
-    <p class="text-sm text-slate-600">
+    <p class="text-sm text-text-secondary">
       Página <span class="font-medium tabular-nums">{{ page_obj.number }}</span>
       de <span class="font-medium tabular-nums">{{ page_obj.paginator.num_pages }}</span>
       <span class="text-text-disabled">·</span>
@@ -27,7 +27,7 @@ filtros ativos ao navegar. Alvos de toque min-h-11, focáveis.
         </a>
       {% else %}
         <span
-          class="inline-flex min-h-11 cursor-not-allowed items-center rounded-md border border-slate-100 bg-bg-page px-3 py-2 text-sm font-medium text-slate-300"
+          class="inline-flex min-h-11 cursor-not-allowed items-center rounded-md border border-border bg-bg-page px-3 py-2 text-sm font-medium text-text-disabled"
           aria-disabled="true"
         >
           Anterior
@@ -43,7 +43,7 @@ filtros ativos ao navegar. Alvos de toque min-h-11, focáveis.
         </a>
       {% else %}
         <span
-          class="inline-flex min-h-11 cursor-not-allowed items-center rounded-md border border-slate-100 bg-bg-page px-3 py-2 text-sm font-medium text-slate-300"
+          class="inline-flex min-h-11 cursor-not-allowed items-center rounded-md border border-border bg-bg-page px-3 py-2 text-sm font-medium text-text-disabled"
           aria-disabled="true"
         >
           Próxima
