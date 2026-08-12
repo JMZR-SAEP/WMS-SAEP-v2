@@ -324,10 +324,14 @@ def nova_requisicao(request):
 @login_required
 @require_http_methods(['GET', 'POST'])
 def editar_rascunho_view(request, pk: int):
-    requisicao = get_object_or_404(
-        Requisicao.objects.select_related('beneficiario__setor', 'setor_beneficiario'),
-        pk=pk,
-    )
+    """Edita os itens e a observação geral de um rascunho.
+
+    Escopo de visibilidade unificado por ``requisicoes_visiveis_para``; objetos
+    fora do escopo retornam 404 (ADR-0010) para não revelar existência. Os 403
+    seguintes são de ação proibida em objeto visível: ator não-criador e estado
+    diferente de rascunho.
+    """
+    requisicao = get_object_or_404(requisicoes_visiveis_para(request.user.pk), pk=pk)
 
     papel = papel_efetivo(request.user)
     try:
