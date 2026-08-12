@@ -74,7 +74,8 @@ O selector devolve rascunho apenas para o criador (`Q(criador_id=ator.pk)`, sem 
 `nao_rascunho`) e para superusuário. Beneficiário, chefe de setor e almoxarifado só enxergam
 requisições fora de rascunho. Consequências:
 
-- **Rascunho de terceiro** → fora do queryset → `404`. Vale para `GET` e `POST`, já que o
+- **Rascunho fora do escopo do ator** — isto é, rascunho de terceiro para ator não
+  superusuário → fora do queryset → `404`. Vale para `GET` e `POST`, já que o
   `get_object_or_404` está acima do `if request.method == 'POST'`. É o critério 1 e fecha o
   probing de pk descrito na issue.
 - **Requisição visível, ator não-criador** → só é possível fora de rascunho (beneficiário,
