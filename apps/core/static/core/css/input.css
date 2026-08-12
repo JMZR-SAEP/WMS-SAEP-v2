@@ -104,6 +104,26 @@
   /* ─── Layout ───────────────────────────────────────────────────────── */
   --width-content:           80rem;   /* max-w-screen-xl — container principal */
   --width-card-sm:           24rem;   /* max-w-sm — card de login */
+  /* Alvo mínimo de toque — a mesma tela é operada com o dedo, em pé, no galpão */
+  --size-touch-target:       2.75rem; /* 44px (min-h-11) */
+}
+
+/*
+  Altura da barra de aplicação — token global, não do componente.
+  Vive em :root porque é consumida fora da subárvore de .app-bar (a sidebar é
+  irmã do <header> e usa o valor em `top` e `height`; custom property declarada
+  no componente não é herdada por irmãos).
+*/
+@layer base {
+  :root {
+    --app-bar-height: 3.5rem;          /* 56dp regular mobile (MD2 spec) */
+  }
+
+  @media (min-width: 40rem) {
+    :root {
+      --app-bar-height: 4rem;          /* 64dp desktop regular (MD2 spec) */
+    }
+  }
 }
 
 /* ── Componentes globais ──────────────────────────────────────────────────── */
@@ -116,7 +136,7 @@
   */
 
   .app-bar {
-    --app-bar-height: 3.5rem;          /* 56dp regular mobile (MD2 spec) */
+    /* --app-bar-height vive em :root (ver bloco @layer base acima) */
     --app-bar-bg: var(--color-primary);
     --app-bar-fg: var(--color-text-on-primary);
     --app-bar-fg-muted: oklch(from var(--color-text-on-primary) l c h / 0.72);
@@ -136,12 +156,6 @@
       0 4px 5px 0 rgb(0 0 0 / 0.14),
       0 1px 10px 0 rgb(0 0 0 / 0.12);
     padding-top: env(safe-area-inset-top, 0px);
-  }
-
-  @media (min-width: 40rem) {
-    .app-bar {
-      --app-bar-height: 4rem;          /* 64dp desktop regular (MD2 spec) */
-    }
   }
 
   .app-bar__inner {
@@ -203,8 +217,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 2.5rem;
-    height: 2.5rem;
+    width: var(--size-touch-target);
+    height: var(--size-touch-target);
     border-radius: 9999px;
     color: var(--app-bar-fg);
     background: transparent;
@@ -258,8 +272,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 2.5rem;
-    height: 2.5rem;
+    width: var(--size-touch-target);
+    height: var(--size-touch-target);
     border-radius: 9999px;
     color: var(--app-bar-fg);
     background: transparent;
@@ -301,7 +315,7 @@
     display: inline-flex;
     align-items: center;
     gap: 0.375rem;
-    min-height: 2.25rem;
+    min-height: var(--size-touch-target);
     padding: 0.375rem 0.75rem;
     border-radius: 0.375rem;
     font-size: 0.875rem;
@@ -332,8 +346,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 2.5rem;
-    height: 2.5rem;
+    width: var(--size-touch-target);
+    height: var(--size-touch-target);
     border-radius: 9999px;
     color: var(--app-bar-fg);
     background: transparent;
@@ -373,7 +387,16 @@
       0 3px 14px 2px rgb(0 0 0 / 0.12);
     padding: 0.5rem 0;
     z-index: 40;
-    overflow: hidden;
+    /*
+      O drawer é `absolute` dentro de um header `sticky` e o scroll do body fica
+      travado por `x-trap.noscroll`: sem altura máxima + rolagem própria, tudo o
+      que passa da dobra fica inalcançável (o bloco Conta e "Sair" some para quem
+      tem a navegação completa).
+    */
+    max-height: calc(100dvh - var(--app-bar-height) - env(safe-area-inset-top, 0px) - 1rem);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 
   /* Variant: drawer ancorado pela esquerda (quando hamburger está à esquerda) */
@@ -403,6 +426,7 @@
     align-items: center;
     gap: 0.75rem;
     width: 100%;
+    min-height: var(--size-touch-target);
     padding: 0.625rem 1rem;
     font-size: 0.875rem;
     font-weight: 500;

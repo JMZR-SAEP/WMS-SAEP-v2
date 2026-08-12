@@ -124,7 +124,7 @@
         {% block topbar_overflow %}{% endblock %}
 
         {% if user.is_authenticated %}
-          {# app-bar__action-icon: botão circular 40×40 do design system para ações de ícone #}
+          {# app-bar__action-icon: botão circular de 44×44 (alvo mínimo de toque) do design system para ações de ícone #}
           <a href="{% url 'notificacoes:lista' %}" class="app-bar__action-icon relative" aria-label="Notificações{% if notificacoes_nao_lidas %} — {{ notificacoes_nao_lidas }} não lida{{ notificacoes_nao_lidas|pluralize:'s' }}{% endif %}">
             <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6V11c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
@@ -146,12 +146,12 @@
 
   <div class="lg:flex">
     {% if user.is_authenticated %}
-    <aside class="hidden lg:flex lg:w-60 lg:shrink-0 lg:flex-col lg:sticky lg:top-[var(--app-bar-height)] lg:h-[calc(100vh-var(--app-bar-height))] border-r border-border bg-surface" aria-label="Barra de navegação lateral">
+    <aside class="hidden lg:flex lg:w-60 lg:shrink-0 lg:flex-col lg:sticky lg:top-[var(--app-bar-height)] lg:h-[calc(100dvh-var(--app-bar-height))] border-r border-border bg-surface" aria-label="Barra de navegação lateral">
       <nav class="flex-1 overflow-y-auto py-4 px-3" aria-label="Navegação principal">
         {% with current=request.resolver_match.view_name %}
           <a
             href="{% url 'core:home' %}"
-            class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium {% if current == 'core:home' %}bg-bg-subtle text-text-primary{% else %}text-text-secondary hover:bg-bg-page{% endif %}"
+            class="flex min-h-11 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium {% if current == 'core:home' %}bg-bg-subtle text-text-primary{% else %}text-text-secondary hover:bg-bg-page{% endif %}"
             {% if current == 'core:home' %}aria-current="page"{% endif %}
           >
             <svg class="h-5 w-5 shrink-0 text-text-disabled" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">

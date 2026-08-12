@@ -3,7 +3,8 @@
 <html lang="pt-br">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  {# viewport-fit=cover: sem ele env(safe-area-inset-*) sempre devolve 0 e o respiro do notch na .app-bar não acontece #}
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>{% block title %}WMS-SAEP{% endblock %}</title>
   <link rel="stylesheet" href="{% static 'core/css/app.css' %}">
   {% block extra_head %}{% endblock %}
