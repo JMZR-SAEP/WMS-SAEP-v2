@@ -61,6 +61,26 @@ jobs:
       - run: uv sync --frozen
       - run: uv run mypy apps
 
+  css-build:
+    name: css build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: make css-build
+      - name: verificar app.css versionado
+        run: |
+          if ! git diff --exit-code --stat -- apps/core/static/core/css/app.css; then
+            echo "::error file=apps/core/static/core/css/app.css::app.css versionado diverge do build limpo. Rode 'make css-build' e commite o resultado."
+            exit 1
+          fi
+
   migrations:
     name: migrations
     runs-on: ubuntu-latest
