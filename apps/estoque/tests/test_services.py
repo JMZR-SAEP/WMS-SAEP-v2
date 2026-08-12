@@ -322,6 +322,28 @@ class TestConfirmarImportacaoScpi:
         assert importacao.total_linhas == 1
         assert ImportacaoSCPI.objects.filter(pk=importacao.pk).exists()
 
+    def test_persiste_arquivo_csv_confirmado(
+        self, db, settings, tmp_path, superuser, estoque_principal
+    ):
+        """O CSV confirmado é arquivado, não descartado (base da reconciliação LED-02)."""
+        from apps.estoque.models import ImportacaoSCPI
+        from apps.estoque.services import confirmar_importacao_scpi
+
+        settings.MEDIA_ROOT = str(tmp_path)
+        csv_bytes = self._csv('000.999.600', 'Arruela M8', '7.000')
+        importacao = confirmar_importacao_scpi(
+            ator_id=superuser.pk,
+            conteudo_bytes=csv_bytes,
+            arquivo_nome='saldo_scpi.csv',
+            estoque_id=estoque_principal.pk,
+        )
+        # Relê do banco e abre pelo storage: ler o handle ainda em memória
+        # passaria mesmo que nada tivesse sido gravado.
+        do_banco = ImportacaoSCPI.objects.get(pk=importacao.pk)
+        with do_banco.arquivo.open('rb') as arquivo:
+            assert arquivo.read() == csv_bytes
+        assert do_banco.arquivo.name.endswith('.csv')
+
     def test_cria_material_novo_com_saldo_inicial(
         self, db, superuser, estoque_principal
     ):
