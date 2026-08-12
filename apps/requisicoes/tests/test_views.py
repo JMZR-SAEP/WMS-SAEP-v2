@@ -331,14 +331,20 @@ def test_editar_rascunho_get_sem_login(client, rascunho_solicitante):
 
 
 @pytest.mark.django_db
-def test_editar_rascunho_get_nao_criador_retorna_403(
+def test_editar_rascunho_get_fora_do_escopo_retorna_404(
     client, outro_usuario_obras, rascunho_solicitante
 ):
+    """Rascunho de terceiro está fora do escopo de visibilidade → 404, não 403.
+
+    ADR-0010: objeto fora do escopo do ator devolve 404 para não revelar
+    existência. Um 403 aqui permitiria probing de pk em
+    ``/requisicoes/<pk>/editar/`` (#117).
+    """
     _login(client, outro_usuario_obras)
     resp = client.get(
         reverse('requisicoes:editar_rascunho', kwargs={'pk': rascunho_solicitante.pk})
     )
-    assert resp.status_code == 403
+    assert resp.status_code == 404
 
 
 @pytest.mark.django_db
@@ -353,6 +359,28 @@ def test_editar_rascunho_get_estado_diferente_retorna_403(
         setor_beneficiario=setor_obras,
     )
     _login(client, solicitante)
+    resp = client.get(reverse('requisicoes:editar_rascunho', kwargs={'pk': req.pk}))
+    assert resp.status_code == 403
+
+
+@pytest.mark.django_db
+def test_editar_rascunho_get_visivel_nao_criador_retorna_403(
+    client, solicitante, outro_usuario_obras, setor_obras
+):
+    """Objeto visível + ação proibida → 403, e não 404 (#117).
+
+    O beneficiário enxerga a requisição fora de rascunho, então a fronteira do
+    ADR-0010 não se aplica: o que barra é a policy de ator
+    (``exigir_pode_editar_rascunho``), que exige criador ou superusuário.
+    """
+    req = Requisicao.objects.create(
+        estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+        numero_publico='REQ-2026-000117',
+        criador=solicitante,
+        beneficiario=outro_usuario_obras,
+        setor_beneficiario=setor_obras,
+    )
+    _login(client, outro_usuario_obras)
     resp = client.get(reverse('requisicoes:editar_rascunho', kwargs={'pk': req.pk}))
     assert resp.status_code == 403
 
@@ -439,6 +467,24 @@ def test_editar_rascunho_post_material_inativo_retorna_200_com_erro(
         data,
     )
     assert resp.status_code == 200
+
+
+@pytest.mark.django_db
+def test_editar_rascunho_post_fora_do_escopo_retorna_404(
+    client, outro_usuario_obras, rascunho_solicitante, material_disponivel
+):
+    """A fronteira do ADR-0010 vale para POST, não só para GET (#117).
+
+    ``get_object_or_404`` roda antes do ramo de POST, e a view aceita os dois
+    verbos — sem este teste, uma regressão que reintroduzisse o queryset cru no
+    caminho de escrita passaria despercebida.
+    """
+    _login(client, outro_usuario_obras)
+    resp = client.post(
+        reverse('requisicoes:editar_rascunho', kwargs={'pk': rascunho_solicitante.pk}),
+        _formset_post(material_disponivel.pk),
+    )
+    assert resp.status_code == 404
 
 
 # drift 2: EstadoInvalido no editar_rascunho deve ser warning, não error
