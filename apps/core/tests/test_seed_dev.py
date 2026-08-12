@@ -30,7 +30,7 @@ def test_seed_dev_exige_debug_ativo(settings, monkeypatch):
 
 
 @pytest.mark.django_db
-def test_seed_dev_cria_elenco_canonico_e_converge(settings, monkeypatch):
+def test_seed_dev_cria_elenco_canonico_e_converge(settings, monkeypatch, rf):
     settings.DEBUG = True
     monkeypatch.setenv('SEED_DEV_HABILITADO', 'true')
 
@@ -80,7 +80,11 @@ def test_seed_dev_cria_elenco_canonico_e_converge(settings, monkeypatch):
     sequencia = SequenciaRequisicao.objects.get(ano=ano_atual)
     assert sequencia.ultimo_numero == 7
 
-    usuario = authenticate(username='ALMOX001', password='senha@dev')
+    # O `request` é obrigatório desde o lockout do axes (ADR-0018):
+    # `AxesStandaloneBackend` recusa autenticar sem ele. Passar uma requisição
+    # real mantém o teste exercitando a cadeia de backends de verdade, em vez
+    # de desligar o axes para contorná-la.
+    usuario = authenticate(rf.post('/'), username='ALMOX001', password='senha@dev')
     assert usuario is not None
 
 

@@ -28,8 +28,12 @@ from apps.requisicoes.services import criar_requisicao
 # ---------------------------------------------------------------------------
 
 
-def _login(client, user, password='senha'):
-    client.login(username=user.matricula, password=password)
+def _login(client, user):
+    # `force_login` e não `client.login`: com o lockout do axes ativo
+    # (ADR-0018), `AxesStandaloneBackend` recusa autenticar sem um `request`,
+    # que o test client não repassa. `force_login` é o idioma do resto da
+    # suíte e monta a sessão direto, que é o que estes testes de view querem.
+    client.force_login(user)
 
 
 _TAGS_VAZIAS = {'input', 'br', 'hr', 'img', 'meta', 'link'}
