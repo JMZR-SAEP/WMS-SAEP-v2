@@ -393,3 +393,306 @@ class TestDesativarSetor:
 
         setor_a.refresh_from_db()
         assert setor_a.ativo is True
+
+
+# ---------------------------------------------------------------------------
+# TestRemanejarUsuario — USR-04 (issue #114)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestRemanejarUsuario:
+    def test_chefe_sem_substituto_lanca_conflito(
+        self, superusuario, setor_a, setor_b, usuario_ativo_a
+    ):
+        from apps.core.exceptions import ConflitoDominio
+        from apps.accounts.services import remanejar_usuario
+
+        setor_a.chefe = usuario_ativo_a
+        setor_a.save(update_fields=['chefe'])
+
+        with pytest.raises(ConflitoDominio) as exc_info:
+            remanejar_usuario(
+                ator_id=superusuario.pk,
+                usuario_id=usuario_ativo_a.pk,
+                novo_setor_id=setor_b.pk,
+            )
+
+        assert exc_info.value.code == 'usuario_chefe_remanejado_sem_substituto'
+        usuario_ativo_a.refresh_from_db()
+        assert usuario_ativo_a.setor_id == setor_a.pk
+
+    def test_usuario_sem_chefia_e_remanejado(
+        self, superusuario, setor_b, usuario_ativo_a
+    ):
+        from apps.accounts.services import remanejar_usuario
+
+        remanejar_usuario(
+            ator_id=superusuario.pk,
+            usuario_id=usuario_ativo_a.pk,
+            novo_setor_id=setor_b.pk,
+        )
+
+        usuario_ativo_a.refresh_from_db()
+        assert usuario_ativo_a.setor_id == setor_b.pk
+
+    def test_chefe_com_substituto_troca_chefia_e_remaneja(
+        self, superusuario, setor_a, setor_b, usuario_ativo_a, usuario_ativo_b
+    ):
+        from apps.accounts.services import remanejar_usuario
+
+        setor_a.chefe = usuario_ativo_a
+        setor_a.save(update_fields=['chefe'])
+
+        remanejar_usuario(
+            ator_id=superusuario.pk,
+            usuario_id=usuario_ativo_a.pk,
+            novo_setor_id=setor_b.pk,
+            novo_chefe_id=usuario_ativo_b.pk,
+        )
+
+        setor_a.refresh_from_db()
+        usuario_ativo_a.refresh_from_db()
+        assert setor_a.chefe_id == usuario_ativo_b.pk
+        assert usuario_ativo_a.setor_id == setor_b.pk
+
+    def test_substituto_igual_ao_remanejado_lanca_dados_invalidos(
+        self, superusuario, setor_a, setor_b, usuario_ativo_a
+    ):
+        """Sem esta guarda, o `save` moveria o recém-designado chefe para fora."""
+        from apps.core.exceptions import DadosInvalidos
+        from apps.accounts.services import remanejar_usuario
+
+        setor_a.chefe = usuario_ativo_a
+        setor_a.save(update_fields=['chefe'])
+
+        with pytest.raises(DadosInvalidos) as exc_info:
+            remanejar_usuario(
+                ator_id=superusuario.pk,
+                usuario_id=usuario_ativo_a.pk,
+                novo_setor_id=setor_b.pk,
+                novo_chefe_id=usuario_ativo_a.pk,
+            )
+
+        assert exc_info.value.code == 'substituto_igual_ao_remanejado'
+        setor_a.refresh_from_db()
+        usuario_ativo_a.refresh_from_db()
+        assert setor_a.chefe_id == usuario_ativo_a.pk
+        assert usuario_ativo_a.setor_id == setor_a.pk
+
+    def test_chefe_de_setor_inativo_tambem_exige_substituto(
+        self, superusuario, setor_a, setor_b, usuario_ativo_a
+    ):
+        """O invariante `chefe.setor_id == setor.id` não é qualificado por `ativo`."""
+        from apps.core.exceptions import ConflitoDominio
+        from apps.accounts.services import remanejar_usuario
+
+        setor_a.chefe = usuario_ativo_a
+        setor_a.ativo = False
+        setor_a.save(update_fields=['chefe', 'ativo'])
+
+        with pytest.raises(ConflitoDominio) as exc_info:
+            remanejar_usuario(
+                ator_id=superusuario.pk,
+                usuario_id=usuario_ativo_a.pk,
+                novo_setor_id=setor_b.pk,
+            )
+
+        assert exc_info.value.code == 'usuario_chefe_remanejado_sem_substituto'
+        usuario_ativo_a.refresh_from_db()
+        assert usuario_ativo_a.setor_id == setor_a.pk
+
+    def test_setor_inexistente_lanca_dados_invalidos(
+        self, superusuario, setor_a, usuario_ativo_a
+    ):
+        from apps.core.exceptions import DadosInvalidos
+        from apps.accounts.services import remanejar_usuario
+
+        with pytest.raises(DadosInvalidos) as exc_info:
+            remanejar_usuario(
+                ator_id=superusuario.pk,
+                usuario_id=usuario_ativo_a.pk,
+                novo_setor_id=999_999,
+            )
+
+        assert exc_info.value.code == 'referencia_invalida'
+        usuario_ativo_a.refresh_from_db()
+        assert usuario_ativo_a.setor_id == setor_a.pk
+
+    def test_mesmo_setor_e_idempotente(self, superusuario, setor_a, usuario_ativo_a):
+        from apps.accounts.services import remanejar_usuario
+
+        remanejar_usuario(
+            ator_id=superusuario.pk,
+            usuario_id=usuario_ativo_a.pk,
+            novo_setor_id=setor_a.pk,
+        )
+
+        usuario_ativo_a.refresh_from_db()
+        assert usuario_ativo_a.setor_id == setor_a.pk
+
+    def test_ator_nao_superusuario_lanca_permissao_negada(
+        self, setor_a, setor_b, usuario_ativo_a, usuario_ativo_b
+    ):
+        from apps.core.exceptions import PermissaoNegada
+        from apps.accounts.services import remanejar_usuario
+
+        with pytest.raises(PermissaoNegada):
+            remanejar_usuario(
+                ator_id=usuario_ativo_a.pk,
+                usuario_id=usuario_ativo_b.pk,
+                novo_setor_id=setor_b.pk,
+            )
+
+        usuario_ativo_b.refresh_from_db()
+        assert usuario_ativo_b.setor_id == setor_a.pk
+
+    def test_remanejar_para_lotacao_nula(self, superusuario, usuario_ativo_a):
+        """`User.setor` é nulo por design (bootstrap, cadastro incompleto)."""
+        from apps.accounts.services import remanejar_usuario
+
+        remanejar_usuario(
+            ator_id=superusuario.pk,
+            usuario_id=usuario_ativo_a.pk,
+            novo_setor_id=None,
+        )
+
+        usuario_ativo_a.refresh_from_db()
+        assert usuario_ativo_a.setor_id is None
+
+    def test_fluxo_troca_chefia_depois_remaneja(
+        self, superusuario, setor_a, setor_b, usuario_ativo_a, usuario_ativo_b
+    ):
+        """Critério de aceite: é o fluxo que a mensagem de bloqueio instrui."""
+        from apps.accounts.services import remanejar_usuario, trocar_chefe_setor
+
+        setor_a.chefe = usuario_ativo_a
+        setor_a.save(update_fields=['chefe'])
+
+        trocar_chefe_setor(
+            ator_id=superusuario.pk,
+            setor_id=setor_a.pk,
+            novo_chefe_id=usuario_ativo_b.pk,
+        )
+        remanejar_usuario(
+            ator_id=superusuario.pk,
+            usuario_id=usuario_ativo_a.pk,
+            novo_setor_id=setor_b.pk,
+        )
+
+        setor_a.refresh_from_db()
+        usuario_ativo_a.refresh_from_db()
+        assert setor_a.chefe_id == usuario_ativo_b.pk
+        assert usuario_ativo_a.setor_id == setor_b.pk
+
+    def test_usuario_inexistente_lanca_dados_invalidos(self, superusuario, setor_b):
+        from apps.core.exceptions import DadosInvalidos
+        from apps.accounts.services import remanejar_usuario
+
+        with pytest.raises(DadosInvalidos) as exc_info:
+            remanejar_usuario(
+                ator_id=superusuario.pk,
+                usuario_id=999_999,
+                novo_setor_id=setor_b.pk,
+            )
+
+        assert exc_info.value.code == 'referencia_invalida'
+
+    def test_novo_chefe_inexistente_lanca_dados_invalidos(
+        self, superusuario, setor_a, setor_b, usuario_ativo_a
+    ):
+        """Usuário sem chefia: o ramo que chamaria `trocar_chefe_setor` não roda.
+
+        Sem a conferência de todas as chaves obrigatórias, o id inválido passaria
+        batido e a operação terminaria com sucesso.
+        """
+        from apps.core.exceptions import DadosInvalidos
+        from apps.accounts.services import remanejar_usuario
+
+        with pytest.raises(DadosInvalidos) as exc_info:
+            remanejar_usuario(
+                ator_id=superusuario.pk,
+                usuario_id=usuario_ativo_a.pk,
+                novo_setor_id=setor_b.pk,
+                novo_chefe_id=999_999,
+            )
+
+        assert exc_info.value.code == 'referencia_invalida'
+        usuario_ativo_a.refresh_from_db()
+        assert usuario_ativo_a.setor_id == setor_a.pk
+
+    def test_usuario_apagado_na_janela_vira_erro_de_dominio(
+        self, monkeypatch, superusuario, setor_b, usuario_ativo_a
+    ):
+        """Entre a consulta de setores e o lock de `User` cabe uma exclusão.
+
+        Sem a conferência das chaves obrigatórias, o `KeyError` escaparia como
+        HTTP 500 em vez de virar erro de domínio.
+        """
+        from apps.core.exceptions import DadosInvalidos
+        from apps.accounts import services
+
+        travar_setores_original = services._travar_setores
+
+        def _apaga_usuario_depois_de_travar(**criterios):
+            travados = travar_setores_original(**criterios)
+            User.objects.filter(pk=usuario_ativo_a.pk).delete()
+            return travados
+
+        monkeypatch.setattr(
+            services, '_travar_setores', _apaga_usuario_depois_de_travar
+        )
+
+        with pytest.raises(DadosInvalidos) as exc_info:
+            services.remanejar_usuario(
+                ator_id=superusuario.pk,
+                usuario_id=usuario_ativo_a.pk,
+                novo_setor_id=setor_b.pk,
+            )
+
+        assert exc_info.value.code == 'referencia_invalida'
+
+    def test_setor_destino_apagado_na_janela_vira_erro_de_dominio(
+        self, monkeypatch, superusuario, setor_a, setor_b, usuario_ativo_a
+    ):
+        """Sem o lock do destino, a exclusão viraria `IntegrityError` no UPDATE."""
+        from apps.core.exceptions import DadosInvalidos
+        from apps.accounts import services
+
+        travar_setores_original = services._travar_setores
+
+        def _apaga_destino_antes_de_travar(**criterios):
+            Setor.objects.filter(pk=setor_b.pk).delete()
+            return travar_setores_original(**criterios)
+
+        monkeypatch.setattr(services, '_travar_setores', _apaga_destino_antes_de_travar)
+
+        with pytest.raises(DadosInvalidos) as exc_info:
+            services.remanejar_usuario(
+                ator_id=superusuario.pk,
+                usuario_id=usuario_ativo_a.pk,
+                novo_setor_id=setor_b.pk,
+            )
+
+        assert exc_info.value.code == 'referencia_invalida'
+        usuario_ativo_a.refresh_from_db()
+        assert usuario_ativo_a.setor_id == setor_a.pk
+
+
+@pytest.mark.django_db
+def test_desativar_usuario_nao_vaza_existencia_para_ator_sem_permissao(
+    usuario_ativo_a,
+):
+    """Ator sem `pode_gerir_cadastro` recebe `PermissaoNegada` mesmo com id inexistente.
+
+    A ordem mudou no #114: o lock de `User` saiu do bloco de validação
+    preliminar para respeitar a ordem canônica `Setor` → `User`, então a
+    existência de `usuario_id` passou a ser conferida **depois** da policy. Antes
+    a resposta era `DadosInvalidos`, o que distinguia id existente de inexistente
+    para quem não pode gerir cadastro.
+    """
+    from apps.core.exceptions import PermissaoNegada
+    from apps.accounts.services import desativar_usuario
+
+    with pytest.raises(PermissaoNegada):
+        desativar_usuario(ator_id=usuario_ativo_a.pk, usuario_id=999_999)

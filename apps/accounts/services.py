@@ -2,11 +2,46 @@
 
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from apps.accounts.models import Setor, User, VinculoAuxiliar
 from apps.accounts.papeis import papel_efetivo
 from apps.core.exceptions import ConflitoDominio, DadosInvalidos
+
+
+def _travar_setores(**criterios: Q) -> dict[int, Setor]:
+    """Trava setores por pk crescente numa única consulta, indexados por pk.
+
+    Ordem canônica de aquisição de locks em `accounts`: primeiro as linhas de
+    `Setor`, por pk crescente; depois as de `User`, por pk crescente. Duas
+    transações que travem as mesmas linhas em ordens opostas formam um ciclo, e
+    o desfecho é `OperationalError` do PostgreSQL — não um erro de domínio.
+
+    Os critérios são combinados por `OR` numa consulta só de propósito: um setor
+    pode ser encontrado por `chefe_id` e outro por `pk`, então não há como saber
+    os dois pks antes de consultar. Duas consultas travariam em ordem não
+    determinística.
+    """
+    if not criterios:
+        # `filter(Q())` travaria a tabela inteira em vez de nenhuma linha.
+        raise ValueError('_travar_setores exige ao menos um critério.')
+    filtro = Q()
+    for parcial in criterios.values():
+        filtro |= parcial
+    travados = Setor.objects.select_for_update().filter(filtro).order_by('pk')
+    return {setor.pk: setor for setor in travados}
+
+
+def _travar_usuarios(*usuario_ids: int | None) -> dict[int, User]:
+    """Trava usuários por pk crescente e devolve os encontrados, indexados por pk.
+
+    Ids ausentes vêm no retorno como chaves faltando; a tradução para
+    `DadosInvalidos` fica com o chamador, que sabe quais ids eram obrigatórios.
+    """
+    ids = sorted({i for i in usuario_ids if i is not None})
+    travados = User.objects.select_for_update().filter(pk__in=ids).order_by('pk')
+    return {usuario.pk: usuario for usuario in travados}
 
 
 @transaction.atomic
@@ -16,8 +51,8 @@ def trocar_chefe_setor(*, ator_id: int, setor_id: int, novo_chefe_id: int) -> No
 
     try:
         ator = User.objects.get(pk=ator_id)
-        setor = Setor.objects.select_for_update().get(pk=setor_id)
-        novo_chefe = User.objects.select_for_update().get(pk=novo_chefe_id)
+        Setor.objects.get(pk=setor_id)
+        User.objects.get(pk=novo_chefe_id)
     except ObjectDoesNotExist as exc:
         raise DadosInvalidos(
             'Referência inválida.', code='referencia_invalida'
@@ -25,6 +60,13 @@ def trocar_chefe_setor(*, ator_id: int, setor_id: int, novo_chefe_id: int) -> No
 
     papel = papel_efetivo(ator)
     exigir_pode_gerir_cadastro(papel)
+
+    # Ordem canônica de locks: Setor antes de User.
+    setores = _travar_setores(alvo=Q(pk=setor_id))
+    usuarios = _travar_usuarios(novo_chefe_id)
+    if setor_id not in setores or novo_chefe_id not in usuarios:
+        raise DadosInvalidos('Referência inválida.', code='referencia_invalida')
+    setor, novo_chefe = setores[setor_id], usuarios[novo_chefe_id]
 
     if not novo_chefe.is_active:
         raise DadosInvalidos(
@@ -60,7 +102,6 @@ def desativar_usuario(
 
     try:
         ator = User.objects.get(pk=ator_id)
-        usuario = User.objects.select_for_update().get(pk=usuario_id)
     except ObjectDoesNotExist as exc:
         raise DadosInvalidos(
             'Referência inválida.', code='referencia_invalida'
@@ -69,10 +110,18 @@ def desativar_usuario(
     papel = papel_efetivo(ator)
     exigir_pode_gerir_cadastro(papel)
 
+    # Ordem canônica: Setor antes de User. Antes, o usuário era travado no bloco
+    # de validação, acima da policy — ordem inversa à de `trocar_chefe_setor`.
+    setores = _travar_setores(chefiado=Q(chefe_id=usuario_id, ativo=True))
+    usuarios = _travar_usuarios(usuario_id, novo_chefe_id)
+    if usuario_id not in usuarios:
+        raise DadosInvalidos('Referência inválida.', code='referencia_invalida')
+    usuario = usuarios[usuario_id]
+
     if not usuario.is_active:
         return
 
-    setor_chefiado = Setor.objects.filter(chefe=usuario, ativo=True).first()
+    setor_chefiado = next(iter(setores.values()), None)
     if setor_chefiado:
         if novo_chefe_id is None:
             raise ConflitoDominio(
@@ -88,6 +137,77 @@ def desativar_usuario(
 
     usuario.is_active = False
     usuario.save(update_fields=['is_active'])
+
+
+@transaction.atomic
+def remanejar_usuario(
+    *,
+    ator_id: int,
+    usuario_id: int,
+    novo_setor_id: int | None,
+    novo_chefe_id: int | None = None,
+) -> None:
+    """Muda a lotação, bloqueando se chefia setor sem substituto (USR-04).
+
+    Bloqueia a saída de qualquer chefe de setor, ativo ou inativo — o invariante
+    `chefe.setor_id == setor.id` do docstring de `Setor` não é qualificado por
+    `ativo`. `desativar_usuario` mantém o recorte `ativo=True`; a assimetria é
+    deliberada e está declarada no plano do #114.
+    """
+    from apps.accounts.policies import exigir_pode_gerir_cadastro
+
+    try:
+        ator = User.objects.get(pk=ator_id)
+    except ObjectDoesNotExist as exc:
+        raise DadosInvalidos(
+            'Referência inválida.', code='referencia_invalida'
+        ) from exc
+
+    papel = papel_efetivo(ator)
+    exigir_pode_gerir_cadastro(papel)
+
+    # Ordem canônica: Setor antes de User, cada grupo por pk crescente.
+    setores = _travar_setores(
+        chefiado=Q(chefe_id=usuario_id),
+        destino=Q(pk=novo_setor_id) if novo_setor_id is not None else Q(pk__in=[]),
+    )
+    if novo_setor_id is not None and novo_setor_id not in setores:
+        raise DadosInvalidos('Referência inválida.', code='referencia_invalida')
+    setor_chefiado = next(
+        (setor for setor in setores.values() if setor.chefe_id == usuario_id), None
+    )
+
+    usuarios = _travar_usuarios(usuario_id, novo_chefe_id)
+    obrigatorios = {usuario_id} | ({novo_chefe_id} - {None})
+    if not obrigatorios <= usuarios.keys():
+        raise DadosInvalidos('Referência inválida.', code='referencia_invalida')
+    usuario = usuarios[usuario_id]
+
+    if usuario.setor_id == novo_setor_id:
+        return
+
+    if setor_chefiado:
+        if novo_chefe_id is None:
+            raise ConflitoDominio(
+                f"Usuário '{usuario.nome}' é chefe do setor "
+                f"'{setor_chefiado.nome}'. Troque a chefia do setor antes de "
+                'remanejar a lotação.',
+                code='usuario_chefe_remanejado_sem_substituto',
+            )
+        if novo_chefe_id == usuario.pk:
+            raise DadosInvalidos(
+                f"Usuário '{usuario.nome}' não pode ser o próprio substituto "
+                'na chefia.',
+                code='substituto_igual_ao_remanejado',
+            )
+        trocar_chefe_setor(
+            ator_id=ator_id,
+            setor_id=setor_chefiado.pk,
+            novo_chefe_id=novo_chefe_id,
+        )
+
+    usuario.setor_id = novo_setor_id
+    usuario.save(update_fields=['setor'])
 
 
 @transaction.atomic

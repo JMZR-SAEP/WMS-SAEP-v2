@@ -1,4 +1,7 @@
+import logging
+
 from django.contrib import admin, messages
+from django.db import OperationalError
 from django.http import HttpResponseRedirect
 
 from apps.accounts.models import Setor, User, VinculoAuxiliar
@@ -8,6 +11,12 @@ from apps.core.exceptions import (
     EstadoInvalido,
     PermissaoNegada,
 )
+
+logger = logging.getLogger(__name__)
+
+# 40P01 deadlock_detected, 40001 serialization_failure: a transação foi abortada
+# por concorrência e a mesma operação, repetida, tende a passar.
+SQLSTATES_RETENTAVEIS = frozenset({'40P01', '40001'})
 
 
 def _changeform_com_captura_dominio(
@@ -32,6 +41,23 @@ def _changeform_com_captura_dominio(
         return HttpResponseRedirect(request.get_full_path())
     except ErroDominio as exc:
         admin_instance.message_user(request, str(exc), level=messages.ERROR)
+        return HttpResponseRedirect(request.get_full_path())
+    except OperationalError as exc:
+        # Contenção, não prevenção: a ordem canônica de locks em `services` é o
+        # que evita o ciclo. Este ramo existe para o caso de um escapar mesmo
+        # assim, e é restrito por SQLSTATE — dizer "tente novamente" para uma
+        # conexão caída transformaria indisponibilidade em erro de formulário.
+        if getattr(exc.__cause__, 'sqlstate', None) not in SQLSTATES_RETENTAVEIS:
+            raise
+        logger.warning(
+            'operação administrativa abortada por concorrência', exc_info=exc
+        )
+        admin_instance.message_user(
+            request,
+            'A operação não pôde ser concluída por concorrência com outra '
+            'alteração de cadastro. Tente novamente.',
+            level=messages.ERROR,
+        )
         return HttpResponseRedirect(request.get_full_path())
 
 
@@ -123,6 +149,23 @@ class UserAdmin(admin.ModelAdmin):
                 )
             desativar_usuario(ator_id=request.user.pk, usuario_id=obj.pk)
             return  # service já persistiu; super sobrescreveria dados de auditoria
+
+        if change and 'setor' in form.changed_data:
+            from apps.accounts.services import remanejar_usuario
+            from apps.core.exceptions import ConflitoDominio
+
+            campos_extras = set(form.changed_data) - {'setor'}
+            if campos_extras:
+                raise ConflitoDominio(
+                    'Remaneje a lotação separadamente de outras alterações de cadastro.',
+                    code='remanejamento_com_campos_extras',
+                )
+            remanejar_usuario(
+                ator_id=request.user.pk,
+                usuario_id=obj.pk,
+                novo_setor_id=obj.setor_id,
+            )
+            return  # service já persistiu; super sobrescreveria com os dados do form
         super().save_model(request, obj, form, change)
 
 
