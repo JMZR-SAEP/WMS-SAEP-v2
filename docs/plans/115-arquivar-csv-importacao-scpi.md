@@ -46,13 +46,27 @@ para download na tela de histórico, atrás da policy que já existe.
   nunca escreva no `media/` do desenvolvedor. Entrada nova no `.gitignore`. O
   diretório é descartável e acumula resíduo entre execuções — inócuo porque
   nenhum teste afirma caminho gravado, e apagável a qualquer momento.
-- **`apps/estoque/views.py`** — nova `baixar_arquivo_importacao_scpi_view(request, pk)`:
-  `@login_required` + `@require_http_methods(['GET'])`, chama
-  `exigir_pode_consultar_historico_scpi(papel)` e traduz `PermissaoNegada` para
-  `PermissionDenied`, igual às views irmãs. Carrega a importação pelo ORM direto
-  (leitura trivial, mesmo padrão de `sucesso_importacao_scpi_view`), levanta
-  `Http404` quando o pk não existe **ou** quando a importação não tem arquivo, e
-  devolve `FileResponse(..., as_attachment=True, filename=<basename de arquivo_nome>)`.
+- **`apps/estoque/selectors.py`** — novo `buscar_importacao_scpi(*, importacao_id)`,
+  irmão de `buscar_detalhe_saida_excepcional`: devolve a `ImportacaoSCPI` ou
+  `None`. A leitura do download vive aqui, não na view.
+  `sucesso_importacao_scpi_view`, que hoje faz a mesma leitura pelo ORM direto,
+  **não** é refatorada nesta issue — trocar a leitura de uma view que este plano
+  não toca é escopo alheio.
+- **`apps/estoque/views.py`** — nova `baixar_arquivo_importacao_scpi_view(request, pk)`.
+  Decorators na ordem das views irmãs, com `@login_required` **por fora** de
+  `@require_http_methods(['GET'])`: assim requisição anônima é redirecionada ao
+  login antes de a checagem de método responder, e um POST anônimo vira redirect,
+  não `405`. Chama `exigir_pode_consultar_historico_scpi(papel)` e traduz
+  `PermissaoNegada` para `PermissionDenied`. A leitura vem do selector acima;
+  `None` vira `Http404`.
+  São **três** os caminhos de `Http404`: pk inexistente, importação sem arquivo, e
+  arquivo ausente no storage. O terceiro é detectado abrindo o `FieldFile`
+  (`importacao.arquivo.open('rb')`) dentro de `try/except FileNotFoundError`
+  **antes** de montar a resposta — `FileResponse` lê de forma tardia, então sem
+  essa abertura antecipada o arquivo sumido estouraria no meio do streaming, como
+  500 e com o header já enviado. O handle aberto é passado direto para
+  `FileResponse(..., as_attachment=True, filename=<basename de arquivo_nome>)`,
+  sem `with`: quem fecha é o `FileResponse`, ao terminar de servir.
 - **`apps/estoque/urls.py`** — rota
   `importacao-scpi/<int:pk>/arquivo/` → `baixar_arquivo_importacao_scpi`.
 - **`apps/estoque/templates/estoque/historico_importacoes_scpi.html`** — nona
@@ -76,7 +90,7 @@ para download na tela de histórico, atrás da policy que já existe.
   intactos.
 - **Fluxo de preview.** O handoff via sessão (`scpi_preview_bytes` em base64) e
   `confirmar_importacao_scpi_view` em `apps/requisicoes/views.py` seguem iguais.
-- **Selector.** `listar_historico_importacoes_scpi` não muda: continua
+- **Selector de listagem.** `listar_historico_importacoes_scpi` não muda: continua
   `select_related('importado_por', 'estoque')` sem `only()`/`defer()`. O
   `FileField` só carrega um caminho, não o conteúdo.
 - **`test_nao_expoe_csv_bruto`** (`apps/estoque/tests/test_selectors.py`) segue
@@ -96,6 +110,7 @@ para download na tela de histórico, atrás da policy que já existe.
 |---|---|
 | `apps/estoque/models.py` | Campo `arquivo` em `ImportacaoSCPI`; docstring reescrita. |
 | `apps/estoque/services.py` | `confirmar_importacao_scpi` grava o `ContentFile` no `create`. |
+| `apps/estoque/selectors.py` | Novo `buscar_importacao_scpi`. |
 | `apps/estoque/views.py` | Nova `baixar_arquivo_importacao_scpi_view`. |
 | `apps/estoque/urls.py` | Rota `importacao-scpi/<int:pk>/arquivo/`. |
 | `apps/estoque/templates/estoque/historico_importacoes_scpi.html` | Coluna "Arquivo CSV" com link/ausência. |
@@ -103,6 +118,7 @@ para download na tela de histórico, atrás da policy que já existe.
 | `config/settings/test.py` | `MEDIA_ROOT` isolado da suíte. |
 | `.gitignore` | `.pytest-media/`. |
 | `apps/estoque/tests/test_services.py` | 3 testes em `TestConfirmarImportacaoScpi`. |
+| `apps/estoque/tests/test_selectors.py` | Classe `TestBuscarImportacaoScpi`. |
 | `apps/estoque/tests/test_views.py` | Classe `TestBaixarArquivoImportacaoScpiView` + 2 testes em `TestHistoricoImportacoesScpiView`. |
 
 ## Estratégia de testes
@@ -121,17 +137,33 @@ sufixo `.csv` e `Content-Disposition`.
 - Integridade: `hashlib.sha256(importacao.arquivo.read()).hexdigest() == importacao.arquivo_hash`.
 - Violação de domínio/infra: falha ao gravar no storage (patch do `_save` do
   backend levantando `OSError`) desfaz a importação inteira — nenhuma
-  `ImportacaoSCPI` e nenhum `Material` novo no banco depois da exceção.
+  `ImportacaoSCPI`, nenhum `Material` e nenhum `SaldoEstoque` novo no banco
+  depois da exceção. As três tabelas entram na asserção porque as três são
+  escritas pelo mesmo `atomic`: verificar só duas deixaria passar um rollback
+  parcial.
 
 Permissão negada e estado inválido (reimportação bloqueada) já têm cobertura na
 classe e não são duplicados.
 
+**Selector (`test_selectors.py`, `TestBuscarImportacaoScpi`):**
+
+- Importação existente é devolvida pelo pk; pk inexistente devolve `None`.
+
 **Views (`test_views.py`):**
 
-- `TestBaixarArquivoImportacaoScpiView`: anônimo → redirect para login;
-  solicitante → 403; auxiliar de almoxarifado → 403; chefe de almoxarifado → 200
-  com `Content-Disposition: attachment` e corpo igual ao CSV; superusuário → 200;
-  pk inexistente → 404; importação sem arquivo → 404.
+- `TestBaixarArquivoImportacaoScpiView`, autorização e método: GET anônimo →
+  redirect para login; POST anônimo → redirect para login (não `405`, o que fixa
+  a ordem dos decorators); POST autenticado e autorizado → `405`; solicitante →
+  403; auxiliar de almoxarifado → 403.
+- Caminho feliz: chefe de almoxarifado → 200 com corpo igual ao CSV e
+  `Content-Disposition` exato (`attachment; filename="relatorio.csv"`, asserção
+  do header inteiro, não só da presença de `attachment`); superusuário → 200.
+- Saneamento do nome: importação cujo `arquivo_nome` traz componentes de caminho
+  (`subdir/relatorio.csv`) responde com `filename="relatorio.csv"` — o header usa
+  o basename, nunca o caminho recebido.
+- Ausências → 404: pk inexistente; importação sem arquivo; e arquivo que consta
+  no banco mas foi removido do storage (apagado do `MEDIA_ROOT` no teste), que
+  precisa virar 404 e não 500 no meio do streaming.
 - `TestHistoricoImportacoesScpiView`: listagem mostra o link de download quando
   há arquivo; não mostra link quando a importação é legada (sem arquivo).
 
