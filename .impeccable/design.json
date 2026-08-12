@@ -1,0 +1,333 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-12T00:00:00Z",
+  "title": "Design System: WMS-SAEP",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Azul de Carimbo",
+        "canonical": "oklch(54.6% 0.245 262.881)",
+        "tonalRamp": [
+          "oklch(37.9% 0.146 265.522)",
+          "oklch(42.4% 0.199 265.638)",
+          "oklch(48.8% 0.243 264.376)",
+          "oklch(54.6% 0.245 262.881)",
+          "oklch(62.3% 0.214 259.815)",
+          "oklch(80.9% 0.105 251.813)",
+          "oklch(88.2% 0.059 254.128)",
+          "oklch(97% 0.014 254.604)"
+        ]
+      },
+      "success": {
+        "role": "secondary",
+        "displayName": "Verde de Baixa Concluída",
+        "canonical": "oklch(62.7% 0.194 149.214)",
+        "tonalRamp": [
+          "oklch(39.3% 0.095 152.535)",
+          "oklch(44.8% 0.119 151.328)",
+          "oklch(52.7% 0.154 150.069)",
+          "oklch(62.7% 0.194 149.214)",
+          "oklch(79% 0.15 150)",
+          "oklch(92.5% 0.084 155.995)",
+          "oklch(96.2% 0.044 156.743)",
+          "oklch(98.2% 0.018 155.826)"
+        ]
+      },
+      "warning": {
+        "role": "secondary",
+        "displayName": "Âmbar de Pendência",
+        "canonical": "oklch(76.9% 0.188 70.08)",
+        "tonalRamp": [
+          "oklch(41.4% 0.112 45.904)",
+          "oklch(47.3% 0.137 46.201)",
+          "oklch(55.5% 0.163 48.998)",
+          "oklch(76.9% 0.188 70.08)",
+          "oklch(87.9% 0.169 91.605)",
+          "oklch(92.4% 0.12 95.746)",
+          "oklch(96.2% 0.059 95.617)",
+          "oklch(98.7% 0.022 95.277)"
+        ]
+      },
+      "danger": {
+        "role": "secondary",
+        "displayName": "Vermelho de Recusa",
+        "canonical": "oklch(57.7% 0.245 27.325)",
+        "tonalRamp": [
+          "oklch(39.6% 0.141 25.723)",
+          "oklch(44.4% 0.177 26.899)",
+          "oklch(50.5% 0.213 27.518)",
+          "oklch(57.7% 0.245 27.325)",
+          "oklch(70.4% 0.191 22.216)",
+          "oklch(80.8% 0.114 19.571)",
+          "oklch(93.6% 0.032 17.717)",
+          "oklch(97.1% 0.013 17.38)"
+        ]
+      },
+      "return": {
+        "role": "tertiary",
+        "displayName": "Teal de Reversão",
+        "canonical": "oklch(60% 0.118 184.704)",
+        "tonalRamp": [
+          "oklch(38.6% 0.063 188.416)",
+          "oklch(45% 0.08 187)",
+          "oklch(51.1% 0.096 186.391)",
+          "oklch(60% 0.118 184.704)",
+          "oklch(75% 0.11 183)",
+          "oklch(91% 0.096 180.426)",
+          "oklch(95.3% 0.051 180.801)",
+          "oklch(98.4% 0.014 180.72)"
+        ]
+      },
+      "text-primary": {
+        "role": "neutral",
+        "displayName": "Grafite de Registro",
+        "canonical": "oklch(20.8% 0.042 265.755)",
+        "tonalRamp": [
+          "oklch(20.8% 0.042 265.755)",
+          "oklch(27.9% 0.041 260.031)",
+          "oklch(37.2% 0.044 257.287)",
+          "oklch(44.6% 0.043 257.281)",
+          "oklch(55.4% 0.046 257.417)",
+          "oklch(70.4% 0.04 256.788)",
+          "oklch(86.9% 0.022 252.894)",
+          "oklch(92.9% 0.013 255.508)"
+        ]
+      },
+      "bg-page": {
+        "role": "neutral",
+        "displayName": "Papel Frio",
+        "canonical": "oklch(98.4% 0.003 247.858)",
+        "tonalRamp": [
+          "oklch(20.8% 0.042 265.755)",
+          "oklch(37.2% 0.044 257.287)",
+          "oklch(55.4% 0.046 257.417)",
+          "oklch(70.4% 0.04 256.788)",
+          "oklch(86.9% 0.022 252.894)",
+          "oklch(92.9% 0.013 255.508)",
+          "oklch(96.8% 0.007 247.896)",
+          "oklch(98.4% 0.003 247.858)"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Papel Branco",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "oklch(92.9% 0.013 255.508)",
+          "oklch(96.8% 0.007 247.896)",
+          "oklch(98.4% 0.003 247.858)",
+          "#ffffff"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Título de tela em desktop. Um por página." },
+      "headline": { "displayName": "Headline", "purpose": "Título de tela em mobile e cabeçalho de seção maior." },
+      "title": { "displayName": "Title", "purpose": "Título da barra de aplicação e nome da marca; trunca com reticências." },
+      "body": { "displayName": "Body", "purpose": "Tamanho dominante: célula de tabela, corpo de card, botão, alerta, campo." },
+      "label": { "displayName": "Label", "purpose": "Rótulo estrutural em caixa alta: cabeçalho de coluna, label de campo, seção de menu. Badge usa o mesmo tamanho sem caixa alta." }
+    },
+    "shadows": [
+      { "name": "repouso-0dp", "value": "none", "purpose": "Padrão. Profundidade vem de tom (papel frio vs papel branco) mais borda de 1px." },
+      { "name": "papel-1dp", "value": "0 1px 2px 0 rgb(0 0 0 / 0.05)", "purpose": "Card de listagem, wrapper de tabela, banner de alerta. Borda óptica — a borda de 1px continua obrigatória." },
+      { "name": "app-bar-4dp", "value": "0 2px 4px -1px rgb(0 0 0 / 0.20), 0 4px 5px 0 rgb(0 0 0 / 0.14), 0 1px 10px 0 rgb(0 0 0 / 0.12)", "purpose": "Exclusivo da barra de aplicação fixa (MD2 elevation 4dp)." },
+      { "name": "menu-8dp", "value": "0 5px 5px -3px rgb(0 0 0 / 0.20), 0 8px 10px 1px rgb(0 0 0 / 0.14), 0 3px 14px 2px rgb(0 0 0 / 0.12)", "purpose": "Popover do hamburger (MD2 elevation 8dp)." },
+      { "name": "modal-24dp", "value": "0 25px 50px -12px rgb(0 0 0 / 0.25)", "purpose": "<dialog>. Acompanhado de backdrop preto 50% com desfoque — único desfoque do sistema." }
+    ],
+    "motion": [
+      { "name": "duration-instant", "value": "50ms", "purpose": "Resposta tátil imediata." },
+      { "name": "duration-fast", "value": "150ms", "purpose": "Hover/active de controle, overlay do menu." },
+      { "name": "duration-normal", "value": "250ms", "purpose": "Transições de estado local mais visíveis." },
+      { "name": "duration-slow", "value": "400ms", "purpose": "Reservado; raro." },
+      { "name": "ease-default", "value": "cubic-bezier(0.4, 0, 0.2, 1)", "purpose": "Curva padrão de transição de estado." },
+      { "name": "ease-out", "value": "cubic-bezier(0, 0, 0.2, 1)", "purpose": "Entrada de elemento." },
+      { "name": "ease-in", "value": "cubic-bezier(0.4, 0, 1, 1)", "purpose": "Saída de elemento." },
+      { "name": "ease-modal-entrar", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Entrada do <dialog> em 180ms, sob prefers-reduced-motion: no-preference." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "content-max", "value": "1280px" },
+      { "name": "card-sm", "value": "384px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Botão primário",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Ação principal da tela. Azul de Carimbo, alvo de 44px, anel de foco azul.",
+      "html": "<button class=\"ds-btn-primary\">Enviar para autorização</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; min-height: 2.75rem; padding: 0.5rem 0.75rem; border: none; border-radius: 0.375rem; background: oklch(54.6% 0.245 262.881); color: #fff; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; line-height: 1.5; cursor: pointer; transition: background-color 150ms cubic-bezier(0.4, 0, 0.2, 1); } .ds-btn-primary:hover { background: oklch(48.8% 0.243 264.376); } .ds-btn-primary:active { background: oklch(42.4% 0.199 265.638); } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 1px #fff, 0 0 0 3px oklch(62.3% 0.214 259.815); } .ds-btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }"
+    },
+    {
+      "name": "Botão secundário",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Ação de apoio. Papel branco com borda slate-300; hover troca o fundo para papel frio.",
+      "html": "<button class=\"ds-btn-secondary\">Voltar</button>",
+      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; justify-content: center; min-height: 2.75rem; padding: 0.5rem 0.75rem; border: 1px solid oklch(86.9% 0.022 252.894); border-radius: 0.375rem; background: #fff; color: oklch(37.2% 0.044 257.287); font-family: ui-sans-serif, system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: background-color 150ms cubic-bezier(0.4, 0, 0.2, 1), color 150ms cubic-bezier(0.4, 0, 0.2, 1); } .ds-btn-secondary:hover { background: oklch(98.4% 0.003 247.858); color: oklch(20.8% 0.042 265.755); } .ds-btn-secondary:focus-visible { outline: none; box-shadow: 0 0 0 1px #fff, 0 0 0 3px oklch(62.3% 0.214 259.815); }"
+    },
+    {
+      "name": "Botão de perigo (contorno)",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Destruição ainda proposta na tela (recusar, cancelar, estornar). O preenchimento vermelho fica para a confirmação dentro do modal.",
+      "html": "<button class=\"ds-btn-danger-outline\">Recusar</button>",
+      "css": ".ds-btn-danger-outline { display: inline-flex; align-items: center; justify-content: center; min-height: 2.75rem; padding: 0.5rem 0.75rem; border: 1px solid oklch(80.8% 0.114 19.571); border-radius: 0.375rem; background: #fff; color: oklch(50.5% 0.213 27.518); font-family: ui-sans-serif, system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: background-color 150ms cubic-bezier(0.4, 0, 0.2, 1); } .ds-btn-danger-outline:hover { background: oklch(97.1% 0.013 17.38); } .ds-btn-danger-outline:focus-visible { outline: none; box-shadow: 0 0 0 1px #fff, 0 0 0 3px oklch(63.7% 0.237 25.331); }"
+    },
+    {
+      "name": "Badge de estado",
+      "kind": "chip",
+      "refersTo": "badge-blue",
+      "description": "Carimbo de estado da requisição. Pill com fundo shade 100, texto shade 900 e ring interno shade 200. Nunca em caixa alta — carrega conteúdo de domínio.",
+      "html": "<span class=\"ds-badge ds-badge--blue\" role=\"status\" aria-label=\"Estado: Autorizada\">Autorizada</span><span class=\"ds-badge ds-badge--teal\">Devolvida</span><span class=\"ds-badge ds-badge--amber-strong\">Aguardando autorização</span>",
+      "css": ".ds-badge { display: inline-flex; align-items: center; margin-right: 0.5rem; padding: 0.125rem 0.625rem; border-radius: 9999px; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 0.75rem; font-weight: 600; line-height: 1.33; box-shadow: inset 0 0 0 1px currentColor; } .ds-badge--blue { background: oklch(93.2% 0.032 255.585); color: oklch(37.9% 0.146 265.522); box-shadow: inset 0 0 0 1px oklch(88.2% 0.059 254.128); } .ds-badge--teal { background: oklch(95.3% 0.051 180.801); color: oklch(38.6% 0.063 188.416); box-shadow: inset 0 0 0 1px oklch(91% 0.096 180.426); } .ds-badge--amber-strong { background: oklch(92.4% 0.12 95.746); color: oklch(41.4% 0.112 45.904); box-shadow: inset 0 0 0 1px oklch(87.9% 0.169 91.605); }"
+    },
+    {
+      "name": "Campo de formulário",
+      "kind": "input",
+      "refersTo": "input-text",
+      "description": "Rótulo em caixa alta 12px, asterisco vermelho quando obrigatório, campo com borda slate-300 e anel azul no foco.",
+      "html": "<div class=\"ds-field\"><label class=\"ds-field__label\" for=\"ds-field-material\">Material <span class=\"ds-field__req\" aria-hidden=\"true\">*</span></label><p class=\"ds-field__hint\">Busque por código ou nome.</p><input id=\"ds-field-material\" class=\"ds-field__input\" type=\"search\" placeholder=\"Buscar por código ou nome...\"></div>",
+      "css": ".ds-field { font-family: ui-sans-serif, system-ui, sans-serif; max-width: 22rem; } .ds-field__label { display: block; font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.025em; color: oklch(55.4% 0.046 257.417); } .ds-field__req { margin-left: 0.125rem; color: oklch(63.7% 0.237 25.331); } .ds-field__hint { margin: 0.25rem 0 0; font-size: 0.75rem; color: oklch(55.4% 0.046 257.417); } .ds-field__input { width: 100%; margin-top: 0.25rem; padding: 0.5rem 0.75rem; border: 1px solid oklch(86.9% 0.022 252.894); border-radius: 0.5rem; background: #fff; color: oklch(20.8% 0.042 265.755); font-size: 0.875rem; font-family: inherit; } .ds-field__input:focus { outline: none; border-color: oklch(62.3% 0.214 259.815); box-shadow: 0 0 0 2px oklch(62.3% 0.214 259.815); }"
+    },
+    {
+      "name": "Cartão de listagem",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "A renderização mobile de uma linha de listagem: papel branco, raio 12px, borda de 1px e sombra 1dp.",
+      "html": "<article class=\"ds-card\"><div class=\"ds-card__head\"><h2 class=\"ds-card__title\">REQ-2026-000142</h2><span class=\"ds-badge ds-badge--blue\">Autorizada</span></div><dl class=\"ds-card__dl\"><dt>Beneficiário</dt><dd>Ana Ribeiro — Obras</dd><dt>Enviada em</dt><dd>10/08/2026 14:32</dd></dl></article>",
+      "css": ".ds-card { display: block; padding: 1rem; border: 1px solid oklch(92.9% 0.013 255.508); border-radius: 0.75rem; background: #fff; box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); font-family: ui-sans-serif, system-ui, sans-serif; max-width: 24rem; } .ds-card__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; } .ds-card__title { margin: 0; font-size: 0.875rem; font-weight: 600; color: oklch(20.8% 0.042 265.755); } .ds-card__dl { display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.75rem; margin: 0.75rem 0 0; font-size: 0.875rem; } .ds-card__dl dt { color: oklch(55.4% 0.046 257.417); } .ds-card__dl dd { margin: 0; color: oklch(20.8% 0.042 265.755); }"
+    },
+    {
+      "name": "Barra de aplicação",
+      "kind": "nav",
+      "refersTo": "app-bar",
+      "description": "Top App Bar MD2 fixa. Azul de Carimbo, 56dp em mobile e 64dp a partir de 640px, elevação 4dp, overlays brancos em hover/active.",
+      "html": "<header class=\"ds-app-bar\"><div class=\"ds-app-bar__inner\"><button class=\"ds-app-bar__icon\" aria-label=\"Abrir menu\"><svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h18v2H3v-2z\"/></svg></button><span class=\"ds-app-bar__brand\"><span class=\"ds-app-bar__logo\" aria-hidden=\"true\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 20 20\" fill=\"#fff\"><path d=\"M4 3a2 2 0 100 4h12a2 2 0 100-4H4z\"/><path fill-rule=\"evenodd\" d=\"M3 8h14v7a2 2 0 01-2 2H5a2 2 0 01-2-2V8zm5 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z\" clip-rule=\"evenodd\"/></svg></span><span class=\"ds-app-bar__name\" translate=\"no\">WMS-SAEP</span></span><span class=\"ds-app-bar__actions\"><a class=\"ds-app-bar__action\" href=\"#\">Nova requisição</a></span></div></header>",
+      "css": ".ds-app-bar { display: block; width: 100%; background: oklch(54.6% 0.245 262.881); color: #fff; box-shadow: 0 2px 4px -1px rgb(0 0 0 / 0.20), 0 4px 5px 0 rgb(0 0 0 / 0.14), 0 1px 10px 0 rgb(0 0 0 / 0.12); font-family: ui-sans-serif, system-ui, sans-serif; } .ds-app-bar__inner { display: flex; align-items: center; gap: 0.5rem; min-height: 3.5rem; padding-inline: 1rem; } .ds-app-bar__icon { display: inline-flex; align-items: center; justify-content: center; width: 2.5rem; height: 2.5rem; margin-left: -0.5rem; border: none; border-radius: 9999px; background: transparent; color: #fff; cursor: pointer; transition: background-color 150ms cubic-bezier(0.4, 0, 0.2, 1); } .ds-app-bar__icon:hover { background: rgb(255 255 255 / 0.10); } .ds-app-bar__icon:active { background: rgb(255 255 255 / 0.18); } .ds-app-bar__icon:focus-visible { outline: 2px solid #fff; outline-offset: 2px; } .ds-app-bar__brand { display: inline-flex; align-items: center; gap: 0.75rem; } .ds-app-bar__logo { display: inline-flex; align-items: center; justify-content: center; width: 1.75rem; height: 1.75rem; border-radius: 0.375rem; background: rgb(255 255 255 / 0.18); } .ds-app-bar__name { font-size: 1.125rem; font-weight: 500; letter-spacing: 0.0125em; } .ds-app-bar__actions { margin-left: auto; } .ds-app-bar__action { display: inline-flex; align-items: center; min-height: 2.25rem; padding: 0.375rem 0.75rem; border-radius: 0.375rem; color: #fff; font-size: 0.875rem; font-weight: 500; text-decoration: none; transition: background-color 150ms cubic-bezier(0.4, 0, 0.2, 1); } .ds-app-bar__action:hover { background: rgb(255 255 255 / 0.10); } .ds-app-bar__action:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }"
+    },
+    {
+      "name": "Alerta",
+      "kind": "custom",
+      "refersTo": "alert-danger",
+      "description": "Banner de mensagem. Fundo -subtle, borda -border, texto -text-emphasis; role=alert em warning/danger, role=status nos demais.",
+      "html": "<div class=\"ds-alert ds-alert--danger\" role=\"alert\"><svg class=\"ds-alert__icon\" viewBox=\"0 0 20 20\" fill=\"currentColor\" aria-hidden=\"true\"><path fill-rule=\"evenodd\" d=\"M18 10A8 8 0 112 10a8 8 0 0116 0zm-8-4a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 8a1 1 0 100-2 1 1 0 000 2z\" clip-rule=\"evenodd\"/></svg><span>Saldo insuficiente para o material 000.412.877.</span></div>",
+      "css": ".ds-alert { display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.75rem 1rem; border: 1px solid; border-radius: 0.5rem; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 0.875rem; line-height: 1.5; } .ds-alert__icon { flex-shrink: 0; width: 1rem; height: 1rem; margin-top: 0.125rem; } .ds-alert--danger { border-color: oklch(88.5% 0.062 18.334); background: oklch(97.1% 0.013 17.38); color: oklch(44.4% 0.177 26.899); } .ds-alert--danger .ds-alert__icon { color: oklch(57.7% 0.245 27.325); }"
+    },
+    {
+      "name": "Estado vazio",
+      "kind": "custom",
+      "refersTo": "empty-state",
+      "description": "Único uso de borda tracejada no sistema. Papel branco, ícone cinza apagado, próxima ação em botão primário.",
+      "html": "<div class=\"ds-empty\"><svg class=\"ds-empty__icon\" viewBox=\"0 0 24 24\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M4 4h16v4H4V4zm0 6h16v10H4V10zm4 3h8v2H8v-2z\"/></svg><h2 class=\"ds-empty__title\">Nenhuma requisição por aqui</h2><p class=\"ds-empty__desc\">Suas requisições aparecem nesta lista assim que forem criadas.</p><button class=\"ds-btn-primary ds-empty__cta\">Nova requisição</button></div>",
+      "css": ".ds-empty { padding: 3rem 1.5rem; border: 1px dashed oklch(86.9% 0.022 252.894); border-radius: 0.75rem; background: #fff; text-align: center; font-family: ui-sans-serif, system-ui, sans-serif; } .ds-empty__icon { display: block; width: 2.5rem; height: 2.5rem; margin: 0 auto 1rem; color: oklch(70.4% 0.04 256.788); } .ds-empty__title { margin: 0; font-size: 1rem; font-weight: 500; color: oklch(37.2% 0.044 257.287); } .ds-empty__desc { margin: 0.25rem 0 0; font-size: 0.875rem; color: oklch(55.4% 0.046 257.417); } .ds-empty__cta { margin-top: 1.5rem; }"
+    },
+    {
+      "name": "Autocomplete (combobox)",
+      "kind": "input",
+      "refersTo": "input-text",
+      "description": "Combobox ARIA de busca de material/pessoa: campo com raio 8px, spinner ancorado à direita durante a busca e listbox flutuante com opção ativa em azul suave. Renderizado aqui com o dropdown aberto e a segunda opção ativa.",
+      "html": "<div class=\"ds-combobox\"><label class=\"ds-combobox__label\" for=\"ds-combobox-busca\">Material</label><div class=\"ds-combobox__wrap\"><input id=\"ds-combobox-busca\" class=\"ds-combobox__input\" type=\"search\" role=\"combobox\" aria-expanded=\"true\" aria-autocomplete=\"list\" aria-controls=\"ds-combobox-listbox\" value=\"parafuso\" placeholder=\"Buscar por código ou descrição…\"><span class=\"ds-combobox__spinner\" aria-hidden=\"true\"><svg viewBox=\"0 0 24 24\" fill=\"none\"><circle cx=\"12\" cy=\"12\" r=\"10\" stroke=\"currentColor\" stroke-width=\"4\" opacity=\"0.25\"></circle><path fill=\"currentColor\" opacity=\"0.75\" d=\"M4 12a8 8 0 018-8v8z\"></path></svg></span><ul id=\"ds-combobox-listbox\" class=\"ds-combobox__list\" role=\"listbox\" aria-label=\"Resultados\"><li class=\"ds-combobox__opt\" role=\"option\" aria-selected=\"false\"><span class=\"ds-combobox__cod\">000.412.877</span> Parafuso sextavado 1/2\"</li><li class=\"ds-combobox__opt ds-combobox__opt--ativo\" role=\"option\" aria-selected=\"true\"><span class=\"ds-combobox__cod\">000.412.901</span> Parafuso autobrocante 4,2mm</li></ul></div></div>",
+      "css": ".ds-combobox { font-family: ui-sans-serif, system-ui, sans-serif; max-width: 24rem; padding-bottom: 6rem; } .ds-combobox__label { display: block; margin-bottom: 0.25rem; font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.025em; color: oklch(55.4% 0.046 257.417); } .ds-combobox__wrap { position: relative; } .ds-combobox__input { width: 100%; padding: 0.5rem 0.75rem; border: 1px solid oklch(86.9% 0.022 252.894); border-radius: 0.5rem; background: #fff; color: oklch(20.8% 0.042 265.755); font-family: inherit; font-size: 0.875rem; } .ds-combobox__input:focus { outline: none; border-color: oklch(62.3% 0.214 259.815); box-shadow: 0 0 0 2px oklch(62.3% 0.214 259.815); } .ds-combobox__spinner { position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); width: 1rem; height: 1rem; color: oklch(70.4% 0.04 256.788); pointer-events: none; } .ds-combobox__spinner svg { width: 100%; height: 100%; animation: ds-spin 1s linear infinite; } @keyframes ds-spin { to { transform: rotate(360deg); } } @media (prefers-reduced-motion: reduce) { .ds-combobox__spinner svg { animation: none; } } .ds-combobox__list { position: absolute; z-index: 20; top: calc(100% + 0.25rem); left: 0; width: 100%; max-height: 14rem; overflow-y: auto; margin: 0; padding: 0; list-style: none; border: 1px solid oklch(92.9% 0.013 255.508); border-radius: 0.5rem; background: #fff; font-size: 0.875rem; box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1); } .ds-combobox__opt { padding: 0.5rem 0.75rem; color: oklch(20.8% 0.042 265.755); cursor: pointer; } .ds-combobox__opt:hover { background: oklch(98.4% 0.003 247.858); } .ds-combobox__opt--ativo { background: oklch(97% 0.014 254.604); } .ds-combobox__cod { font-variant-numeric: tabular-nums; color: oklch(55.4% 0.046 257.417); margin-right: 0.375rem; }"
+    },
+    {
+      "name": "Paginação",
+      "kind": "nav",
+      "refersTo": "button-secondary",
+      "description": "Paginação server-side: contador com numerais tabulares à esquerda, par Anterior/Próxima à direita com alvo de 44px. O limite da coleção vira <span aria-disabled> em papel frio, nunca um link morto.",
+      "html": "<nav class=\"ds-pager\" aria-label=\"Paginação de requisições\"><p class=\"ds-pager__contador\">Página <span class=\"ds-pager__num\">1</span> de <span class=\"ds-pager__num\">7</span> <span class=\"ds-pager__sep\">·</span> <span class=\"ds-pager__num\">132</span> requisições</p><div class=\"ds-pager__acoes\"><span class=\"ds-pager__btn ds-pager__btn--off\" aria-disabled=\"true\">Anterior</span><a class=\"ds-pager__btn\" href=\"#\">Próxima</a></div></nav>",
+      "css": ".ds-pager { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; font-family: ui-sans-serif, system-ui, sans-serif; } .ds-pager__contador { margin: 0; font-size: 0.875rem; color: oklch(37.2% 0.044 257.287); } .ds-pager__num { font-weight: 500; font-variant-numeric: tabular-nums; } .ds-pager__sep { color: oklch(70.4% 0.04 256.788); } .ds-pager__acoes { display: flex; align-items: center; gap: 0.5rem; } .ds-pager__btn { display: inline-flex; align-items: center; min-height: 2.75rem; padding: 0.5rem 0.75rem; border: 1px solid oklch(92.9% 0.013 255.508); border-radius: 0.375rem; background: #fff; color: oklch(37.2% 0.044 257.287); font-size: 0.875rem; font-weight: 500; text-decoration: none; transition: background-color 150ms cubic-bezier(0.4, 0, 0.2, 1), color 150ms cubic-bezier(0.4, 0, 0.2, 1); } .ds-pager__btn:hover { background: oklch(98.4% 0.003 247.858); color: oklch(20.8% 0.042 265.755); } .ds-pager__btn:focus-visible { outline: none; box-shadow: 0 0 0 1px #fff, 0 0 0 3px oklch(62.3% 0.214 259.815); } .ds-pager__btn--off { border-color: oklch(92.9% 0.013 255.508); background: oklch(98.4% 0.003 247.858); color: oklch(70.4% 0.04 256.788); cursor: not-allowed; } .ds-pager__btn--off:hover { background: oklch(98.4% 0.003 247.858); color: oklch(70.4% 0.04 256.788); }"
+    },
+    {
+      "name": "Linha de item de formset",
+      "kind": "custom",
+      "refersTo": "card",
+      "description": "Linha compartilhada entre requisição e saída excepcional (ADR-0016): autocomplete de material + quantidade de 7rem + remover. A linha inteira vira âmbar quando o item é inelegível — o aviso pinta o contêiner, não só o texto. Renderizada aqui no estado de saldo insuficiente.",
+      "html": "<div class=\"ds-item-row ds-item-row--alerta\"><div class=\"ds-item-row__material\"><label class=\"ds-item-row__label\" for=\"ds-item-material\">Material</label><input id=\"ds-item-material\" class=\"ds-item-row__input\" type=\"search\" value=\"000.412.877 — Parafuso sextavado 1/2&quot;\"><p class=\"ds-item-row__aviso\" role=\"alert\"><svg viewBox=\"0 0 20 20\" fill=\"currentColor\" aria-hidden=\"true\"><path fill-rule=\"evenodd\" d=\"M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495ZM10 5a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 5Zm0 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z\" clip-rule=\"evenodd\"/></svg>Saldo insuficiente — saldo atual: 12</p></div><div class=\"ds-item-row__qtd\"><label class=\"ds-item-row__label\" for=\"ds-item-qtd\">Quantidade</label><input id=\"ds-item-qtd\" class=\"ds-item-row__input\" type=\"number\" value=\"40\" min=\"1\" step=\"1\"></div><div class=\"ds-item-row__acao\"><button class=\"ds-item-row__remover\" type=\"button\" aria-label=\"Remover item\"><svg viewBox=\"0 0 20 20\" fill=\"currentColor\" aria-hidden=\"true\"><path fill-rule=\"evenodd\" d=\"M8.75 1a.75.75 0 0 0-.75.75V3H4.5a.75.75 0 0 0 0 1.5h11a.75.75 0 0 0 0-1.5H12V1.75a.75.75 0 0 0-.75-.75h-2.5ZM5.5 6h9l-.7 10.14A1.5 1.5 0 0 1 12.3 17.5H7.7a1.5 1.5 0 0 1-1.5-1.36L5.5 6Z\" clip-rule=\"evenodd\"/></svg><span>Remover</span></button></div></div>",
+      "css": ".ds-item-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.75rem; padding: 0.75rem; border: 1px solid oklch(92.9% 0.013 255.508); border-radius: 0.5rem; background: #fff; font-family: ui-sans-serif, system-ui, sans-serif; } .ds-item-row--alerta { border-color: oklch(87.9% 0.169 91.605); background: color-mix(in oklab, oklch(98.7% 0.022 95.277) 40%, #fff); } .ds-item-row__material { flex: 1 1 12rem; min-width: 0; } .ds-item-row__qtd { flex: 0 0 7rem; width: 7rem; } .ds-item-row__label { display: block; margin-bottom: 0.25rem; font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.025em; color: oklch(55.4% 0.046 257.417); } .ds-item-row__input { width: 100%; padding: 0.5rem 0.75rem; border: 1px solid oklch(86.9% 0.022 252.894); border-radius: 0.5rem; background: #fff; color: oklch(20.8% 0.042 265.755); font-family: inherit; font-size: 0.875rem; } .ds-item-row__input:focus { outline: none; border-color: oklch(62.3% 0.214 259.815); box-shadow: 0 0 0 2px oklch(62.3% 0.214 259.815); } .ds-item-row__aviso { display: flex; align-items: center; gap: 0.25rem; margin: 0.375rem 0 0; font-size: 0.75rem; font-weight: 500; color: oklch(55.5% 0.163 48.998); } .ds-item-row__aviso svg { flex-shrink: 0; width: 0.875rem; height: 0.875rem; } .ds-item-row__acao { flex-shrink: 0; padding-top: 1.25rem; } .ds-item-row__remover { display: flex; align-items: center; gap: 0.25rem; padding: 0.375rem 0.5rem; border: none; border-radius: 0.25rem; background: transparent; color: oklch(37.2% 0.044 257.287); font-family: inherit; font-size: 0.75rem; font-weight: 500; cursor: pointer; transition: color 150ms cubic-bezier(0.4, 0, 0.2, 1); } .ds-item-row__remover svg { width: 1rem; height: 1rem; } .ds-item-row__remover:hover { color: oklch(50.5% 0.213 27.518); } .ds-item-row__remover:focus-visible { outline: none; box-shadow: 0 0 0 1px #fff, 0 0 0 3px oklch(57.7% 0.245 27.325); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "O Livro-Razão",
+    "overview": "O sistema se comporta como um livro-razão aberto sobre a mesa: linhas, colunas, carimbos de estado e uma trilha que ninguém apaga. Papel branco (surface) flutua sobre papel frio (bg-page), texto em grafite escuro, e a cor entra apenas como carimbo — nunca como enfeite. Densidade e alinhamento valem mais que expressividade; a tela existe para que uma requisição seja lida sem ambiguidade por quem autoriza e por quem separa o material.\n\nA materialidade é Material Design 2 aplicado com parcimônia: uma barra de aplicação azul fixa no topo em elevação 4dp, papéis de conteúdo praticamente planos, e só overlays — menu e modal — subindo para 8dp e 24dp. Não há gradiente, não há vidro fosco, não há sombra colorida. O que dá profundidade é a diferença entre bg-page e surface mais uma borda de 1px, exatamente como uma folha sobre a mesa.\n\nOs controles são diretos e sinalizáveis: cada botão diz o que faz, e quando não pode ser executado ele permanece visível, desabilitado e com o motivo em texto — a interface prefere explicar o bloqueio a esconder a operação. Alvo mínimo de 44px em todo controle, porque a mesma tela é usada com o dedo, em pé no galpão, e com teclado no escritório. O sistema recusa três coisas: o dashboard SaaS de gradiente e glassmorphism, o ERP legado de cinza-sobre-cinza ilegível, e a SPA que finge navegação com transição de página — aqui a página é renderizada no servidor e assume isso.",
+    "keyCharacteristics": [
+      "Papel frio sobre papel branco, borda de 1px, sombra reservada a overlays",
+      "Cor exclusivamente semântica: seis famílias de estado, zero cor decorativa",
+      "Corpo em 14px, rótulos estruturais em 12px caixa alta, tipografia do sistema sem webfont",
+      "Escala MD2 de elevação com quatro degraus e nada entre eles",
+      "Raio que cresce com a superfície: controle 6px → campo 8px → papel 12px → modal 16px",
+      "Alvo de toque de 44px e anel de foco visível em todo controle interativo",
+      "Duas renderizações do mesmo dado: cartão abaixo de 640px, tabela acima"
+    ],
+    "rules": [
+      {
+        "name": "A Regra do Sinal Único",
+        "body": "Cor comunica estado, nunca hierarquia visual e nunca decoração. Se uma cor foi escolhida porque \"ficou bonito\", ela está errada. Teste: apague todas as cores e o layout ainda deve ser navegável; devolva-as e cada mancha de cor deve responder à pergunta \"em que estado isto está?\".",
+        "section": "colors"
+      },
+      {
+        "name": "A Regra da Reversão Não é Erro",
+        "body": "Devolução e reversão operacional usam teal (return), jamais vermelho. Vermelho é negação, falha ou divergência; devolver material é o processo funcionando. Nenhum evento legítimo do domínio recebe a cor da recusa.",
+        "section": "colors"
+      },
+      {
+        "name": "A Regra do Token, Nunca do Shade",
+        "body": "Templates usam a utility semântica (bg-primary, text-danger-text), nunca a cor crua da paleta (bg-blue-600, text-red-700) nem a custom property direto no HTML. É isso que torna o rebrand da SAEP uma troca de valor em input.css, sem tocar template. A exceção viva é o corpo de badge.html, para as variantes de catálogo cru sem token semântico.",
+        "section": "colors"
+      },
+      {
+        "name": "A Regra da Caixa Alta Estrutural",
+        "body": "Caixa alta é exclusiva de rótulo de estrutura — <th>, <label>, cabeçalho de seção de menu. Nome de material, nome de pessoa, número de requisição e texto de estado nunca sobem para maiúsculas: são dados, e dado em caixa alta perde legibilidade e perde o desenho da palavra.",
+        "section": "typography"
+      },
+      {
+        "name": "A Regra dos 14px",
+        "body": "O corpo do sistema é 0.875rem, não 1rem. É uma decisão de densidade operacional — uma fila com 20 requisições precisa caber na tela do chefe de setor. Subir o corpo para 1rem quebra a densidade de todas as listas de uma vez; se um texto precisa de mais presença, mude o peso ou o tom, não o tamanho.",
+        "section": "typography"
+      },
+      {
+        "name": "A Regra da Dupla Renderização",
+        "body": "Toda listagem existe duas vezes: pilha de cartões (space-y-3) abaixo de 640px e tabela acima (sm:block). Não são breakpoints de uma mesma marcação — são dois chromes (components/table.html#cards_abertura e #tabela_abertura) alimentados pelos mesmos dados. Tabela espremida com scroll horizontal não é resposta ao mobile; é o cartão que responde.",
+        "section": "layout"
+      },
+      {
+        "name": "A Regra do Chrome Sem Parâmetro",
+        "body": "Os fragmentos de chrome de listagem não recebem parâmetro de classe. Se um chrome precisa de um parâmetro que descreve conteúdo de célula, a abstração está errada — a célula fica explícita na tela chamadora.",
+        "section": "layout"
+      },
+      {
+        "name": "A Regra dos Quatro Degraus",
+        "body": "0, 1, 8 e 24dp — mais o 4dp exclusivo da barra de aplicação. Nenhuma sombra nova é criada para um componente novo: escolha o degrau que descreve a relação com o plano da página. Sombra colorida, sombra em hover de card e sombra como ênfase visual estão fora.",
+        "section": "elevation"
+      },
+      {
+        "name": "A Regra do Raio Crescente",
+        "body": "Se um elemento novo não sabe qual raio usar, ele responde uma pergunta: sou um controle, um campo, um papel ou um overlay? O raio segue da resposta. Um raio intermediário inventado quebra a leitura de hierarquia por geometria.",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "Do usar as utilities semânticas dos tokens (bg-primary, text-danger-text, border-border-strong) em qualquer template novo — nunca a cor crua da paleta.",
+      "Do manter min-h-11 (44px) em todo controle acionável; a mesma tela é operada com o dedo, em pé, no galpão.",
+      "Do renderizar toda listagem duas vezes — cartões abaixo de 640px, tabela acima — reusando os fragmentos de components/table.html.",
+      "Do manter a ação de workflow bloqueada visível e desabilitada, com o motivo em texto; só ação administrativa irrelevante some da marcação.",
+      "Do escolher um dos quatro degraus de elevação existentes (0/1/8/24dp) ao criar uma superfície nova.",
+      "Do usar teal (return) para devolução e reversão, e reservar vermelho para negação, erro e divergência.",
+      "Do dar a todo controle um focus-visible:ring-2 com offset; remover outline só é aceitável porque o anel o substitui.",
+      "Do deixar o texto de erro vir do Form/serviço e passar por role=\"alert\" + aria-describedby."
+    ],
+    "donts": [
+      "Don't introduzir gradiente, vidro fosco (backdrop-blur fora do backdrop do modal) ou sombra colorida.",
+      "Don't criar um raio intermediário fora da escala 0.375 / 0.5 / 0.75 / 1rem / pill.",
+      "Don't subir o corpo do sistema de 0.875rem para 1rem — a densidade das filas depende disso.",
+      "Don't colocar conteúdo de domínio em caixa alta; maiúscula é só para rótulo estrutural.",
+      "Don't usar cinza-sobre-cinza: texto de conteúdo é grafite (slate-900/700), e cinza de metadado (slate-500) é o piso — nada mais claro carrega informação.",
+      "Don't animar navegação para simular SPA; a página é renderizada no servidor e o movimento serve só a mudança de estado local.",
+      "Don't ensinar semântica de domínio a componente global — button.html e badge.html recebem variante e label já resolvidos pelo partial de domínio.",
+      "Don't parametrizar os fragmentos de chrome de listagem com classes extras; se for preciso, a abstração está no lugar errado."
+    ]
+  }
+}
