@@ -423,6 +423,26 @@ class TestListarHistoricoImportacoesScpi:
         assert not hasattr(item, 'conteudo_csv')
 
 
+class TestBuscarImportacaoScpi:
+    def test_retorna_importacao_pelo_pk(self, db, superuser, estoque_principal):
+        from apps.estoque.models import ImportacaoSCPI, StatusImportacaoSCPI
+        from apps.estoque.selectors import buscar_importacao_scpi
+
+        importacao = ImportacaoSCPI.objects.create(
+            arquivo_nome='busca.csv',
+            arquivo_hash='e' * 64,
+            importado_por=superuser,
+            estoque=estoque_principal,
+            status=StatusImportacaoSCPI.CONCLUIDA,
+        )
+        assert buscar_importacao_scpi(importacao_id=importacao.pk) == importacao
+
+    def test_retorna_none_quando_pk_inexistente(self, db):
+        from apps.estoque.selectors import buscar_importacao_scpi
+
+        assert buscar_importacao_scpi(importacao_id=999999) is None
+
+
 class TestListarMateriaisComSaldo:
     def test_retorna_saldos_do_estoque(
         self, chefe_almoxarifado, material_disponivel, estoque_principal
