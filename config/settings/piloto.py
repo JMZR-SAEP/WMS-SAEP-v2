@@ -76,3 +76,19 @@ X_FRAME_OPTIONS = 'DENY'
 # apenas quando houver esse proxy na frente.
 if env_piloto.bool('PILOTO_ATRAS_DE_PROXY_TLS', default=False):
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+    # Mesma condição, mesma razão: confiar em `X-Forwarded-For` para identificar
+    # o cliente exige um proxy na frente que sobrescreva o cabeçalho. Sem proxy,
+    # o cliente escolheria o próprio IP e escaparia do lockout (ADR-0018)
+    # trocando o cabeçalho a cada tentativa.
+    #
+    # `REMOTE_ADDR` fica como segundo item porque esta lista SUBSTITUI o default
+    # `('REMOTE_ADDR',)` em vez de estendê-lo. Mas ele **não** é uma rede de
+    # segurança geral: `AXES_IPWARE_PROXY_COUNT` faz o ipware validar a
+    # contagem de proxies por origem, e `REMOTE_ADDR` sozinho tem zero proxies,
+    # logo é descartado. Requisição que não passou pelo proxy resolve IP `None`
+    # e a tentativa fica chaveada só pela matrícula — ainda bloqueia, sem
+    # contaminar outros usuários, mas é sinal de que alguém alcançou o Django
+    # por fora. O GL-02 cobra que isso seja impossível na implantação.
+    AXES_IPWARE_META_PRECEDENCE_ORDER = ['HTTP_X_FORWARDED_FOR', 'REMOTE_ADDR']
+    AXES_IPWARE_PROXY_COUNT = 1
