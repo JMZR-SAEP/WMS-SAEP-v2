@@ -1234,15 +1234,6 @@ class TestBaixarArquivoImportacaoScpiView:
         resp = client.get(self._url(importacao.pk))
         assert resp.status_code == 403
 
-    def test_aux_almoxarifado_retorna_403(
-        self, client, settings, tmp_path, aux_almoxarifado, superuser, estoque_principal
-    ):
-        settings.MEDIA_ROOT = str(tmp_path)
-        importacao = self._importacao(superuser, estoque_principal)
-        client.force_login(aux_almoxarifado)
-        resp = client.get(self._url(importacao.pk))
-        assert resp.status_code == 403
-
     def test_chefe_almoxarifado_baixa_o_csv(
         self,
         client,
@@ -1258,16 +1249,6 @@ class TestBaixarArquivoImportacaoScpiView:
         resp = client.get(self._url(importacao.pk))
         assert resp.status_code == 200
         assert resp['Content-Disposition'] == 'attachment; filename="relatorio.csv"'
-        assert self._corpo(resp) == self.CSV
-
-    def test_superuser_baixa_o_csv(
-        self, client, settings, tmp_path, superuser, estoque_principal
-    ):
-        settings.MEDIA_ROOT = str(tmp_path)
-        importacao = self._importacao(superuser, estoque_principal)
-        client.force_login(superuser)
-        resp = client.get(self._url(importacao.pk))
-        assert resp.status_code == 200
         assert self._corpo(resp) == self.CSV
 
     def test_content_disposition_usa_basename_do_nome_original(

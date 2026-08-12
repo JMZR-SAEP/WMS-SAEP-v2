@@ -396,6 +396,40 @@ class TestConfirmarImportacaoScpi:
         assert not Material.objects.filter(codigo='000.999.700').exists()
         assert not SaldoEstoque.objects.filter(material__codigo='000.999.700').exists()
 
+    def test_falha_no_hook_desfaz_importacao_mesmo_com_arquivo_gravado(
+        self, db, settings, tmp_path, superuser, estoque_principal
+    ):
+        """O arquivo já foi para o storage, mas o banco volta ao estado anterior.
+
+        Storage não participa da transação: o CSV gravado permanece em disco como
+        órfão. É inerte — o download só serve arquivo a partir de uma linha
+        existente — e apagá-lo aqui seria perigoso, porque o nome vem do hash do
+        conteúdo e poderia colidir com o arquivo de uma importação legítima.
+        """
+        import pytest
+
+        from apps.estoque.models import ImportacaoSCPI, Material, SaldoEstoque
+        from apps.estoque.services import confirmar_importacao_scpi
+
+        settings.MEDIA_ROOT = str(tmp_path)
+
+        def _hook_quebrado(**kwargs):
+            raise RuntimeError('hook falhou depois da criação')
+
+        csv_bytes = self._csv('000.999.800', 'Abraçadeira 20mm', '4.000')
+        with pytest.raises(RuntimeError):
+            confirmar_importacao_scpi(
+                ator_id=superuser.pk,
+                conteudo_bytes=csv_bytes,
+                arquivo_nome='hook.csv',
+                estoque_id=estoque_principal.pk,
+                _pos_importacao_hook=_hook_quebrado,
+            )
+
+        assert not ImportacaoSCPI.objects.filter(arquivo_nome='hook.csv').exists()
+        assert not Material.objects.filter(codigo='000.999.800').exists()
+        assert not SaldoEstoque.objects.filter(material__codigo='000.999.800').exists()
+
     def test_cria_material_novo_com_saldo_inicial(
         self, db, superuser, estoque_principal
     ):
