@@ -23,6 +23,7 @@ apps/**/migrations/*.py
 
 # Testes e cobertura
 .pytest_cache/
+.pytest-media/
 .coverage
 htmlcov/
 

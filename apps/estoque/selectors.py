@@ -230,6 +230,18 @@ def listar_historico_importacoes_scpi():
     )
 
 
+def buscar_importacao_scpi(*, importacao_id: int):
+    """Retorna a ImportacaoSCPI pelo pk, ou None."""
+    from apps.estoque.models import ImportacaoSCPI
+
+    try:
+        return ImportacaoSCPI.objects.select_related('importado_por', 'estoque').get(
+            pk=importacao_id
+        )
+    except ImportacaoSCPI.DoesNotExist:
+        return None
+
+
 def listar_materiais_com_saldo(*, busca: str = ''):
     from django.db.models import (
         BooleanField,

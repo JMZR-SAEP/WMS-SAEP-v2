@@ -322,6 +322,122 @@ class TestConfirmarImportacaoScpi:
         assert importacao.total_linhas == 1
         assert ImportacaoSCPI.objects.filter(pk=importacao.pk).exists()
 
+    def test_persiste_arquivo_csv_confirmado(
+        self, db, settings, tmp_path, superuser, estoque_principal
+    ):
+        """O CSV confirmado é arquivado, não descartado (base da reconciliação LED-02)."""
+        from apps.estoque.models import ImportacaoSCPI
+        from apps.estoque.services import confirmar_importacao_scpi
+
+        settings.MEDIA_ROOT = str(tmp_path)
+        csv_bytes = self._csv('000.999.600', 'Arruela M8', '7.000')
+        importacao = confirmar_importacao_scpi(
+            ator_id=superuser.pk,
+            conteudo_bytes=csv_bytes,
+            arquivo_nome='saldo_scpi.csv',
+            estoque_id=estoque_principal.pk,
+        )
+        # Relê do banco e abre pelo storage: ler o handle ainda em memória
+        # passaria mesmo que nada tivesse sido gravado.
+        do_banco = ImportacaoSCPI.objects.get(pk=importacao.pk)
+        with do_banco.arquivo.open('rb') as arquivo:
+            assert arquivo.read() == csv_bytes
+        assert do_banco.arquivo.name.endswith('.csv')
+
+    def test_hash_confere_com_sha256_do_arquivo_persistido(
+        self, db, settings, tmp_path, superuser, estoque_principal
+    ):
+        """O hash gravado descreve o arquivo que ficou no storage, não outro."""
+        import hashlib
+
+        from apps.estoque.models import ImportacaoSCPI
+        from apps.estoque.services import confirmar_importacao_scpi
+
+        settings.MEDIA_ROOT = str(tmp_path)
+        csv_bytes = self._csv('000.999.610', 'Bucha S8', '3.000')
+        importacao = confirmar_importacao_scpi(
+            ator_id=superuser.pk,
+            conteudo_bytes=csv_bytes,
+            arquivo_nome='conferencia.csv',
+            estoque_id=estoque_principal.pk,
+        )
+        do_banco = ImportacaoSCPI.objects.get(pk=importacao.pk)
+        with do_banco.arquivo.open('rb') as arquivo:
+            hash_do_arquivo = hashlib.sha256(arquivo.read()).hexdigest()
+        assert hash_do_arquivo == do_banco.arquivo_hash
+
+    def test_falha_ao_persistir_arquivo_desfaz_importacao(
+        self, db, settings, tmp_path, monkeypatch, superuser, estoque_principal
+    ):
+        """Erro de storage desfaz a confirmação inteira — as três tabelas do mesmo atomic."""
+        import pytest
+        from django.core.files.storage import FileSystemStorage
+
+        from apps.estoque.models import ImportacaoSCPI, Material, SaldoEstoque
+        from apps.estoque.services import confirmar_importacao_scpi
+
+        settings.MEDIA_ROOT = str(tmp_path)
+
+        def _disco_cheio(self, name, content, max_length=None):
+            raise OSError('sem espaço em disco')
+
+        monkeypatch.setattr(FileSystemStorage, '_save', _disco_cheio)
+
+        csv_bytes = self._csv('000.999.700', 'Cantoneira 40mm', '9.000')
+        with pytest.raises(OSError):
+            confirmar_importacao_scpi(
+                ator_id=superuser.pk,
+                conteudo_bytes=csv_bytes,
+                arquivo_nome='rollback.csv',
+                estoque_id=estoque_principal.pk,
+            )
+
+        assert not ImportacaoSCPI.objects.filter(arquivo_nome='rollback.csv').exists()
+        assert not Material.objects.filter(codigo='000.999.700').exists()
+        assert not SaldoEstoque.objects.filter(material__codigo='000.999.700').exists()
+
+    def test_falha_no_hook_desfaz_importacao_mesmo_com_arquivo_gravado(
+        self, db, settings, tmp_path, superuser, estoque_principal
+    ):
+        """O arquivo já foi para o storage, mas o banco volta ao estado anterior.
+
+        Storage não participa da transação: o CSV gravado permanece em disco como
+        órfão. É inerte — o download só serve arquivo a partir de uma linha
+        existente — e apagá-lo aqui seria perigoso, porque o nome vem do hash do
+        conteúdo e poderia colidir com o arquivo de uma importação legítima.
+        """
+        import pytest
+        from django.core.files.storage import default_storage
+
+        from apps.estoque.models import ImportacaoSCPI, Material, SaldoEstoque
+        from apps.estoque.services import confirmar_importacao_scpi
+
+        settings.MEDIA_ROOT = str(tmp_path)
+
+        gravado = {}
+
+        def _hook_quebrado(**kwargs):
+            gravado['nome'] = kwargs['importacao'].arquivo.name
+            raise RuntimeError('hook falhou depois da criação')
+
+        csv_bytes = self._csv('000.999.800', 'Abraçadeira 20mm', '4.000')
+        with pytest.raises(RuntimeError):
+            confirmar_importacao_scpi(
+                ator_id=superuser.pk,
+                conteudo_bytes=csv_bytes,
+                arquivo_nome='hook.csv',
+                estoque_id=estoque_principal.pk,
+                _pos_importacao_hook=_hook_quebrado,
+            )
+
+        assert not ImportacaoSCPI.objects.filter(arquivo_nome='hook.csv').exists()
+        assert not Material.objects.filter(codigo='000.999.800').exists()
+        assert not SaldoEstoque.objects.filter(material__codigo='000.999.800').exists()
+
+        # O órfão descrito na docstring precisa ser verificável: sem isto, adiar
+        # ou omitir a gravação no storage manteria o teste verde.
+        assert default_storage.exists(gravado['nome'])
+
     def test_cria_material_novo_com_saldo_inicial(
         self, db, superuser, estoque_principal
     ):

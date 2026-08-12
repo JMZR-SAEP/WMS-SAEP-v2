@@ -273,13 +273,24 @@ class StatusImportacaoSCPI(models.TextChoices):
 
 
 class ImportacaoSCPI(models.Model):
-    """Metadados de uma confirmação de importação SCPI.
+    """Metadados de uma confirmação de importação SCPI, mais o CSV confirmado.
 
-    Não armazena o CSV bruto nem snapshot do preview — apenas metadados e resumo mínimo.
-    O hash garante bloqueio de reimportação exata do mesmo arquivo.
+    Não guarda snapshot do preview nem o CSV como coluna: o conteúdo vai para o
+    storage (`arquivo`) e o banco fica só com o caminho, os metadados e o resumo
+    mínimo. O hash garante bloqueio de reimportação exata do mesmo arquivo.
+
+    O arquivo é arquivado porque o bootstrap de saldo do SCPI fica fora do
+    ledger (LED-01, ADR-0015): sem o CSV original, a reconciliação LED-02 das
+    linhas nascidas da importação não tem insumo nenhum.
     """
 
     arquivo_nome = models.CharField('nome do arquivo', max_length=255)
+    arquivo = models.FileField(
+        'arquivo CSV',
+        upload_to='importacoes_scpi/',
+        blank=True,
+        help_text='CSV confirmado. Vazio em importações anteriores ao arquivamento.',
+    )
     arquivo_hash = models.CharField(
         'hash SHA-256 do arquivo',
         max_length=64,

@@ -540,6 +540,41 @@ def historico_importacoes_scpi_view(request):
 
 
 @login_required
+@require_http_methods(['GET'])
+def baixar_arquivo_importacao_scpi_view(request, pk: int):
+    """Serve o CSV arquivado de uma importação SCPI, atrás da policy do histórico."""
+    from pathlib import PurePosixPath
+
+    from django.http import FileResponse, Http404
+
+    from apps.core.exceptions import PermissaoNegada
+    from apps.estoque.policies import exigir_pode_consultar_historico_scpi
+    from apps.estoque.selectors import buscar_importacao_scpi
+
+    papel = papel_efetivo(request.user)
+    try:
+        exigir_pode_consultar_historico_scpi(papel)
+    except PermissaoNegada as exc:
+        raise PermissionDenied(str(exc))
+
+    importacao = buscar_importacao_scpi(importacao_id=pk)
+    if importacao is None or not importacao.arquivo:
+        raise Http404
+
+    # `FileResponse` lê de forma tardia. Sem abrir aqui, um arquivo que sumiu do
+    # storage estouraria no meio do streaming — 500 com o header já enviado.
+    try:
+        arquivo = importacao.arquivo.open('rb')
+    except FileNotFoundError:
+        raise Http404
+
+    # Basename do nome original: `arquivo_nome` veio do upload e pode trazer
+    # componentes de caminho, que não entram no `Content-Disposition`.
+    nome = PurePosixPath(importacao.arquivo_nome.replace('\\', '/')).name
+    return FileResponse(arquivo, as_attachment=True, filename=nome or 'importacao.csv')
+
+
+@login_required
 @require_GET
 def lista_materiais_view(request):
     from apps.core.exceptions import PermissaoNegada

@@ -653,6 +653,7 @@ def confirmar_importacao_scpi(
     """Confirma importação SCPI: bloqueia reimportação, cria novos materiais e grava metadados."""
     import hashlib
 
+    from django.core.files.base import ContentFile
     from django.db import IntegrityError, transaction
 
     from apps.accounts.models import User
@@ -722,6 +723,12 @@ def confirmar_importacao_scpi(
         try:
             importacao = ImportacaoSCPI.objects.create(
                 arquivo_nome=arquivo_nome,
+                # Nome em disco derivado do hash, não de `arquivo_nome`: o hash
+                # já é único por importação, o que dispensa sufixo anticolisão
+                # do storage e mantém entrada de usuário fora do caminho
+                # gravado. O nome original fica em `arquivo_nome` e é ele que
+                # alimenta o `Content-Disposition` do download.
+                arquivo=ContentFile(conteudo_bytes, name=f'{arquivo_hash}.csv'),
                 arquivo_hash=arquivo_hash,
                 importado_por=ator,
                 estoque=estoque,

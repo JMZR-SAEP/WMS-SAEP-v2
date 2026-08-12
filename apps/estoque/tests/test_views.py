@@ -1123,6 +1123,174 @@ class TestHistoricoImportacoesScpiView:
         wrapper_e_tabela = conteudo[inicio_wrapper:fim_tabela]
         assert 'sm:block' not in wrapper_e_tabela
 
+    def test_exibe_link_de_download_quando_ha_arquivo(
+        self, client, settings, tmp_path, superuser, estoque_principal
+    ):
+        from django.core.files.base import ContentFile
+
+        from apps.estoque.models import ImportacaoSCPI, StatusImportacaoSCPI
+
+        settings.MEDIA_ROOT = str(tmp_path)
+        importacao = ImportacaoSCPI.objects.create(
+            arquivo_nome='com_arquivo.csv',
+            arquivo=ContentFile(b'CADPRO;DENOMINACAO;QUAN3\n', name='com_arquivo.csv'),
+            arquivo_hash='b' * 64,
+            importado_por=superuser,
+            estoque=estoque_principal,
+            status=StatusImportacaoSCPI.CONCLUIDA,
+        )
+        client.force_login(superuser)
+        resp = client.get(self.URL)
+        url_download = f'/estoque/importacao-scpi/{importacao.pk}/arquivo/'
+        assert url_download.encode() in resp.content
+        # Nome acessível distingue as linhas: "Baixar" sozinho se repete na coluna.
+        assert b'aria-label="Baixar CSV de com_arquivo.csv"' in resp.content
+
+    def test_nao_exibe_link_quando_importacao_legada(
+        self, client, superuser, estoque_principal
+    ):
+        """Importação anterior ao arquivamento não ganha link morto."""
+        from apps.estoque.models import ImportacaoSCPI, StatusImportacaoSCPI
+
+        importacao = ImportacaoSCPI.objects.create(
+            arquivo_nome='legada.csv',
+            arquivo_hash='c' * 64,
+            importado_por=superuser,
+            estoque=estoque_principal,
+            status=StatusImportacaoSCPI.CONCLUIDA,
+        )
+        client.force_login(superuser)
+        resp = client.get(self.URL)
+        url_download = f'/estoque/importacao-scpi/{importacao.pk}/arquivo/'
+        assert url_download.encode() not in resp.content
+
+
+class TestBaixarArquivoImportacaoScpiView:
+    """Contrato HTTP de baixar_arquivo_importacao_scpi_view."""
+
+    CSV = b'CADPRO;DENOMINACAO;QUAN3\n000.111.222;Parafuso M6;010.000\n'
+
+    def _url(self, pk: int) -> str:
+        return f'/estoque/importacao-scpi/{pk}/arquivo/'
+
+    def _importacao(
+        self,
+        superuser,
+        estoque_principal,
+        *,
+        arquivo_nome='relatorio.csv',
+        com_arquivo=True,
+    ):
+        from django.core.files.base import ContentFile
+
+        from apps.estoque.models import ImportacaoSCPI, StatusImportacaoSCPI
+
+        return ImportacaoSCPI.objects.create(
+            arquivo_nome=arquivo_nome,
+            arquivo=ContentFile(self.CSV, name='arquivado.csv') if com_arquivo else '',
+            arquivo_hash='1' * 64,
+            importado_por=superuser,
+            estoque=estoque_principal,
+            status=StatusImportacaoSCPI.CONCLUIDA,
+        )
+
+    def _corpo(self, resp) -> bytes:
+        return b''.join(resp.streaming_content)
+
+    def test_nao_autenticado_get_redireciona_para_login(
+        self, client, settings, tmp_path, superuser, estoque_principal
+    ):
+        settings.MEDIA_ROOT = str(tmp_path)
+        importacao = self._importacao(superuser, estoque_principal)
+        resp = client.get(self._url(importacao.pk))
+        assert resp.status_code == 302
+        assert '/login/' in resp['Location']
+
+    def test_nao_autenticado_post_redireciona_para_login(
+        self, client, settings, tmp_path, superuser, estoque_principal
+    ):
+        """`login_required` por fora de `require_http_methods`: anônimo vê login, não 405."""
+        settings.MEDIA_ROOT = str(tmp_path)
+        importacao = self._importacao(superuser, estoque_principal)
+        resp = client.post(self._url(importacao.pk), {})
+        assert resp.status_code == 302
+        assert '/login/' in resp['Location']
+
+    def test_post_autenticado_retorna_405(
+        self, client, settings, tmp_path, superuser, estoque_principal
+    ):
+        settings.MEDIA_ROOT = str(tmp_path)
+        importacao = self._importacao(superuser, estoque_principal)
+        client.force_login(superuser)
+        resp = client.post(self._url(importacao.pk), {})
+        assert resp.status_code == 405
+
+    def test_solicitante_retorna_403(
+        self, client, settings, tmp_path, solicitante, superuser, estoque_principal
+    ):
+        settings.MEDIA_ROOT = str(tmp_path)
+        importacao = self._importacao(superuser, estoque_principal)
+        client.force_login(solicitante)
+        resp = client.get(self._url(importacao.pk))
+        assert resp.status_code == 403
+
+    def test_chefe_almoxarifado_baixa_o_csv(
+        self,
+        client,
+        settings,
+        tmp_path,
+        chefe_almoxarifado,
+        superuser,
+        estoque_principal,
+    ):
+        settings.MEDIA_ROOT = str(tmp_path)
+        importacao = self._importacao(superuser, estoque_principal)
+        client.force_login(chefe_almoxarifado)
+        resp = client.get(self._url(importacao.pk))
+        assert resp.status_code == 200
+        assert resp['Content-Disposition'] == 'attachment; filename="relatorio.csv"'
+        assert self._corpo(resp) == self.CSV
+
+    def test_content_disposition_usa_basename_do_nome_original(
+        self, client, settings, tmp_path, superuser, estoque_principal
+    ):
+        """Nome com componentes de caminho não vaza para o header."""
+        settings.MEDIA_ROOT = str(tmp_path)
+        importacao = self._importacao(
+            superuser, estoque_principal, arquivo_nome='subdir/relatorio.csv'
+        )
+        client.force_login(superuser)
+        resp = client.get(self._url(importacao.pk))
+        assert resp.status_code == 200
+        assert resp['Content-Disposition'] == 'attachment; filename="relatorio.csv"'
+
+    def test_pk_inexistente_retorna_404(self, client, superuser):
+        client.force_login(superuser)
+        resp = client.get(self._url(999999))
+        assert resp.status_code == 404
+
+    def test_importacao_sem_arquivo_retorna_404(
+        self, client, settings, tmp_path, superuser, estoque_principal
+    ):
+        settings.MEDIA_ROOT = str(tmp_path)
+        importacao = self._importacao(superuser, estoque_principal, com_arquivo=False)
+        client.force_login(superuser)
+        resp = client.get(self._url(importacao.pk))
+        assert resp.status_code == 404
+
+    def test_arquivo_removido_do_storage_retorna_404(
+        self, client, settings, tmp_path, superuser, estoque_principal
+    ):
+        """Sem abrir o arquivo antes do FileResponse, isto estouraria 500 no meio do stream."""
+        from pathlib import Path
+
+        settings.MEDIA_ROOT = str(tmp_path)
+        importacao = self._importacao(superuser, estoque_principal)
+        Path(importacao.arquivo.path).unlink()
+        client.force_login(superuser)
+        resp = client.get(self._url(importacao.pk))
+        assert resp.status_code == 404
+
 
 URL_MATERIAIS = reverse('estoque:lista_materiais')
 
