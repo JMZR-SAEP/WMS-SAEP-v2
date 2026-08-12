@@ -1123,6 +1123,47 @@ class TestHistoricoImportacoesScpiView:
         wrapper_e_tabela = conteudo[inicio_wrapper:fim_tabela]
         assert 'sm:block' not in wrapper_e_tabela
 
+    def test_exibe_link_de_download_quando_ha_arquivo(
+        self, client, settings, tmp_path, superuser, estoque_principal
+    ):
+        from django.core.files.base import ContentFile
+
+        from apps.estoque.models import ImportacaoSCPI, StatusImportacaoSCPI
+
+        settings.MEDIA_ROOT = str(tmp_path)
+        importacao = ImportacaoSCPI.objects.create(
+            arquivo_nome='com_arquivo.csv',
+            arquivo=ContentFile(b'CADPRO;DENOMINACAO;QUAN3\n', name='com_arquivo.csv'),
+            arquivo_hash='b' * 64,
+            importado_por=superuser,
+            estoque=estoque_principal,
+            status=StatusImportacaoSCPI.CONCLUIDA,
+        )
+        client.force_login(superuser)
+        resp = client.get(self.URL)
+        url_download = f'/estoque/importacao-scpi/{importacao.pk}/arquivo/'
+        assert url_download.encode() in resp.content
+        # Nome acessível distingue as linhas: "Baixar" sozinho se repete na coluna.
+        assert b'aria-label="Baixar CSV de com_arquivo.csv"' in resp.content
+
+    def test_nao_exibe_link_quando_importacao_legada(
+        self, client, superuser, estoque_principal
+    ):
+        """Importação anterior ao arquivamento não ganha link morto."""
+        from apps.estoque.models import ImportacaoSCPI, StatusImportacaoSCPI
+
+        importacao = ImportacaoSCPI.objects.create(
+            arquivo_nome='legada.csv',
+            arquivo_hash='c' * 64,
+            importado_por=superuser,
+            estoque=estoque_principal,
+            status=StatusImportacaoSCPI.CONCLUIDA,
+        )
+        client.force_login(superuser)
+        resp = client.get(self.URL)
+        url_download = f'/estoque/importacao-scpi/{importacao.pk}/arquivo/'
+        assert url_download.encode() not in resp.content
+
 
 class TestBaixarArquivoImportacaoScpiView:
     """Contrato HTTP de baixar_arquivo_importacao_scpi_view."""
@@ -1133,7 +1174,12 @@ class TestBaixarArquivoImportacaoScpiView:
         return f'/estoque/importacao-scpi/{pk}/arquivo/'
 
     def _importacao(
-        self, superuser, estoque_principal, *, arquivo_nome='relatorio.csv', com_arquivo=True
+        self,
+        superuser,
+        estoque_principal,
+        *,
+        arquivo_nome='relatorio.csv',
+        com_arquivo=True,
     ):
         from django.core.files.base import ContentFile
 

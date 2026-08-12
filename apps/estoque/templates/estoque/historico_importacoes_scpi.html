@@ -43,6 +43,7 @@
             {% include "components/table.html#th" with rotulo="Linhas" alinhamento="direita" %}
             {% include "components/table.html#th" with rotulo="Novos" alinhamento="direita" %}
             {% include "components/table.html#th" with rotulo="Divergentes" alinhamento="direita" %}
+            {% include "components/table.html#th" with rotulo="Arquivo CSV" %}
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100">
@@ -64,6 +65,15 @@
             <td class="px-4 py-3 text-right tabular-nums text-slate-700">{{ imp.total_linhas }}</td>
             <td class="px-4 py-3 text-right tabular-nums text-slate-700">{{ imp.total_novos }}</td>
             <td class="px-4 py-3 text-right tabular-nums {% if imp.total_divergentes > 0 %}text-yellow-700 font-medium{% else %}text-slate-700{% endif %}">{{ imp.total_divergentes }}</td>
+            <td class="px-4 py-3 whitespace-nowrap">
+              {% if imp.arquivo %}
+                {% url 'estoque:baixar_arquivo_importacao_scpi' pk=imp.pk as url_download %}
+                {% include "components/button.html" with variant="link" size="sm" label="Baixar" href=url_download aria_label="Baixar CSV de "|add:imp.arquivo_nome %}
+              {% else %}
+                <span class="text-slate-400" aria-hidden="true">—</span>
+                <span class="sr-only">Importação anterior ao arquivamento: CSV não disponível.</span>
+              {% endif %}
+            </td>
           </tr>
           {% endfor %}
         </tbody>

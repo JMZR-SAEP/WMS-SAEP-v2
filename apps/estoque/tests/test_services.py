@@ -394,9 +394,7 @@ class TestConfirmarImportacaoScpi:
 
         assert not ImportacaoSCPI.objects.filter(arquivo_nome='rollback.csv').exists()
         assert not Material.objects.filter(codigo='000.999.700').exists()
-        assert not SaldoEstoque.objects.filter(
-            material__codigo='000.999.700'
-        ).exists()
+        assert not SaldoEstoque.objects.filter(material__codigo='000.999.700').exists()
 
     def test_cria_material_novo_com_saldo_inicial(
         self, db, superuser, estoque_principal
