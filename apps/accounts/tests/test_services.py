@@ -677,3 +677,22 @@ class TestRemanejarUsuario:
         assert exc_info.value.code == 'referencia_invalida'
         usuario_ativo_a.refresh_from_db()
         assert usuario_ativo_a.setor_id == setor_a.pk
+
+
+@pytest.mark.django_db
+def test_desativar_usuario_nao_vaza_existencia_para_ator_sem_permissao(
+    usuario_ativo_a,
+):
+    """Ator sem `pode_gerir_cadastro` recebe `PermissaoNegada` mesmo com id inexistente.
+
+    A ordem mudou no #114: o lock de `User` saiu do bloco de validação
+    preliminar para respeitar a ordem canônica `Setor` → `User`, então a
+    existência de `usuario_id` passou a ser conferida **depois** da policy. Antes
+    a resposta era `DadosInvalidos`, o que distinguia id existente de inexistente
+    para quem não pode gerir cadastro.
+    """
+    from apps.core.exceptions import PermissaoNegada
+    from apps.accounts.services import desativar_usuario
+
+    with pytest.raises(PermissaoNegada):
+        desativar_usuario(ator_id=usuario_ativo_a.pk, usuario_id=999_999)

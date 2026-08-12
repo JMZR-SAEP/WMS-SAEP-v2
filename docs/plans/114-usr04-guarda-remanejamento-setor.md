@@ -47,9 +47,13 @@ problema maior, e corrigir só o service novo daria aparência de garantia sem
 eliminar o ciclo.
 
 A expansão é **de mecânica de locks, não de regra de domínio**: nenhuma
-pré-condição, mensagem, código de exceção ou comportamento observável de
-`desativar_usuario` e `trocar_chefe_setor` muda, e os testes existentes dos dois
-seguem válidos sem edição. Se o mantenedor preferir isolar essa parte em issue
+pré-condição, mensagem ou código de exceção de `desativar_usuario` e
+`trocar_chefe_setor` muda, e os testes existentes dos dois seguem válidos sem
+edição. Há **uma** mudança observável, e ela é consequência inevitável de
+reordenar os locks: em `desativar_usuario`, a existência de `usuario_id` passa a
+ser conferida depois da policy, então ator sem permissão com id inexistente
+recebe `PermissaoNegada` em vez de `DadosInvalidos` — ver a decisão 0 de "Adoção
+nos services irmãos". Se o mantenedor preferir isolar essa parte em issue
 própria, é só remover as seções "Ordem canônica de locks" e "Adoção nos
 services irmãos", junto com as linhas correspondentes de "Muda" — o resto do
 plano fica de pé, com o deadlock permanecendo como risco declarado.
@@ -188,8 +192,19 @@ ponta errada da ordem. O lock antecipado sai:
     # ... daqui para baixo, inalterado
 ```
 
-Duas escolhas conservadoras, para a promessa de "nada observável muda" valer de
-fato:
+Uma mudança observável, declarada, e duas escolhas conservadoras:
+
+0. **Em `desativar_usuario`, a existência de `usuario_id` passa a ser conferida
+   depois da policy.** É consequência direta de tirar o lock de `User` do bloco
+   preliminar: a checagem foi junto. Um ator sem `pode_gerir_cadastro` que
+   informe um `usuario_id` inexistente passa a receber `PermissaoNegada` onde
+   antes recebia `DadosInvalidos`. **A mudança é desejável** — não vaza
+   existência de registro para quem não pode gerir cadastro, e alinha o service
+   com `remanejar_usuario` —, mas é observável, então fica declarada aqui em vez
+   de passar em silêncio, e o teste
+   `test_desativar_usuario_nao_vaza_existencia_para_ator_sem_permissao` a fixa.
+   Note o contraste com a decisão 2 abaixo: em `trocar_chefe_setor` a ordem
+   **não** mudou, justamente porque lá não havia motivo estrutural para mexer.
 
 1. **`desativar_usuario` exige só `usuario_id` presente.** Ele tem o mesmo furo
    que o caso 13 corrige em `remanejar_usuario` — um `novo_chefe_id` inexistente
