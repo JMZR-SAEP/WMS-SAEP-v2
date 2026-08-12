@@ -141,6 +141,7 @@ estrutural, não parâmetro de implantação.
   | Proxy desligado, cliente envia `X-Forwarded-For` | `REMOTE_ADDR`; o cabeçalho é ignorado. |
   | Proxy ligado, cadeia válida com 1 proxy | IP do cliente, extraído da cadeia. |
   | Proxy ligado, cabeçalho ausente ou inválido | `REMOTE_ADDR` (o do proxy), pelo fallback. |
+
 - **`apps/accounts/templates/accounts/login_bloqueado.html`** — nova página de
   bloqueio, servida pelo `AxesMiddleware` com status **429 Too Many Requests**
   (default de `AXES_HTTP_RESPONSE_CODE`, mantido: 429 é o código correto para
