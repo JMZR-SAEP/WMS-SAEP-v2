@@ -160,7 +160,10 @@ AXES_RESET_COOL_OFF_ON_FAILURE_DURING_LOCKOUT = True
 # crescimento é limitado por `AXES_ACCESS_FAILURE_LOG_PER_USER_LIMIT` (1000).
 AXES_ENABLE_ACCESS_FAILURE_LOG = True
 
-AXES_ENABLE_RETRY_AFTER_HEADER = True
+# Sem `Retry-After` na resposta de bloqueio: `AXES_ENABLE_RETRY_AFTER_HEADER`
+# só existe no master do axes, não na 8.3.1 que este projeto fixa. Declarar a
+# setting não daria erro — o Django aceita qualquer nome — e o header
+# simplesmente nunca apareceria. O prazo é comunicado pela página de bloqueio.
 AXES_LOCKOUT_TEMPLATE = 'accounts/login_bloqueado.html'
 
 
