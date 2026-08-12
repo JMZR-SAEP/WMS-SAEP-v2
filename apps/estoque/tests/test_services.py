@@ -407,13 +407,17 @@ class TestConfirmarImportacaoScpi:
         conteúdo e poderia colidir com o arquivo de uma importação legítima.
         """
         import pytest
+        from django.core.files.storage import default_storage
 
         from apps.estoque.models import ImportacaoSCPI, Material, SaldoEstoque
         from apps.estoque.services import confirmar_importacao_scpi
 
         settings.MEDIA_ROOT = str(tmp_path)
 
+        gravado = {}
+
         def _hook_quebrado(**kwargs):
+            gravado['nome'] = kwargs['importacao'].arquivo.name
             raise RuntimeError('hook falhou depois da criação')
 
         csv_bytes = self._csv('000.999.800', 'Abraçadeira 20mm', '4.000')
@@ -429,6 +433,10 @@ class TestConfirmarImportacaoScpi:
         assert not ImportacaoSCPI.objects.filter(arquivo_nome='hook.csv').exists()
         assert not Material.objects.filter(codigo='000.999.800').exists()
         assert not SaldoEstoque.objects.filter(material__codigo='000.999.800').exists()
+
+        # O órfão descrito na docstring precisa ser verificável: sem isto, adiar
+        # ou omitir a gravação no storage manteria o teste verde.
+        assert default_storage.exists(gravado['nome'])
 
     def test_cria_material_novo_com_saldo_inicial(
         self, db, superuser, estoque_principal
