@@ -31,7 +31,7 @@
        sem_resultados_label="Nenhum beneficiário encontrado."
     %}
 {% endcomment %}
-<label class="block text-xs font-medium text-slate-600 mb-1" :for="idBase + '-busca'">{{ label }}</label>
+<label class="mb-1 block text-xs font-medium uppercase tracking-wide text-text-tertiary" :for="idBase + '-busca'">{{ label }}</label>
 <div class="relative">
   <input
     type="{{ tipo_input|default:'text' }}"
