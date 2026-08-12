@@ -6,7 +6,9 @@ matrículas é curto e adivinhável (`OBRAS001`, `ALMOX001`), então o único cu
 uma força bruta hoje é largura de banda — achado R9 da auditoria.
 
 A issue é HITL e oferecia três saídas. **A decisão tomada é a opção 1:
-`django-axes`.** Este plano registra a decisão em ADR e implementa o lockout.
+`django-axes`.** Este documento é **só o plano**: registra a decisão e orienta a
+implementação, que ainda não existe. Nada do que está descrito abaixo foi
+codado — o PR que traz este arquivo não contém código.
 
 ## Decisão registrada
 
@@ -28,8 +30,25 @@ Por que não as outras duas:
 
 `django-axes` cobre o que as duas outras não cobrem: conta tentativa **falha**
 (não requisição), chaveia por matrícula + IP, expira sozinha, tem reset por
-sucesso, comando de desbloqueio e trilha auditável de tentativas. Custo: uma
-dependência e duas tabelas.
+sucesso, comandos de desbloqueio e trilha auditável. Custo: uma dependência e
+**quatro** tabelas criadas por migration —
+
+| Tabela | Escrita nesta configuração? | Papel |
+|---|---|---|
+| `AccessAttempt` | Sim | Agrega falhas por (matrícula, IP, user-agent). É o contador do lockout. Apagada por reset ou expiração. |
+| `AccessAttemptExpiration` | Sim | Existe porque `AXES_USE_ATTEMPT_EXPIRATION=True`; guarda o `expires_at` de cada `AccessAttempt`, e é por esse campo que a limpeza filtra. |
+| `AccessLog` | Sim | Login e logout bem-sucedidos. |
+| `AccessFailureLog` | Sim, **por opção deste plano** | Registro durável de cada falha, `AXES_ENABLE_ACCESS_FAILURE_LOG=True` (default é `False`). Sem ele não há "trilha auditável": `AccessAttempt` é agregado e some no primeiro login bem-sucedido, por causa de `AXES_RESET_ON_SUCCESS`. |
+
+Auditoria tem contrapartida de retenção e de dado pessoal: `AccessFailureLog` e
+`AccessLog` guardam matrícula, IP e user-agent. O crescimento de
+`AccessFailureLog` é limitado por `AXES_ACCESS_FAILURE_LOG_PER_USER_LIMIT`
+(default 1000, mantido). O expurgo é manual e usa **comandos distintos** —
+`manage.py axes_reset_logs --age <dias>` só apaga `AccessLog`;
+`manage.py axes_reset_failure_logs --age <dias>` é o que apaga
+`AccessFailureLog`. Ambos entram no item GL-02 do checklist. Nesta fase não há
+rotina agendada: com ~20 usuários, o expurgo periódico manual basta, e agendar
+tarefa (cron/Celery) seria infraestrutura que o projeto ainda não tem.
 
 A decisão vira **ADR-0018**, não nota de runbook, porque muda o pipeline de
 autenticação do projeto (`AUTHENTICATION_BACKENDS`, middleware) — é decisão
@@ -65,6 +84,7 @@ estrutural, não parâmetro de implantação.
     AXES_USE_ATTEMPT_EXPIRATION = True
     AXES_RESET_ON_SUCCESS = True
     AXES_RESET_COOL_OFF_ON_FAILURE_DURING_LOCKOUT = True
+    AXES_ENABLE_ACCESS_FAILURE_LOG = True
     AXES_ENABLE_RETRY_AFTER_HEADER = True
     AXES_LOCKOUT_TEMPLATE = 'accounts/login_bloqueado.html'
     ```
@@ -74,10 +94,14 @@ estrutural, não parâmetro de implantação.
     quem posta é o `AuthenticationForm` do Django, cujo campo se chama sempre
     `username` — e é essa a chave que chega tanto em `request.POST` quanto no
     `credentials` de `authenticate()`. Sem a linha, o axes procuraria
-    `'matricula'`, não acharia, e chavearia **todas** as falhas do sistema sob
-    `username=None`: um bucket global, em que cinco erros de senha de qualquer
-    pessoa trancam todo mundo. O teste 5 (isolamento por matrícula) é o que
-    fixa isso.
+    `'matricula'`, não acharia, e chavearia todas as falhas sob `username=None`.
+    Com o parâmetro combinado, isso **não** produz um bucket global: as falhas
+    passam a se agrupar por `(None, ip_address)` — um bucket por IP, com a
+    matrícula fora da chave. O efeito é que todo mundo que compartilha um IP
+    compartilha o mesmo contador: cinco erros de senha somados entre pessoas
+    diferentes trancam todas elas naquele IP, e o bucket vira efetivamente
+    global exatamente no cenário do risco 1 (rede atrás de um proxy, um IP só).
+    O teste 5 (isolamento por matrícula, mesmo IP) é o que fixa isso.
 
     `AXES_RESET_COOL_OFF_ON_FAILURE_DURING_LOCKOUT` é declarado explicitamente
     embora `True` seja o default: é ele que faz cada tentativa durante o
@@ -92,13 +116,31 @@ estrutural, não parâmetro de implantação.
     matrícula de alguém tranca essa pessoa de qualquer lugar.
 - **`config/settings/piloto.py`** — dentro do bloco `if
   env_piloto.bool('PILOTO_ATRAS_DE_PROXY_TLS', ...)` que já existe, acrescenta
-  `AXES_IPWARE_META_PRECEDENCE_ORDER = ['HTTP_X_FORWARDED_FOR']` e
-  `AXES_IPWARE_PROXY_COUNT = 1`. A condição é reusada de propósito: confiar em
-  `X-Forwarded-For` para identificar o cliente tem exatamente o mesmo
-  pré-requisito que confiar em `X-Forwarded-Proto` — um proxy na frente que
-  sobrescreva o cabeçalho. Ligar um sem o outro é incoerente, e ligar qualquer
-  um sem proxy deixa o cliente escolher o próprio IP (e, aqui, escapar do
-  lockout trocando o cabeçalho a cada tentativa).
+  `AXES_IPWARE_META_PRECEDENCE_ORDER = ['HTTP_X_FORWARDED_FOR', 'REMOTE_ADDR']`
+  e `AXES_IPWARE_PROXY_COUNT = 1`. A condição é reusada de propósito: confiar em
+  `X-Forwarded-For` para identificar o cliente tem o mesmo pré-requisito que
+  confiar em `X-Forwarded-Proto` — um proxy na frente que sobrescreva o
+  cabeçalho. Ligar um sem o outro é incoerente, e ligar qualquer um sem proxy
+  deixa o cliente escolher o próprio IP (e, aqui, escapar do lockout trocando o
+  cabeçalho a cada tentativa).
+
+  `REMOTE_ADDR` fica na lista como **segundo** item, e não pode ser omitido: a
+  precedência substitui o default `('REMOTE_ADDR',)` em vez de estendê-lo, então
+  uma lista só com `HTTP_X_FORWARDED_FOR` faria requisição sem o cabeçalho
+  resolver IP `None` — e aí as falhas voltam a se agrupar sob
+  `(matricula, None)`, um bucket que ignora origem. Com o fallback, o pior caso
+  é o IP do próprio proxy: bucket compartilhado, degradado, mas ainda ancorado
+  em algo. Fora do bloco de proxy, a precedência continua sendo o default do
+  axes (`REMOTE_ADDR` apenas), o que faz um `X-Forwarded-For` forjado pelo
+  cliente ser simplesmente ignorado.
+
+  **Contrato de resolução de IP** (fixado pelos testes 10–12):
+
+  | Cenário | IP usado |
+  |---|---|
+  | Proxy desligado, cliente envia `X-Forwarded-For` | `REMOTE_ADDR`; o cabeçalho é ignorado. |
+  | Proxy ligado, cadeia válida com 1 proxy | IP do cliente, extraído da cadeia. |
+  | Proxy ligado, cabeçalho ausente ou inválido | `REMOTE_ADDR` (o do proxy), pelo fallback. |
 - **`apps/accounts/templates/accounts/login_bloqueado.html`** — nova página de
   bloqueio, servida pelo `AxesMiddleware` com status **429 Too Many Requests**
   (default de `AXES_HTTP_RESPONSE_CODE`, mantido: 429 é o código correto para
@@ -116,12 +158,21 @@ estrutural, não parâmetro de implantação.
   registrando decisão, alternativas descartadas, limiares e o procedimento de
   desbloqueio manual.
 - **`docs/checklist-go-live.md`** — seção "Autenticação" com item **GL-02**:
-  conferir, antes de liberar, que o lockout está ativo e que a resolução de IP
-  bate com a topologia de implantação (com ou sem proxy). O item traz os comandos
-  de inspeção e desbloqueio — `manage.py axes_list_attempts`,
-  `manage.py axes_reset_username <matricula>` e o mais cirúrgico
-  `manage.py axes_reset_ip_username <ip> <matricula>` —, que é o que a equipe
-  vai precisar às 8h de uma segunda-feira.
+  conferir, antes de liberar, que:
+  1. `manage.py migrate` foi aplicado e as quatro tabelas do axes existem — o
+     backend recusa operar sem elas, e o modo de falha é erro no login, a pior
+     hora possível para descobrir;
+  2. a resolução de IP bate com a topologia de implantação, conforme a tabela de
+     contrato acima (com ou sem proxy);
+  3. o lockout de fato dispara, por teste manual com uma matrícula descartável.
+
+  O item traz também os comandos que a equipe vai precisar às 8h de uma
+  segunda-feira: inspeção (`manage.py axes_list_attempts`), desbloqueio
+  (`manage.py axes_reset_username <matricula>` e o mais cirúrgico
+  `manage.py axes_reset_ip_username <ip> <matricula>`) e expurgo dos registros
+  de auditoria (`manage.py axes_reset_logs --age <dias>` para `AccessLog`;
+  `manage.py axes_reset_failure_logs --age <dias>` para `AccessFailureLog` — são
+  comandos distintos, um não cobre o outro).
 
 ### O que não muda
 
@@ -133,8 +184,8 @@ estrutural, não parâmetro de implantação.
 - **Autorização de domínio.** Nenhuma policy, nenhum service, nenhum selector.
   Lockout é controle de autenticação, anterior a papel; `docs/matriz-permissoes.md`
   não ganha linha.
-- **Modelos de domínio.** Nenhum. As tabelas novas (`AccessAttempt`,
-  `AccessLog`, `AccessFailureLog`) vêm com migrations do próprio pacote e não
+- **Modelos de domínio.** Nenhum. As quatro tabelas novas (ver a tabela em
+  "Decisão registrada") vêm com migrations do próprio pacote e não
   ficam sob `apps/**/migrations/` — a regra de migrations efêmeras do projeto
   não se aplica a elas.
 - **Testes existentes.** Nenhum é editado. Toda a suíte autentica via
@@ -152,9 +203,13 @@ estrutural, não parâmetro de implantação.
   interface, e as permissões desses models não são atribuídas a papel nenhum —
   na prática, só superusuário enxerga. Nenhum `admin.py` do projeto é tocado.
 
-## Arquivos tocados
+## Arquivos a tocar
 
-| Arquivo | Mudança |
+Nenhum destes arquivos foi alterado ainda; a tabela é o alvo da implementação,
+não um registro do que já existe. `login_bloqueado.html`, `test_lockout.py`, o
+ADR-0018 e a seção GL-02 ainda não existem no repositório.
+
+| Arquivo | Mudança planejada |
 |---|---|
 | `pyproject.toml` | Dependência `django-axes[ipware]>=8.3,<9`. |
 | `uv.lock` | Resolução da dependência nova. |
@@ -177,10 +232,18 @@ Duas técnicas usadas em vez de dependências novas:
 - **IP do cliente**: `client.post(..., REMOTE_ADDR='10.0.0.7')`, que é o que o
   ipware lê quando não há proxy configurado.
 - **Passagem do tempo**: sem `freezegun`/`time-machine` (não são dependências do
-  projeto). Para simular o fim da janela, os testes envelhecem as linhas
-  gravadas — `AccessAttempt.objects.update(attempt_time=timezone.now() -
-  timedelta(minutes=16))` — que é exatamente o estado do banco 16 minutos
-  depois.
+  projeto). Os testes envelhecem as linhas gravadas, reproduzindo o estado do
+  banco 16 minutos depois. Envelhecer **só** `AccessAttempt.attempt_time` não
+  basta: com `AXES_USE_ATTEMPT_EXPIRATION=True`, a limpeza filtra por
+  `expiration__expires_at__lte=now`, não por `attempt_time`. Um helper do
+  módulo de teste move os dois campos de uma vez:
+
+  ```python
+  def _envelhecer_tentativas(minutos: int) -> None:
+      instante = timezone.now() - timedelta(minutes=minutos)
+      AccessAttempt.objects.update(attempt_time=instante)
+      AccessAttemptExpiration.objects.update(expires_at=instante)
+  ```
 
 Comportamentos cobertos:
 
@@ -205,12 +268,62 @@ Comportamentos cobertos:
    responde 200. Sem `AXES_RESET_ON_SUCCESS`, esta oitava falha bloquearia um
    usuário que provou saber a própria senha no meio do caminho — é o critério
    de aceite "não trancar usuário legítimo" em forma executável.
-8. **Fim da janela libera** — bloqueado, tentativas envelhecidas em 16 minutos,
-   login com senha correta volta a 302 e autentica.
-9. **Página de bloqueio** — 429, PT-BR, herda `base.html`, traz a janela de 15
-   minutos no texto, e **não** contém a matrícula tentada (não-oráculo). A
-   asserção de ausência usa uma matrícula que não aparece em nenhum outro
-   lugar do HTML, para não passar por acidente.
+8. **Fim da janela libera** — bloqueado, tentativas envelhecidas em 16 minutos
+   pelo helper acima, login com senha correta volta a 302 e autentica.
+9. **Tentativa durante o bloqueio prorroga a janela** — bloqueado, mais uma
+   falha, e `AccessAttemptExpiration.expires_at` fica **maior** do que antes
+   dessa falha. É o comportamento de
+   `AXES_RESET_COOL_OFF_ON_FAILURE_DURING_LOCKOUT=True` em forma executável — a
+   asserção é sobre o campo, não só sobre o 429, porque o status seria 429 de
+   qualquer jeito. A variante com `False` **não** é testada: o projeto não
+   configura `False`, e afirmar o comportamento de uma configuração que não
+   enviamos é testar a biblioteca, não a decisão.
+10. **Proxy desligado ignora `X-Forwarded-For`** — POST com
+    `HTTP_X_FORWARDED_FOR='203.0.113.9'` e `REMOTE_ADDR='10.0.0.7'` grava a
+    tentativa com `ip_address='10.0.0.7'`. É o teste que impede um atacante de
+    driblar o lockout forjando o cabeçalho, e roda com as settings padrão.
+11. **Proxy ligado usa o IP da cadeia** — sob `override_settings` com a
+    precedência e `AXES_IPWARE_PROXY_COUNT = 1`, cadeia
+    `X-Forwarded-For: 203.0.113.9, 10.0.0.1` resolve `203.0.113.9`.
+12. **Proxy ligado sem cabeçalho cai em `REMOTE_ADDR`** — mesmas settings, sem
+    `X-Forwarded-For`: a tentativa é gravada com o `REMOTE_ADDR` e **não** com
+    `ip_address=None`. Fixa a razão de `REMOTE_ADDR` estar na precedência.
+13. **Página de bloqueio** — 429, PT-BR, herda `base.html`, traz a janela de 15
+    minutos no texto, e **não** contém a matrícula tentada (não-oráculo). A
+    asserção de ausência usa uma matrícula que não aparece em nenhum outro
+    lugar do HTML, para não passar por acidente.
+
+Os testes 10–12 leem `AccessAttempt.ip_address` diretamente, sem passar do
+limite de falhas: o que está sob teste é a **chave** da tentativa, não o
+bloqueio.
+
+### Contratos de login existentes
+
+O axes entra no caminho do login, então os contratos que já valem hoje têm de
+continuar valendo. Eles **já têm cobertura** em
+`apps/accounts/tests/test_login.py` e não são reescritos aqui — a suíte inteira
+verde é a asserção:
+
+| Contrato | Teste que o guarda |
+|---|---|
+| Senha inválida continua erro **do formulário** (200, `role="alert"`, `aria-invalid`), não página de bloqueio | `test_login_senha_invalida`, `test_login_senha_invalida_exibe_erro_inline`, `test_login_senha_invalida_erro_usa_components_alert` |
+| Usuário inativo não autentica | `test_login_usuario_inativo` |
+| `next` preservado no formulário e no redirect | `test_login_preserva_next_no_formulario_e_redirect` |
+| Logout encerra a sessão e redireciona | `test_logout` |
+
+O teste 2 desta suíte reforça o primeiro contrato pelo lado novo: abaixo do
+limite, a resposta continua sendo o formulário com erro, não o 429.
+
+Duas ressalvas sobre contratos que a revisão sugeriu cobrir:
+
+- **Logout com mensagem informativa não é contrato deste projeto.**
+  `accounts:logout` é o `LogoutView` do Django sem customização e não emite
+  `django.contrib.messages`. Criar essa mensagem é mudança de UX alheia à
+  issue #116; se for desejada, é issue própria.
+- **Redirect de acesso não autenticado** é `@login_required` do Django,
+  exercitado à exaustão pelas suítes de view de `estoque` e `requisicoes`.
+  Duplicar aqui não acrescentaria garantia — e este plano não toca nenhuma view
+  protegida.
 
 Fora deste arquivo, o critério real de regressão é a suíte inteira continuar
 verde: qualquer teste que autenticasse por um caminho incompatível com o axes
@@ -233,7 +346,7 @@ de uma issue de infraestrutura seria decisão de escopo maior que a issue.
 
 1. **Proxy sem `X-Forwarded-For` confiável.** Se o piloto subir atrás de proxy
    com `PILOTO_ATRAS_DE_PROXY_TLS` desligado, todos os usuários chegam com o IP
-   do proxy: `['username', 'ip_address']` degenera em "só username", e um
+   do proxy: `[['username', 'ip_address']]` degenera em "só username", e um
    atacante passa a conseguir trancar qualquer matrícula que conheça — um DoS
    por conta. O inverso é pior: ligar a leitura do cabeçalho **sem** proxy que o
    sobrescreva deixa o atacante trocar o próprio IP a cada tentativa e nunca
@@ -256,14 +369,22 @@ de uma issue de infraestrutura seria decisão de escopo maior que a issue.
    (matrícula, IP) só. Mitigado por `AXES_RESET_ON_SUCCESS` e pela janela curta
    (15 min), mas o desbloqueio manual precisa estar documentado onde a equipe
    ache — daí o comando entrar no checklist, não só no ADR.
-4. **Dependência e superfície nova.** Duas tabelas e um backend a mais no
+4. **Dependência e superfície nova.** Quatro tabelas e um backend a mais no
    caminho crítico do login. `django-axes` 8.3 declara suporte a Django 6.0 e
    Python 3.13, que é a combinação do projeto; ainda assim, o pin `<9` evita que
-   uma major nova entre sozinha num `uv lock` futuro.
-5. **Custo por tentativa falha.** O handler default grava em banco: uma escrita
-   por falha. Irrelevante nesta escala, e a alternativa (handler em cache) exige
-   `CACHES`, que o projeto não tem.
-6. **Suíte com o axes ligado.** Um teste futuro que faça 5+ logins falhos do
+   uma major nova entre sozinha num `uv lock` futuro. O modo de falha a temer é
+   migration não aplicada em produção: o login quebra inteiro, não degrada. Daí
+   o `migrate` ser item explícito do GL-02.
+5. **Custo por tentativa falha.** O handler default grava em banco. Com
+   `AXES_ENABLE_ACCESS_FAILURE_LOG=True` são duas escritas por falha
+   (`AccessAttempt` mais `AccessFailureLog`), e não uma. Irrelevante nesta
+   escala, e a alternativa (handler em cache) exige `CACHES`, que o projeto
+   não tem.
+6. **Dado pessoal em log de acesso.** `AccessFailureLog` e `AccessLog` guardam
+   matrícula, IP e user-agent por tempo indeterminado — é o preço da trilha
+   auditável, e o expurgo é manual (GL-02). Se o piloto passar a ter exigência
+   formal de retenção, a rotina agendada vira issue própria.
+7. **Suíte com o axes ligado.** Um teste futuro que faça 5+ logins falhos do
    mesmo usuário passa a receber 429 em vez de 200. É um efeito real de manter o
    axes ativo nos testes, e é o preço de testar a configuração de verdade; o ADR
    registra `override_settings(AXES_ENABLED=False)` como escape para esse caso.
@@ -277,3 +398,7 @@ de uma issue de infraestrutura seria decisão de escopo maior que a issue.
 - Configuração de `limit_req` no proxy — descartada como solução desta issue e
   não retomada como camada extra.
 - Linha nova na matriz de invariantes para autenticação.
+- Mensagem informativa no logout — o `LogoutView` de hoje não emite `messages`,
+  e criar essa mensagem é mudança de UX que a issue #116 não pede.
+- Rotina agendada de expurgo de `AccessLog`/`AccessFailureLog`; nesta fase o
+  expurgo é manual, pelos comandos do GL-02.
