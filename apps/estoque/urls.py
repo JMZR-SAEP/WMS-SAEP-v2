@@ -60,4 +60,9 @@ urlpatterns = [
         views.historico_importacoes_scpi_view,
         name='historico_importacoes_scpi',
     ),
+    path(
+        'importacao-scpi/<int:pk>/arquivo/',
+        views.baixar_arquivo_importacao_scpi_view,
+        name='baixar_arquivo_importacao_scpi',
+    ),
 ]
