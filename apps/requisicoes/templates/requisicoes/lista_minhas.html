@@ -20,104 +20,104 @@
 {% endblock %}
 
 {% block content %}
-<div class="max-w-screen-xl mx-auto">
+<p class="mb-6 text-sm text-text-secondary">
+  Requisições onde você é criador ou beneficiário.
+</p>
 
-  <p class="mb-6 text-sm text-text-secondary">
-    Requisições onde você é criador ou beneficiário.
-  </p>
-
-  {% if requisicoes %}
-    {% include "components/table.html#cards_abertura" %}
-      {% for req in requisicoes %}
-        {% include "components/table.html#card_abertura" %}
-          <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0">
-              <h2 class="text-sm font-semibold text-text-primary">
-                {% if req.numero_publico %}
-                  {{ req.numero_publico }}
-                {% else %}
-                  Rascunho #{{ req.pk }}
-                {% endif %}
-              </h2>
-              <p class="mt-1 text-xs text-text-tertiary">
-                Criada em {{ req.criado_em|date:"d/m/Y H:i" }}
-              </p>
-            </div>
-            <div class="shrink-0">
-              {% include "requisicoes/partials/_estado_badge.html" with requisicao=req %}
-            </div>
+{% if requisicoes %}
+  {% include "components/table.html#cards_abertura" %}
+    {% for req in requisicoes %}
+      {% include "components/table.html#card_abertura" %}
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <h2 class="break-words text-sm font-semibold text-text-primary">
+              {% if req.numero_publico %}
+                {{ req.numero_publico }}
+              {% else %}
+                <span class="text-text-tertiary">Rascunho</span>
+              {% endif %}
+            </h2>
+            <p class="mt-1 text-xs text-text-tertiary">
+              Criada em {{ req.criado_em|date:"d/m/Y H:i" }}
+            </p>
           </div>
+          <div class="shrink-0">
+            {% include "requisicoes/partials/_estado_badge.html" with requisicao=req %}
+          </div>
+        </div>
 
-          <dl class="mt-4 text-sm">
+        <dl class="mt-4 space-y-3 text-sm">
+          <div>
             <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Beneficiário</dt>
             <dd class="mt-0.5 text-text-primary">
               {{ req.beneficiario.nome }}
               <span class="text-text-tertiary">({{ req.beneficiario.matricula }})</span>
             </dd>
-          </dl>
+          </div>
+        </dl>
 
-          {% url 'requisicoes:detalhe' pk=req.pk as url_detalhe_req %}
-          {% with next_encoded=request.path|urlencode pk_texto=req.pk|stringformat:"s" %}
+        {% url 'requisicoes:detalhe' pk=req.pk as url_detalhe_req %}
+        {% with next_encoded=request.path|urlencode criada_em=req.criado_em|date:"d/m/Y H:i" %}
+          {% if req.numero_publico %}
+            {% include "components/button.html" with variant="secondary" size="md" href=url_detalhe_req|add:"?next="|add:next_encoded label="Ver detalhes" aria_label="Ver detalhes da requisição "|add:req.numero_publico class="mt-4" %}
+          {% else %}
+            {% include "components/button.html" with variant="secondary" size="md" href=url_detalhe_req|add:"?next="|add:next_encoded label="Ver detalhes" aria_label="Ver detalhes do rascunho criado em "|add:criada_em class="mt-4" %}
+          {% endif %}
+        {% endwith %}
+      </article>
+    {% endfor %}
+  </div>
+
+  {% include "components/table.html#tabela_abertura" %}
+    <caption class="sr-only">Requisições onde você é criador ou beneficiário.</caption>
+    <thead class="bg-bg-subtle">
+      <tr>
+        {% include "components/table.html#th" with rotulo="Número" %}
+        {% include "components/table.html#th" with rotulo="Estado" %}
+        {% include "components/table.html#th" with rotulo="Beneficiário" %}
+        {% include "components/table.html#th" with rotulo="Criada em" %}
+        {% include "components/table.html#th" with alinhamento="direita" rotulo_somente_leitura="Ações" %}
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-border bg-surface">
+      {% for req in requisicoes %}
+        <tr class="hover:bg-bg-page">
+          <td class="whitespace-nowrap px-4 py-3 text-sm font-medium text-text-primary">
             {% if req.numero_publico %}
-              {% include "components/button.html" with variant="secondary" size="md" href=url_detalhe_req|add:"?next="|add:next_encoded label="Ver detalhes" aria_label="Ver detalhes da requisição "|add:req.numero_publico class="mt-4" %}
+              {{ req.numero_publico }}
             {% else %}
-              {% include "components/button.html" with variant="secondary" size="md" href=url_detalhe_req|add:"?next="|add:next_encoded label="Ver detalhes" aria_label="Ver detalhes do rascunho #"|add:pk_texto class="mt-4" %}
+              <span class="text-text-tertiary">Rascunho</span>
             {% endif %}
-          {% endwith %}
-        </article>
-      {% endfor %}
-    </div>
-
-    {% include "components/table.html#tabela_abertura" %}
-      <caption class="sr-only">Requisições onde você é criador ou beneficiário.</caption>
-      <thead class="bg-bg-subtle">
-        <tr>
-          {% include "components/table.html#th" with rotulo="Número" %}
-          {% include "components/table.html#th" with rotulo="Estado" %}
-          {% include "components/table.html#th" with rotulo="Beneficiário" %}
-          {% include "components/table.html#th" with rotulo="Criada em" %}
-          {% include "components/table.html#th" with alinhamento="direita" rotulo_somente_leitura="Ações" %}
-        </tr>
-      </thead>
-      <tbody class="divide-y divide-border bg-surface">
-        {% for req in requisicoes %}
-          <tr class="hover:bg-bg-page">
-            <td class="whitespace-nowrap px-4 py-3 text-sm font-medium text-text-primary">
+          </td>
+          <td class="whitespace-nowrap px-4 py-3 text-sm">
+            {% include "requisicoes/partials/_estado_badge.html" with requisicao=req %}
+          </td>
+          <td class="whitespace-nowrap px-4 py-3 text-sm text-text-secondary">
+            {{ req.beneficiario.nome }}
+            <span class="text-text-tertiary">({{ req.beneficiario.matricula }})</span>
+          </td>
+          <td class="whitespace-nowrap px-4 py-3 text-sm text-text-secondary">
+            {{ req.criado_em|date:"d/m/Y H:i" }}
+          </td>
+          <td class="whitespace-nowrap px-4 py-3 text-right text-sm">
+            {% url 'requisicoes:detalhe' pk=req.pk as url_detalhe_req_row %}
+            {% with next_encoded=request.path|urlencode criada_em=req.criado_em|date:"d/m/Y H:i" %}
               {% if req.numero_publico %}
-                {{ req.numero_publico }}
+                {% include "components/button.html" with variant="secondary" size="sm" href=url_detalhe_req_row|add:"?next="|add:next_encoded label="Ver" aria_label="Ver detalhes da requisição "|add:req.numero_publico %}
               {% else %}
-                <span class="text-text-tertiary">Rascunho #{{ req.pk }}</span>
+                {% include "components/button.html" with variant="secondary" size="sm" href=url_detalhe_req_row|add:"?next="|add:next_encoded label="Ver" aria_label="Ver detalhes do rascunho criado em "|add:criada_em %}
               {% endif %}
-            </td>
-            <td class="whitespace-nowrap px-4 py-3 text-sm">
-              {% include "requisicoes/partials/_estado_badge.html" with requisicao=req %}
-            </td>
-            <td class="whitespace-nowrap px-4 py-3 text-sm text-text-secondary">
-              {{ req.beneficiario.nome }}
-              <span class="text-text-tertiary">({{ req.beneficiario.matricula }})</span>
-            </td>
-            <td class="whitespace-nowrap px-4 py-3 text-sm text-text-secondary">
-              {{ req.criado_em|date:"d/m/Y H:i" }}
-            </td>
-            <td class="whitespace-nowrap px-4 py-3 text-right text-sm">
-              {% url 'requisicoes:detalhe' pk=req.pk as url_detalhe_req_row %}
-              {% with next_encoded=request.path|urlencode pk_texto=req.pk|stringformat:"s" %}
-                {% if req.numero_publico %}
-                  {% include "components/button.html" with variant="secondary" size="sm" href=url_detalhe_req_row|add:"?next="|add:next_encoded label="Ver" aria_label="Ver detalhes da requisição "|add:req.numero_publico %}
-                {% else %}
-                  {% include "components/button.html" with variant="secondary" size="sm" href=url_detalhe_req_row|add:"?next="|add:next_encoded label="Ver" aria_label="Ver detalhes do rascunho #"|add:pk_texto %}
-                {% endif %}
-              {% endwith %}
-            </td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    </div>
-  {% else %}
-    {% url 'requisicoes:nova_requisicao' as cta_nova_requisicao_url %}
-    {% include 'components/empty_state.html' with titulo='Nenhuma requisição ainda' descricao='Você ainda não criou requisições nem foi indicado como beneficiário.' cta_url=cta_nova_requisicao_url cta_label='Nova requisição' %}
-  {% endif %}
+            {% endwith %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
 
-</div>
+  {% include 'components/pagination.html' with page_obj=page_obj rotulo_itens='requisições' aria_label='Paginação das minhas requisições' %}
+{% else %}
+  {% url 'requisicoes:nova_requisicao' as cta_nova_requisicao_url %}
+  {% include 'components/empty_state.html' with icone='components/icons/_prancheta.html' titulo='Nenhuma requisição ainda' descricao='Você ainda não criou requisições nem foi indicado como beneficiário.' cta_url=cta_nova_requisicao_url cta_label='Nova requisição' %}
+{% endif %}
 {% endblock %}

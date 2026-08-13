@@ -31,6 +31,16 @@ class ResultadoListagem:
     is_htmx: bool
 
 
+def paginar(request: HtmxHttpRequest, queryset: QuerySet, *, per_page: int) -> Page:
+    """Pagina preservando a ordenação que o selector já definiu.
+
+    Diferente de `paginar_com_filtros`, não reordena: fila de trabalho tem
+    ordem de domínio (FIFO por `atualizado_em`) e "minhas requisições" tem
+    ordem por `-criado_em` — a apresentação pagina, não redefine a ordem.
+    """
+    return Paginator(queryset, per_page).get_page(request.GET.get('page'))
+
+
 def paginar_com_filtros(
     request: HtmxHttpRequest, queryset: QuerySet, *, per_page: int
 ) -> ResultadoListagem:
