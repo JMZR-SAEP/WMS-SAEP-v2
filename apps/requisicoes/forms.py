@@ -17,7 +17,7 @@ class RequisicaoForm(forms.Form):
         widget=forms.Textarea(
             attrs={
                 'rows': 3,
-                'class': 'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none',
+                'class': 'w-full rounded-lg border border-border-strong px-3 py-2 text-sm focus:border-border-focus focus:ring-2 focus:ring-border-focus focus:outline-none',
                 'placeholder': 'Opcional — contexto adicional sobre esta requisição',
             }
         ),
@@ -68,7 +68,7 @@ class RequisicaoCriacaoForm(RequisicaoForm):
                 choices=choices,
                 widget=forms.Select(
                     attrs={
-                        'class': 'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none'
+                        'class': 'w-full rounded-lg border border-border-strong px-3 py-2 text-sm focus:border-border-focus focus:ring-2 focus:ring-border-focus focus:outline-none'
                     }
                 ),
             )
@@ -103,7 +103,7 @@ class ItemRequisicaoForm(forms.Form):
         required=False,
         widget=forms.TextInput(
             attrs={
-                'class': 'material-autocomplete w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none',
+                'class': 'material-autocomplete w-full rounded-lg border border-border-strong px-3 py-2 text-sm focus:border-border-focus focus:ring-2 focus:ring-border-focus focus:outline-none',
                 'type': 'search',
                 'autocomplete': 'off',
                 'placeholder': 'Buscar por código ou nome...',
@@ -116,7 +116,7 @@ class ItemRequisicaoForm(forms.Form):
         required=False,
         widget=forms.NumberInput(
             attrs={
-                'class': 'w-28 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none',
+                'class': 'w-28 rounded-lg border border-border-strong px-3 py-2 text-sm focus:border-border-focus focus:ring-2 focus:ring-border-focus focus:outline-none',
                 'step': '1',
                 'min': '1',
             }
@@ -229,8 +229,8 @@ class RegistrarAtendimentoCabecalhoForm(forms.Form):
         widget=forms.TextInput(
             attrs={
                 'class': (
-                    'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm '
-                    'focus:border-blue-500 focus:ring-2 focus:ring-blue-500 '
+                    'w-full rounded-lg border border-border-strong px-3 py-2 text-sm '
+                    'focus:border-border-focus focus:ring-2 focus:ring-border-focus '
                     'focus:outline-none'
                 ),
                 'autocomplete': 'off',
@@ -245,8 +245,8 @@ class RegistrarAtendimentoCabecalhoForm(forms.Form):
             attrs={
                 'rows': 2,
                 'class': (
-                    'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm '
-                    'focus:border-blue-500 focus:ring-2 focus:ring-blue-500 '
+                    'w-full rounded-lg border border-border-strong px-3 py-2 text-sm '
+                    'focus:border-border-focus focus:ring-2 focus:ring-border-focus '
                     'focus:outline-none'
                 ),
                 'placeholder': 'Opcional',
@@ -268,8 +268,8 @@ class ItemAtendimentoForm(forms.Form):
         widget=forms.NumberInput(
             attrs={
                 'class': (
-                    'w-32 rounded-lg border border-slate-300 px-3 py-2 text-sm '
-                    'focus:border-blue-500 focus:ring-2 focus:ring-blue-500 '
+                    'w-32 rounded-lg border border-border-strong px-3 py-2 text-sm '
+                    'focus:border-border-focus focus:ring-2 focus:ring-border-focus '
                     'focus:outline-none'
                 ),
                 'step': '0.001',
@@ -284,8 +284,8 @@ class ItemAtendimentoForm(forms.Form):
         widget=forms.TextInput(
             attrs={
                 'class': (
-                    'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm '
-                    'focus:border-blue-500 focus:ring-2 focus:ring-blue-500 '
+                    'w-full rounded-lg border border-border-strong px-3 py-2 text-sm '
+                    'focus:border-border-focus focus:ring-2 focus:ring-border-focus '
                     'focus:outline-none'
                 ),
                 'placeholder': 'Motivo da entrega menor que autorizada',
@@ -346,8 +346,8 @@ class RegistrarDevolucaoForm(forms.Form):
         widget=forms.NumberInput(
             attrs={
                 'class': (
-                    'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm '
-                    'focus:border-blue-500 focus:ring-2 focus:ring-blue-500 '
+                    'w-full rounded-lg border border-border-strong px-3 py-2 text-sm '
+                    'focus:border-border-focus focus:ring-2 focus:ring-border-focus '
                     'focus:outline-none'
                 ),
                 'step': '0.001',
@@ -362,8 +362,8 @@ class RegistrarDevolucaoForm(forms.Form):
             attrs={
                 'rows': 2,
                 'class': (
-                    'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm '
-                    'focus:border-blue-500 focus:ring-2 focus:ring-blue-500 '
+                    'w-full rounded-lg border border-border-strong px-3 py-2 text-sm '
+                    'focus:border-border-focus focus:ring-2 focus:ring-border-focus '
                     'focus:outline-none'
                 ),
                 'placeholder': 'Opcional',
@@ -387,8 +387,8 @@ class EstornarRequisicaoForm(forms.Form):
             attrs={
                 'rows': 3,
                 'class': (
-                    'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm '
-                    'focus:border-blue-500 focus:ring-2 focus:ring-blue-500 '
+                    'w-full rounded-lg border border-border-strong px-3 py-2 text-sm '
+                    'focus:border-border-focus focus:ring-2 focus:ring-border-focus '
                     'focus:outline-none'
                 ),
                 'placeholder': 'Motivo obrigatório do estorno',

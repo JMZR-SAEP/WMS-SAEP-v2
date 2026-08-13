@@ -25,10 +25,10 @@ class MatriculaAuthenticationForm(AuthenticationForm):
                 'autocomplete': 'username',
                 'autofocus': True,
                 'class': (
-                    'mt-2 block w-full rounded-lg border border-slate-300 '
-                    'bg-white px-3 py-2 text-slate-900 shadow-sm '
-                    'placeholder:text-slate-400 focus:border-blue-500 '
-                    'focus:outline-none focus:ring-2 focus:ring-blue-500'
+                    'mt-2 block min-h-11 w-full rounded-lg border border-border-strong '
+                    'bg-surface px-3 py-2 text-text-primary shadow-sm '
+                    'placeholder:text-text-tertiary focus:border-border-focus '
+                    'focus:outline-none focus:ring-2 focus:ring-border-focus'
                 ),
             }
         )
@@ -36,10 +36,10 @@ class MatriculaAuthenticationForm(AuthenticationForm):
             {
                 'autocomplete': 'current-password',
                 'class': (
-                    'mt-2 block w-full rounded-lg border border-slate-300 '
-                    'bg-white px-3 py-2 text-slate-900 shadow-sm '
-                    'placeholder:text-slate-400 focus:border-blue-500 '
-                    'focus:outline-none focus:ring-2 focus:ring-blue-500'
+                    'mt-2 block min-h-11 w-full rounded-lg border border-border-strong '
+                    'bg-surface px-3 py-2 text-text-primary shadow-sm '
+                    'placeholder:text-text-tertiary focus:border-border-focus '
+                    'focus:outline-none focus:ring-2 focus:ring-border-focus'
                 ),
             }
         )
