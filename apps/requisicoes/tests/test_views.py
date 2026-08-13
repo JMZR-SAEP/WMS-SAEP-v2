@@ -10,8 +10,12 @@ from html.parser import HTMLParser
 from pathlib import Path
 
 import pytest
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
+from django.utils import timezone
 
+from apps.requisicoes import views
 from apps.requisicoes.models import (
     CancelamentoVariant,
     EstadoRequisicao,
@@ -778,11 +782,18 @@ def test_minhas_botao_ver_detalhes_corrige_drift_a11y(
 def test_minhas_botao_ver_detalhes_rascunho_preserva_aria_label(
     client, solicitante, req_rascunho_solicitante
 ):
+    """Rascunho não tem número público; o nome acessível o distingue pela
+    data/hora de criação, nunca pela PK — que é dado de infraestrutura.
+    """
     _login(client, solicitante)
     response = client.get(reverse('requisicoes:minhas'))
     html = response.content.decode()
-    aria_label = f'Ver detalhes do rascunho #{req_rascunho_solicitante.pk}'
+    criada_em = timezone.localtime(req_rascunho_solicitante.criado_em).strftime(
+        '%d/%m/%Y %H:%M'
+    )
+    aria_label = f'Ver detalhes do rascunho criado em {criada_em}'
     assert html.count(f'aria-label="{aria_label}"') == 2
+    assert f'Rascunho #{req_rascunho_solicitante.pk}' not in html
 
 
 @pytest.mark.django_db
@@ -792,12 +803,15 @@ def test_minhas_tabela_tem_caption_sr_only(
     _login(client, solicitante)
     response = client.get(reverse('requisicoes:minhas'))
     conteudo = response.content.decode()
-    marcador = (
-        '<table class="min-w-full divide-y divide-border">'
-        '\n\n      <caption class="sr-only">Requisições onde você é '
-        'criador ou beneficiário.</caption>'
+    # Adjacência, não indentação: o <caption> tem que ser o primeiro filho da
+    # <table> para valer como nome acessível — a folga de whitespace entre os
+    # dois é irrelevante e não deve quebrar o teste a cada reindentação.
+    padrao = re.compile(
+        r'<table class="min-w-full divide-y divide-border">\s*'
+        r'<caption class="sr-only">Requisições onde você é '
+        r'criador ou beneficiário\.</caption>'
     )
-    assert conteudo.count(marcador) == 1
+    assert len(padrao.findall(conteudo)) == 1
 
 
 @pytest.mark.django_db
@@ -3794,3 +3808,240 @@ def test_timeline_mostra_origem_importacao_scpi_sem_numero_publico(
     assert 'Importação SCPI' in timeline
     assert 'Saída excepcional' not in timeline
     assert f'{material_disponivel.codigo} — {material_disponivel.nome}' in timeline
+
+
+# ---------------------------------------------------------------------------
+# Auditoria das telas de listagem — regressões
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_estado_badge_nao_e_live_region(client, solicitante, req_enviada_solicitante):
+    """Badge de estado é dado estático de listagem, não mensagem.
+
+    `role="status"` implica `aria-live="polite"`: uma listagem de 25 linhas
+    viraria 25 live regions, e no histórico elas ficariam aninhadas dentro da
+    região do swap HTMX. O contexto "Estado:" passa por texto sr-only.
+    """
+    _login(client, solicitante)
+    response = client.get(reverse('requisicoes:minhas'))
+    html = response.content.decode()
+    assert 'role="status"' not in html
+    assert '<span class="sr-only">Estado: </span>' in html
+
+
+@pytest.mark.django_db
+def test_minhas_pagina_resultados(client, solicitante, setor_obras, monkeypatch):
+    monkeypatch.setattr(views, 'PAGINA_MINHAS_REQUISICOES_TAMANHO', 2)
+    for i in range(3):
+        Requisicao.objects.create(
+            estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+            numero_publico=f'REQ-2026-P0{i}',
+            criador=solicitante,
+            beneficiario=solicitante,
+            setor_beneficiario=setor_obras,
+        )
+    _login(client, solicitante)
+    response = client.get(reverse('requisicoes:minhas'))
+    assert response.context['page_obj'].paginator.num_pages == 2
+    assert len(response.context['requisicoes']) == 2
+    assert 'Próxima' in response.content.decode()
+
+
+@pytest.mark.django_db
+def test_fila_autorizacao_pagina_resultados(
+    client, chefe_obras, solicitante, setor_obras, monkeypatch
+):
+    monkeypatch.setattr(views, 'PAGINA_FILA_TAMANHO', 2)
+    for i in range(3):
+        Requisicao.objects.create(
+            estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+            numero_publico=f'REQ-2026-F0{i}',
+            criador=solicitante,
+            beneficiario=solicitante,
+            setor_beneficiario=setor_obras,
+        )
+    _login(client, chefe_obras)
+    response = client.get(reverse('requisicoes:autorizacoes'))
+    assert response.context['page_obj'].paginator.num_pages == 2
+    assert len(response.context['requisicoes']) == 2
+
+
+@pytest.mark.django_db
+def test_fila_atendimento_pagina_resultados(
+    client, aux_almoxarifado, solicitante, setor_obras, monkeypatch
+):
+    monkeypatch.setattr(views, 'PAGINA_FILA_TAMANHO', 2)
+    for i in range(3):
+        Requisicao.objects.create(
+            estado=EstadoRequisicao.AUTORIZADA,
+            numero_publico=f'REQ-2026-A0{i}',
+            criador=solicitante,
+            beneficiario=solicitante,
+            setor_beneficiario=setor_obras,
+        )
+    _login(client, aux_almoxarifado)
+    response = client.get(reverse('requisicoes:atendimentos'))
+    assert response.context['page_obj'].paginator.num_pages == 2
+    assert len(response.context['requisicoes']) == 2
+
+
+@pytest.mark.django_db
+def test_fila_paginacao_preserva_ordem_do_selector(
+    client, aux_almoxarifado, solicitante, setor_obras, monkeypatch
+):
+    """`?ordem=asc` é parâmetro do histórico, não das filas.
+
+    A fila tem ordem de domínio (FIFO por `atualizado_em`) e a paginação não
+    pode reordenar em cima dela.
+    """
+    monkeypatch.setattr(views, 'PAGINA_FILA_TAMANHO', 10)
+    for i in range(3):
+        Requisicao.objects.create(
+            estado=EstadoRequisicao.AUTORIZADA,
+            numero_publico=f'REQ-2026-O0{i}',
+            criador=solicitante,
+            beneficiario=solicitante,
+            setor_beneficiario=setor_obras,
+        )
+    _login(client, aux_almoxarifado)
+    sem_ordem = client.get(reverse('requisicoes:atendimentos'))
+    com_ordem = client.get(reverse('requisicoes:atendimentos') + '?ordem=asc')
+    numeros = [r.numero_publico for r in sem_ordem.context['requisicoes']]
+    assert [r.numero_publico for r in com_ordem.context['requisicoes']] == numeros
+
+
+@pytest.mark.django_db
+def test_historico_live_region_vazia_no_carregamento_inicial(
+    client, superuser, req_historico_obras
+):
+    """A região existe no DOM desde o load para poder anunciar depois, mas
+    nasce vazia: nada mudou ainda e um anúncio aqui seria ruído.
+    """
+    _login(client, superuser)
+    html = client.get(reverse('requisicoes:historico')).content.decode()
+    assert (
+        '<p id="resumo-historico-requisicoes" class="sr-only" role="status"></p>'
+        in html
+    )
+    assert 'aria-live=' not in html
+
+
+@pytest.mark.django_db
+def test_historico_swap_htmx_anuncia_so_o_resumo(
+    client, superuser, req_historico_obras
+):
+    """O swap troca só o conteúdo da live region (`innerHTML:`), preservando o
+    elemento — e a listagem em si não é marcada como live region.
+    """
+    _login(client, superuser)
+    response = client.get(
+        reverse('requisicoes:historico'), headers={'hx-request': 'true'}
+    )
+    html = response.content.decode()
+    assert 'hx-swap-oob="innerHTML:#resumo-historico-requisicoes"' in html
+    assert '1 requisição encontrada.' in html
+    assert 'aria-atomic=' not in html
+
+
+@pytest.mark.django_db
+def test_historico_swap_htmx_anuncia_resultado_vazio(client, superuser):
+    _login(client, superuser)
+    response = client.get(
+        reverse('requisicoes:historico') + '?texto=inexistente',
+        headers={'hx-request': 'true'},
+    )
+    assert 'Nenhuma requisição encontrada.' in response.content.decode()
+
+
+@pytest.mark.django_db
+def test_historico_ordenacao_disponivel_no_mobile(
+    client, superuser, req_historico_obras
+):
+    """O <th> ordenável vive na tabela, que só existe a partir de 640px; o
+    controle equivalente precisa existir no chrome de cards.
+    """
+    _login(client, superuser)
+    html = client.get(reverse('requisicoes:historico')).content.decode()
+    assert 'Mais recentes primeiro' in html
+    assert html.count('aria-label="Ordenar por data/hora, atualmente decrescente"') == 2
+
+
+@pytest.mark.django_db
+def test_historico_botoes_ver_tem_nome_acessivel_unico(
+    client, superuser, req_historico_obras
+):
+    _login(client, superuser)
+    html = client.get(reverse('requisicoes:historico')).content.decode()
+    marcador = 'aria-label="Ver detalhes da requisição REQ-2026-0010"'
+    assert html.count(marcador) == 2
+
+
+@pytest.mark.django_db
+def test_historico_material_nao_usa_prefetch_de_todos_os_itens(
+    client,
+    superuser,
+    setor_obras,
+    material_disponivel,
+    material_disponivel_2,
+):
+    """O nome do material vem de Subquery: acrescentar itens à requisição não
+    pode acrescentar query nenhuma à listagem.
+    """
+    req = Requisicao.objects.create(
+        estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+        numero_publico='REQ-2026-S001',
+        criador=superuser,
+        beneficiario=superuser,
+        setor_beneficiario=setor_obras,
+    )
+    ItemRequisicao.objects.create(
+        requisicao=req, material=material_disponivel, quantidade_solicitada=1
+    )
+    _login(client, superuser)
+    url = reverse('requisicoes:historico')
+
+    with CaptureQueriesContext(connection) as antes:
+        client.get(url)
+
+    ItemRequisicao.objects.create(
+        requisicao=req, material=material_disponivel_2, quantidade_solicitada=2
+    )
+    with CaptureQueriesContext(connection) as depois:
+        client.get(url)
+
+    assert len(depois) == len(antes)
+
+
+@pytest.mark.django_db
+def test_listagens_tem_html_balanceado(
+    client, superuser, setor_obras, material_disponivel
+):
+    """Guarda o padrão "abertura em partial, fechamento literal na tela".
+
+    `components/table.html` e `components/filter_shell.html` só encapsulam as
+    aberturas; `</div>`, `</table>` e `</article>` ficam soltos na tela
+    chamadora. Uma reindentação distraída desbalanceia a página sem quebrar
+    nenhum outro teste.
+    """
+    req = Requisicao.objects.create(
+        estado=EstadoRequisicao.AUTORIZADA,
+        numero_publico='REQ-2026-B001',
+        criador=superuser,
+        beneficiario=superuser,
+        setor_beneficiario=setor_obras,
+    )
+    ItemRequisicao.objects.create(
+        requisicao=req, material=material_disponivel, quantidade_solicitada=1
+    )
+    _login(client, superuser)
+
+    for nome_url in (
+        'requisicoes:minhas',
+        'requisicoes:autorizacoes',
+        'requisicoes:atendimentos',
+        'requisicoes:historico',
+    ):
+        response = client.get(reverse(nome_url))
+        assert response.status_code == 200, nome_url
+        _assert_html_balanceado(response.content.decode())

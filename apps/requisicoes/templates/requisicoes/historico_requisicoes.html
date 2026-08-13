@@ -7,162 +7,202 @@
 {% endblock %}
 
 {% block content %}
-<div class="max-w-screen-xl mx-auto">
+<p class="mb-6 max-w-3xl text-sm text-text-secondary">
+  Histórico de requisições visíveis ao seu papel. Filtre por solicitante/beneficiário,
+  estado, período{% if mostrar_filtro_setor %} ou setor{% endif %}; o recorte fica na
+  URL e pode ser compartilhado.
+</p>
 
-  <p class="mb-6 max-w-3xl text-sm text-text-secondary">
-    Histórico de requisições visíveis ao seu papel. Filtre por solicitante/beneficiário,
-    estado, período{% if mostrar_filtro_setor %} ou setor{% endif %}; o recorte fica na
-    URL e pode ser compartilhado.
-  </p>
+{% url 'requisicoes:historico' as url_historico %}
 
-  {% url 'requisicoes:historico' as url_historico %}
+{% include "components/filter_shell.html#abertura" with action_url=url_historico target_id="resultados-historico-requisicoes" %}
+    {% include "components/filter_busca.html" with id="filtro-texto" name="texto" label="Solicitante ou beneficiário" value=filtros.texto placeholder="Nome ou matrícula" %}
 
-  {% include "components/filter_shell.html#abertura" with action_url=url_historico target_id="resultados-historico-requisicoes" %}
-      {% include "components/filter_busca.html" with id="filtro-texto" name="texto" label="Solicitante ou beneficiário" value=filtros.texto placeholder="Nome ou matrícula" %}
+    {% include "components/filter_data.html" with id="filtro-data-ini" name="data_ini" label="De" value=filtros.data_ini %}
 
-      {% include "components/filter_data.html" with id="filtro-data-ini" name="data_ini" label="De" value=filtros.data_ini %}
+    {% include "components/filter_data.html" with id="filtro-data-fim" name="data_fim" label="Até" value=filtros.data_fim %}
 
-      {% include "components/filter_data.html" with id="filtro-data-fim" name="data_fim" label="Até" value=filtros.data_fim %}
-
-      {% if mostrar_filtro_setor %}
-        {% include "components/filter_select.html" with id="filtro-setor" name="setor" label="Setor" opcoes=setores_disponiveis selecionado=filtros.setor opcao_todos_rotulo="Todos os setores" %}
-      {% endif %}
-    </div>
-
-    {% include "components/filter_checkbox_group.html" with legend="Estado" name="estados" opcoes=estados_opcoes selecionados=filtros.estados %}
-
-    {# Preserva ordenação corrente ao submeter os filtros #}
-    {% if ordem == 'asc' %}<input type="hidden" name="ordem" value="asc">{% endif %}
-
-    {% include "components/filter_acoes.html" with id="filtro-acoes-historico-requisicoes" action_url=url_historico target_id="resultados-historico-requisicoes" tem_filtro_ativo=tem_filtro_ativo %}
-  </form>
-    </div>
-  </details>
-
-  {# Wrapper estável do swap HTMX: alvo persistente (id + aria-live único). O fragmento {% partialdef resultados %} entrega só o conteúdo interno. #}
-  <div id="resultados-historico-requisicoes" aria-live="polite" aria-atomic="true">
-    {% partialdef resultados %}
-    {% if page_obj.object_list %}
-
-      {% include "components/table.html#cards_abertura" %}
-        {% for req in page_obj.object_list %}
-          {% include "components/table.html#card_abertura" %}
-            <div class="flex items-start justify-between gap-3">
-              <div class="min-w-0">
-                <h2 class="text-sm font-semibold text-text-primary">
-                  {% if req.numero_publico %}{{ req.numero_publico }}{% else %}<span class="text-text-tertiary">Rascunho</span>{% endif %}
-                </h2>
-                <p class="mt-1 text-xs text-text-tertiary">{{ req.criado_em|date:"d/m/Y H:i" }}</p>
-              </div>
-              <div class="shrink-0">
-                {% include "requisicoes/partials/_estado_badge.html" with requisicao=req %}
-              </div>
-            </div>
-
-            <dl class="mt-3 grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Solicitante</dt>
-                <dd class="mt-0.5 text-text-primary">{{ req.criador.nome }}</dd>
-              </div>
-              <div>
-                <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Beneficiário</dt>
-                <dd class="mt-0.5 text-text-primary">{{ req.beneficiario.nome }}</dd>
-              </div>
-              <div>
-                <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Setor</dt>
-                <dd class="mt-0.5 text-text-primary">{{ req.setor_beneficiario.nome }}</dd>
-              </div>
-              <div>
-                <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Material</dt>
-                <dd class="mt-0.5 text-text-primary">
-                  {{ req.quantidade_itens }} {{ req.quantidade_itens|pluralize:"item,itens" }}{% if req.quantidade_itens == 1 %}<br><span class="text-xs text-text-tertiary">{{ req.itens.all.0.material.nome }}</span>{% endif %}
-                </dd>
-              </div>
-            </dl>
-
-            {% url 'requisicoes:detalhe' pk=req.pk as url_detalhe_req %}
-            {% with next_encoded=request.get_full_path|urlencode %}
-              {% include "components/button.html" with variant="secondary" size="md" href=url_detalhe_req|add:"?next="|add:next_encoded label="Ver detalhes" class="mt-4" %}
-            {% endwith %}
-          </article>
-        {% endfor %}
-      </div>
-
-      {% include "components/table.html#tabela_abertura" %}
-        <caption class="sr-only">
-          Histórico de requisições, ordenado por data/hora em ordem
-          {% if ordem == 'asc' %}crescente (mais antiga primeiro){% else %}decrescente (mais recente primeiro){% endif %}.
-        </caption>
-        <thead class="bg-bg-subtle">
-          <tr>
-            <th scope="col" aria-sort="{{ aria_sort }}" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-text-tertiary">
-              <a
-                href="{{ url_ordenacao }}"
-                hx-get="{{ url_ordenacao }}"
-                hx-target="#resultados-historico-requisicoes"
-                hx-push-url="true"
-                class="-my-1 inline-flex items-center gap-1 rounded py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
-                aria-label="Ordenar por data/hora, {% if ordem == 'asc' %}atualmente crescente{% else %}atualmente decrescente{% endif %}"
-              >
-                Data/hora
-                <span aria-hidden="true">{% if ordem == 'asc' %}↑{% else %}↓{% endif %}</span>
-              </a>
-            </th>
-            {% include "components/table.html#th" with rotulo="Número" %}
-            {% include "components/table.html#th" with rotulo="Solicitante" %}
-            {% include "components/table.html#th" with rotulo="Beneficiário" %}
-            {% include "components/table.html#th" with rotulo="Setor" %}
-            {% include "components/table.html#th" with rotulo="Material" %}
-            {% include "components/table.html#th" with rotulo="Status" %}
-            {% include "components/table.html#th" with alinhamento="direita" rotulo_somente_leitura="Ações" %}
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-border bg-surface">
-          {% for req in page_obj.object_list %}
-            <tr class="hover:bg-bg-page">
-              <td class="whitespace-nowrap px-4 py-3 text-sm text-text-secondary">{{ req.criado_em|date:"d/m/Y H:i" }}</td>
-              <td class="whitespace-nowrap px-4 py-3 text-sm font-medium text-text-primary">
-                {% if req.numero_publico %}{{ req.numero_publico }}{% else %}<span class="text-text-tertiary">Rascunho</span>{% endif %}
-              </td>
-              <td class="whitespace-nowrap px-4 py-3 text-sm text-text-secondary">{{ req.criador.nome }}</td>
-              <td class="whitespace-nowrap px-4 py-3 text-sm text-text-secondary">{{ req.beneficiario.nome }}</td>
-              <td class="whitespace-nowrap px-4 py-3 text-sm text-text-secondary">{{ req.setor_beneficiario.nome }}</td>
-              <td class="max-w-xs truncate px-4 py-3 text-sm text-text-secondary">
-                {{ req.quantidade_itens }} {{ req.quantidade_itens|pluralize:"item,itens" }}{% if req.quantidade_itens == 1 %}<br><span class="text-xs text-text-tertiary">{{ req.itens.all.0.material.nome }}</span>{% endif %}
-              </td>
-              <td class="whitespace-nowrap px-4 py-3 text-sm">
-                {% include "requisicoes/partials/_estado_badge.html" with requisicao=req %}
-              </td>
-              <td class="whitespace-nowrap px-4 py-3 text-right text-sm">
-                {% url 'requisicoes:detalhe' pk=req.pk as url_detalhe_req_row %}
-                {% with next_encoded=request.get_full_path|urlencode %}
-                  {% include "components/button.html" with variant="secondary" size="sm" href=url_detalhe_req_row|add:"?next="|add:next_encoded label="Ver" %}
-                {% endwith %}
-              </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-      </div>
-
-      {% include 'components/pagination.html' with page_obj=page_obj querystring_filtros=querystring_filtros rotulo_itens='requisições' aria_label='Paginação do histórico de requisições' %}
-
-    {% else %}
-
-      {# Empty state contextual: filtro sem resultado vs histórico visível vazio #}
-      {% if tem_filtro_ativo %}
-        {% include 'components/empty_state.html' with icone='components/icons/_seta_circular.html' titulo='Nenhum resultado para este filtro' descricao='Ajuste ou limpe os filtros para ver mais requisições.' %}
-      {% else %}
-        {% include 'components/empty_state.html' with icone='components/icons/_seta_circular.html' titulo='Nenhuma requisição encontrada' descricao='Ainda não há requisições visíveis para o seu papel.' %}
-      {% endif %}
-
+    {% if mostrar_filtro_setor %}
+      {% include "components/filter_select.html" with id="filtro-setor" name="setor" label="Setor" opcoes=setores_disponiveis selecionado=filtros.setor opcao_todos_rotulo="Todos os setores" %}
     {% endif %}
-
-    {# filter_acoes.html vive fora de #resultados-historico-requisicoes (dentro do <form>); reemite via out-of-band pra refletir tem_filtro_ativo após um swap HTMX. #}
-    {% if is_htmx %}{% include "components/filter_acoes.html" with id="filtro-acoes-historico-requisicoes" action_url=url_historico target_id="resultados-historico-requisicoes" tem_filtro_ativo=tem_filtro_ativo oob=True %}{% endif %}
-    {% endpartialdef %}
-    {% partial resultados %}
   </div>
 
+  {% include "components/filter_checkbox_group.html" with legend="Estado" name="estados" opcoes=estados_opcoes selecionados=filtros.estados %}
+
+  {# Preserva ordenação corrente ao submeter os filtros #}
+  {% if ordem == 'asc' %}<input type="hidden" name="ordem" value="asc">{% endif %}
+
+  {% include "components/filter_acoes.html" with id="filtro-acoes-historico-requisicoes" action_url=url_historico target_id="resultados-historico-requisicoes" tem_filtro_ativo=tem_filtro_ativo %}
+</form>
+  </div>
+</details>
+
+{% comment %}
+  Live region permanente e enxuta: anuncia só o tamanho do resultado após um
+  swap HTMX. Fica FORA do wrapper de resultados de propósito — uma região que
+  é substituída inteira não anuncia de forma confiável, e marcar a listagem
+  toda como aria-live/aria-atomic faria o leitor de tela reler as 25 linhas a
+  cada ajuste de filtro. O conteúdo chega por `hx-swap-oob="innerHTML:"`,
+  preservando o elemento. Vazia no carregamento inicial: nada mudou ainda.
+{% endcomment %}
+<p id="resumo-historico-requisicoes" class="sr-only" role="status"></p>
+
+{# Wrapper estável do swap HTMX: alvo persistente. O fragmento {% partialdef resultados %} entrega só o conteúdo interno. #}
+<div id="resultados-historico-requisicoes">
+  {% partialdef resultados %}
+  {% if page_obj.object_list %}
+
+    {# Ordenação no mobile: o controle canônico vive no <th>, que só existe a partir de 640px. #}
+    <div class="mb-3 flex justify-end sm:hidden">
+      <a
+        href="{{ url_ordenacao }}"
+        hx-get="{{ url_ordenacao }}"
+        hx-target="#resultados-historico-requisicoes"
+        hx-push-url="true"
+        class="inline-flex min-h-11 items-center gap-1 rounded-md border border-border-strong bg-surface px-3 py-2 text-sm text-text-secondary hover:bg-bg-page hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1"
+        aria-label="Ordenar por data/hora, {% if ordem == 'asc' %}atualmente crescente{% else %}atualmente decrescente{% endif %}"
+      >
+        {% if ordem == 'asc' %}Mais antigas primeiro{% else %}Mais recentes primeiro{% endif %}
+        <span aria-hidden="true">{% if ordem == 'asc' %}↑{% else %}↓{% endif %}</span>
+      </a>
+    </div>
+
+    {% include "components/table.html#cards_abertura" %}
+      {% for req in page_obj.object_list %}
+        {% include "components/table.html#card_abertura" %}
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <h2 class="break-words text-sm font-semibold text-text-primary">
+                {% if req.numero_publico %}{{ req.numero_publico }}{% else %}<span class="text-text-tertiary">Rascunho</span>{% endif %}
+              </h2>
+              <p class="mt-1 text-xs text-text-tertiary">{{ req.criado_em|date:"d/m/Y H:i" }}</p>
+            </div>
+            <div class="shrink-0">
+              {% include "requisicoes/partials/_estado_badge.html" with requisicao=req %}
+            </div>
+          </div>
+
+          <dl class="mt-4 grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Solicitante</dt>
+              <dd class="mt-0.5 text-text-primary">{{ req.criador.nome }}</dd>
+            </div>
+            <div>
+              <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Beneficiário</dt>
+              <dd class="mt-0.5 text-text-primary">{{ req.beneficiario.nome }}</dd>
+            </div>
+            <div>
+              <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Setor</dt>
+              <dd class="mt-0.5 text-text-primary">{{ req.setor_beneficiario.nome }}</dd>
+            </div>
+            <div>
+              <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Material</dt>
+              <dd class="mt-0.5 text-text-primary">
+                {{ req.quantidade_itens }} {{ req.quantidade_itens|pluralize:"item,itens" }}
+                {% if req.quantidade_itens == 1 %}
+                  <span class="mt-0.5 block break-words text-xs text-text-tertiary">{{ req.primeiro_material_nome }}</span>
+                {% endif %}
+              </dd>
+            </div>
+          </dl>
+
+          {% url 'requisicoes:detalhe' pk=req.pk as url_detalhe_req %}
+          {% with next_encoded=request.get_full_path|urlencode criada_em=req.criado_em|date:"d/m/Y H:i" %}
+            {% if req.numero_publico %}
+              {% include "components/button.html" with variant="secondary" size="md" href=url_detalhe_req|add:"?next="|add:next_encoded label="Ver detalhes" aria_label="Ver detalhes da requisição "|add:req.numero_publico class="mt-4" %}
+            {% else %}
+              {% include "components/button.html" with variant="secondary" size="md" href=url_detalhe_req|add:"?next="|add:next_encoded label="Ver detalhes" aria_label="Ver detalhes do rascunho criado em "|add:criada_em class="mt-4" %}
+            {% endif %}
+          {% endwith %}
+        </article>
+      {% endfor %}
+    </div>
+
+    {% include "components/table.html#tabela_abertura" %}
+      <caption class="sr-only">
+        Histórico de requisições, ordenado por data/hora em ordem
+        {% if ordem == 'asc' %}crescente (mais antiga primeiro){% else %}decrescente (mais recente primeiro){% endif %}.
+      </caption>
+      <thead class="bg-bg-subtle">
+        <tr>
+          <th scope="col" aria-sort="{{ aria_sort }}" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-text-tertiary">
+            <a
+              href="{{ url_ordenacao }}"
+              hx-get="{{ url_ordenacao }}"
+              hx-target="#resultados-historico-requisicoes"
+              hx-push-url="true"
+              class="-mx-2 -my-2 inline-flex min-h-11 items-center gap-1 rounded px-2 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
+              aria-label="Ordenar por data/hora, {% if ordem == 'asc' %}atualmente crescente{% else %}atualmente decrescente{% endif %}"
+            >
+              Data/hora
+              <span aria-hidden="true">{% if ordem == 'asc' %}↑{% else %}↓{% endif %}</span>
+            </a>
+          </th>
+          {% include "components/table.html#th" with rotulo="Número" %}
+          {% include "components/table.html#th" with rotulo="Solicitante" %}
+          {% include "components/table.html#th" with rotulo="Beneficiário" %}
+          {% include "components/table.html#th" with rotulo="Setor" %}
+          {% include "components/table.html#th" with rotulo="Material" %}
+          {% include "components/table.html#th" with rotulo="Status" %}
+          {% include "components/table.html#th" with alinhamento="direita" rotulo_somente_leitura="Ações" %}
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-border bg-surface">
+        {% for req in page_obj.object_list %}
+          <tr class="hover:bg-bg-page">
+            <td class="whitespace-nowrap px-4 py-3 text-sm text-text-secondary">{{ req.criado_em|date:"d/m/Y H:i" }}</td>
+            <td class="whitespace-nowrap px-4 py-3 text-sm font-medium text-text-primary">
+              {% if req.numero_publico %}{{ req.numero_publico }}{% else %}<span class="text-text-tertiary">Rascunho</span>{% endif %}
+            </td>
+            <td class="whitespace-nowrap px-4 py-3 text-sm text-text-secondary">{{ req.criador.nome }}</td>
+            <td class="whitespace-nowrap px-4 py-3 text-sm text-text-secondary">{{ req.beneficiario.nome }}</td>
+            <td class="whitespace-nowrap px-4 py-3 text-sm text-text-secondary">{{ req.setor_beneficiario.nome }}</td>
+            <td class="px-4 py-3 text-sm text-text-secondary">
+              {# `truncate` implica white-space:nowrap; o nome do material precisa do próprio bloco, senão a segunda linha é cortada sem reticências. #}
+              <span class="whitespace-nowrap">{{ req.quantidade_itens }} {{ req.quantidade_itens|pluralize:"item,itens" }}</span>
+              {% if req.quantidade_itens == 1 %}
+                <span class="block max-w-xs truncate text-xs text-text-tertiary" title="{{ req.primeiro_material_nome }}">{{ req.primeiro_material_nome }}</span>
+              {% endif %}
+            </td>
+            <td class="whitespace-nowrap px-4 py-3 text-sm">
+              {% include "requisicoes/partials/_estado_badge.html" with requisicao=req %}
+            </td>
+            <td class="whitespace-nowrap px-4 py-3 text-right text-sm">
+              {% url 'requisicoes:detalhe' pk=req.pk as url_detalhe_req_row %}
+              {% with next_encoded=request.get_full_path|urlencode criada_em=req.criado_em|date:"d/m/Y H:i" %}
+                {% if req.numero_publico %}
+                  {% include "components/button.html" with variant="secondary" size="sm" href=url_detalhe_req_row|add:"?next="|add:next_encoded label="Ver" aria_label="Ver detalhes da requisição "|add:req.numero_publico %}
+                {% else %}
+                  {% include "components/button.html" with variant="secondary" size="sm" href=url_detalhe_req_row|add:"?next="|add:next_encoded label="Ver" aria_label="Ver detalhes do rascunho criado em "|add:criada_em %}
+                {% endif %}
+              {% endwith %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+
+    {% include 'components/pagination.html' with page_obj=page_obj querystring_filtros=querystring_filtros rotulo_itens='requisições' aria_label='Paginação do histórico de requisições' %}
+
+  {% else %}
+
+    {# Empty state contextual: filtro sem resultado vs histórico visível vazio #}
+    {% if tem_filtro_ativo %}
+      {% include 'components/empty_state.html' with icone='components/icons/_seta_circular.html' titulo='Nenhum resultado para este filtro' descricao='Ajuste ou limpe os filtros para ver mais requisições.' %}
+    {% else %}
+      {% include 'components/empty_state.html' with icone='components/icons/_seta_circular.html' titulo='Nenhuma requisição encontrada' descricao='Ainda não há requisições visíveis para o seu papel.' %}
+    {% endif %}
+
+  {% endif %}
+
+  {% if is_htmx %}
+    {# filter_acoes.html vive fora de #resultados-historico-requisicoes (dentro do <form>); reemite via out-of-band pra refletir tem_filtro_ativo após um swap HTMX. #}
+    {% include "components/filter_acoes.html" with id="filtro-acoes-historico-requisicoes" action_url=url_historico target_id="resultados-historico-requisicoes" tem_filtro_ativo=tem_filtro_ativo oob=True %}
+    {# Só o conteúdo da live region é trocado; o elemento com role="status" permanece no DOM. #}
+    <span hx-swap-oob="innerHTML:#resumo-historico-requisicoes">{% if page_obj.paginator.count %}{{ page_obj.paginator.count }} requisiç{{ page_obj.paginator.count|pluralize:"ão,ões" }} encontrad{{ page_obj.paginator.count|pluralize:"a,as" }}.{% else %}Nenhuma requisição encontrada.{% endif %}</span>
+  {% endif %}
+  {% endpartialdef %}
+  {% partial resultados %}
 </div>
 {% endblock %}

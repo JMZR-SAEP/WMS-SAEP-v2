@@ -8,7 +8,15 @@ from apps.accounts.papeis import papel_efetivo
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
-from django.db.models import Count, DecimalField, ExpressionWrapper, F, Sum
+from django.db.models import (
+    Count,
+    DecimalField,
+    ExpressionWrapper,
+    F,
+    OuterRef,
+    Subquery,
+    Sum,
+)
 from django.forms import BooleanField
 from django.forms.formsets import DELETION_FIELD_NAME
 from django.http import HttpResponse, JsonResponse
@@ -25,7 +33,7 @@ from apps.core.exceptions import (
     PermissaoNegada,
 )
 from apps.core.http import htmx_redirect, parse_data_iso
-from apps.core.listagem import paginar_com_filtros
+from apps.core.listagem import paginar, paginar_com_filtros
 from apps.core.presentation import traduz_erro_dominio
 from apps.core.templatetags.core_tags import formatar_quantidade
 from apps.estoque.models import SaldoEstoque
@@ -39,7 +47,12 @@ from apps.requisicoes.forms import (
     RequisicaoCriacaoForm,
     RequisicaoForm,
 )
-from apps.requisicoes.models import EstadoRequisicao, Operacao, Requisicao
+from apps.requisicoes.models import (
+    EstadoRequisicao,
+    ItemRequisicao,
+    Operacao,
+    Requisicao,
+)
 from apps.requisicoes.policies import (
     exigir_pode_consultar_historico_requisicoes,
     exigir_pode_editar_rascunho,
@@ -539,18 +552,24 @@ def buscar_beneficiarios(request):
 # ---------------------------------------------------------------------------
 
 
+PAGINA_MINHAS_REQUISICOES_TAMANHO = 25
+PAGINA_FILA_TAMANHO = 25
+
+
 @login_required
 @require_GET
 def minhas_requisicoes_view(request):
     """Lista as requisições onde o usuário é criador ou beneficiário.
 
-    Rascunhos de terceiros são filtrados pelo selector.
+    Rascunhos de terceiros são filtrados pelo selector. Paginado: a lista
+    cresce monotonicamente ao longo da vida do usuário e não tem filtro.
     """
     requisicoes = minhas_requisicoes(request.user.pk)
+    page_obj = paginar(request, requisicoes, per_page=PAGINA_MINHAS_REQUISICOES_TAMANHO)
     return render(
         request,
         'requisicoes/lista_minhas.html',
-        {'requisicoes': requisicoes},
+        {'page_obj': page_obj, 'requisicoes': page_obj.object_list},
     )
 
 
@@ -570,10 +589,11 @@ def fila_autorizacao_view(request):
         raise PermissionDenied(str(exc))
 
     requisicoes = fila_autorizacao(request.user.pk)
+    page_obj = paginar(request, requisicoes, per_page=PAGINA_FILA_TAMANHO)
     return render(
         request,
         'requisicoes/fila_autorizacao.html',
-        {'requisicoes': requisicoes},
+        {'page_obj': page_obj, 'requisicoes': page_obj.object_list},
     )
 
 
@@ -623,10 +643,11 @@ def fila_atendimento_view(request):
         raise PermissionDenied(str(exc))
 
     requisicoes = fila_atendimento(request.user.pk)
+    page_obj = paginar(request, requisicoes, per_page=PAGINA_FILA_TAMANHO)
     return render(
         request,
         'requisicoes/fila_atendimento.html',
-        {'requisicoes': requisicoes},
+        {'page_obj': page_obj, 'requisicoes': page_obj.object_list},
     )
 
 
@@ -1187,9 +1208,18 @@ def historico_requisicoes_view(request):
         data_fim=data_fim,
         setor=setor,
     )
+    # O card/linha só exibe o nome do material quando a requisição tem um item
+    # único; um `prefetch_related('itens__material')` carregaria as N linhas de
+    # toda requisição para exibir, no máximo, uma.
+    primeiro_material_sq = Subquery(
+        ItemRequisicao.objects.filter(requisicao=OuterRef('pk'))
+        .order_by('pk')
+        .values('material__nome')[:1]
+    )
     requisicoes = requisicoes.annotate(
-        quantidade_itens=Count('itens')
-    ).prefetch_related('itens__material')
+        quantidade_itens=Count('itens'),
+        primeiro_material_nome=primeiro_material_sq,
+    )
 
     resultado = paginar_com_filtros(
         request, requisicoes, per_page=PAGINA_HISTORICO_REQUISICOES_TAMANHO
