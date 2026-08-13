@@ -14,6 +14,7 @@
       - topbar_actions: ações principais da tela (botões/ícones).
       - topbar_overflow: reservado; sem UI default (impl. futura).
   {% endcomment %}
+  <a href="#conteudo" class="skip-link">Pular para o conteúdo</a>
   <header class="app-bar" role="banner" x-data="{ menuOpen: false }" @keydown.escape.window="menuOpen = false">
     <div
       class="fixed inset-0 z-30 bg-surface-overlay"
@@ -36,6 +37,9 @@
           <button
             type="button"
             class="app-bar__nav-toggle app-bar__nav-toggle--start"
+            {# aria-* estáticos são o fallback entre o parse do HTML e o init do Alpine: sem eles o botão fica sem nome acessível nesse intervalo #}
+            aria-label="Abrir menu"
+            aria-expanded="false"
             :aria-label="menuOpen ? 'Fechar menu' : 'Abrir menu'"
             :aria-expanded="menuOpen ? 'true' : 'false'"
             aria-controls="app-bar-menu"
@@ -182,7 +186,7 @@
       </div>
     </aside>
     {% endif %}
-    <main class="flex-1 min-w-0 p-6">
+    <main id="conteudo" tabindex="-1" class="flex-1 min-w-0 p-6">
       <div class="mx-auto max-w-screen-xl">
         {% include "core/partials/_messages.html" %}
         {% block content %}{% endblock %}
