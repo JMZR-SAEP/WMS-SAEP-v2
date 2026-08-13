@@ -29,7 +29,7 @@
             </div>
             <span class="shrink-0">
               {% with itens_label=req.quantidade_itens|pluralize:"item,itens" %}
-                {% include "components/badge.html" with variant="amber-strong" label=req.quantidade_itens|stringformat:"s"|add:" "|add:itens_label %}
+                {% include "components/badge.html" with variant="slate" label=req.quantidade_itens|stringformat:"s"|add:" "|add:itens_label %}
               {% endwith %}
             </span>
           </div>
@@ -68,7 +68,7 @@
           {% include "components/table.html#th" with alinhamento="direita" rotulo_somente_leitura="Ações" %}
         </tr>
       </thead>
-      <tbody class="divide-y divide-slate-100 bg-surface">
+      <tbody class="divide-y divide-border bg-surface">
         {% for req in requisicoes %}
           <tr class="hover:bg-bg-page">
             <td class="whitespace-nowrap px-4 py-3 text-sm font-medium text-primary">{{ req.numero_publico }}</td>
