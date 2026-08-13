@@ -116,6 +116,18 @@ def renderizar_campo_com_aria(
 
 NAVEGACAO: list[dict[str, Any]] = [
     {
+        'titulo': 'Navegação',
+        'aria_label': 'Navegação',
+        'itens': [
+            {
+                'url_name': 'core:home',
+                'rotulo': 'Início',
+                'icone': 'inicio',
+                'flag': None,
+            },
+        ],
+    },
+    {
         'titulo': 'Requisições',
         'aria_label': 'Requisições',
         'itens': [
@@ -195,6 +207,7 @@ NAVEGACAO: list[dict[str, Any]] = [
 ]
 
 ICONES: dict[str, str] = {
+    'inicio': 'M12 3 2 11h3v8h6v-6h2v6h6v-8h3L12 3z',
     'criar': 'M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z',
     'lista': 'M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z',
     'autorizacao': (

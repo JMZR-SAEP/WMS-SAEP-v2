@@ -9,7 +9,8 @@
   <link rel="stylesheet" href="{% static 'core/css/app.css' %}">
   {% block extra_head %}{% endblock %}
 </head>
-<body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+{# Papel frio atrás de tudo: sem isso o plano da página é o branco do user agent e a relação "papel branco sobre papel frio" do design system não existe em tela #}
+<body class="bg-bg-page text-text-primary" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
   {% block body %}{% endblock %}
   <script src="{% static 'core/vendor/htmx.min.js' %}" defer></script>
   <script src="{% static 'core/vendor/alpine-focus.min.js' %}" defer></script>

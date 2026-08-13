@@ -63,21 +63,6 @@
             x-trap.inert.noscroll="menuOpen"
           >
             {% with current=request.resolver_match.view_name %}
-              <section class="app-bar__menu-section" aria-label="Navegação">
-                <p class="app-bar__menu-heading">Navegação</p>
-                <a
-                  href="{% url 'core:home' %}"
-                  class="app-bar__menu-item"
-                  {% if current == 'core:home' %}aria-current="page"{% endif %}
-                >
-                  <svg class="app-bar__menu-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                    <path d="M12 3 2 11h3v8h6v-6h2v6h6v-8h3L12 3z"/>
-                  </svg>
-                  Início
-                </a>
-
-              </section>
-
               {% block topbar_domain %}
                 {% include "core/_topbar_nav.html" %}
               {% endblock %}
@@ -159,16 +144,6 @@
     <aside class="hidden lg:flex lg:w-60 lg:shrink-0 lg:flex-col lg:sticky lg:top-[var(--app-bar-height)] lg:h-[calc(100dvh-var(--app-bar-height))] border-r border-border bg-surface" aria-label="Barra de navegação lateral">
       <nav class="flex-1 overflow-y-auto py-4 px-3" aria-label="Navegação principal">
         {% with current=request.resolver_match.view_name %}
-          <a
-            href="{% url 'core:home' %}"
-            class="flex min-h-11 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium {% if current == 'core:home' %}bg-bg-subtle text-text-primary{% else %}text-text-secondary hover:bg-bg-page{% endif %}"
-            {% if current == 'core:home' %}aria-current="page"{% endif %}
-          >
-            <svg class="h-5 w-5 shrink-0 text-text-disabled" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M12 3 2 11h3v8h6v-6h2v6h6v-8h3L12 3z"/>
-            </svg>
-            Início
-          </a>
           {% block sidebar_nav %}
             {% include "core/partials/_side_nav.html" %}
           {% endblock %}

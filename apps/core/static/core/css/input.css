@@ -300,6 +300,11 @@
     position: relative;
     display: inline-flex;
     align-items: center;
+    /*
+      Acima do overlay (z-30): sem isso o scrim é pintado por cima do próprio
+      toggle, e o ícone "X" do menu aberto deixa de receber clique e foco.
+    */
+    z-index: 40;
   }
 
   .app-bar__nav-toggle {
