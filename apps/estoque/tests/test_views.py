@@ -1114,7 +1114,7 @@ class TestHistoricoImportacoesScpiView:
         resp = client.get(self.URL)
         conteudo = resp.content.decode()
         marcador_wrapper = (
-            '<div class="overflow-x-auto rounded-xl border border-slate-200 '
+            '<div class="overflow-x-auto rounded-xl border border-border '
             'bg-surface shadow-sm">'
         )
         assert marcador_wrapper in conteudo

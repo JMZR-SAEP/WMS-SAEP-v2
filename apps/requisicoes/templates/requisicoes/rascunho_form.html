@@ -154,7 +154,7 @@
       {# Botão adicionar item via HTMX #}
       <button
         type="button"
-        class="mt-6 flex items-center gap-2 text-sm font-medium text-primary hover:text-primary-active cursor-pointer transition-colors"
+        class="mt-6 -mx-2 flex min-h-11 items-center gap-2 rounded-md px-2 text-sm font-medium text-primary-text hover:text-primary-text-emphasis cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1"
         hx-get="{% url 'requisicoes:nova_linha_item' %}"
         hx-target="#itens-container"
         hx-swap="beforeend"
@@ -189,7 +189,7 @@
       default ao pressionar Enter. Visualmente, envio fica à direita via flex order.
 
     {% endcomment %}
-    <div class="fixed bottom-0 inset-x-0 z-30 bg-surface border-t border-border px-4 py-2 flex flex-nowrap items-center justify-end gap-2 sm:static sm:z-auto sm:border-0 sm:bg-transparent sm:px-0 sm:py-0">
+    <div class="fixed bottom-0 inset-x-0 z-30 bg-surface border-t border-border px-4 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] flex flex-nowrap items-center justify-end gap-2 sm:static sm:z-auto sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:pb-0">
       {% if modo == 'criar' %}
         {% include "components/button.html" with variant="secondary" type="submit" name="acao" value="rascunho" label="Salvar rascunho" loading_label="Salvando…" class="order-1 shrink-0 transition-colors" %}
         {% include "components/button.html" with variant="primary" type="submit" name="acao" value="enviar" label="Criar e enviar para autorização" label_mobile="Enviar" loading_label="Enviando…" icon_template="components/icons/enviar.svg" icon_class="h-4 w-4 shrink-0" class="order-2 shrink-0 transition-colors" %}

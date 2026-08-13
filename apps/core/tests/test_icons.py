@@ -130,9 +130,12 @@ def test_icon_copiar_renderiza_os_dois_paths_originais():
 
 def test_icon_confirmar_renderiza_path_original():
     html = _render('{% icon "confirmar" class="h-4 w-4 shrink-0" %}')
+    # Os arcos precisam do separador antes dos flags: sem o espaço depois da
+    # rotação (`a1 1 010`), o parser de SVG rejeita o path inteiro e o check
+    # some do botão primário.
     assert (
-        'd="M16.707 5.293a1 1 010 1.414l-8 8a1 1 01-1.414 0l-4-4a1 1 011.414-1.414L8 '
-        '12.586l7.293-7.293a1 1 011.414 0z"' in html
+        'd="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 '
+        '011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"' in html
     )
     assert 'viewBox="0 0 20 20"' in html
     assert 'class="h-4 w-4 shrink-0"' in html

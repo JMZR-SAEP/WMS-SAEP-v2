@@ -49,9 +49,12 @@
       },
 
       _avisarNaoPodeRemover(row) {
+        // Cor vem do token do design system, nunca de um hex hardcoded:
+        // rebrand troca o valor em input.css sem tocar este arquivo.
+        const cor = 'var(--color-danger-accent)';
         const aviso = document.querySelector('.aviso_quantidade');
-        if (aviso) aviso.style.color = '#f87171';
-        row.style.outline = '2px solid #f87171';
+        if (aviso) aviso.style.color = cor;
+        row.style.outline = `2px solid ${cor}`;
         setTimeout(() => {
           if (aviso) aviso.style.color = '';
           row.style.outline = '';

@@ -10,7 +10,7 @@
 {% block content %}
 <div class="max-w-screen-xl mx-auto">
 
-  <p class="mb-6 max-w-3xl text-sm text-secondary">
+  <p class="mb-6 max-w-3xl text-sm text-text-secondary">
     Saldo físico, reservado e disponível de cada material no estoque principal.
     Materiais com divergência crítica (físico &lt; reservado) são destacados.
   </p>
@@ -31,7 +31,7 @@
     {% if busca %}
       <a
         href="{% url 'estoque:lista_materiais' %}"
-        class="rounded-lg border border-border-strong px-4 py-2 text-sm font-medium text-secondary shadow-sm hover:bg-bg-page focus:outline-none focus:ring-2 focus:ring-border-focus"
+        class="rounded-lg border border-border-strong px-4 py-2 text-sm font-medium text-text-secondary shadow-sm hover:bg-bg-page focus:outline-none focus:ring-2 focus:ring-border-focus"
       >
         Limpar
       </a>
@@ -49,10 +49,10 @@
         >
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
-              <h2 class="break-words text-sm font-semibold text-primary">
+              <h2 class="break-words text-sm font-semibold text-text-primary">
                 {{ saldo.material.codigo }}
               </h2>
-              <p class="mt-0.5 text-xs text-secondary">{{ saldo.material.nome }}</p>
+              <p class="mt-0.5 text-xs text-text-secondary">{{ saldo.material.nome }}</p>
             </div>
             {% if saldo.divergente_calculado %}
               <span class="shrink-0">
@@ -63,16 +63,16 @@
 
           <dl class="mt-4 grid grid-cols-3 gap-3 text-sm">
             <div>
-              <dt class="text-xs font-medium uppercase tracking-wide text-tertiary">Físico</dt>
-              <dd class="mt-0.5 tabular-nums text-primary">{{ saldo.saldo_fisico|formatar_quantidade:saldo.material.unidade }} {{ saldo.material.unidade }}</dd>
+              <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Físico</dt>
+              <dd class="mt-0.5 tabular-nums text-text-primary">{{ saldo.saldo_fisico|formatar_quantidade:saldo.material.unidade }} {{ saldo.material.unidade }}</dd>
             </div>
             <div>
-              <dt class="text-xs font-medium uppercase tracking-wide text-tertiary">Reservado</dt>
-              <dd class="mt-0.5 tabular-nums text-primary">{{ saldo.saldo_reservado|formatar_quantidade:saldo.material.unidade }} {{ saldo.material.unidade }}</dd>
+              <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Reservado</dt>
+              <dd class="mt-0.5 tabular-nums text-text-primary">{{ saldo.saldo_reservado|formatar_quantidade:saldo.material.unidade }} {{ saldo.material.unidade }}</dd>
             </div>
             <div>
-              <dt class="text-xs font-medium uppercase tracking-wide text-tertiary">Disponível</dt>
-              <dd class="mt-0.5 tabular-nums {% if saldo.divergente_calculado %}text-danger-text font-semibold{% else %}text-primary{% endif %}">
+              <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Disponível</dt>
+              <dd class="mt-0.5 tabular-nums {% if saldo.divergente_calculado %}text-danger-text font-semibold{% else %}text-text-primary{% endif %}">
                 {{ saldo.saldo_disponivel_calculado|formatar_quantidade:saldo.material.unidade }} {{ saldo.material.unidade }}
               </dd>
             </div>
@@ -84,7 +84,7 @@
     {# Desktop: tabela de dados. <tr> literal (mesmo motivo do <article> acima); <th> "Status" literal (alinhamento central, não suportado por #th) #}
     {% include "components/table.html#tabela_abertura" %}
       <caption class="sr-only">Saldo físico, reservado e disponível de cada material no estoque.</caption>
-      <thead class="bg-subtle">
+      <thead class="bg-bg-subtle">
         <tr>
           {% include "components/table.html#th" with rotulo="Código" %}
           {% include "components/table.html#th" with rotulo="Material" %}
@@ -92,25 +92,25 @@
           {% include "components/table.html#th" with rotulo="Reservado" alinhamento="direita" %}
           {% include "components/table.html#th" with rotulo="Disponível" alinhamento="direita" %}
           {% include "components/table.html#th" with rotulo="Un." %}
-          <th scope="col" class="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-tertiary">Status</th>
+          <th scope="col" class="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-text-tertiary">Status</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-border bg-surface">
         {% for saldo in saldos %}
           <tr class="{% if saldo.divergente_calculado %}bg-danger-subtle hover:bg-danger-muted{% else %}hover:bg-bg-page{% endif %}">
-            <td class="px-4 py-3 font-mono text-xs text-secondary">{{ saldo.material.codigo }}</td>
-            <td class="px-4 py-3 text-sm text-primary">{{ saldo.material.nome }}</td>
-            <td class="px-4 py-3 text-right text-sm tabular-nums text-secondary">{{ saldo.saldo_fisico|formatar_quantidade:saldo.material.unidade }}</td>
-            <td class="px-4 py-3 text-right text-sm tabular-nums text-secondary">{{ saldo.saldo_reservado|formatar_quantidade:saldo.material.unidade }}</td>
-            <td class="px-4 py-3 text-right text-sm tabular-nums {% if saldo.divergente_calculado %}font-semibold text-danger-text{% else %}text-secondary{% endif %}">
+            <td class="px-4 py-3 font-mono text-xs text-text-secondary">{{ saldo.material.codigo }}</td>
+            <td class="px-4 py-3 text-sm text-text-primary">{{ saldo.material.nome }}</td>
+            <td class="px-4 py-3 text-right text-sm tabular-nums text-text-secondary">{{ saldo.saldo_fisico|formatar_quantidade:saldo.material.unidade }}</td>
+            <td class="px-4 py-3 text-right text-sm tabular-nums text-text-secondary">{{ saldo.saldo_reservado|formatar_quantidade:saldo.material.unidade }}</td>
+            <td class="px-4 py-3 text-right text-sm tabular-nums {% if saldo.divergente_calculado %}font-semibold text-danger-text{% else %}text-text-secondary{% endif %}">
               {{ saldo.saldo_disponivel_calculado|formatar_quantidade:saldo.material.unidade }}
             </td>
-            <td class="px-4 py-3 text-sm text-secondary">{{ saldo.material.unidade }}</td>
+            <td class="px-4 py-3 text-sm text-text-secondary">{{ saldo.material.unidade }}</td>
             <td class="px-4 py-3 text-center">
               {% if saldo.divergente_calculado %}
                 {% include "components/badge.html" with variant="red-strong" label="Divergente" aria_label="Divergência crítica: físico menor que reservado" %}
               {% else %}
-                <span class="text-tertiary text-xs">—</span>
+                <span class="text-text-tertiary text-xs">—</span>
               {% endif %}
             </td>
           </tr>
