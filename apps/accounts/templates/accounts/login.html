@@ -23,8 +23,8 @@
         {% csrf_token %}
         <div class="space-y-5">
           <div>
-            <label for="{{ form.username.id_for_label }}" class="block text-sm font-medium text-text-primary">
-              {{ form.username.label }}
+            <label for="{{ form.username.id_for_label }}" class="block text-xs font-medium uppercase tracking-wide text-text-tertiary">
+              {{ form.username.label }}{% if form.username.field.required %}<span class="ml-0.5 text-danger-accent" aria-hidden="true">*</span>{% endif %}
             </label>
             {{ form.username }}
             {% if form.username.errors %}
@@ -37,8 +37,8 @@
           </div>
 
           <div>
-            <label for="{{ form.password.id_for_label }}" class="block text-sm font-medium text-text-primary">
-              {{ form.password.label }}
+            <label for="{{ form.password.id_for_label }}" class="block text-xs font-medium uppercase tracking-wide text-text-tertiary">
+              {{ form.password.label }}{% if form.password.field.required %}<span class="ml-0.5 text-danger-accent" aria-hidden="true">*</span>{% endif %}
             </label>
             {{ form.password }}
             {% if form.password.errors %}
