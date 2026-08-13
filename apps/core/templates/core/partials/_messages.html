@@ -1,5 +1,11 @@
 {% if messages %}
-<div aria-live="assertive" aria-atomic="false" class="space-y-2">
+{% comment %}
+Os wrappers não declaram aria-live: cada item já traz role="alert" (assertivo)
+ou role="status" (polite), que implicam a live region. Declarar nos dois níveis
+faz o leitor de tela anunciar a mesma mensagem duas vezes.
+Erros e avisos vêm primeiro na ordem do DOM, por serem assertivos.
+{% endcomment %}
+<div class="space-y-2">
   {% for message in messages %}
     {% if message.level_tag == 'warning' %}
       <div role="alert" class="mb-2 flex items-start gap-2 rounded-md border border-warning-border bg-warning-subtle px-3 py-2 text-sm text-warning-text-strong">
@@ -14,7 +20,7 @@
     {% endif %}
   {% endfor %}
 </div>
-<div aria-live="polite" aria-atomic="false" class="space-y-2">
+<div class="space-y-2">
   {% for message in messages %}
     {% if message.level_tag == 'success' %}
       <div role="status" class="mb-2 flex items-start gap-2 rounded-md border border-success-border bg-success-subtle px-3 py-2 text-sm text-success-text-emphasis">

@@ -14,6 +14,7 @@
       - topbar_actions: ações principais da tela (botões/ícones).
       - topbar_overflow: reservado; sem UI default (impl. futura).
   {% endcomment %}
+  <a href="#conteudo" class="skip-link">Pular para o conteúdo</a>
   <header class="app-bar" role="banner" x-data="{ menuOpen: false }" @keydown.escape.window="menuOpen = false">
     <div
       class="fixed inset-0 z-30 bg-surface-overlay"
@@ -36,6 +37,9 @@
           <button
             type="button"
             class="app-bar__nav-toggle app-bar__nav-toggle--start"
+            {# aria-* estáticos são o fallback entre o parse do HTML e o init do Alpine: sem eles o botão fica sem nome acessível nesse intervalo #}
+            aria-label="Abrir menu"
+            aria-expanded="false"
             :aria-label="menuOpen ? 'Fechar menu' : 'Abrir menu'"
             :aria-expanded="menuOpen ? 'true' : 'false'"
             aria-controls="app-bar-menu"
@@ -59,21 +63,6 @@
             x-trap.inert.noscroll="menuOpen"
           >
             {% with current=request.resolver_match.view_name %}
-              <section class="app-bar__menu-section" aria-label="Navegação">
-                <p class="app-bar__menu-heading">Navegação</p>
-                <a
-                  href="{% url 'core:home' %}"
-                  class="app-bar__menu-item"
-                  {% if current == 'core:home' %}aria-current="page"{% endif %}
-                >
-                  <svg class="app-bar__menu-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                    <path d="M12 3 2 11h3v8h6v-6h2v6h6v-8h3L12 3z"/>
-                  </svg>
-                  Início
-                </a>
-
-              </section>
-
               {% block topbar_domain %}
                 {% include "core/_topbar_nav.html" %}
               {% endblock %}
@@ -124,15 +113,21 @@
         {% block topbar_overflow %}{% endblock %}
 
         {% if user.is_authenticated %}
-          {# app-bar__action-icon: botão circular 40×40 do design system para ações de ícone #}
+          {# app-bar__action-icon: botão circular de 44×44 (alvo mínimo de toque) do design system para ações de ícone #}
           <a href="{% url 'notificacoes:lista' %}" class="app-bar__action-icon relative" aria-label="Notificações{% if notificacoes_nao_lidas %} — {{ notificacoes_nao_lidas }} não lida{{ notificacoes_nao_lidas|pluralize:'s' }}{% endif %}">
             <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6V11c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
             </svg>
             {% if notificacoes_nao_lidas %}
+              {#
+                Papel branco sobre a barra azul: vermelho sobre azul mede 1.10:1 e
+                sumia por luminância, além de emprestar a cor da recusa a um evento
+                que não é negação, erro nem divergência. A contagem também está no
+                aria-label do link — o badge é reforço visual, por isso aria-hidden.
+              #}
               <span
                 aria-hidden="true"
-                class="absolute top-1.5 right-1.5 min-w-4 h-4 rounded-full bg-danger px-[3px] text-[10px] font-bold leading-4 whitespace-nowrap text-center text-text-on-primary"
+                class="absolute top-1.5 right-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-surface px-1 text-xs font-semibold whitespace-nowrap text-primary-text-emphasis"
               >{{ notificacoes_nao_lidas }}</span>
             {% endif %}
           </a>
@@ -146,19 +141,9 @@
 
   <div class="lg:flex">
     {% if user.is_authenticated %}
-    <aside class="hidden lg:flex lg:w-60 lg:shrink-0 lg:flex-col lg:sticky lg:top-[var(--app-bar-height)] lg:h-[calc(100vh-var(--app-bar-height))] border-r border-border bg-surface" aria-label="Barra de navegação lateral">
+    <aside class="hidden lg:flex lg:w-60 lg:shrink-0 lg:flex-col lg:sticky lg:top-[var(--app-bar-height)] lg:h-[calc(100dvh-var(--app-bar-height))] border-r border-border bg-surface" aria-label="Barra de navegação lateral">
       <nav class="flex-1 overflow-y-auto py-4 px-3" aria-label="Navegação principal">
         {% with current=request.resolver_match.view_name %}
-          <a
-            href="{% url 'core:home' %}"
-            class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium {% if current == 'core:home' %}bg-bg-subtle text-text-primary{% else %}text-text-secondary hover:bg-bg-page{% endif %}"
-            {% if current == 'core:home' %}aria-current="page"{% endif %}
-          >
-            <svg class="h-5 w-5 shrink-0 text-text-disabled" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M12 3 2 11h3v8h6v-6h2v6h6v-8h3L12 3z"/>
-            </svg>
-            Início
-          </a>
           {% block sidebar_nav %}
             {% include "core/partials/_side_nav.html" %}
           {% endblock %}
@@ -182,7 +167,7 @@
       </div>
     </aside>
     {% endif %}
-    <main class="flex-1 min-w-0 p-6">
+    <main id="conteudo" tabindex="-1" class="flex-1 min-w-0 p-6">
       <div class="mx-auto max-w-screen-xl">
         {% include "core/partials/_messages.html" %}
         {% block content %}{% endblock %}

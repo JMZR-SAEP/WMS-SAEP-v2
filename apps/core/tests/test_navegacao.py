@@ -35,19 +35,31 @@ def _todas_as_flags():
     }
 
 
+def _secao(secoes, titulo):
+    (secao,) = [s for s in secoes if s['titulo'] == titulo]
+    return secao
+
+
 def test_sem_flags_mostra_apenas_itens_sempre_visiveis():
     secoes = secoes_navegacao({})
-    assert len(secoes) == 1
-    (requisicoes,) = secoes
-    assert requisicoes['titulo'] == 'Requisições'
-    rotulos = [item['rotulo'] for item in requisicoes['itens']]
+    assert [secao['titulo'] for secao in secoes] == ['Navegação', 'Requisições']
+    rotulos = [item['rotulo'] for item in _secao(secoes, 'Requisições')['itens']]
     assert rotulos == ['Nova requisição', 'Minhas requisições']
+
+
+def test_secao_navegacao_traz_inicio_da_fonte_unica():
+    """Início não é hardcoded no shell: vem de NAVEGACAO como qualquer item."""
+    secoes = secoes_navegacao({})
+    navegacao = _secao(secoes, 'Navegação')
+    (inicio,) = navegacao['itens']
+    assert inicio['rotulo'] == 'Início'
+    assert inicio['url_name'] == 'core:home'
+    assert inicio['url_names_ativos'] == ['core:home']
 
 
 def test_flag_ligada_individualmente_mostra_item_correspondente():
     secoes = secoes_navegacao({'pode_ver_fila_autorizacao': True})
-    (requisicoes,) = secoes
-    rotulos = [item['rotulo'] for item in requisicoes['itens']]
+    rotulos = [item['rotulo'] for item in _secao(secoes, 'Requisições')['itens']]
     assert 'Fila de autorizações' in rotulos
 
 
@@ -69,6 +81,7 @@ def test_todas_as_flags_mostram_todos_os_itens_na_ordem_original():
     secoes = secoes_navegacao(_todas_as_flags())
     todos_rotulos = [item['rotulo'] for secao in secoes for item in secao['itens']]
     assert todos_rotulos == [
+        'Início',
         'Nova requisição',
         'Minhas requisições',
         'Fila de autorizações',
@@ -84,7 +97,7 @@ def test_todas_as_flags_mostram_todos_os_itens_na_ordem_original():
 
 def test_item_scpi_expõe_trio_de_url_names_ativos():
     secoes = secoes_navegacao({'pode_visualizar_preview_scpi': True})
-    (almoxarifado,) = [s for s in secoes if s['titulo'] == 'Almoxarifado']
+    almoxarifado = _secao(secoes, 'Almoxarifado')
     (item_scpi,) = [
         item for item in almoxarifado['itens'] if item['rotulo'] == 'Importar SCPI'
     ]
@@ -97,7 +110,7 @@ def test_item_scpi_expõe_trio_de_url_names_ativos():
 
 def test_item_sem_url_names_ativos_customizado_usa_apenas_o_proprio_url_name():
     secoes = secoes_navegacao({})
-    (requisicoes,) = secoes
+    requisicoes = _secao(secoes, 'Requisições')
     (item,) = [i for i in requisicoes['itens'] if i['rotulo'] == 'Nova requisição']
     assert item['url_names_ativos'] == ['requisicoes:nova_requisicao']
 
@@ -190,6 +203,7 @@ def test_sidebar_e_drawer_mostram_os_mesmos_rotulos_para_o_mesmo_papel():
     side_html = _side_nav(**ctx)
     topbar_html = _topbar_nav(**ctx)
     esperados = {
+        'Início',
         'Nova requisição',
         'Minhas requisições',
         'Fila de autorizações',

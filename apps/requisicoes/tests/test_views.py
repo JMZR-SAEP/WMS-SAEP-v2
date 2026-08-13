@@ -2676,8 +2676,13 @@ def test_detalhe_registrar_retirada_botao_azul(
     assert 'bg-emerald-600' not in html
 
 
-def test_messages_html_aria_live_containers():
-    """Partial _messages.html renderiza containers aria-live por nível de mensagem."""
+def test_messages_html_declara_live_region_uma_vez_por_mensagem():
+    """A live region vive no item, não no container.
+
+    `role="alert"` já implica aria-live assertivo e `role="status"` implica
+    polite; declarar aria-live também no wrapper faria o leitor de tela anunciar
+    a mesma mensagem duas vezes.
+    """
     from django.contrib import messages as django_messages
     from django.contrib.messages.storage.fallback import FallbackStorage
     from django.template.loader import render_to_string
@@ -2692,10 +2697,14 @@ def test_messages_html_aria_live_containers():
     django_messages.success(request, 'Sucesso de teste')
 
     html = render_to_string('core/partials/_messages.html', request=request)
-    assert 'aria-live="assertive"' in html
-    assert 'aria-live="polite"' in html
-    assert 'Erro de teste' in html
-    assert 'Sucesso de teste' in html
+    assert 'aria-live=' not in html
+    # Contagem, não presença: uma mensagem duplicada passaria num `in`.
+    assert html.count('role="alert"') == 1
+    assert html.count('role="status"') == 1
+    assert html.count('Erro de teste') == 1
+    assert html.count('Sucesso de teste') == 1
+    # Erro (assertivo) precede sucesso (polite) na ordem do DOM.
+    assert html.index('Erro de teste') < html.index('Sucesso de teste')
 
 
 # ---------------------------------------------------------------------------

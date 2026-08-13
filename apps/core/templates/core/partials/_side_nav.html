@@ -9,16 +9,16 @@ Itens/ícones vêm de core_tags.secoes_navegacao — fonte única com _topbar_na
 {% secoes_navegacao as secoes %}
 {% for secao in secoes %}
 <div class="{% if forloop.first %}mt-4{% else %}mt-6{% endif %}">
-  <p class="px-3 mb-1 text-xs font-semibold uppercase tracking-wider text-slate-400">{{ secao.titulo }}</p>
+  <p class="px-3 mb-1 text-xs font-semibold uppercase tracking-wider text-text-tertiary">{{ secao.titulo }}</p>
   <ul class="space-y-0.5" role="list">
     {% for item in secao.itens %}
     <li>
       <a
         href="{% url item.url_name %}"
-        class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium {% if current in item.url_names_ativos %}bg-slate-100 text-slate-900{% else %}text-slate-700 hover:bg-slate-50{% endif %}"
+        class="flex min-h-11 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium {% if current in item.url_names_ativos %}bg-bg-subtle text-text-primary{% else %}text-text-secondary hover:bg-bg-page{% endif %}"
         {% if current in item.url_names_ativos %}aria-current="page"{% endif %}
       >
-        <svg class="h-5 w-5 shrink-0 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <svg class="h-5 w-5 shrink-0 text-text-disabled" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <path d="{{ item.icone_path }}"/>
         </svg>
         {{ item.rotulo }}
