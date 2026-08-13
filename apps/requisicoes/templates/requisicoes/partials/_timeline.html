@@ -5,7 +5,7 @@ Parâmetro: eventos (lista de TimelineRequisicao com select_related('ator')).
 {% if eventos %}
   <div class="relative">
     {# linha vertical da timeline (apenas sm+) #}
-    <span class="hidden sm:absolute sm:left-[5.25rem] sm:top-1 sm:bottom-1 sm:block sm:w-px sm:bg-slate-200" aria-hidden="true"></span>
+    <span class="hidden sm:absolute sm:left-[5.25rem] sm:top-1 sm:bottom-1 sm:block sm:w-px sm:bg-border" aria-hidden="true"></span>
     <ol class="relative space-y-5 sm:space-y-4" aria-label="Histórico da requisição">
       {% for evento in eventos %}
       <li class="relative grid grid-cols-1 gap-1 sm:grid-cols-[5rem_auto_1fr] sm:items-baseline sm:gap-x-4 sm:gap-y-0">
@@ -13,29 +13,29 @@ Parâmetro: eventos (lista de TimelineRequisicao com select_related('ator')).
         {# coluna 1: timestamp compacto #}
         <time
           datetime="{{ evento.criado_em|date:'c' }}"
-          class="text-xs font-medium text-tertiary tabular-nums sm:text-right"
+          class="text-xs font-medium text-text-tertiary tabular-nums sm:text-right"
         >
           <span class="sm:block">{{ evento.criado_em|date:"d/m/Y" }}</span>
-          <span class="sm:block sm:text-[0.6875rem] sm:text-tertiary">{{ evento.criado_em|date:"H:i" }}</span>
+          <span class="sm:block sm:text-xs sm:text-text-tertiary">{{ evento.criado_em|date:"H:i" }}</span>
         </time>
 
         {# coluna 2: dot marker #}
         <span
-          class="hidden sm:flex sm:h-2.5 sm:w-2.5 sm:rounded-full sm:bg-slate-300 sm:ring-4 sm:ring-white sm:translate-y-1"
+          class="hidden sm:flex sm:h-2.5 sm:w-2.5 sm:rounded-full sm:bg-border-strong sm:ring-4 sm:ring-surface sm:translate-y-1"
           aria-hidden="true"
         ></span>
 
         {# coluna 3: conteúdo #}
         <div class="min-w-0">
-          <p class="text-sm font-semibold text-primary leading-tight">
+          <p class="text-sm font-semibold text-text-primary leading-tight">
             {{ evento.get_evento_display }}
           </p>
-          <p class="mt-0.5 text-xs text-secondary">
+          <p class="mt-0.5 text-xs text-text-secondary">
             {{ evento.ator.nome }}
-            <span class="text-tertiary">· {{ evento.ator.matricula }}</span>
+            <span class="text-text-tertiary">· {{ evento.ator.matricula }}</span>
           </p>
           {% if evento.justificativa %}
-            <p class="mt-1 rounded-md bg-subtle px-2.5 py-1.5 text-xs text-secondary leading-relaxed">
+            <p class="mt-1 rounded-md bg-bg-subtle px-2.5 py-1.5 text-xs text-text-secondary leading-relaxed">
               {{ evento.justificativa }}
             </p>
           {% endif %}
@@ -70,5 +70,5 @@ Parâmetro: eventos (lista de TimelineRequisicao com select_related('ator')).
     </ol>
   </div>
 {% else %}
-  <p class="text-sm text-tertiary">Sem eventos registrados.</p>
+  <p class="text-sm text-text-tertiary">Sem eventos registrados.</p>
 {% endif %}

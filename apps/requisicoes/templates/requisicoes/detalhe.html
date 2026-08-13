@@ -38,7 +38,7 @@
         <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Beneficiário</dt>
         <dd class="mt-0.5 text-text-primary">
           {{ requisicao.beneficiario.nome }}
-          <span class="text-text-disabled">({{ requisicao.beneficiario.matricula }})</span>
+          <span class="text-text-tertiary">({{ requisicao.beneficiario.matricula }})</span>
         </dd>
       </div>
       <div>
@@ -49,7 +49,7 @@
         <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Criador</dt>
         <dd class="mt-0.5 text-text-primary">
           {{ requisicao.criador.nome }}
-          <span class="text-text-disabled">({{ requisicao.criador.matricula }})</span>
+          <span class="text-text-tertiary">({{ requisicao.criador.matricula }})</span>
         </dd>
       </div>
       {% if enviada_em %}
@@ -104,7 +104,7 @@
                   <td class="px-3 py-2 text-text-primary">
                     <span class="font-medium">{{ item.material.codigo }}</span>
                     <span class="text-text-secondary">— {{ item.material.nome }}</span>
-                    <span class="text-xs text-text-disabled">({{ item.material.get_unidade_display }})</span>
+                    <span class="text-xs text-text-tertiary">({{ item.material.get_unidade_display }})</span>
                   </td>
                   <td class="px-3 py-2 text-right tabular-nums text-text-primary">{{ item.quantidade_solicitada|formatar_quantidade:item.material.unidade }}</td>
                   {% if estado == 'autorizada' or estado == 'pronta_para_retirada' or estado == 'atendida' or estado == 'estornada' or estado == 'cancelada' %}
@@ -120,14 +120,19 @@
                   {% if pode_devolver %}
                     <td class="px-3 py-2">
                       {% if item.entregue_liquida > 0 %}
-                        <button
-                          type="button"
-                          onclick="document.getElementById('{{ item.modal_devolver_id }}').showModal()"
-                          aria-haspopup="dialog"
-                          class="inline-flex items-center gap-1 rounded-md border border-return-border bg-surface px-2.5 py-1 text-xs font-medium text-return-text shadow-sm hover:bg-return-subtle cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-return focus-visible:ring-offset-1"
-                        >
-                          Registrar devolução
-                        </button>
+                        <div x-data="modalController({ id: '{{ item.modal_devolver_id }}' })">
+                          <button
+                            type="button"
+                            data-modal-trigger="{{ item.modal_devolver_id }}"
+                            @click="abrir($event)"
+                            aria-haspopup="dialog"
+                            class="inline-flex min-h-11 items-center gap-1 rounded-md border border-return-border bg-surface px-2.5 py-1 text-xs font-medium text-return-text shadow-sm hover:bg-return-subtle cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-return focus-visible:ring-offset-1"
+                          >
+                            Registrar devolução
+                          </button>
+                          {% url 'requisicoes:registrar_devolucao' requisicao.pk item.pk as devolver_url %}
+                          {% include "components/modal.html" with id=item.modal_devolver_id titulo="Registrar devolução" descricao="Informe a quantidade a devolver ao estoque." action_url=devolver_url confirm_label="Registrar devolução" confirm_variant="primary" form=devolucao_form item=item entregue_liquida=item.entregue_liquida form_body_template="requisicoes/partials/_modal_form_devolucao.html" %}
+                        </div>
                       {% endif %}
                     </td>
                   {% endif %}
@@ -136,16 +141,6 @@
             </tbody>
           </table>
         </div>
-        {% if pode_devolver %}
-          {% for item in itens %}
-            {% if item.entregue_liquida > 0 %}
-              <div x-data="modalController({ id: '{{ item.modal_devolver_id }}' })">
-                {% url 'requisicoes:registrar_devolucao' requisicao.pk item.pk as devolver_url %}
-                {% include "components/modal.html" with id=item.modal_devolver_id titulo="Registrar devolução" descricao="Informe a quantidade a devolver ao estoque." action_url=devolver_url confirm_label="Registrar devolução" confirm_variant="primary" form=devolucao_form item=item entregue_liquida=item.entregue_liquida form_body_template="requisicoes/partials/_modal_form_devolucao.html" %}
-              </div>
-            {% endif %}
-          {% endfor %}
-        {% endif %}
       {% endwith %}
     {% else %}
       <p class="text-sm text-text-tertiary">Sem itens registrados.</p>
@@ -175,7 +170,7 @@
           {% if pode_editar %}
             <a
               href="{% url 'requisicoes:editar_rascunho' requisicao.pk %}"
-              class="inline-flex items-center justify-center gap-1.5 rounded-md border border-border-strong bg-surface px-4 py-2 text-sm font-medium text-text-secondary shadow-sm hover:bg-bg-page focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1"
+              class="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-md border border-border-strong bg-surface px-4 py-2 text-sm font-medium text-text-secondary shadow-sm hover:bg-bg-page focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1"
             >
               <svg aria-hidden="true" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M13.586 3.586a2 2 0 1 1 2.828 2.828l-.793.793-2.828-2.828.793-.793ZM11.379 5.793 3 14.172V17h2.828l8.379-8.379-2.828-2.828Z"/>
@@ -317,7 +312,7 @@
         </div>
         <a
           href="{% url 'requisicoes:copiar' requisicao.pk %}"
-          class="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border-strong bg-surface px-4 py-2 text-sm font-medium text-text-secondary shadow-sm hover:bg-bg-page focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1"
+          class="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-md border border-border-strong bg-surface px-4 py-2 text-sm font-medium text-text-secondary shadow-sm hover:bg-bg-page focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1"
         >
           {% icon "copiar" class="h-4 w-4" %}
           Repetir requisição
