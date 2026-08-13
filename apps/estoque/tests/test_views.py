@@ -1409,8 +1409,8 @@ class TestListaMateriaisView:
         client.force_login(chefe_almoxarifado)
         response = client.get(URL_MATERIAIS)
         conteudo = response.content.decode()
-        assert 'bg-red-50 hover:bg-red-100' in conteudo
-        assert 'border-red-300 bg-red-50' in conteudo
+        assert 'bg-danger-subtle hover:bg-danger-muted' in conteudo
+        assert 'border-danger-border-strong bg-danger-subtle' in conteudo
         assert 'aria-label="Material com divergência crítica"' in conteudo
         assert conteudo.count('Divergente') == 2
 
