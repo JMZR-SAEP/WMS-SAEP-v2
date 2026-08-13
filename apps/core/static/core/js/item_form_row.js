@@ -53,12 +53,23 @@
         // rebrand troca o valor em input.css sem tocar este arquivo.
         const cor = 'var(--color-danger-accent)';
         const aviso = document.querySelector('.aviso_quantidade');
-        if (aviso) aviso.style.color = cor;
+        // O realce sozinho comunicava o bloqueio só por cor: leitor de tela não
+        // recebia nada e daltônico dependia do outline. O texto muda dentro do
+        // `role="status"` do próprio aviso — uma live region por formulário, não
+        // por linha — e volta ao normal junto com o realce.
+        const textoOriginal = aviso ? aviso.textContent : null;
+        if (aviso) {
+          aviso.textContent = 'É preciso manter ao menos um material.';
+          aviso.style.color = cor;
+        }
         row.style.outline = `2px solid ${cor}`;
         setTimeout(() => {
-          if (aviso) aviso.style.color = '';
+          if (aviso) {
+            aviso.textContent = textoOriginal;
+            aviso.style.color = '';
+          }
           row.style.outline = '';
-        }, 2000);
+        }, 4000);
       },
     };
   }

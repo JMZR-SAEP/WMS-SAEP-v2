@@ -13,6 +13,12 @@ Parâmetros:
                   campo não for obrigatório; False força esconder mesmo se
                   for; ausente (default) deriva de field.field.required
   class           (opcional) passthrough pro <div> wrapper
+  attrs_extra     (opcional) dict de attrs extras do widget, para o que só a
+                  linha sabe — `max` derivado do item, `x-model` do escopo
+                  Alpine daquela linha. Sem isso, uma linha de formset é
+                  empurrada a escrever o <input> na mão e perde a fiação ARIA.
+  describedby_ext (opcional) id de um texto de apoio renderizado pela tela
+                  fora deste componente, para entrar no aria-describedby
 
 Comportamento: aria-invalid + aria-describedby (compondo hint e erro quando
 presentes) injetados no widget via {% renderizar_campo_com_aria %}
@@ -40,7 +46,7 @@ Uso:
   {% if texto_ajuda %}
     <p id="{{ field.id_for_label }}-ajuda" class="mt-1 text-xs text-text-tertiary">{{ texto_ajuda }}</p>
   {% endif %}
-  {% renderizar_campo_com_aria field tem_ajuda=texto_ajuda tem_erro=field.errors %}
+  {% renderizar_campo_com_aria field tem_ajuda=texto_ajuda tem_erro=field.errors attrs_extra=attrs_extra describedby_extra=describedby_ext %}
   {% if field.errors %}
     <p id="{{ field.id_for_label }}-erro" class="mt-1 text-xs text-danger" role="alert">{{ field.errors|join:", " }}</p>
   {% endif %}

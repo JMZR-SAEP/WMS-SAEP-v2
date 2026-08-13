@@ -4104,3 +4104,121 @@ def test_telas_tem_exatamente_um_h1(
     ):
         html = client.get(url).content.decode()
         assert html.count('<h1') == 1, url
+
+
+# ---------------------------------------------------------------------------
+# Acessibilidade dos formulários — auditoria rascunho_form / atender_retirada
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_radio_beneficiario_tem_fieldset_e_legend(client, aux_obras):
+    """Sem <legend> os radios têm rótulo individual, mas a pergunta que eles
+    respondem não existe no DOM — e é ela que separa Criador de Beneficiário.
+    """
+    _login(client, aux_obras)
+    html = client.get(reverse('requisicoes:nova_requisicao')).content.decode()
+    assert '<fieldset' in html
+    assert '<legend class="sr-only">Criar para</legend>' in html
+
+
+@pytest.mark.django_db
+def test_campos_do_formset_de_atendimento_passam_pelo_componente(
+    client, aux_almoxarifado, req_pronta_view_com_itens
+):
+    """O componente injeta aria-invalid/aria-describedby; a versão à mão não.
+
+    O `max` do item e o `step` da unidade continuam presentes — são o motivo
+    pelo qual a linha escrevia o <input> na mão.
+    """
+    _login(client, aux_almoxarifado)
+    html = client.get(
+        reverse(
+            'requisicoes:registrar_atendimento',
+            kwargs={'pk': req_pronta_view_com_itens.pk},
+        )
+    ).content.decode()
+    assert 'aria-describedby="hint-id_itens-0-quantidade_entregue"' in html
+    assert 'max="2.000"' in html
+    assert 'min-h-11' in html
+    # BaseFormSet desliga use_required_attribute; sem `required` explícito o
+    # checkValidity que guarda o modal não barraria campo vazio.
+    assert 'required' in html
+    # Binding Alpine precisa do atributo com hífen, não com underscore.
+    assert 'x-bind:aria-required="parcial"' in html
+    assert 'aria_required' not in html
+    # Uma live region por linha viraria N regiões concorrentes na página.
+    assert 'aria-live=' not in html
+
+
+@pytest.mark.django_db
+def test_atender_retirada_nao_expoe_pk_nem_ramo_morto(
+    client, aux_almoxarifado, req_pronta_view_com_itens
+):
+    _login(client, aux_almoxarifado)
+    html = client.get(
+        reverse(
+            'requisicoes:registrar_atendimento',
+            kwargs={'pk': req_pronta_view_com_itens.pk},
+        )
+    ).content.decode()
+    assert f'#{req_pronta_view_com_itens.pk}' not in html
+    assert 'Rascunho' not in html
+
+
+@pytest.mark.django_db
+def test_sumario_de_erros_lista_campos_invalidos(client, solicitante):
+    """Formulário longo re-renderizado só com erro inline não identifica a
+    falha: no celular o campo inválido pode estar três roladas abaixo.
+    """
+    _login(client, solicitante)
+    response = client.post(
+        reverse('requisicoes:nova_requisicao'),
+        {
+            'observacao_geral': '',
+            'itens-TOTAL_FORMS': '1',
+            'itens-INITIAL_FORMS': '0',
+            'itens-MIN_NUM_FORMS': '0',
+            'itens-MAX_NUM_FORMS': '1000',
+            'itens-0-material_id': '',
+            'itens-0-material_label': '',
+            'itens-0-quantidade_solicitada': '',
+            'acao': 'rascunho',
+        },
+    )
+    html = response.content.decode()
+    assert 'role="alert"' in html
+    assert 'tabindex="-1"' in html
+    assert 'problema encontrado' in html or 'problemas encontrados' in html
+
+
+def test_step_por_unidade_espelha_a_precisao_de_formatar_quantidade():
+    """Se a tela formata 'un' como inteiro, o campo não pode aceitar 0,001 un."""
+    from apps.core.templatetags.core_tags import formatar_quantidade, step_por_unidade
+
+    assert step_por_unidade('un') == '1'
+    assert formatar_quantidade(Decimal('3.000'), 'un') == '3'
+    assert step_por_unidade('kg') == '0.1'
+    assert step_por_unidade('cx') == '0.001'
+
+
+def test_coletar_erros_achata_form_e_formset():
+    from django.forms import formset_factory
+
+    from apps.core.templatetags.core_tags import coletar_erros
+    from apps.requisicoes.forms import ItemAtendimentoForm
+
+    FormSet = formset_factory(ItemAtendimentoForm, extra=0)
+    formset = FormSet(
+        data={
+            'form-TOTAL_FORMS': '1',
+            'form-INITIAL_FORMS': '1',
+            'form-0-item_id': '',
+            'form-0-quantidade_entregue': '',
+        }
+    )
+    assert formset.is_valid() is False
+    erros = coletar_erros(formset)
+    assert erros
+    assert any(e['id'] == 'id_form-0-quantidade_entregue' for e in erros)
+    assert all({'id', 'rotulo', 'mensagem'} == set(e) for e in erros)

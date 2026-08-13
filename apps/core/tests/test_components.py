@@ -388,3 +388,33 @@ def test_href_setado_nao_renderiza_nenhum_param_dinamico_de_button():
         'x-text',
     ):
         assert trecho not in html
+
+
+def test_nenhum_template_usa_comentario_de_linha_em_varias_linhas():
+    """`{# #}` é comentário de UMA linha; multi-linha vaza como texto na tela.
+
+    Django não fecha `{# ... #}` que atravessa quebra de linha — o conteúdo é
+    renderizado como conteúdo, visível para o usuário, e nenhum teste de
+    presença de marcação pega isso porque o HTML continua válido. Comentário de
+    mais de uma linha usa `{% comment %}`.
+    """
+    from pathlib import Path
+
+    raiz = Path(__file__).resolve().parents[3]
+    infratores: list[str] = []
+    for caminho in (raiz / 'apps').rglob('*.html'):
+        dentro = False
+        for numero, linha in enumerate(caminho.read_text().splitlines(), 1):
+            if dentro:
+                if '#}' in linha:
+                    dentro = False
+                continue
+            inicio = linha.find('{#')
+            if inicio != -1 and '#}' not in linha[inicio:]:
+                infratores.append(f'{caminho.relative_to(raiz)}:{numero}')
+                dentro = True
+
+    assert not infratores, (
+        'Comentário {# #} atravessando linhas (vaza como texto renderizado); '
+        f'use {{% comment %}}: {infratores}'
+    )

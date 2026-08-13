@@ -1,0 +1,56 @@
+{% comment %}
+Sumário de erros no topo do formulário.
+
+Existe porque re-renderizar um formulário longo com os erros só inline não
+identifica a falha: no celular do solicitante o campo inválido pode estar três
+roladas abaixo, e a tela volta aparentemente intacta. O sumário resolve as três
+pontas — anuncia que falhou, diz quantos e quais, e leva ao campo por link.
+
+Padrão GOV.UK: `role="alert"` + `tabindex="-1"` + foco no mount. O foco é o que
+funciona de verdade após um POST — conteúdo já presente no carregamento não
+dispara live region; é a mudança que dispara. `role="alert"` cobre o caso de o
+sumário aparecer via swap HTMX, em que há mudança.
+
+Parâmetros:
+  erros  (obrigatório) lista de {id, rotulo, mensagem}, montada por
+         {% coletar_erros form formset ... as erros %} (core_tags). Vazia ou
+         ausente não renderiza nada.
+  id     (opcional, default "sumario-erros") útil se houver dois formulários
+         na mesma tela.
+
+Uso:
+  {% coletar_erros form formset as erros_formulario %}
+  {% include "components/error_summary.html" with erros=erros_formulario %}
+{% endcomment %}
+{% if erros %}
+  <div
+    id="{{ id|default:'sumario-erros' }}"
+    role="alert"
+    tabindex="-1"
+    x-data
+    x-init="$el.focus()"
+    class="mb-6 rounded-lg border border-danger-border-strong bg-danger-subtle p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-accent focus-visible:ring-offset-1"
+  >
+    <p class="text-sm font-semibold text-danger-text-strong">
+      {% if erros|length == 1 %}
+        Não foi possível salvar: 1 problema encontrado.
+      {% else %}
+        Não foi possível salvar: {{ erros|length }} problemas encontrados.
+      {% endif %}
+    </p>
+    <ul class="mt-2 space-y-1 text-sm text-danger-text">
+      {% for erro in erros %}
+        <li>
+          {% if erro.id %}
+            <a
+              href="#{{ erro.id }}"
+              class="rounded underline hover:text-danger-text-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-accent focus-visible:ring-offset-1"
+            >{% if erro.rotulo %}{{ erro.rotulo }}: {% endif %}{{ erro.mensagem }}</a>
+          {% else %}
+            {{ erro.mensagem }}
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+{% endif %}

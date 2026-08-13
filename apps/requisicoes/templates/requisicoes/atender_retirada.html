@@ -1,10 +1,9 @@
 {% extends "base_auth.html" %}
-{% load static %}
 {% load l10n %}
 {% load core_tags %}
 
 {% block title %}
-  Registrar atendimento — {% if requisicao.numero_publico %}{{ requisicao.numero_publico }}{% else %}Rascunho #{{ requisicao.pk }}{% endif %}
+  Registrar atendimento — {{ requisicao.numero_publico }}
 {% endblock %}
 
 {% block topbar_menu %}{% endblock %}
@@ -17,178 +16,155 @@
 {% endblock %}
 
 {% block content %}
-<div class="max-w-screen-xl mx-auto">
-
-  <section class="mb-6 rounded-xl border border-border bg-surface p-4 shadow-sm sm:p-6">
-    <div class="flex items-start justify-between gap-3 flex-wrap">
-      <div class="min-w-0">
-        <p class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Requisição</p>
-        <p class="mt-0.5 text-lg font-semibold text-text-primary">
-          {% if requisicao.numero_publico %}{{ requisicao.numero_publico }}{% else %}#{{ requisicao.pk }}{% endif %}
-        </p>
-      </div>
-      <div class="shrink-0">
-        {% include "requisicoes/partials/_estado_badge.html" with requisicao=requisicao %}
-      </div>
+<section class="mb-6 rounded-xl border border-border bg-surface p-4 shadow-sm sm:p-6">
+  <div class="flex items-start justify-between gap-3 flex-wrap">
+    <div class="min-w-0">
+      <p class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Requisição</p>
+      <p class="mt-0.5 text-lg font-semibold text-text-primary">
+        {{ requisicao.numero_publico }}
+      </p>
     </div>
+    <div class="shrink-0">
+      {% include "requisicoes/partials/_estado_badge.html" with requisicao=requisicao %}
+    </div>
+  </div>
 
-    <dl class="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-2 sm:gap-y-4">
-      <div>
-        <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Beneficiário</dt>
-        <dd class="mt-0.5 text-text-primary">
-          {{ requisicao.beneficiario.nome }}
-          <span class="text-text-tertiary">({{ requisicao.beneficiario.matricula }})</span>
-        </dd>
+  <dl class="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-2 sm:gap-y-4">
+    <div>
+      <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Beneficiário</dt>
+      <dd class="mt-0.5 text-text-primary">
+        {{ requisicao.beneficiario.nome }}
+        <span class="text-text-tertiary">({{ requisicao.beneficiario.matricula }})</span>
+      </dd>
+    </div>
+    <div>
+      <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Setor</dt>
+      <dd class="mt-0.5 text-text-primary">{{ requisicao.setor_beneficiario.nome }}</dd>
+    </div>
+  </dl>
+</section>
+
+<form
+  id="form-atender-retirada"
+  method="post"
+  action="{% url 'requisicoes:registrar_atendimento' requisicao.pk %}"
+  novalidate
+  data-prevent-double-submit
+  class="space-y-6"
+>
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ voltar_url }}">
+
+  {% coletar_erros cabecalho formset as erros_formulario %}
+  {% include "components/error_summary.html" with erros=erros_formulario %}
+
+  <section
+    class="rounded-xl border border-border bg-surface p-4 shadow-sm sm:p-6"
+    aria-labelledby="itens-titulo"
+  >
+    <div class="mb-4 flex items-baseline justify-between gap-3">
+      <h2 id="itens-titulo" class="text-xl font-semibold text-text-primary">Itens autorizados</h2>
+      <span class="text-xs font-medium text-text-tertiary">
+        {{ itens|length }} {{ itens|length|pluralize:"item,itens" }}
+      </span>
+    </div>
+    <p class="mb-4 text-sm text-text-secondary">
+      Informe a quantidade efetivamente entregue para cada item. Quantidade
+      menor que a autorizada exige justificativa.
+    </p>
+
+    {{ formset.management_form }}
+
+    <div class="divide-y divide-border rounded-lg border border-border text-sm">
+      <div class="hidden gap-3 bg-bg-subtle px-3 py-2 lg:flex lg:items-center" aria-hidden="true">
+        <span class="min-w-0 flex-1 basis-56 text-xs font-semibold uppercase tracking-wide text-text-tertiary">Material</span>
+        <span class="min-w-24 shrink-0 text-right text-xs font-semibold uppercase tracking-wide text-text-tertiary">Autorizada</span>
+        <span class="min-w-32 shrink-0 text-xs font-semibold uppercase tracking-wide text-text-tertiary">Entregue</span>
+        <span class="min-w-0 flex-1 text-xs font-semibold uppercase tracking-wide text-text-tertiary">Justificativa</span>
       </div>
-      <div>
-        <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Setor</dt>
-        <dd class="mt-0.5 text-text-primary">{{ requisicao.setor_beneficiario.nome }}</dd>
-      </div>
-    </dl>
+      {% for item, form in linhas %}
+          <div
+            class="flex flex-wrap items-start gap-3 p-3"
+            x-data="{
+              autorizada: {{ item.quantidade_autorizada|unlocalize }},
+              entregue: '{{ form.quantidade_entregue.value|default_if_none:''|unlocalize }}',
+              get parcial() {
+                const a = parseFloat(this.autorizada);
+                const e = parseFloat(this.entregue);
+                if (Number.isNaN(a) || Number.isNaN(e)) return false;
+                return e < a;
+              }
+            }"
+          >
+            {{ form.item_id }}
+            <div class="min-w-0 flex-1 basis-full text-text-primary lg:basis-56">
+              <div class="font-medium">{{ item.material.nome }}</div>
+              <div class="text-xs text-text-tertiary">{{ item.material.codigo }}</div>
+            </div>
+            {% comment %}
+              min-w em vez de w: a caixa acompanha quantidades longas em vez de
+              recortá-las, e continua com o mesmo piso de largura.
+            {% endcomment %}
+            <div class="min-w-24 shrink-0 text-sm text-text-secondary tabular-nums lg:text-right" translate="no">
+              <span class="mb-1 block text-xs font-medium uppercase tracking-wide text-text-tertiary lg:sr-only">Autorizada</span>
+              {{ item.quantidade_autorizada|formatar_quantidade:item.material.unidade }}
+            </div>
+            {% comment %}
+              Campos pelo componente: é ele que injeta aria-invalid e compõe o
+              aria-describedby com hint e erro. O que só a linha sabe — `max` do
+              item, `step` da unidade, binding Alpine — entra por attrs_extra.
+            {% endcomment %}
+            {% comment %}
+              `required` explícito: BaseFormSet desliga `use_required_attribute`
+              (para permitir linha extra em branco), então o Django não emite o
+              atributo — e sem ele o checkValidity que guarda o modal de
+              confirmação não barraria campo vazio, que é o caso mais comum.
+              Aqui toda linha corresponde a um item autorizado real.
+            {% endcomment %}
+            {% attrs_widget max=item.quantidade_autorizada|unlocalize step=item.material.unidade|step_por_unidade x_model="entregue" required=True as attrs_qtd %}
+            {% include "components/form_field.html" with field=form.quantidade_entregue label_override="Quantidade entregue para "|add:item.material.nome label_class="sr-only" attrs_extra=attrs_qtd describedby_ext="hint-"|add:form.quantidade_entregue.id_for_label class="min-w-32 shrink-0" %}
+            <div class="min-w-0 flex-1 basis-full lg:basis-0">
+              {% attrs_widget x_bind_required="parcial" x_bind_aria_required="parcial" as attrs_just %}
+              {% include "components/form_field.html" with field=form.justificativa label_override="Justificativa para entrega menor que autorizada de "|add:item.material.nome label_class="sr-only" attrs_extra=attrs_just %}
+              {% comment %}
+                Sem aria-live: o aviso é lido via aria-describedby ao focar o
+                campo, e `aria-required` já anuncia a obrigatoriedade na
+                justificativa. Uma live region por linha faria uma requisição
+                de 15 itens instalar 15 regiões concorrentes na página.
+              {% endcomment %}
+              <p
+                id="hint-{{ form.quantidade_entregue.id_for_label }}"
+                class="mt-1 text-xs text-warning-text-subtle"
+                x-show="parcial"
+                x-cloak
+              >
+                Entrega menor que autorizada — justificativa obrigatória.
+              </p>
+            </div>
+          </div>
+      {% endfor %}
+    </div>
   </section>
 
-  <form
-    id="form-atender-retirada"
-    method="post"
-    action="{% url 'requisicoes:registrar_atendimento' requisicao.pk %}"
-    novalidate
-    data-prevent-double-submit
-    class="space-y-6"
-  >
-    {% csrf_token %}
-    <input type="hidden" name="next" value="{{ voltar_url }}">
+  <section class="rounded-xl border border-border bg-surface p-4 shadow-sm sm:p-6" aria-labelledby="cabecalho-titulo">
+    <h2 id="cabecalho-titulo" class="mb-4 text-sm font-semibold text-text-primary">Dados da retirada</h2>
 
-    <section
-      class="rounded-xl border border-border bg-surface p-4 shadow-sm sm:p-6"
-      aria-labelledby="itens-titulo"
-    >
-      <div class="mb-4 flex items-baseline justify-between gap-3">
-        <h2 id="itens-titulo" class="text-xl font-semibold text-text-primary">Itens autorizados</h2>
-        <span class="text-xs font-medium text-text-tertiary">
-          {{ itens|length }} {{ itens|length|pluralize:"item,itens" }}
-        </span>
-      </div>
-      <p class="mb-4 text-sm text-text-secondary">
-        Informe a quantidade efetivamente entregue para cada item. Quantidade
-        menor que a autorizada exige justificativa.
-      </p>
-
-      {{ formset.management_form }}
-
-      <div class="divide-y divide-border rounded-lg border border-border text-sm">
-        <div class="hidden gap-3 bg-bg-subtle px-3 py-2 lg:flex lg:items-center" aria-hidden="true">
-          <span class="min-w-0 flex-1 basis-56 text-xs font-semibold uppercase tracking-wide text-text-tertiary">Material</span>
-          <span class="w-24 shrink-0 text-right text-xs font-semibold uppercase tracking-wide text-text-tertiary">Autorizada</span>
-          <span class="w-32 shrink-0 text-xs font-semibold uppercase tracking-wide text-text-tertiary">Entregue</span>
-          <span class="min-w-0 flex-1 text-xs font-semibold uppercase tracking-wide text-text-tertiary">Justificativa</span>
-        </div>
-        {% for item, form in linhas %}
-            <div
-              class="flex flex-wrap items-start gap-3 p-3"
-              x-data="{
-                autorizada: {{ item.quantidade_autorizada|unlocalize }},
-                entregue: '{{ form.quantidade_entregue.value|default_if_none:''|unlocalize }}',
-                get parcial() {
-                  const a = parseFloat(this.autorizada);
-                  const e = parseFloat(this.entregue);
-                  if (Number.isNaN(a) || Number.isNaN(e)) return false;
-                  return e < a;
-                }
-              }"
-            >
-              {{ form.item_id }}
-              <div class="min-w-0 flex-1 basis-full text-text-primary lg:basis-56">
-                <div class="font-medium">{{ item.material.nome }}</div>
-                <div class="text-xs text-text-tertiary">{{ item.material.codigo }}</div>
-              </div>
-              <div class="w-24 shrink-0 text-sm text-text-secondary tabular-nums lg:text-right" translate="no">
-                <span class="mb-1 block text-xs font-medium uppercase tracking-wide text-text-tertiary lg:sr-only">Autorizada</span>
-                {{ item.quantidade_autorizada|formatar_quantidade:item.material.unidade }}
-              </div>
-              <div class="w-32 shrink-0">
-                <label class="sr-only" for="{{ form.quantidade_entregue.id_for_label }}">
-                  Quantidade entregue para {{ item.material.nome }}
-                </label>
-                <input
-                  type="number"
-                  step="0.001"
-                  min="0"
-                  max="{{ item.quantidade_autorizada|unlocalize }}"
-                  inputmode="decimal"
-                  name="{{ form.quantidade_entregue.html_name }}"
-                  id="{{ form.quantidade_entregue.id_for_label }}"
-                  value="{{ form.quantidade_entregue.value|default_if_none:''|unlocalize }}"
-                  x-model="entregue"
-                  class="w-32 min-h-11 rounded-lg border border-border-strong px-3 py-2 text-sm tabular-nums focus:border-border-focus focus:ring-2 focus:ring-border-focus focus:outline-none"
-                  aria-describedby="hint-{{ form.quantidade_entregue.id_for_label }}"
-                  autocomplete="off"
-                  required
-                />
-                {% if form.quantidade_entregue.errors %}
-                  <p class="mt-1 text-xs text-danger-text" role="alert">
-                    {{ form.quantidade_entregue.errors.0 }}
-                  </p>
-                {% endif %}
-              </div>
-              <div class="min-w-0 flex-1 basis-full lg:basis-0">
-                <label class="sr-only" for="{{ form.justificativa.id_for_label }}">
-                  Justificativa para entrega menor que autorizada de {{ item.material.nome }}
-                </label>
-                <input
-                  type="text"
-                  name="{{ form.justificativa.html_name }}"
-                  id="{{ form.justificativa.id_for_label }}"
-                  value="{{ form.justificativa.value|default_if_none:'' }}"
-                  placeholder="Obrigatória quando entregue menor que autorizada…"
-                  autocomplete="off"
-                  x-bind:required="parcial"
-                  x-bind:aria-required="parcial"
-                  class="w-full min-h-11 rounded-lg border border-border-strong px-3 py-2 text-sm focus:border-border-focus focus:ring-2 focus:ring-border-focus focus:outline-none"
-                />
-                <p
-                  id="hint-{{ form.quantidade_entregue.id_for_label }}"
-                  class="mt-1 text-xs text-warning-text-subtle"
-                  x-show="parcial"
-                  x-cloak
-                  aria-live="polite"
-                >
-                  Entrega menor que autorizada — justificativa obrigatória.
-                </p>
-                {% if form.justificativa.errors %}
-                  <p class="mt-1 text-xs text-danger-text" role="alert">
-                    {{ form.justificativa.errors.0 }}
-                  </p>
-                {% endif %}
-              </div>
-            </div>
-        {% endfor %}
-      </div>
-    </section>
-
-    <section class="rounded-xl border border-border bg-surface p-4 shadow-sm sm:p-6" aria-labelledby="cabecalho-titulo">
-      <h2 id="cabecalho-titulo" class="mb-4 text-sm font-semibold text-text-primary">Dados da retirada</h2>
-
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {% include "components/form_field.html" with field=cabecalho.retirante_nome %}
-        {% include "components/form_field.html" with field=cabecalho.observacao class="sm:col-span-2" %}
-      </div>
-    </section>
-
-    <div
-      class="flex flex-col gap-3 sm:flex-row sm:justify-end"
-      x-data="modalController({ id: 'confirmar-atender-retirada' })"
-    >
-      <a
-        href="{% url 'requisicoes:detalhe' requisicao.pk %}"
-        class="inline-flex min-h-11 items-center justify-center rounded-md border border-border-strong bg-surface px-4 py-2 text-sm font-semibold text-text-secondary shadow-sm hover:bg-bg-page focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1"
-      >
-        Cancelar
-      </a>
-      {% include "components/button.html" with variant="primary" label="Confirmar retirada" data_modal_trigger="confirmar-atender-retirada" %}
-
-      {% include "components/modal.html" with id="confirmar-atender-retirada" titulo="Confirmar registro de retirada?" descricao="Esta ação baixa estoque das quantidades entregues e libera as reservas não entregues. Não pode ser desfeita." submit_form_id="form-atender-retirada" confirm_label="Confirmar retirada" icon_variant="info" %}
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      {% include "components/form_field.html" with field=cabecalho.retirante_nome %}
+      {% include "components/form_field.html" with field=cabecalho.observacao class="sm:col-span-2" %}
     </div>
-  </form>
-</div>
+  </section>
+
+  <div
+    class="flex flex-col gap-3 sm:flex-row sm:justify-end"
+    x-data="modalController({ id: 'confirmar-atender-retirada', validarFormId: 'form-atender-retirada' })"
+  >
+    {% url 'requisicoes:detalhe' requisicao.pk as url_detalhe_req %}
+    {% include "components/button.html" with variant="secondary" href=url_detalhe_req label="Cancelar" %}
+    {% include "components/button.html" with variant="primary" label="Confirmar retirada" data_modal_trigger="confirmar-atender-retirada" %}
+
+    {% include "components/modal.html" with id="confirmar-atender-retirada" titulo="Confirmar registro de retirada?" descricao="Esta ação baixa estoque das quantidades entregues e libera as reservas não entregues. Não pode ser desfeita." submit_form_id="form-atender-retirada" confirm_label="Confirmar retirada" icon_variant="info" %}
+  </div>
+</form>
 {% endblock %}
 

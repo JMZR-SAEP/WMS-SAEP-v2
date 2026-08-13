@@ -7,6 +7,10 @@
  *
  * Uso no template:
  *   <div x-data="modalController({ id: 'confirmar-x', abrirAoCarregar: false })">
+ *
+ * `validarFormId` (opcional) exige que o <form> daquele id esteja válido antes
+ * de abrir — use sempre que o modal confirmar uma ação irreversível disparada
+ * por um formulário da própria tela.
  *     ...
  *     <dialog x-ref="dialog" ...>...</dialog>
  *   </div>
@@ -20,6 +24,9 @@
     return {
       id: options.id,
       abrirAoCarregar: Boolean(options.abrirAoCarregar),
+      // Id do <form> a validar antes de abrir. Ausente = abre direto (modal que
+      // não confirma submit de formulário da própria tela).
+      validarFormId: options.validarFormId || null,
       lastTrigger: null,
 
       init() {
@@ -53,7 +60,33 @@
         if (event && event.currentTarget) {
           this.lastTrigger = event.currentTarget;
         }
+        if (!this.formularioValido()) {
+          return;
+        }
         this.openModal();
+      },
+
+      // Um modal que confirma ação irreversível não pode abrir na frente de um
+      // formulário inválido: a pessoa assume o risco e só então descobre que o
+      // POST ia falhar de qualquer jeito — e o aviso perde credibilidade para a
+      // vez em que importa. `novalidate` desliga a validação automática do
+      // submit, não `checkValidity`/`reportValidity`, que continuam explícitas.
+      formularioValido() {
+        if (!this.validarFormId) {
+          return true;
+        }
+        const form = document.getElementById(this.validarFormId);
+        if (!form) {
+          console.error(
+            `modal ${this.id}: validarFormId ${this.validarFormId} nao encontrado`
+          );
+          return true;
+        }
+        if (form.checkValidity()) {
+          return true;
+        }
+        form.reportValidity();
+        return false;
       },
 
       abrirSemTrigger() {
