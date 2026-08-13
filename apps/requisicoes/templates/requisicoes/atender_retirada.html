@@ -19,11 +19,11 @@
 {% block content %}
 <div class="max-w-screen-xl mx-auto">
 
-  <section class="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+  <section class="mb-6 rounded-xl border border-slate-200 bg-surface p-4 shadow-sm sm:p-6">
     <div class="flex items-start justify-between gap-3 flex-wrap">
       <div class="min-w-0">
-        <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Requisição</p>
-        <p class="mt-0.5 text-lg font-semibold text-slate-900">
+        <p class="text-xs font-medium uppercase tracking-wide text-tertiary">Requisição</p>
+        <p class="mt-0.5 text-lg font-semibold text-primary">
           {% if requisicao.numero_publico %}{{ requisicao.numero_publico }}{% else %}#{{ requisicao.pk }}{% endif %}
         </p>
       </div>
@@ -34,15 +34,15 @@
 
     <dl class="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-2 sm:gap-y-4">
       <div>
-        <dt class="text-xs font-medium uppercase tracking-wide text-slate-500">Beneficiário</dt>
-        <dd class="mt-0.5 text-slate-900">
+        <dt class="text-xs font-medium uppercase tracking-wide text-tertiary">Beneficiário</dt>
+        <dd class="mt-0.5 text-primary">
           {{ requisicao.beneficiario.nome }}
-          <span class="text-slate-400">({{ requisicao.beneficiario.matricula }})</span>
+          <span class="text-tertiary">({{ requisicao.beneficiario.matricula }})</span>
         </dd>
       </div>
       <div>
-        <dt class="text-xs font-medium uppercase tracking-wide text-slate-500">Setor</dt>
-        <dd class="mt-0.5 text-slate-900">{{ requisicao.setor_beneficiario.nome }}</dd>
+        <dt class="text-xs font-medium uppercase tracking-wide text-tertiary">Setor</dt>
+        <dd class="mt-0.5 text-primary">{{ requisicao.setor_beneficiario.nome }}</dd>
       </div>
     </dl>
   </section>
@@ -59,16 +59,16 @@
     <input type="hidden" name="next" value="{{ voltar_url }}">
 
     <section
-      class="rounded-xl border border-slate-200 bg-white p-4 shadow-md ring-1 ring-slate-100 sm:p-6"
+      class="rounded-xl border border-slate-200 bg-surface p-4 shadow-md ring-1 ring-slate-100 sm:p-6"
       aria-labelledby="itens-titulo"
     >
       <div class="mb-4 flex items-baseline justify-between gap-3">
-        <h2 id="itens-titulo" class="text-xl font-semibold text-slate-900">Itens autorizados</h2>
-        <span class="text-xs font-medium text-slate-500">
+        <h2 id="itens-titulo" class="text-xl font-semibold text-primary">Itens autorizados</h2>
+        <span class="text-xs font-medium text-tertiary">
           {{ itens|length }} {{ itens|length|pluralize:"item,itens" }}
         </span>
       </div>
-      <p class="mb-4 text-sm text-slate-600">
+      <p class="mb-4 text-sm text-secondary">
         Informe a quantidade efetivamente entregue para cada item. Quantidade
         menor que a autorizada exige justificativa.
       </p>
@@ -78,12 +78,12 @@
       <div class="overflow-x-auto scroll-shadow-x rounded-sm">
         <table class="min-w-full divide-y divide-slate-200 text-sm">
           <caption class="sr-only">Itens autorizados com quantidade autorizada e campos para entrega e justificativa.</caption>
-          <thead class="bg-slate-50">
+          <thead class="bg-subtle">
             <tr>
-              <th scope="col" class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Material</th>
-              <th scope="col" class="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Autorizada</th>
-              <th scope="col" class="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Entregue</th>
-              <th scope="col" class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Justificativa</th>
+              <th scope="col" class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-tertiary">Material</th>
+              <th scope="col" class="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-tertiary">Autorizada</th>
+              <th scope="col" class="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-tertiary">Entregue</th>
+              <th scope="col" class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-tertiary">Justificativa</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100">
@@ -101,12 +101,12 @@
                     }
                   }"
                 >
-                  <td class="px-3 py-3 text-slate-900">
+                  <td class="px-3 py-3 text-primary">
                     <div class="font-medium">{{ item.material.nome }}</div>
-                    <div class="text-xs text-slate-500">{{ item.material.codigo }}</div>
+                    <div class="text-xs text-tertiary">{{ item.material.codigo }}</div>
                     {{ form.item_id }}
                   </td>
-                  <td class="px-3 py-3 text-right text-slate-700 tabular-nums" translate="no">{{ item.quantidade_autorizada|formatar_quantidade:item.material.unidade }}</td>
+                  <td class="px-3 py-3 text-right text-secondary tabular-nums" translate="no">{{ item.quantidade_autorizada|formatar_quantidade:item.material.unidade }}</td>
                   <td class="px-3 py-3 text-right">
                     <label class="sr-only" for="{{ form.quantidade_entregue.id_for_label }}">
                       Quantidade entregue para {{ item.material.nome }}
@@ -169,8 +169,8 @@
       </div>
     </section>
 
-    <section class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6" aria-labelledby="cabecalho-titulo">
-      <h2 id="cabecalho-titulo" class="mb-4 text-sm font-semibold text-slate-900">Dados da retirada</h2>
+    <section class="rounded-xl border border-slate-200 bg-surface p-4 shadow-sm sm:p-6" aria-labelledby="cabecalho-titulo">
+      <h2 id="cabecalho-titulo" class="mb-4 text-sm font-semibold text-primary">Dados da retirada</h2>
 
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {% include "components/form_field.html" with field=cabecalho.retirante_nome %}
@@ -184,7 +184,7 @@
     >
       <a
         href="{% url 'requisicoes:detalhe' requisicao.pk %}"
-        class="inline-flex min-h-11 items-center justify-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
+        class="inline-flex min-h-11 items-center justify-center rounded-md border border-slate-300 bg-surface px-4 py-2 text-sm font-semibold text-secondary shadow-sm hover:bg-bg-page focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
       >
         Cancelar
       </a>

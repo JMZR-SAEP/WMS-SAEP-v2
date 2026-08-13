@@ -12,9 +12,9 @@
 
 {% block content %}
 <div class="max-w-2xl mx-auto pb-12">
-  <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-    <h2 class="text-base font-semibold text-slate-900 mb-1">Criar rascunho a partir de {{ requisicao }}</h2>
-    <p class="text-sm text-slate-600 mb-6">
+  <div class="rounded-xl border border-slate-200 bg-surface p-6 shadow-sm">
+    <h2 class="text-base font-semibold text-primary mb-1">Criar rascunho a partir de {{ requisicao }}</h2>
+    <p class="text-sm text-secondary mb-6">
       Um novo rascunho será criado com todos os itens desta requisição.
       Itens sem saldo disponível ou com divergência crítica serão incluídos e marcados para revisão.
       O rascunho não será enviado automaticamente.
@@ -29,7 +29,7 @@
       <div class="flex gap-3 justify-end">
         <a
           href="{% url 'requisicoes:detalhe' requisicao.pk %}"
-          class="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1"
+          class="inline-flex items-center justify-center rounded-md border border-slate-300 bg-surface px-4 py-2 text-sm font-medium text-secondary shadow-sm hover:bg-bg-page focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1"
         >
           Cancelar
         </a>

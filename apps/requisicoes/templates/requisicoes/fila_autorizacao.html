@@ -9,7 +9,7 @@
 {% block content %}
 <div class="max-w-screen-xl mx-auto">
 
-  <p class="mb-6 max-w-3xl text-sm text-slate-600">
+  <p class="mb-6 max-w-3xl text-sm text-secondary">
     Requisições aguardando decisão do setor sob sua chefia.
   </p>
 
@@ -20,10 +20,10 @@
         {% include "components/table.html#card_abertura" %}
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
-              <h2 class="break-words text-sm font-semibold text-slate-900">
+              <h2 class="break-words text-sm font-semibold text-primary">
                 {{ req.numero_publico }}
               </h2>
-              <p class="mt-1 text-xs text-slate-500">
+              <p class="mt-1 text-xs text-tertiary">
                 Enviada em {% if req.enviada_em %}{{ req.enviada_em|date:"d/m/Y H:i" }}{% else %}—{% endif %}
               </p>
             </div>
@@ -36,15 +36,15 @@
 
           <dl class="mt-4 space-y-3 text-sm">
             <div>
-              <dt class="text-xs font-medium uppercase tracking-wide text-slate-500">Beneficiário</dt>
-              <dd class="mt-0.5 text-slate-800">
+              <dt class="text-xs font-medium uppercase tracking-wide text-tertiary">Beneficiário</dt>
+              <dd class="mt-0.5 text-primary">
                 {{ req.beneficiario.nome }}
-                <span class="text-slate-400">({{ req.beneficiario.matricula }})</span>
+                <span class="text-tertiary">({{ req.beneficiario.matricula }})</span>
               </dd>
             </div>
             <div>
-              <dt class="text-xs font-medium uppercase tracking-wide text-slate-500">Setor</dt>
-              <dd class="mt-0.5 text-slate-800">{{ req.setor_beneficiario.nome }}</dd>
+              <dt class="text-xs font-medium uppercase tracking-wide text-tertiary">Setor</dt>
+              <dd class="mt-0.5 text-primary">{{ req.setor_beneficiario.nome }}</dd>
             </div>
           </dl>
 
@@ -58,7 +58,7 @@
 
     {% include "components/table.html#tabela_abertura" %}
       <caption class="sr-only">Fila de autorização com requisições aguardando decisão.</caption>
-      <thead class="bg-slate-50">
+      <thead class="bg-subtle">
         <tr>
           {% include "components/table.html#th" with rotulo="Número" %}
           {% include "components/table.html#th" with rotulo="Beneficiário" %}
@@ -68,17 +68,17 @@
           {% include "components/table.html#th" with alinhamento="direita" rotulo_somente_leitura="Ações" %}
         </tr>
       </thead>
-      <tbody class="divide-y divide-slate-100 bg-white">
+      <tbody class="divide-y divide-slate-100 bg-surface">
         {% for req in requisicoes %}
-          <tr class="hover:bg-slate-50">
-            <td class="whitespace-nowrap px-4 py-3 text-sm font-medium text-slate-900">{{ req.numero_publico }}</td>
-            <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-700">
+          <tr class="hover:bg-bg-page">
+            <td class="whitespace-nowrap px-4 py-3 text-sm font-medium text-primary">{{ req.numero_publico }}</td>
+            <td class="whitespace-nowrap px-4 py-3 text-sm text-secondary">
               {{ req.beneficiario.nome }}
-              <span class="text-slate-400">({{ req.beneficiario.matricula }})</span>
+              <span class="text-tertiary">({{ req.beneficiario.matricula }})</span>
             </td>
-            <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-700">{{ req.setor_beneficiario.nome }}</td>
-            <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-600">{% if req.enviada_em %}{{ req.enviada_em|date:"d/m/Y H:i" }}{% else %}—{% endif %}</td>
-            <td class="whitespace-nowrap px-4 py-3 text-right text-sm tabular-nums text-slate-700">{{ req.quantidade_itens }}</td>
+            <td class="whitespace-nowrap px-4 py-3 text-sm text-secondary">{{ req.setor_beneficiario.nome }}</td>
+            <td class="whitespace-nowrap px-4 py-3 text-sm text-secondary">{% if req.enviada_em %}{{ req.enviada_em|date:"d/m/Y H:i" }}{% else %}—{% endif %}</td>
+            <td class="whitespace-nowrap px-4 py-3 text-right text-sm tabular-nums text-secondary">{{ req.quantidade_itens }}</td>
             <td class="whitespace-nowrap px-4 py-3 text-right text-sm">
               {% url 'requisicoes:detalhe' pk=req.pk as url_detalhe_req_row %}
               {% with next_encoded=request.path|urlencode %}
