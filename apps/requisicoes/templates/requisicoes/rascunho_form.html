@@ -38,7 +38,7 @@
     {# --- Seção 1: Beneficiário --- #}
     <section class="mb-6 rounded-xl border {% if form.modo_criacao.errors or form.beneficiario_id.errors %}border-danger-border-strong bg-danger-subtle{% else %}border-border bg-surface{% endif %} p-6 shadow-sm">
       <h2 class="text-base font-medium text-text-primary mb-4">
-        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-bg-subtle text-text-tertiary text-xs font-semibold mr-1.5">1</span>
+        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-bg-subtle text-text-tertiary text-xs font-semibold mr-1.5" aria-hidden="true">1</span>
         Beneficiário
       </h2>
 
@@ -88,7 +88,7 @@
             {% endfor %}
           </div>
           {% if form.modo_criacao.errors %}
-            <p class="mb-3 text-xs text-danger" role="alert">{{ form.modo_criacao.errors|join:", " }}</p>
+            <p class="mb-3 text-xs text-danger-text" role="alert">{{ form.modo_criacao.errors|join:", " }}</p>
           {% endif %}
 
           {# Autocomplete de terceiros (só quando "outro") — HTMX+Alpine com debounce #}
@@ -113,7 +113,7 @@
             />
             {% include "components/autocomplete.html" with label="Selecione o beneficiário" placeholder="Buscar por nome ou matrícula…" item_template="requisicoes/partials/_autocomplete_item_beneficiario.html" sem_resultados_label="Nenhum beneficiário encontrado." com_erro=form.beneficiario_id.errors erro_id=form.beneficiario_id.id_for_label|add:"-erro" %}
             {% if form.beneficiario_id.errors %}
-              <p id="{{ form.beneficiario_id.id_for_label }}-erro" class="mt-1 text-xs text-danger" role="alert">{{ form.beneficiario_id.errors|join:", " }}</p>
+              <p id="{{ form.beneficiario_id.id_for_label }}-erro" class="mt-1 text-xs text-danger-text" role="alert">{{ form.beneficiario_id.errors|join:", " }}</p>
             {% endif %}
           </div>
           {% endwith %}
@@ -125,7 +125,7 @@
     {# --- Seção 2: Itens --- #}
     <section class="mb-6 rounded-xl border {% if formset.non_form_errors or formset.total_error_count %}border-danger-border-strong bg-danger-subtle{% else %}border-border bg-surface{% endif %} p-6 shadow-sm">
       <h2 class="text-base font-medium text-text-primary mb-1">
-        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-bg-subtle text-text-tertiary text-xs font-semibold mr-1.5">2</span>
+        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-bg-subtle text-text-tertiary text-xs font-semibold mr-1.5" aria-hidden="true">2</span>
         Itens
       </h2>
       <p class="aviso_quantidade text-xs text-text-tertiary mb-4">Adicione ao menos um material com quantidade solicitada.</p>
@@ -170,7 +170,7 @@
     {# --- Seção 3: Observação geral --- #}
     <section class="mb-6 rounded-xl border {% if form.observacao_geral.errors %}border-danger-border-strong bg-danger-subtle{% else %}border-border bg-surface{% endif %} p-6 shadow-sm">
       <h2 class="text-base font-medium text-text-primary mb-3">
-        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-bg-subtle text-text-tertiary text-xs font-semibold mr-1.5">3</span>
+        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-bg-subtle text-text-tertiary text-xs font-semibold mr-1.5" aria-hidden="true">3</span>
         Observação geral
       </h2>
       {% include "components/form_field.html" with field=form.observacao_geral label_class="sr-only" %}
@@ -191,15 +191,7 @@
     {% endcomment %}
     <div class="fixed bottom-0 inset-x-0 z-30 bg-surface border-t border-border px-4 py-2 flex flex-nowrap items-center justify-end gap-2 sm:static sm:z-auto sm:border-0 sm:bg-transparent sm:px-0 sm:py-0">
       {% if modo == 'criar' %}
-        <button
-          type="submit"
-          name="acao"
-          value="rascunho"
-          data-submit-loading-label="Salvando…"
-          class="order-1 inline-flex shrink-0 items-center justify-center rounded-lg border border-border-strong bg-surface px-3 py-2 text-sm font-medium text-text-secondary hover:bg-bg-page cursor-pointer focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-2 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <span data-submit-text>Salvar rascunho</span>
-        </button>
+        {% include "components/button.html" with variant="secondary" type="submit" name="acao" value="rascunho" label="Salvar rascunho" loading_label="Salvando…" class="order-1 shrink-0 transition-colors" %}
         {% include "components/button.html" with variant="primary" type="submit" name="acao" value="enviar" label="Criar e enviar para autorização" label_mobile="Enviar" loading_label="Enviando…" icon_template="components/icons/enviar.svg" icon_class="h-4 w-4 shrink-0" class="order-2 shrink-0 transition-colors" %}
       {% else %}
         {% include "components/button.html" with variant="primary" type="submit" name="acao" value="rascunho" label="Salvar rascunho" loading_label="Salvando…" class="shrink-0 transition-colors" %}
