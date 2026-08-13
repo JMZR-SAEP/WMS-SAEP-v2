@@ -4222,3 +4222,86 @@ def test_coletar_erros_achata_form_e_formset():
     assert erros
     assert any(e['id'] == 'id_form-0-quantidade_entregue' for e in erros)
     assert all({'id', 'rotulo', 'mensagem'} == set(e) for e in erros)
+
+
+# ---------------------------------------------------------------------------
+# Auditoria do detalhe e da confirmação de cópia
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_copiar_confirmacao_nao_expoe_pk_de_rascunho(
+    client, solicitante, req_rascunho_solicitante
+):
+    """A view não restringe estado no GET, então o caminho do rascunho é
+    alcançável — e `{{ requisicao }}` cairia no __str__, que devolve a PK.
+    """
+    _login(client, solicitante)
+    response = client.get(
+        reverse('requisicoes:copiar', kwargs={'pk': req_rascunho_solicitante.pk})
+    )
+    assert response.status_code == 200
+    html = response.content.decode()
+    assert 'Criar rascunho a partir de' in html
+    assert f'#{req_rascunho_solicitante.pk}' not in html
+
+
+@pytest.mark.django_db
+def test_detalhe_nao_usa_token_com_modificador_de_opacidade(
+    client, solicitante, req_enviada_solicitante
+):
+    """`bg-token/60` produz cor que não existe na paleta e depende do que está
+    atrás — o rebrand deixa de ser troca de valor em input.css.
+    """
+    _login(client, solicitante)
+    html = client.get(
+        reverse('requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk})
+    ).content.decode()
+    import re
+
+    achados = re.findall(r'class="[^"]*\b(?:bg|text)-[a-z-]+/\d\d\b[^"]*"', html)
+    assert not achados, achados
+
+
+@pytest.mark.django_db
+def test_detalhe_respeita_a_escala_de_elevacao(
+    client, solicitante, req_enviada_solicitante
+):
+    """0, 1dp, 8dp e 24dp — `shadow-md` é degrau inventado, e sombra como
+    ênfase visual está fora do design system.
+    """
+    _login(client, solicitante)
+    html = client.get(
+        reverse('requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk})
+    ).content.decode()
+    assert 'shadow-md' not in html
+
+
+@pytest.mark.django_db
+def test_detalhe_calcula_entregue_liquida_em_uma_query(
+    client, aux_almoxarifado, req_pronta_view_com_itens
+):
+    """Uma query por item era N+1 na tela mais consultada do almoxarifado."""
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    from apps.estoque.selectors import entregue_liquida_por_requisicao
+
+    with CaptureQueriesContext(connection) as ctx:
+        entregue_liquida_por_requisicao(requisicao_id=req_pronta_view_com_itens.pk)
+    assert len(ctx) == 1
+
+
+def test_button_tem_variante_return_outline():
+    """Devolução é teal por regra do design system; sem a variante, a tela era
+    empurrada a escrever o botão à mão.
+    """
+    from django.template.loader import render_to_string
+
+    html = render_to_string(
+        'components/button.html',
+        {'variant': 'return-outline', 'label': 'Registrar devolução'},
+    )
+    assert 'text-return-text-strong' in html
+    assert 'border-return-border' in html
+    assert 'min-h-11' in html

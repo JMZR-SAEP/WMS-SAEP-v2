@@ -311,6 +311,29 @@ def entregue_liquida_por_material(*, requisicao_id: int, material_id: int) -> De
     return -total_delta_fisico
 
 
+def entregue_liquida_por_requisicao(*, requisicao_id: int) -> dict[int, Decimal]:
+    """Entregue líquida de todos os materiais de uma requisição, em uma query.
+
+    Mesma definição de `entregue_liquida_por_material`, agrupada por material:
+    a tela de detalhe precisa do valor de cada item para decidir se oferece
+    devolução, e chamar a versão unitária dentro do laço fazia uma query por
+    item. Materiais sem movimentação não aparecem no dict — quem lê usa 0.
+    """
+    from django.db.models import Sum
+
+    from apps.estoque.models import MovimentacaoEstoque
+
+    linhas = (
+        MovimentacaoEstoque.objects.filter(
+            requisicao_id=requisicao_id,
+            tipo__in=TIPOS_MOVIMENTO_ENTREGA_LIQUIDA,
+        )
+        .values('material_id')
+        .annotate(total=Sum('delta_fisico'))
+    )
+    return {linha['material_id']: -(linha['total'] or Decimal('0')) for linha in linhas}
+
+
 def _eh_almoxarifado(ator: User) -> bool:
     """True se o ator é chefe ou auxiliar ativo de um setor ALMOXARIFADO ativo."""
     return papel_efetivo(ator).eh_almoxarifado
