@@ -12,9 +12,9 @@
 
 {% block content %}
 <div class="max-w-2xl mx-auto pb-12">
-  <div class="rounded-xl border border-slate-200 bg-surface p-6 shadow-sm">
-    <h2 class="text-base font-semibold text-primary mb-1">Criar rascunho a partir de {{ requisicao }}</h2>
-    <p class="text-sm text-secondary mb-6">
+  <div class="rounded-xl border border-border bg-surface p-6 shadow-sm">
+    <h2 class="text-base font-semibold text-text-primary mb-1">Criar rascunho a partir de {{ requisicao }}</h2>
+    <p class="text-sm text-text-secondary mb-6">
       Um novo rascunho será criado com todos os itens desta requisição.
       Itens sem saldo disponível ou com divergência crítica serão incluídos e marcados para revisão.
       O rascunho não será enviado automaticamente.
@@ -24,15 +24,11 @@
     {# não uma confirmação neutra — usa o role="alert" automático do contrato, sem override custom #}
     {% include "components/alert.html" with variant="warning" icone=False body_template="requisicoes/partials/_alert_nota_copia_corpo.html" class="mb-6" %}
 
+    {% url 'requisicoes:detalhe' requisicao.pk as url_cancelar %}
     <form method="post" action="{% url 'requisicoes:copiar' requisicao.pk %}">
       {% csrf_token %}
       <div class="flex gap-3 justify-end">
-        <a
-          href="{% url 'requisicoes:detalhe' requisicao.pk %}"
-          class="inline-flex items-center justify-center rounded-md border border-slate-300 bg-surface px-4 py-2 text-sm font-medium text-secondary shadow-sm hover:bg-bg-page focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1"
-        >
-          Cancelar
-        </a>
+        {% include "components/button.html" with variant="secondary" href=url_cancelar label="Cancelar" %}
         {% include "components/button.html" with variant="primary" type="submit" label="Criar rascunho" icon_template="components/icons/copiar.svg" %}
       </div>
     </form>
