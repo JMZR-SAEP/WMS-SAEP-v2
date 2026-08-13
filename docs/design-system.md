@@ -609,7 +609,7 @@ Exemplo canônico:
         {% include "components/table.html#th" with alinhamento="direita" rotulo_somente_leitura="Ações" %}
       </tr>
     </thead>
-    <tbody class="divide-y divide-slate-100 bg-white">
+    <tbody class="divide-y divide-border bg-white">
       {# <tr><td>...</td></tr> explícito #}
     </tbody>
   </table>

@@ -95,7 +95,7 @@
           <th scope="col" class="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-tertiary">Status</th>
         </tr>
       </thead>
-      <tbody class="divide-y divide-slate-100 bg-surface">
+      <tbody class="divide-y divide-border bg-surface">
         {% for saldo in saldos %}
           <tr class="{% if saldo.divergente_calculado %}bg-red-50 hover:bg-red-100{% else %}hover:bg-bg-page{% endif %}">
             <td class="px-4 py-3 font-mono text-xs text-secondary">{{ saldo.material.codigo }}</td>
