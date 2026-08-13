@@ -41,7 +41,7 @@ Parâmetros:
 Uso:
   {% include "components/alert.html" with variant="danger" message=erro_geral %}
   {% include "components/alert.html" with variant="warning" body_template="requisicoes/partials/_alert_itens_inelegiveis_corpo.html" %}
-  {% include "components/alert.html" with layout="row" variant="danger" heading_id="estornar-titulo" body_template="requisicoes/partials/_confirmacao_acao_banner_corpo.html" action_template="requisicoes/partials/_confirmacao_acao_banner_botao.html" bg_class="bg-danger-subtle/60" class="mb-6" %}
+  {% include "components/alert.html" with layout="row" variant="danger" heading_id="estornar-titulo" body_template="requisicoes/partials/_confirmacao_acao_banner_corpo.html" action_template="requisicoes/partials/_confirmacao_acao_banner_botao.html" bg_class="bg-danger-subtle" class="mb-6" %}
 {% endcomment %}
 {% if layout == 'row' %}
 <section

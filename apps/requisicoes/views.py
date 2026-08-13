@@ -4,6 +4,8 @@ Fluxo: ler input → chamar service com IDs → traduzir exceção → renderiza
 Nenhuma regra de domínio, query de escopo ou decisão de autorização própria.
 """
 
+from decimal import Decimal
+
 from apps.accounts.papeis import papel_efetivo
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -37,7 +39,7 @@ from apps.core.listagem import paginar, paginar_com_filtros
 from apps.core.presentation import traduz_erro_dominio
 from apps.core.templatetags.core_tags import formatar_quantidade
 from apps.estoque.models import SaldoEstoque
-from apps.estoque.selectors import entregue_liquida_por_material
+from apps.estoque.selectors import entregue_liquida_por_requisicao
 from apps.requisicoes.forms import (
     ItemAtendimentoFormSet,
     ItemRequisicaoFormSet,
@@ -120,10 +122,9 @@ def _detalhe_context(
     itens = list(requisicao.itens.select_related('material').all())
     pode_devolver = Operacao.REGISTRAR_DEVOLUCAO in acoes
     if pode_devolver:
+        entregues = entregue_liquida_por_requisicao(requisicao_id=requisicao.pk)
         for item in itens:
-            item.entregue_liquida = entregue_liquida_por_material(
-                requisicao_id=requisicao.pk, material_id=item.material_id
-            )
+            item.entregue_liquida = entregues.get(item.material_id, Decimal('0'))
             item.modal_devolver_id = f'devolver-{item.pk}'
     eventos = list(
         requisicao.eventos.select_related('ator').order_by('-criado_em', '-id')

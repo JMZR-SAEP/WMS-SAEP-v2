@@ -18,10 +18,9 @@
 {% endblock %}
 
 {% block content %}
-<div class="max-w-screen-xl mx-auto">
-
-  {# --- 1. Cabeçalho --- #}
-  <section class="mb-6 rounded-xl border border-border bg-surface p-4 shadow-sm sm:p-6">
+{# --- 1. Cabeçalho --- #}
+  <section class="mb-6 rounded-xl border border-border bg-surface p-4 shadow-sm sm:p-6" aria-labelledby="cabecalho-requisicao-titulo">
+    <h2 id="cabecalho-requisicao-titulo" class="sr-only">Dados da requisição</h2>
     <div class="flex items-start justify-between gap-3 flex-wrap">
       <div class="min-w-0">
         <p class="text-xs text-text-tertiary sm:text-sm">
@@ -68,9 +67,10 @@
   </section>
 
   {# --- 2. Itens (seção operacional principal) --- #}
-  <section class="mb-6 rounded-xl border border-border bg-surface p-4 shadow-md ring-1 ring-bg-subtle sm:p-6">
+  <section class="mb-6 rounded-xl border border-border bg-surface p-4 shadow-sm sm:p-6"
+    aria-labelledby="itens-titulo">
     <div class="mb-4 flex items-baseline justify-between gap-3">
-      <h2 class="text-xl font-semibold text-text-primary">Itens</h2>
+      <h2 id="itens-titulo" class="text-lg font-semibold text-text-primary">Itens</h2>
       {% if itens %}
         <span class="text-xs font-medium text-text-tertiary">
           {{ itens|length }} {{ itens|length|pluralize:"item,itens" }}
@@ -121,15 +121,7 @@
                     <td class="px-3 py-2">
                       {% if item.entregue_liquida > 0 %}
                         <div x-data="modalController({ id: '{{ item.modal_devolver_id }}' })">
-                          <button
-                            type="button"
-                            data-modal-trigger="{{ item.modal_devolver_id }}"
-                            @click="abrir($event)"
-                            aria-haspopup="dialog"
-                            class="inline-flex min-h-11 items-center gap-1 rounded-md border border-return-border bg-surface px-2.5 py-1 text-xs font-medium text-return-text shadow-sm hover:bg-return-subtle cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-return focus-visible:ring-offset-1"
-                          >
-                            Registrar devolução
-                          </button>
+                          {% include "components/button.html" with variant="return-outline" size="sm" label="Registrar devolução" data_modal_trigger=item.modal_devolver_id aria_haspopup="dialog" %}
                           {% url 'requisicoes:registrar_devolucao' requisicao.pk item.pk as devolver_url %}
                           {% include "components/modal.html" with id=item.modal_devolver_id titulo="Registrar devolução" descricao="Informe a quantidade a devolver ao estoque." action_url=devolver_url confirm_label="Registrar devolução" confirm_variant="primary" form=devolucao_form item=item entregue_liquida=item.entregue_liquida form_body_template="requisicoes/partials/_modal_form_devolucao.html" %}
                         </div>
@@ -150,15 +142,15 @@
   {# --- 2b. Ações primárias (depois do contexto) --- #}
   {% if pode_enviar or pode_editar %}
     <section
-      class="mb-6 rounded-xl border border-warning-border bg-warning-subtle/60 p-4 shadow-sm sm:p-6"
+      class="mb-6 rounded-xl border border-warning-border bg-warning-subtle p-4 shadow-sm sm:p-6"
       aria-labelledby="acoes-titulo"
     >
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div class="min-w-0">
-          <h2 id="acoes-titulo" class="text-sm font-semibold text-warning-text-strong">
+          <h2 id="acoes-titulo" class="text-lg font-semibold text-warning-text-strong">
             {% if pode_enviar %}Pronto para enviar?{% else %}Continue editando o rascunho{% endif %}
           </h2>
-          <p class="mt-0.5 text-xs text-warning-text/80">
+          <p class="mt-0.5 text-xs text-warning-text">
             {% if pode_enviar %}
               Revise os itens acima. O envio gera o número público e bloqueia novas edições até retornar para rascunho.
             {% else %}
@@ -168,15 +160,8 @@
         </div>
         <div class="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
           {% if pode_editar %}
-            <a
-              href="{% url 'requisicoes:editar_rascunho' requisicao.pk %}"
-              class="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-md border border-border-strong bg-surface px-4 py-2 text-sm font-medium text-text-secondary shadow-sm hover:bg-bg-page focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1"
-            >
-              <svg aria-hidden="true" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M13.586 3.586a2 2 0 1 1 2.828 2.828l-.793.793-2.828-2.828.793-.793ZM11.379 5.793 3 14.172V17h2.828l8.379-8.379-2.828-2.828Z"/>
-              </svg>
-              Editar rascunho
-            </a>
+            {% url 'requisicoes:editar_rascunho' requisicao.pk as editar_url %}
+            {% include "components/button.html" with variant="secondary" href=editar_url label="Editar rascunho" icon_template="components/icons/editar.svg" full_width_mobile=True %}
           {% endif %}
           {% if pode_enviar %}
             <div x-data="modalController({ id: 'confirmar-enviar' })">
@@ -204,7 +189,7 @@
       aria-labelledby="decisao-autorizacao-titulo"
     >
       <div class="mb-4">
-        <h2 id="decisao-autorizacao-titulo" class="text-sm font-semibold text-text-primary">
+        <h2 id="decisao-autorizacao-titulo" class="text-lg font-semibold text-text-primary">
           {% if pode_retornar and not pode_autorizar and not pode_recusar %}
             Retorno para rascunho
           {% else %}
@@ -245,7 +230,7 @@
       aria-labelledby="atender-retirada-titulo"
     >
       <div class="mb-4">
-        <h2 id="atender-retirada-titulo" class="text-sm font-semibold text-text-primary">
+        <h2 id="atender-retirada-titulo" class="text-lg font-semibold text-text-primary">
           Registrar retirada
         </h2>
         <p class="mt-1 text-sm text-text-secondary">
@@ -263,7 +248,7 @@
   {% if pode_cancelar and requisicao.estado != 'rascunho' %}
     {% cancelamento_copy cancelamento_info requisicao.estado as cancelamento_copy_texto %}
     {% url 'requisicoes:cancelar' requisicao.pk as cancelar_url %}
-    {% include "requisicoes/partials/_confirmacao_acao.html" with layout="banner" variant_token="danger" bg_class="bg-danger-subtle/70" heading_id="cancelamento-titulo" modal_id="confirmar-cancelar" abrir_ao_carregar_expr=cancelamento_modal_aberto|yesno:"true,false" titulo=cancelamento_copy_texto.titulo conteudo=cancelamento_copy_texto.descricao desc_class="mt-1 text-sm text-danger-text-strong/80" botao_label=cancelamento_copy_texto.trigger botao_variant="danger-outline" botao_icon="components/icons/lixeira.svg" modal_titulo=cancelamento_copy_texto.titulo modal_descricao=cancelamento_copy_texto.descricao action_url=cancelar_url confirm_label=cancelamento_copy_texto.confirmar confirm_variant="danger" icon_variant="danger" form_body_template="requisicoes/partials/_modal_form_cancelar.html" erro=cancelamento_erro hidden_inputs=cancelamento_hidden_inputs %}
+    {% include "requisicoes/partials/_confirmacao_acao.html" with layout="banner" variant_token="danger" bg_class="bg-danger-subtle" heading_id="cancelamento-titulo" modal_id="confirmar-cancelar" abrir_ao_carregar_expr=cancelamento_modal_aberto|yesno:"true,false" titulo=cancelamento_copy_texto.titulo conteudo=cancelamento_copy_texto.descricao desc_class="mt-1 text-sm text-danger-text-strong" botao_label=cancelamento_copy_texto.trigger botao_variant="danger-outline" botao_icon="components/icons/lixeira.svg" modal_titulo=cancelamento_copy_texto.titulo modal_descricao=cancelamento_copy_texto.descricao action_url=cancelar_url confirm_label=cancelamento_copy_texto.confirmar confirm_variant="danger" icon_variant="danger" form_body_template="requisicoes/partials/_modal_form_cancelar.html" erro=cancelamento_erro hidden_inputs=cancelamento_hidden_inputs %}
   {% endif %}
 
   {% if pode_separar_retirada %}
@@ -273,7 +258,7 @@
       x-data="modalController({ id: 'confirmar-separar' })"
     >
       <div class="mb-4">
-        <h2 id="separacao-retirada-titulo" class="text-sm font-semibold text-text-primary">
+        <h2 id="separacao-retirada-titulo" class="text-lg font-semibold text-text-primary">
           Separação para retirada
         </h2>
         <p class="mt-1 text-sm text-text-secondary">
@@ -294,7 +279,7 @@
 
   {% if pode_estornar %}
     {% url 'requisicoes:estornar' requisicao.pk as estornar_url %}
-    {% include "requisicoes/partials/_confirmacao_acao.html" with layout="banner" variant_token="danger" bg_class="bg-danger-subtle/60" heading_id="estornar-titulo" modal_id="estornar-modal" titulo="Estornar requisição" conteudo="Reverte toda a entregue líquida atual ao saldo físico do estoque e encerra a requisição. A justificativa é obrigatória e fica registrada na timeline." desc_class="mt-0.5 text-xs text-danger-text-emphasis/80" botao_label="Estornar requisição" botao_variant="danger-outline" botao_icon="components/icons/estornar.svg" botao_class="shrink-0" botao_aria_haspopup="dialog" modal_titulo="Estornar requisição" modal_descricao="O estorno reverte toda a entregue líquida ao saldo físico e encerra definitivamente a requisição. Esta operação é irreversível." action_url=estornar_url confirm_label="Confirmar estorno" confirm_variant="danger" form=estorno_form form_body_template="requisicoes/partials/_modal_form_estorno.html" %}
+    {% include "requisicoes/partials/_confirmacao_acao.html" with layout="banner" variant_token="danger" bg_class="bg-danger-subtle" heading_id="estornar-titulo" modal_id="estornar-modal" titulo="Estornar requisição" conteudo="Reverte toda a entregue líquida atual ao saldo físico do estoque e encerra a requisição. A justificativa é obrigatória e fica registrada na timeline." desc_class="mt-0.5 text-xs text-danger-text-emphasis" botao_label="Estornar requisição" botao_variant="danger-outline" botao_icon="components/icons/estornar.svg" botao_class="shrink-0" botao_aria_haspopup="dialog" modal_titulo="Estornar requisição" modal_descricao="O estorno reverte toda a entregue líquida ao saldo físico e encerra definitivamente a requisição. Esta operação é irreversível." action_url=estornar_url confirm_label="Confirmar estorno" confirm_variant="danger" form=estorno_form form_body_template="requisicoes/partials/_modal_form_estorno.html" %}
   {% endif %}
 
   {% if pode_copiar %}
@@ -304,29 +289,23 @@
     >
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div class="min-w-0">
-          <h2 id="copiar-titulo" class="text-sm font-semibold text-text-primary">Repetir esta requisição</h2>
+          <h2 id="copiar-titulo" class="text-lg font-semibold text-text-primary">Repetir esta requisição</h2>
           <p class="mt-0.5 text-xs text-text-tertiary">
             Cria novo rascunho com os mesmos materiais e quantidades solicitadas.
             Itens sem saldo ou com divergência serão marcados para revisão antes do envio.
           </p>
         </div>
-        <a
-          href="{% url 'requisicoes:copiar' requisicao.pk %}"
-          class="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-md border border-border-strong bg-surface px-4 py-2 text-sm font-medium text-text-secondary shadow-sm hover:bg-bg-page focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1"
-        >
-          {% icon "copiar" class="h-4 w-4" %}
-          Repetir requisição
-        </a>
+        {% url 'requisicoes:copiar' requisicao.pk as copiar_url %}
+        {% include "components/button.html" with variant="secondary" href=copiar_url label="Repetir requisição" icon_template="components/icons/copiar.svg" class="shrink-0" %}
       </div>
     </section>
   {% endif %}
 
   {# --- 3. Timeline (suporte/auditoria, peso secundário) --- #}
-  <section class="mb-6 rounded-xl border border-border bg-bg-page/60 p-4 sm:p-6">
-    <h2 class="mb-4 text-sm font-semibold uppercase tracking-wide text-text-tertiary">Histórico</h2>
+  <section class="mb-6 rounded-xl border border-border bg-surface p-4 sm:p-6" aria-labelledby="historico-titulo">
+    <h2 id="historico-titulo" class="mb-4 text-xs font-semibold uppercase tracking-wide text-text-tertiary">Histórico</h2>
     {% include "requisicoes/partials/_timeline.html" with eventos=eventos %}
   </section>
 
-</div>
 {% endblock %}
 

@@ -13,7 +13,14 @@
 {% block content %}
 <div class="max-w-2xl mx-auto pb-12">
   <div class="rounded-xl border border-border bg-surface p-6 shadow-sm">
-    <h2 class="text-base font-semibold text-text-primary mb-1">Criar rascunho a partir de {{ requisicao }}</h2>
+    {% comment %}
+      Texto explícito: `{{ requisicao }}` cai no __str__ do model, que devolve
+      "Rascunho #<pk>" e expõe a chave do banco. A view não restringe estado no
+      GET, então o caminho é alcançável.
+    {% endcomment %}
+    <h2 class="text-lg font-semibold text-text-primary mb-1">
+      Criar rascunho a partir de {% if requisicao.numero_publico %}{{ requisicao.numero_publico }}{% else %}Rascunho{% endif %}
+    </h2>
     <p class="text-sm text-text-secondary mb-6">
       Um novo rascunho será criado com todos os itens desta requisição.
       Itens sem saldo disponível ou com divergência crítica serão incluídos e marcados para revisão.
