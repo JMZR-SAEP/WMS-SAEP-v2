@@ -3,13 +3,10 @@
 
 {% block title %}Catálogo de materiais — WMS-SAEP{% endblock %}
 
-{% block topbar_leading %}
-  <h1 class="app-bar__title">Catálogo de materiais</h1>
-{% endblock %}
-
 {% block content %}
 <div class="max-w-screen-xl mx-auto">
 
+  {% include "components/page_header.html" with titulo="Catálogo de materiais" class="mb-2" %}
   <p class="mb-6 max-w-3xl text-sm text-text-secondary">
     Saldo físico, reservado e disponível de cada material no estoque principal.
     Materiais com divergência crítica (físico &lt; reservado) são destacados.

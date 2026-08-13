@@ -1,0 +1,28 @@
+{% comment %}
+Título de tela, dentro do <main>.
+
+Existe porque o `<h1>` de uma tela principal não pertence à barra de aplicação:
+`base_auth.html` documenta que o leading default é a brand e que só subtela troca
+por nav-icon + título (`.design/topbar/DESIGN_BRIEF.md`, API de slots). Uma tela
+principal que sobrescreve `topbar_leading` some com a brand, entrega o `<main>`
+sem cabeçalho nenhum para navegação por landmark e ainda espreme o título num
+elemento com `text-overflow: ellipsis`.
+
+A escala é a do design system: Headline (1.5rem) no mobile, Display (1.875rem) a
+partir de `sm` — "título de tela em desktop, um por página" (DESIGN.md).
+`app-bar__title` é o estilo Title (1rem/1.125rem) e serve à barra, não à tela.
+
+Subtela (detalhe, formulário, confirmação) NÃO usa este partial: lá o `<h1>` vive
+na barra ao lado do back-arrow, pattern Material sancionado pelo brief.
+
+Parâmetros:
+  titulo  (obrigatório) texto do cabeçalho
+  class   (obrigatório na prática) margem inferior escolhida pela tela — `mb-2`
+          quando um parágrafo de apoio vem logo abaixo, `mb-6` quando o conteúdo
+          começa direto. Sem default para não gerar duas classes de margem
+          concorrentes na mesma marcação.
+
+Uso:
+  {% include "components/page_header.html" with titulo="Minhas requisições" class="mb-2" %}
+{% endcomment %}
+<h1 class="text-2xl font-semibold text-text-primary sm:text-3xl{% if class %} {{ class }}{% endif %}">{{ titulo }}</h1>

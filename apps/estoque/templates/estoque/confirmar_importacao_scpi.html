@@ -2,13 +2,10 @@
 
 {% block title %}Confirmar Importação SCPI — WMS-SAEP{% endblock %}
 
-{% block topbar_leading %}
-  <h1 class="app-bar__title">Importação SCPI — Confirmação</h1>
-{% endblock %}
-
 {% block content %}
 <div class="max-w-2xl mx-auto">
 
+  {% include "components/page_header.html" with titulo="Importação SCPI — Confirmação" class="mb-6" %}
   {% if sucesso %}
     {# ── Sucesso ─────────────────────────────────────────────────────── #}
     {% include "components/alert.html" with variant="success" aria_live="polite" body_template="estoque/partials/_alert_sucesso_importacao_corpo.html" class="mb-6" %}

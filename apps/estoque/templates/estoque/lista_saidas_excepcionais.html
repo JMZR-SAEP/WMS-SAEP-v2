@@ -2,13 +2,10 @@
 
 {% block title %}Saídas excepcionais — WMS-SAEP{% endblock %}
 
-{% block topbar_leading %}
-  <h1 class="app-bar__title">Saídas excepcionais</h1>
-{% endblock %}
-
 {% block content %}
 <div class="max-w-screen-xl mx-auto">
 
+  {% include "components/page_header.html" with titulo="Saídas excepcionais" class="mb-2" %}
   <p class="mb-6 max-w-3xl text-sm text-text-secondary">
     Baixas administrativas diretas de material no estoque, independentes do fluxo de requisição.
   </p>

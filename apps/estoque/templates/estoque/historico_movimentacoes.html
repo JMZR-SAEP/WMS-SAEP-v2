@@ -2,13 +2,10 @@
 
 {% block title %}Movimentações — WMS-SAEP{% endblock %}
 
-{% block topbar_leading %}
-  <h1 class="app-bar__title">Movimentações</h1>
-{% endblock %}
-
 {% block content %}
 <div class="max-w-screen-xl mx-auto">
 
+  {% include "components/page_header.html" with titulo="Movimentações" class="mb-2" %}
   <p class="mb-6 max-w-3xl text-sm text-text-secondary">
     Histórico imutável das movimentações de estoque visíveis ao seu papel. Filtre por
     material, tipo, período{% if mostrar_filtro_setor %} ou setor{% endif %}; o recorte
