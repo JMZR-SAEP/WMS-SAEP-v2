@@ -1115,7 +1115,7 @@ class TestHistoricoImportacoesScpiView:
         conteudo = resp.content.decode()
         marcador_wrapper = (
             '<div class="overflow-x-auto rounded-xl border border-slate-200 '
-            'bg-white shadow-sm">'
+            'bg-surface shadow-sm">'
         )
         assert marcador_wrapper in conteudo
         inicio_wrapper = conteudo.index(marcador_wrapper)

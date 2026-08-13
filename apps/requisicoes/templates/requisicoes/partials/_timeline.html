@@ -13,10 +13,10 @@ Parâmetro: eventos (lista de TimelineRequisicao com select_related('ator')).
         {# coluna 1: timestamp compacto #}
         <time
           datetime="{{ evento.criado_em|date:'c' }}"
-          class="text-xs font-medium text-slate-500 tabular-nums sm:text-right"
+          class="text-xs font-medium text-tertiary tabular-nums sm:text-right"
         >
           <span class="sm:block">{{ evento.criado_em|date:"d/m/Y" }}</span>
-          <span class="sm:block sm:text-[0.6875rem] sm:text-slate-400">{{ evento.criado_em|date:"H:i" }}</span>
+          <span class="sm:block sm:text-[0.6875rem] sm:text-tertiary">{{ evento.criado_em|date:"H:i" }}</span>
         </time>
 
         {# coluna 2: dot marker #}
@@ -27,15 +27,15 @@ Parâmetro: eventos (lista de TimelineRequisicao com select_related('ator')).
 
         {# coluna 3: conteúdo #}
         <div class="min-w-0">
-          <p class="text-sm font-semibold text-slate-900 leading-tight">
+          <p class="text-sm font-semibold text-primary leading-tight">
             {{ evento.get_evento_display }}
           </p>
-          <p class="mt-0.5 text-xs text-slate-600">
+          <p class="mt-0.5 text-xs text-secondary">
             {{ evento.ator.nome }}
-            <span class="text-slate-400">· {{ evento.ator.matricula }}</span>
+            <span class="text-tertiary">· {{ evento.ator.matricula }}</span>
           </p>
           {% if evento.justificativa %}
-            <p class="mt-1 rounded-md bg-slate-50 px-2.5 py-1.5 text-xs text-slate-700 leading-relaxed">
+            <p class="mt-1 rounded-md bg-subtle px-2.5 py-1.5 text-xs text-secondary leading-relaxed">
               {{ evento.justificativa }}
             </p>
           {% endif %}
@@ -70,5 +70,5 @@ Parâmetro: eventos (lista de TimelineRequisicao com select_related('ator')).
     </ol>
   </div>
 {% else %}
-  <p class="text-sm text-slate-500">Sem eventos registrados.</p>
+  <p class="text-sm text-tertiary">Sem eventos registrados.</p>
 {% endif %}
