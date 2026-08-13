@@ -2,7 +2,7 @@
   Fragment do corpo do modal de devolução (TR-020).
   Params: form, item, entregue_liquida, requisicao, id, erro
 {% endcomment %}
-{% load core_tags %}
+{% load core_tags l10n %}
 
 <div class="space-y-4">
   <p class="text-sm text-slate-700">
@@ -23,7 +23,7 @@
       name="quantidade"
       step="0.001"
       min="0.001"
-      max="{{ entregue_liquida }}"
+      max="{% localize off %}{{ entregue_liquida }}{% endlocalize %}"
       autocomplete="off"
       value="{{ form.quantidade.value|default_if_none:'' }}"
       aria-required="true"

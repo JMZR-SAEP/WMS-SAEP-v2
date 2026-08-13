@@ -3028,6 +3028,22 @@ def test_registrar_devolucao_view_get_retorna_405(
     assert response.status_code == 405
 
 
+@pytest.mark.django_db
+def test_detalhe_modal_devolucao_max_renderiza_float_valido(
+    client, aux_almoxarifado, req_atendida_view
+):
+    """max="{{ entregue_liquida }}" deve renderizar número válido de HTML5
+    (`5.000`), não localizado (`5,000`), senão o browser descarta o atributo
+    e o limite de quantidade some do formulário."""
+    _login(client, aux_almoxarifado)
+    response = client.get(reverse('requisicoes:detalhe', args=[req_atendida_view.pk]))
+    assert response.status_code == 200
+    conteudo = response.content.decode()
+    match = re.search(r'name="quantidade"[^>]*max="([^"]+)"', conteudo)
+    assert match, 'input de quantidade sem atributo max'
+    assert float(match.group(1)) == 5.0
+
+
 # ---------------------------------------------------------------------------
 # estornar_requisicao_view
 # ---------------------------------------------------------------------------
