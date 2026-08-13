@@ -3,13 +3,10 @@
 
 {% block title %}Pré-visualização SCPI — WMS-SAEP{% endblock %}
 
-{% block topbar_leading %}
-  <h1 class="app-bar__title">Importação SCPI — Pré-visualização</h1>
-{% endblock %}
-
 {% block content %}
 <div class="max-w-5xl mx-auto">
 
+  {% include "components/page_header.html" with titulo="Importação SCPI — Pré-visualização" class="mb-2" %}
   <p class="mb-6 max-w-2xl text-sm text-text-secondary">
     Envie o CSV bruto do SCPI para conferir os saldos antes de confirmar qualquer importação.
     <strong class="font-medium text-text-primary">Nenhuma alteração é realizada nesta etapa.</strong>

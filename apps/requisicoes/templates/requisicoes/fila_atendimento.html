@@ -2,11 +2,8 @@
 
 {% block title %}Fila de atendimento — WMS-SAEP{% endblock %}
 
-{% block topbar_leading %}
-  <h1 class="app-bar__title">Fila de atendimento</h1>
-{% endblock %}
-
 {% block content %}
+{% include "components/page_header.html" with titulo="Fila de atendimento" class="mb-2" %}
 <p class="mb-6 max-w-3xl text-sm text-text-secondary">
   Requisições autorizadas e prontas para retirada no almoxarifado.
 </p>

@@ -2,13 +2,10 @@
 
 {% block title %}Histórico de Importações SCPI — WMS-SAEP{% endblock %}
 
-{% block topbar_leading %}
-  <h1 class="app-bar__title">Importação SCPI — Histórico</h1>
-{% endblock %}
-
 {% block content %}
 <div class="max-w-screen-xl mx-auto">
 
+  {% include "components/page_header.html" with titulo="Importação SCPI — Histórico" class="mb-4" %}
   <div class="mb-4 flex items-center justify-between">
     <p class="text-sm text-text-tertiary">
       {% if importacoes %}

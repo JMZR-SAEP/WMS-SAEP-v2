@@ -4045,3 +4045,62 @@ def test_listagens_tem_html_balanceado(
         response = client.get(reverse(nome_url))
         assert response.status_code == 200, nome_url
         _assert_html_balanceado(response.content.decode())
+
+
+# ---------------------------------------------------------------------------
+# Título de tela — contrato de slots do base_auth (.design/topbar)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_tela_principal_mantem_brand_e_poe_h1_no_conteudo(client, solicitante):
+    """Leading default é a brand; só subtela troca por nav-icon + título.
+
+    Uma tela principal que sobrescreve `topbar_leading` some com a brand e
+    deixa o <main> sem cabeçalho para navegação por landmark.
+    """
+    _login(client, solicitante)
+    html = client.get(reverse('requisicoes:minhas')).content.decode()
+    assert 'app-bar__brand' in html
+    assert 'app-bar__title' not in html
+    assert (
+        '<h1 class="text-2xl font-semibold text-text-primary sm:text-3xl mb-2">' in html
+    )
+    assert 'Minhas requisições' in html
+
+
+@pytest.mark.django_db
+def test_subtela_mantem_titulo_na_barra_com_back_arrow(
+    client, solicitante, req_rascunho_solicitante
+):
+    """Pattern Material sancionado pelo brief: em subtela o <h1> vive na barra,
+    ao lado do back-arrow, e o hambúrguer some.
+    """
+    _login(client, solicitante)
+    html = client.get(
+        reverse('requisicoes:detalhe', kwargs={'pk': req_rascunho_solicitante.pk})
+    ).content.decode()
+    assert 'app-bar__nav-icon' in html
+    assert 'app-bar__title' in html
+
+
+@pytest.mark.django_db
+def test_telas_tem_exatamente_um_h1(
+    client, solicitante, chefe_obras, req_rascunho_solicitante
+):
+    _login(client, solicitante)
+    for url in (
+        reverse('requisicoes:minhas'),
+        reverse('requisicoes:detalhe', kwargs={'pk': req_rascunho_solicitante.pk}),
+        reverse('requisicoes:nova_requisicao'),
+    ):
+        html = client.get(url).content.decode()
+        assert html.count('<h1') == 1, url
+
+    _login(client, chefe_obras)
+    for url in (
+        reverse('requisicoes:autorizacoes'),
+        reverse('requisicoes:historico'),
+    ):
+        html = client.get(url).content.decode()
+        assert html.count('<h1') == 1, url

@@ -2,10 +2,6 @@
 
 {% block title %}Minhas requisições — WMS-SAEP{% endblock %}
 
-{% block topbar_leading %}
-  <h1 class="app-bar__title">Minhas requisições</h1>
-{% endblock %}
-
 {% block topbar_actions %}
   <a
     href="{% url 'requisicoes:nova_requisicao' %}"
@@ -20,6 +16,7 @@
 {% endblock %}
 
 {% block content %}
+{% include "components/page_header.html" with titulo="Minhas requisições" class="mb-2" %}
 <p class="mb-6 text-sm text-text-secondary">
   Requisições onde você é criador ou beneficiário.
 </p>
