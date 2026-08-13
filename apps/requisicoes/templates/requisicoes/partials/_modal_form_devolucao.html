@@ -5,7 +5,7 @@
 {% load core_tags l10n %}
 
 <div class="space-y-4">
-  <p class="text-sm text-slate-700">
+  <p class="text-sm text-text-secondary">
     Material: <span class="font-semibold">{{ item.material.nome }}</span><br>
     Entregue líquida disponível:
     <span class="font-semibold tabular-nums">{{ entregue_liquida|formatar_quantidade:item.material.unidade }}</span>
@@ -14,8 +14,8 @@
 
   <div>
     <label for="modal-devolver-quantidade-{{ item.pk }}"
-           class="block text-sm font-medium text-slate-900">
-      Quantidade devolvida <span aria-hidden="true" class="text-red-600">*</span>
+           class="block text-sm font-medium text-text-primary">
+      Quantidade devolvida <span aria-hidden="true" class="text-danger-accent">*</span>
     </label>
     <input
       type="number"
@@ -29,13 +29,13 @@
       aria-required="true"
       {% if erro %}aria-invalid="true"{% endif %}
       aria-describedby="{% if erro %}{{ id }}-erro{% endif %}"
-      class="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
+      class="mt-1 block w-full rounded-lg border border-border-strong bg-surface px-3 py-2 text-sm text-text-primary shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1"
     >
   </div>
 
   <div>
     <label for="modal-devolver-observacao-{{ item.pk }}"
-           class="block text-sm font-medium text-slate-900">
+           class="block text-sm font-medium text-text-primary">
       Observação
     </label>
     <textarea
@@ -43,7 +43,7 @@
       name="observacao"
       rows="2"
       autocomplete="off"
-      class="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
+      class="mt-1 block w-full rounded-lg border border-border-strong bg-surface px-3 py-2 text-sm text-text-primary shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1"
       placeholder="Opcional"
     >{{ form.observacao.value|default_if_none:"" }}</textarea>
   </div>

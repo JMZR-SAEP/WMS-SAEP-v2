@@ -217,7 +217,13 @@
     align-items: center;
     gap: 1rem;                          /* MD2: 32dp entre nav-icon e título */
     min-width: 0;
-    flex: 0 1 auto;
+    /*
+      Base 0 (e não auto): a quebra de linha do flex usa o tamanho hipotético do
+      item, então com base auto um título longo ao lado do ícone de voltar empurra
+      as ações para uma segunda linha em vez de truncar. Com base 0 o leading cresce
+      no espaço que sobra e o título elipsa, como manda a escala Title do MD2.
+    */
+    flex: 1 1 0;
   }
 
   .app-bar__brand {

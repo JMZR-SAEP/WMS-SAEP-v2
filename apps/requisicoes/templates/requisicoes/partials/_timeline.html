@@ -40,8 +40,10 @@ Parâmetro: eventos (lista de TimelineRequisicao com select_related('ator')).
             </p>
           {% endif %}
           {% if evento.evento == "atualizacao_estoque_relevante" %}
-            {# EST-07: o saldo físico caiu abaixo do reservado. O rótulo do evento
-               sozinho não diz o que houve nem o que fazer — ver issue #111. #}
+            {% comment %}
+              EST-07: o saldo físico caiu abaixo do reservado. O rótulo do evento
+              sozinho não diz o que houve nem o que fazer — ver issue #111.
+            {% endcomment %}
             <div class="mt-1 rounded-md border border-warning-border bg-warning-subtle px-2.5 py-1.5 text-xs text-warning-text-strong leading-relaxed">
               <p class="font-medium">
                 {% if evento.metadata.numero_publico %}

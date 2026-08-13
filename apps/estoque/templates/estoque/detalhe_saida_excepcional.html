@@ -1,8 +1,16 @@
 {% extends "base_auth.html" %}
+{% load core_tags %}
 
 {% block title %}{{ saida.numero_publico|default:"Saída excepcional" }} — WMS-SAEP{% endblock %}
 
 {% block topbar_leading %}
+  <a
+    href="{% url 'estoque:listar_saidas_excepcionais' %}"
+    class="app-bar__nav-icon"
+    aria-label="Voltar para lista de saídas excepcionais"
+  >
+    {% icon "voltar" %}
+  </a>
   <h1 class="app-bar__title">Detalhe da saída excepcional</h1>
 {% endblock %}
 
@@ -21,9 +29,20 @@
         </div>
       </div>
 
-      {# Botão estornar #}
-      {% if saida.estado == 'registrada' and pode_estornar %}
-        {% include "components/button.html" with variant="danger-outline" label="Estornar" data_modal_trigger="estornar-saida" class="shrink-0" %}
+      {% comment %}
+        Botão estornar. Sem permissão, a ação some (irrelevância administrativa);
+        com permissão e estado errado, ela permanece visível, desabilitada e com o
+        motivo em texto — a interface prefere explicar o bloqueio a escondê-lo.
+      {% endcomment %}
+      {% if pode_estornar %}
+        {% if saida.estado == 'registrada' %}
+          {% include "components/button.html" with variant="danger-outline" label="Estornar" data_modal_trigger="estornar-saida" class="shrink-0" %}
+        {% else %}
+          <div class="shrink-0 sm:text-right">
+            {% include "components/button.html" with variant="danger-outline" label="Estornar" disabled=True aria_describedby="motivo-estorno-bloqueado" %}
+            <p id="motivo-estorno-bloqueado" class="mt-1 text-xs text-text-tertiary">Esta saída já foi estornada.</p>
+          </div>
+        {% endif %}
       {% endif %}
     </div>
 
@@ -131,9 +150,7 @@
           {% if saida.estornado_por %}
             <p class="mt-0.5 text-xs text-text-tertiary">por {{ saida.estornado_por.nome }}</p>
           {% endif %}
-          {% if saida.justificativa_estorno %}
-            <p class="mt-1 text-xs text-text-secondary italic">"{{ saida.justificativa_estorno }}"</p>
-          {% endif %}
+          {# A justificativa não se repete aqui: timeline conta o evento, o bloco guarda o dado. #}
         </li>
       {% endif %}
       <li>

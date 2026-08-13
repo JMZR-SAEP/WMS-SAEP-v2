@@ -5,6 +5,6 @@
   `saldo_fisico`) — resolvido em runtime via `??`.
   Incluído por `components/autocomplete.html` dentro do escopo Alpine `item`/`idx`.
 {% endcomment %}
-<span class="font-medium text-slate-900" x-text="item.codigo"></span>
-<span class="text-slate-600" x-text="' — ' + item.nome"></span>
-<span class="ml-1 text-xs text-slate-400" x-text="'(disp: ' + (item.saldo_disponivel ?? item.saldo_fisico) + ' ' + item.unidade + ')'"></span>
+<span class="font-medium text-text-primary" x-text="item.codigo"></span>
+<span class="text-text-secondary" x-text="' — ' + item.nome"></span>
+<span class="ml-1 text-xs text-text-disabled" x-text="'(disp: ' + (item.saldo_disponivel ?? item.saldo_fisico) + ' ' + item.unidade + ')'"></span>
