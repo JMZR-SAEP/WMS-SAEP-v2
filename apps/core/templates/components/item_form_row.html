@@ -45,10 +45,10 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
     >
     {% include "components/autocomplete.html" with label="Material" placeholder="Buscar por código ou descrição…" item_template=autocomplete_item_template sem_resultados_label="Nenhum material elegível encontrado." tipo_input="search" com_erro=material_label_field.errors erro_id=material_label_field.id_for_label|add:"-erro" %}
     {% if material_label_field.errors %}
-      <p id="{{ material_label_field.id_for_label }}-erro" class="mt-1 text-xs text-danger" role="alert">{{ material_label_field.errors|join:", " }}</p>
+      <p id="{{ material_label_field.id_for_label }}-erro" class="mt-1 text-xs text-danger-text" role="alert">{{ material_label_field.errors|join:", " }}</p>
     {% endif %}
     {% if material_id_field.errors %}
-      <p class="mt-1 text-xs text-danger" role="alert">{{ material_id_field.errors|join:", " }}</p>
+      <p class="mt-1 text-xs text-danger-text" role="alert">{{ material_id_field.errors|join:", " }}</p>
     {% endif %}
     {% if saldo_item %}
       {% if not saldo_item.elegivel %}
@@ -80,7 +80,7 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
       {% if quantidade_field.errors %}aria-invalid="true" aria-describedby="{{ quantidade_field.id_for_label }}-erro"{% endif %}
     >
     {% if quantidade_field.errors %}
-      <p id="{{ quantidade_field.id_for_label }}-erro" class="mt-1 text-xs text-danger" role="alert">{{ quantidade_field.errors|join:", " }}</p>
+      <p id="{{ quantidade_field.id_for_label }}-erro" class="mt-1 text-xs text-danger-text" role="alert">{{ quantidade_field.errors|join:", " }}</p>
     {% endif %}
   </div>
 
@@ -98,7 +98,7 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
   <div class="pt-5 shrink-0">
     <button
       type="button"
-      class="flex items-center gap-1 text-text-secondary hover:text-danger-text cursor-pointer focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-1 transition-colors px-2 py-1.5 rounded text-xs font-medium"
+      class="flex min-h-11 min-w-11 items-center justify-center gap-1 text-text-secondary hover:text-danger-text cursor-pointer focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-1 transition-colors px-2 py-1.5 rounded text-xs font-medium"
       aria-label="Remover item"
       @click="removerLinha($event)"
     >
