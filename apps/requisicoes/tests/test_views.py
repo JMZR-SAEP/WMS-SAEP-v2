@@ -2698,10 +2698,11 @@ def test_messages_html_declara_live_region_uma_vez_por_mensagem():
 
     html = render_to_string('core/partials/_messages.html', request=request)
     assert 'aria-live=' not in html
-    assert 'role="alert"' in html
-    assert 'role="status"' in html
-    assert 'Erro de teste' in html
-    assert 'Sucesso de teste' in html
+    # Contagem, não presença: uma mensagem duplicada passaria num `in`.
+    assert html.count('role="alert"') == 1
+    assert html.count('role="status"') == 1
+    assert html.count('Erro de teste') == 1
+    assert html.count('Sucesso de teste') == 1
     # Erro (assertivo) precede sucesso (polite) na ordem do DOM.
     assert html.index('Erro de teste') < html.index('Sucesso de teste')
 
