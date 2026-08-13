@@ -1,3 +1,4 @@
+from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -10,6 +11,19 @@ from django.utils.safestring import SafeString, mark_safe
 register = template.Library()
 
 _UMA_DECIMAL = ('kg', 'l', 'm')
+
+
+@register.filter
+def minutos_totais(delta: timedelta | None) -> int | None:
+    """Converte um `timedelta` em minutos inteiros (piso), pra copy de prazo.
+
+    Usado com `cooloff_timedelta` do django-axes, pra que a página de
+    bloqueio de login nunca minta o prazo se `AXES_COOLOFF_TIME` mudar.
+    """
+    if delta is None:
+        return None
+    return int(delta.total_seconds() // 60)
+
 
 ICONES_CATALOGO = frozenset(
     {
