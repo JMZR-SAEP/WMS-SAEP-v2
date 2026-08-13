@@ -75,97 +75,93 @@
 
       {{ formset.management_form }}
 
-      <div class="overflow-x-auto scroll-shadow-x rounded-sm">
-        <table class="min-w-full divide-y divide-border text-sm">
-          <caption class="sr-only">Itens autorizados com quantidade autorizada e campos para entrega e justificativa.</caption>
-          <thead class="bg-bg-subtle">
-            <tr>
-              <th scope="col" class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-text-tertiary">Material</th>
-              <th scope="col" class="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-text-tertiary">Autorizada</th>
-              <th scope="col" class="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-text-tertiary">Entregue</th>
-              <th scope="col" class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-text-tertiary">Justificativa</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-border">
-            {% for item, form in linhas %}
-                <tr
-                  class="align-top"
-                  x-data="{
-                    autorizada: {{ item.quantidade_autorizada|unlocalize }},
-                    entregue: '{{ form.quantidade_entregue.value|default_if_none:''|unlocalize }}',
-                    get parcial() {
-                      const a = parseFloat(this.autorizada);
-                      const e = parseFloat(this.entregue);
-                      if (Number.isNaN(a) || Number.isNaN(e)) return false;
-                      return e < a;
-                    }
-                  }"
+      <div class="divide-y divide-border rounded-lg border border-border text-sm">
+        <div class="hidden gap-3 bg-bg-subtle px-3 py-2 lg:flex lg:items-center" aria-hidden="true">
+          <span class="min-w-0 flex-1 basis-56 text-xs font-semibold uppercase tracking-wide text-text-tertiary">Material</span>
+          <span class="w-24 shrink-0 text-right text-xs font-semibold uppercase tracking-wide text-text-tertiary">Autorizada</span>
+          <span class="w-32 shrink-0 text-xs font-semibold uppercase tracking-wide text-text-tertiary">Entregue</span>
+          <span class="min-w-0 flex-1 text-xs font-semibold uppercase tracking-wide text-text-tertiary">Justificativa</span>
+        </div>
+        {% for item, form in linhas %}
+            <div
+              class="flex flex-wrap items-start gap-3 p-3"
+              x-data="{
+                autorizada: {{ item.quantidade_autorizada|unlocalize }},
+                entregue: '{{ form.quantidade_entregue.value|default_if_none:''|unlocalize }}',
+                get parcial() {
+                  const a = parseFloat(this.autorizada);
+                  const e = parseFloat(this.entregue);
+                  if (Number.isNaN(a) || Number.isNaN(e)) return false;
+                  return e < a;
+                }
+              }"
+            >
+              {{ form.item_id }}
+              <div class="min-w-0 flex-1 basis-full text-text-primary lg:basis-56">
+                <div class="font-medium">{{ item.material.nome }}</div>
+                <div class="text-xs text-text-tertiary">{{ item.material.codigo }}</div>
+              </div>
+              <div class="w-24 shrink-0 text-sm text-text-secondary tabular-nums lg:text-right" translate="no">
+                <span class="mb-1 block text-xs font-medium uppercase tracking-wide text-text-tertiary lg:sr-only">Autorizada</span>
+                {{ item.quantidade_autorizada|formatar_quantidade:item.material.unidade }}
+              </div>
+              <div class="w-32 shrink-0">
+                <label class="sr-only" for="{{ form.quantidade_entregue.id_for_label }}">
+                  Quantidade entregue para {{ item.material.nome }}
+                </label>
+                <input
+                  type="number"
+                  step="0.001"
+                  min="0"
+                  max="{{ item.quantidade_autorizada|unlocalize }}"
+                  inputmode="decimal"
+                  name="{{ form.quantidade_entregue.html_name }}"
+                  id="{{ form.quantidade_entregue.id_for_label }}"
+                  value="{{ form.quantidade_entregue.value|default_if_none:''|unlocalize }}"
+                  x-model="entregue"
+                  class="w-32 min-h-11 rounded-lg border border-border-strong px-3 py-2 text-sm tabular-nums focus:border-border-focus focus:ring-2 focus:ring-border-focus focus:outline-none"
+                  aria-describedby="hint-{{ form.quantidade_entregue.id_for_label }}"
+                  autocomplete="off"
+                  required
+                />
+                {% if form.quantidade_entregue.errors %}
+                  <p class="mt-1 text-xs text-danger-text" role="alert">
+                    {{ form.quantidade_entregue.errors.0 }}
+                  </p>
+                {% endif %}
+              </div>
+              <div class="min-w-0 flex-1 basis-full lg:basis-0">
+                <label class="sr-only" for="{{ form.justificativa.id_for_label }}">
+                  Justificativa para entrega menor que autorizada de {{ item.material.nome }}
+                </label>
+                <input
+                  type="text"
+                  name="{{ form.justificativa.html_name }}"
+                  id="{{ form.justificativa.id_for_label }}"
+                  value="{{ form.justificativa.value|default_if_none:'' }}"
+                  placeholder="Obrigatória quando entregue menor que autorizada…"
+                  autocomplete="off"
+                  x-bind:required="parcial"
+                  x-bind:aria-required="parcial"
+                  class="w-full min-h-11 rounded-lg border border-border-strong px-3 py-2 text-sm focus:border-border-focus focus:ring-2 focus:ring-border-focus focus:outline-none"
+                />
+                <p
+                  id="hint-{{ form.quantidade_entregue.id_for_label }}"
+                  class="mt-1 text-xs text-warning-text-subtle"
+                  x-show="parcial"
+                  x-cloak
+                  aria-live="polite"
                 >
-                  <td class="px-3 py-3 text-text-primary">
-                    <div class="font-medium">{{ item.material.nome }}</div>
-                    <div class="text-xs text-text-tertiary">{{ item.material.codigo }}</div>
-                    {{ form.item_id }}
-                  </td>
-                  <td class="px-3 py-3 text-right text-text-secondary tabular-nums" translate="no">{{ item.quantidade_autorizada|formatar_quantidade:item.material.unidade }}</td>
-                  <td class="px-3 py-3 text-right">
-                    <label class="sr-only" for="{{ form.quantidade_entregue.id_for_label }}">
-                      Quantidade entregue para {{ item.material.nome }}
-                    </label>
-                    <input
-                      type="number"
-                      step="0.001"
-                      min="0"
-                      max="{{ item.quantidade_autorizada|unlocalize }}"
-                      inputmode="decimal"
-                      name="{{ form.quantidade_entregue.html_name }}"
-                      id="{{ form.quantidade_entregue.id_for_label }}"
-                      value="{{ form.quantidade_entregue.value|default_if_none:''|unlocalize }}"
-                      x-model="entregue"
-                      class="w-32 min-h-11 rounded-lg border border-border-strong px-3 py-2 text-sm tabular-nums focus:border-border-focus focus:ring-2 focus:ring-border-focus focus:outline-none"
-                      aria-describedby="hint-{{ form.quantidade_entregue.id_for_label }}"
-                      autocomplete="off"
-                      required
-                    />
-                    {% if form.quantidade_entregue.errors %}
-                      <p class="mt-1 text-xs text-danger-text" role="alert">
-                        {{ form.quantidade_entregue.errors.0 }}
-                      </p>
-                    {% endif %}
-                  </td>
-                  <td class="px-3 py-3">
-                    <label class="sr-only" for="{{ form.justificativa.id_for_label }}">
-                      Justificativa para entrega menor que autorizada de {{ item.material.nome }}
-                    </label>
-                    <input
-                      type="text"
-                      name="{{ form.justificativa.html_name }}"
-                      id="{{ form.justificativa.id_for_label }}"
-                      value="{{ form.justificativa.value|default_if_none:'' }}"
-                      placeholder="Obrigatória quando entregue menor que autorizada…"
-                      autocomplete="off"
-                      x-bind:required="parcial"
-                      x-bind:aria-required="parcial"
-                      class="w-full min-h-11 rounded-lg border border-border-strong px-3 py-2 text-sm focus:border-border-focus focus:ring-2 focus:ring-border-focus focus:outline-none"
-                    />
-                    <p
-                      id="hint-{{ form.quantidade_entregue.id_for_label }}"
-                      class="mt-1 text-xs text-warning-text-subtle"
-                      x-show="parcial"
-                      x-cloak
-                      aria-live="polite"
-                    >
-                      Entrega menor que autorizada — justificativa obrigatória.
-                    </p>
-                    {% if form.justificativa.errors %}
-                      <p class="mt-1 text-xs text-danger-text" role="alert">
-                        {{ form.justificativa.errors.0 }}
-                      </p>
-                    {% endif %}
-                  </td>
-                </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+                  Entrega menor que autorizada — justificativa obrigatória.
+                </p>
+                {% if form.justificativa.errors %}
+                  <p class="mt-1 text-xs text-danger-text" role="alert">
+                    {{ form.justificativa.errors.0 }}
+                  </p>
+                {% endif %}
+              </div>
+            </div>
+        {% endfor %}
       </div>
     </section>
 

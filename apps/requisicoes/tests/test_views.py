@@ -3672,7 +3672,7 @@ def test_badge_recusada_usa_cor_vermelha(
 
 
 @pytest.mark.django_db
-def test_atender_retirada_tabela_tem_scroll_shadow(
+def test_atender_retirada_itens_sem_scroll_horizontal(
     client, aux_almoxarifado, req_pronta_view_com_itens
 ):
     _login(client, aux_almoxarifado)
@@ -3683,7 +3683,9 @@ def test_atender_retirada_tabela_tem_scroll_shadow(
         )
     )
     assert response.status_code == 200
-    assert 'scroll-shadow-x'.encode() in response.content
+    assert 'overflow-x-auto'.encode() not in response.content
+    assert '<table'.encode() not in response.content
+    assert 'Quantidade entregue para'.encode() in response.content
 
 
 @pytest.mark.django_db
