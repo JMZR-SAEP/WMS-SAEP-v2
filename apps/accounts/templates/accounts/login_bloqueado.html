@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load core_tags %}
 
 {% comment %}
 Página de bloqueio por tentativas repetidas, renderizada pelo AxesMiddleware com
@@ -7,6 +8,11 @@ cooloff_time, cooloff_timedelta).
 
 `username` é deliberadamente ignorado: repetir a matrícula tentada
 transformaria esta página em oráculo de enumeração de contas.
+
+`cooloff_timedelta` é consumido via filtro `minutos_totais` — nunca hardcode
+o prazo em texto: `AXES_COOLOFF_TIME` pode mudar sem que alguém lembre de
+editar este template. Quando `cooloff_timedelta` está ausente (permalock,
+`AXES_COOLOFF_TIME = None`), a cópia cai pra uma mensagem sem prazo.
 {% endcomment %}
 
 {% block title %}Acesso bloqueado — WMS-SAEP{% endblock %}
@@ -24,9 +30,16 @@ transformaria esta página em oráculo de enumeração de contas.
       {% include "components/alert.html" with variant="danger" id="bloqueio-error" message="Tentativas de acesso demais. O acesso foi bloqueado temporariamente." class="mb-5" %}
 
       <p class="text-sm text-text-secondary">
-        Aguarde <strong>15 minutos</strong> e tente novamente. O bloqueio vale para
-        esta matrícula a partir deste computador, e cada nova tentativa durante a
-        espera reinicia a contagem.
+        {% with minutos=cooloff_timedelta|minutos_totais %}
+          {% if minutos %}
+            Aguarde <strong>{{ minutos }} minuto{{ minutos|pluralize }}</strong> e tente
+            novamente.
+          {% else %}
+            Aguarde e tente novamente mais tarde.
+          {% endif %}
+        {% endwith %}
+        O bloqueio vale para esta matrícula a partir deste computador, e cada
+        nova tentativa durante a espera reinicia a contagem.
       </p>
 
       <p class="mt-4 text-sm text-text-secondary">
