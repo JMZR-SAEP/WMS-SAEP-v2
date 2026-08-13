@@ -1,8 +1,9 @@
+from collections.abc import Mapping
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from django.core.exceptions import ImproperlyConfigured
+from django.core.exceptions import NON_FIELD_ERRORS, ImproperlyConfigured
 from django import template
 from django.forms import BoundField
 from django.template.loader import render_to_string
@@ -99,25 +100,38 @@ def validar_contrato_modal(action_url, submit_form_id):
 
 @register.simple_tag
 def renderizar_campo_com_aria(
-    field: BoundField, tem_ajuda: object = False, tem_erro: object = False
+    field: BoundField,
+    tem_ajuda: object = False,
+    tem_erro: object = False,
+    attrs_extra: Mapping[str, Any] | None = None,
+    describedby_extra: str = '',
 ) -> SafeString:
     """Renderiza o BoundField injetando aria-invalid/aria-describedby.
 
     Único mecanismo do projeto pra passar attrs extras a `{{ field }}` —
     Django não permite isso via linguagem de template pura (chamada de
-    método sem argumentos). Usado por components/form_field.html, escopado
-    só aos 2 atributos ARIA do contrato do componente. `field.as_widget`
+    método sem argumentos). Usado por components/form_field.html. `field.as_widget`
     mescla os attrs recebidos com os automáticos do widget (`required`,
     `class`, `placeholder` etc. definidos em forms.py não são removidos) —
     mas *substitui* attrs com a mesma chave, então um `aria-describedby` já
     definido no widget é preservado explicitamente aqui (concatenado antes
     dos ids de ajuda/erro) em vez de ser sobrescrito.
+
+    `attrs_extra` existe para o que só a linha sabe: numa linha de formset, o
+    `max` vem da quantidade autorizada daquele item e o `x-model` amarra o campo
+    ao escopo Alpine daquela linha. Sem isso, a tela é empurrada a escrever o
+    `<input>` na mão e perde justamente a fiação ARIA que este tag entrega.
+
+    `describedby_extra` acrescenta ids de texto de apoio que vivem fora do
+    componente (ex. um aviso condicional renderizado pela tela).
     """
-    attrs: dict[str, str | bool] = {}
+    attrs: dict[str, Any] = dict(attrs_extra or {})
     describedby_ids: list[str] = []
     describedby_existente = field.field.widget.attrs.get('aria-describedby')
     if describedby_existente:
         describedby_ids.append(str(describedby_existente))
+    if describedby_extra:
+        describedby_ids.append(str(describedby_extra))
     if tem_ajuda:
         describedby_ids.append(f'{field.id_for_label}-ajuda')
     if tem_erro:
@@ -126,6 +140,84 @@ def renderizar_campo_com_aria(
     if describedby_ids:
         attrs['aria-describedby'] = ' '.join(describedby_ids)
     return field.as_widget(attrs=attrs)
+
+
+@register.simple_tag
+def attrs_widget(**kwargs: Any) -> dict[str, Any]:
+    """Monta o dict de `attrs_extra` de components/form_field.html.
+
+    A linguagem de template não constrói dicionários, e sem isso uma linha de
+    formset não tem como passar ao componente o que só ela sabe. Convenção de
+    nomes: `x_bind_required` vira `x-bind:required` (binding Alpine), qualquer
+    outro underscore vira hífen (`aria_label` -> `aria-label`).
+    """
+    convertidos: dict[str, Any] = {}
+    for chave, valor in kwargs.items():
+        if chave.startswith('x_bind_'):
+            atributo = chave.removeprefix('x_bind_').replace('_', '-')
+            convertidos[f'x-bind:{atributo}'] = valor
+        else:
+            convertidos[chave.replace('_', '-')] = valor
+    return convertidos
+
+
+@register.filter
+def step_por_unidade(unidade: str) -> str:
+    """Passo do <input type="number"> conforme a unidade de medida.
+
+    Espelha a política de precisão de `formatar_quantidade`: se a tela formata
+    'un' como inteiro, o campo não pode aceitar 0,001 unidade. Manter as duas
+    funções lado a lado é proposital — divergirem é o bug.
+    """
+    if unidade == 'un':
+        return '1'
+    if unidade in _UMA_DECIMAL:
+        return '0.1'
+    return '0.001'
+
+
+@register.simple_tag
+def coletar_erros(*fontes: Any) -> list[dict[str, str]]:
+    """Achata Forms e FormSets numa lista para `components/error_summary.html`.
+
+    Cada item é `{'id', 'rotulo', 'mensagem'}`; `id` é o `id_for_label` do campo,
+    para o sumário poder linkar direto ao controle inválido. Erros que não
+    pertencem a um campo (`__all__`, `non_form_errors`) entram sem `id` e o
+    sumário os renderiza como texto.
+
+    Apresentação pura: não conhece domínio nem decide o que é erro — só lê o que
+    o Form já validou.
+    """
+    coletados: list[dict[str, str]] = []
+
+    def _do_form(form: Any) -> None:
+        for campo, mensagens in form.errors.items():
+            if campo == NON_FIELD_ERRORS:
+                for mensagem in mensagens:
+                    coletados.append({'id': '', 'rotulo': '', 'mensagem': mensagem})
+                continue
+            bound = form[campo]
+            for mensagem in mensagens:
+                coletados.append(
+                    {
+                        'id': bound.id_for_label or '',
+                        'rotulo': str(bound.label or campo),
+                        'mensagem': mensagem,
+                    }
+                )
+
+    for fonte in fontes:
+        if fonte is None:
+            continue
+        if hasattr(fonte, 'non_form_errors'):
+            for mensagem in fonte.non_form_errors():
+                coletados.append({'id': '', 'rotulo': '', 'mensagem': mensagem})
+            for form in fonte.forms:
+                _do_form(form)
+        elif hasattr(fonte, 'errors'):
+            _do_form(fonte)
+
+    return coletados
 
 
 NAVEGACAO: list[dict[str, Any]] = [

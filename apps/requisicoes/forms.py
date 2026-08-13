@@ -268,10 +268,11 @@ class ItemAtendimentoForm(forms.Form):
         widget=forms.NumberInput(
             attrs={
                 'class': (
-                    'w-32 rounded-lg border border-border-strong px-3 py-2 text-sm '
-                    'focus:border-border-focus focus:ring-2 focus:ring-border-focus '
-                    'focus:outline-none'
+                    'w-full min-h-11 rounded-lg border border-border-strong px-3 py-2 '
+                    'text-sm tabular-nums focus:border-border-focus focus:ring-2 '
+                    'focus:ring-border-focus focus:outline-none'
                 ),
+                'autocomplete': 'off',
                 'step': '0.001',
                 'min': '0',
                 'inputmode': 'decimal',
@@ -284,11 +285,12 @@ class ItemAtendimentoForm(forms.Form):
         widget=forms.TextInput(
             attrs={
                 'class': (
-                    'w-full rounded-lg border border-border-strong px-3 py-2 text-sm '
-                    'focus:border-border-focus focus:ring-2 focus:ring-border-focus '
-                    'focus:outline-none'
+                    'w-full min-h-11 rounded-lg border border-border-strong px-3 py-2 '
+                    'text-sm focus:border-border-focus focus:ring-2 '
+                    'focus:ring-border-focus focus:outline-none'
                 ),
-                'placeholder': 'Motivo da entrega menor que autorizada',
+                'autocomplete': 'off',
+                'placeholder': 'Obrigatória quando entregue menor que autorizada…',
             }
         ),
     )

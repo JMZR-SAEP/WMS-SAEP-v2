@@ -1,5 +1,4 @@
 {% extends "base_auth.html" %}
-{% load static %}
 {% load requisicoes_tags %}
 {% load core_tags %}
 
@@ -25,20 +24,29 @@
 <div class="max-w-3xl mx-auto pb-20 sm:pb-0">
 
   {% if modo == 'editar' and requisicao %}
+    {% comment %}
+      Texto explícito: `{{ requisicao }}` cairia no __str__ do model, que devolve
+      "Rascunho #<pk>" — expõe a chave do banco e faz a copy da tela mudar
+      sozinha se alguém ajustar o __str__ por motivo de admin ou log.
+    {% endcomment %}
     <p class="mb-6 text-sm text-text-tertiary">
-      {{ requisicao }}
+      Rascunho
       &nbsp;·&nbsp;
-      Criada em {{ requisicao.criado_em|date:"d/m/Y \à\s H:i" }}
+      Criado em {{ requisicao.criado_em|date:"d/m/Y \à\s H:i" }}
     </p>
   {% endif %}
 
   <form method="post" novalidate data-prevent-double-submit>
     {% csrf_token %}
 
+    {% coletar_erros form formset as erros_formulario %}
+    {% include "components/error_summary.html" with erros=erros_formulario %}
+
     {# --- Seção 1: Beneficiário --- #}
     <section class="mb-6 rounded-xl border {% if form.modo_criacao.errors or form.beneficiario_id.errors %}border-danger-border-strong bg-danger-subtle{% else %}border-border bg-surface{% endif %} p-6 shadow-sm">
       <h2 class="text-base font-medium text-text-primary mb-4">
         <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-bg-subtle text-text-tertiary text-xs font-semibold mr-1.5" aria-hidden="true">1</span>
+        <span class="sr-only">Etapa 1 de 3: </span>
         Beneficiário
       </h2>
 
@@ -71,24 +79,38 @@
         {# Escopo ampliado: escolha explícita self / other #}
         <div x-data="{ modoCriacao: '{{ form.modo_criacao.value|default:'proprio' }}' }">
 
-          {# Radio: para mim / para outro #}
-          <div class="flex gap-6 mb-4">
-            {% for radio in form.modo_criacao %}
-              <label class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
-                <input
-                  type="radio"
-                  name="{{ form.modo_criacao.html_name }}"
-                  value="{{ radio.data.value }}"
-                  {% if radio.data.selected %}checked{% endif %}
-                  x-model="modoCriacao"
-                  class="accent-primary"
-                >
-                {{ radio.choice_label }}
-              </label>
-            {% endfor %}
-          </div>
+          {% comment %}
+            Radio: para mim / para outro.
+            O <fieldset>/<legend> não é decorativo: sem ele os dois radios têm
+            rótulo individual mas a pergunta que respondem não existe no DOM, e
+            o leitor de tela anuncia "Para mim, botão de opção, 1 de 2" sem
+            dizer de quê. É a decisão que separa Criador de Beneficiário — a
+            distinção mais sutil do domínio.
+          {% endcomment %}
+          <fieldset
+            class="mb-4"
+            {% if form.modo_criacao.errors %}aria-describedby="{{ form.modo_criacao.id_for_label }}-erro"{% endif %}
+          >
+            <legend class="sr-only">{{ form.modo_criacao.label }}</legend>
+            <div class="flex gap-6">
+              {% for radio in form.modo_criacao %}
+                <label class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
+                  <input
+                    type="radio"
+                    name="{{ form.modo_criacao.html_name }}"
+                    value="{{ radio.data.value }}"
+                    {% if radio.data.selected %}checked{% endif %}
+                    {% if form.modo_criacao.errors %}aria-invalid="true"{% endif %}
+                    x-model="modoCriacao"
+                    class="accent-primary"
+                  >
+                  {{ radio.choice_label }}
+                </label>
+              {% endfor %}
+            </div>
+          </fieldset>
           {% if form.modo_criacao.errors %}
-            <p class="mb-3 text-xs text-danger-text" role="alert">{{ form.modo_criacao.errors|join:", " }}</p>
+            <p id="{{ form.modo_criacao.id_for_label }}-erro" class="mb-3 text-xs text-danger-text" role="alert">{{ form.modo_criacao.errors|join:", " }}</p>
           {% endif %}
 
           {# Autocomplete de terceiros (só quando "outro") — HTMX+Alpine com debounce #}
@@ -126,9 +148,10 @@
     <section class="mb-6 rounded-xl border {% if formset.non_form_errors or formset.total_error_count %}border-danger-border-strong bg-danger-subtle{% else %}border-border bg-surface{% endif %} p-6 shadow-sm">
       <h2 class="text-base font-medium text-text-primary mb-1">
         <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-bg-subtle text-text-tertiary text-xs font-semibold mr-1.5" aria-hidden="true">2</span>
+        <span class="sr-only">Etapa 2 de 3: </span>
         Itens
       </h2>
-      <p class="aviso_quantidade text-xs text-text-tertiary mb-4">Adicione ao menos um material com quantidade solicitada.</p>
+      <p class="aviso_quantidade text-xs text-text-tertiary mb-4" role="status">Adicione ao menos um material com quantidade solicitada.</p>
 
       {% if tem_item_inelegivel %}
         {% include "components/alert.html" with variant="warning" body_template="requisicoes/partials/_alert_itens_inelegiveis_corpo.html" class="mb-4" %}
@@ -171,6 +194,7 @@
     <section class="mb-6 rounded-xl border {% if form.observacao_geral.errors %}border-danger-border-strong bg-danger-subtle{% else %}border-border bg-surface{% endif %} p-6 shadow-sm">
       <h2 class="text-base font-medium text-text-primary mb-3">
         <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-bg-subtle text-text-tertiary text-xs font-semibold mr-1.5" aria-hidden="true">3</span>
+        <span class="sr-only">Etapa 3 de 3: </span>
         Observação geral
       </h2>
       {% include "components/form_field.html" with field=form.observacao_geral label_class="sr-only" %}
