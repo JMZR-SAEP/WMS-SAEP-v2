@@ -117,7 +117,7 @@
             {% include "components/table.html#th" with alinhamento="direita" rotulo_somente_leitura="Ações" %}
           </tr>
         </thead>
-        <tbody class="divide-y divide-slate-100 bg-surface">
+        <tbody class="divide-y divide-border bg-surface">
           {% for req in page_obj.object_list %}
             <tr class="hover:bg-bg-page">
               <td class="whitespace-nowrap px-4 py-3 text-sm text-secondary">{{ req.criado_em|date:"d/m/Y H:i" }}</td>

@@ -76,7 +76,7 @@
       {{ formset.management_form }}
 
       <div class="overflow-x-auto scroll-shadow-x rounded-sm">
-        <table class="min-w-full divide-y divide-slate-200 text-sm">
+        <table class="min-w-full divide-y divide-border text-sm">
           <caption class="sr-only">Itens autorizados com quantidade autorizada e campos para entrega e justificativa.</caption>
           <thead class="bg-subtle">
             <tr>
@@ -86,7 +86,7 @@
               <th scope="col" class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-tertiary">Justificativa</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-100">
+          <tbody class="divide-y divide-border">
             {% for item, form in linhas %}
                 <tr
                   class="align-top"

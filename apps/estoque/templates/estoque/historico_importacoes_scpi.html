@@ -46,7 +46,7 @@
             {% include "components/table.html#th" with rotulo="Arquivo CSV" %}
           </tr>
         </thead>
-        <tbody class="divide-y divide-slate-100">
+        <tbody class="divide-y divide-border">
           {% for imp in importacoes %}
           <tr class="hover:bg-bg-page transition-colors duration-75">
             <td class="px-4 py-3 font-mono text-xs text-secondary break-all">{{ imp.arquivo_nome }}</td>
