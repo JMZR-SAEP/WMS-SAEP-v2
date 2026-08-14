@@ -49,20 +49,7 @@
   {% partialdef resultados %}
   {% if page_obj.object_list %}
 
-    {# Ordenação no mobile: o controle canônico vive no <th>, que só existe a partir de 640px. #}
-    <div class="mb-3 flex justify-end sm:hidden">
-      <a
-        href="{{ url_ordenacao }}"
-        hx-get="{{ url_ordenacao }}"
-        hx-target="#resultados-historico-requisicoes"
-        hx-push-url="true"
-        class="inline-flex min-h-11 items-center gap-1 rounded-md border border-border-strong bg-surface px-3 py-2 text-sm text-text-secondary hover:bg-bg-page hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1"
-        aria-label="Ordenar por data/hora, {% if ordem == 'asc' %}atualmente crescente{% else %}atualmente decrescente{% endif %}"
-      >
-        {% if ordem == 'asc' %}Mais antigas primeiro{% else %}Mais recentes primeiro{% endif %}
-        <span aria-hidden="true">{% if ordem == 'asc' %}↑{% else %}↓{% endif %}</span>
-      </a>
-    </div>
+    {% include "components/ordenacao_data.html" with url_ordenacao=url_ordenacao ordem=ordem target_id="resultados-historico-requisicoes" %}
 
     {% include "components/table.html#cards_abertura" %}
       {% for req in page_obj.object_list %}
@@ -113,71 +100,6 @@
           {% endwith %}
         </article>
       {% endfor %}
-    </div>
-
-    {% include "components/table.html#tabela_abertura" %}
-      <caption class="sr-only">
-        Histórico de requisições, ordenado por data/hora em ordem
-        {% if ordem == 'asc' %}crescente (mais antiga primeiro){% else %}decrescente (mais recente primeiro){% endif %}.
-      </caption>
-      <thead class="bg-bg-subtle">
-        <tr>
-          <th scope="col" aria-sort="{{ aria_sort }}" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-text-tertiary">
-            <a
-              href="{{ url_ordenacao }}"
-              hx-get="{{ url_ordenacao }}"
-              hx-target="#resultados-historico-requisicoes"
-              hx-push-url="true"
-              class="-mx-2 -my-2 inline-flex min-h-11 items-center gap-1 rounded px-2 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
-              aria-label="Ordenar por data/hora, {% if ordem == 'asc' %}atualmente crescente{% else %}atualmente decrescente{% endif %}"
-            >
-              Data/hora
-              <span aria-hidden="true">{% if ordem == 'asc' %}↑{% else %}↓{% endif %}</span>
-            </a>
-          </th>
-          {% include "components/table.html#th" with rotulo="Número" %}
-          {% include "components/table.html#th" with rotulo="Solicitante" %}
-          {% include "components/table.html#th" with rotulo="Beneficiário" %}
-          {% include "components/table.html#th" with rotulo="Setor" %}
-          {% include "components/table.html#th" with rotulo="Material" %}
-          {% include "components/table.html#th" with rotulo="Status" %}
-          {% include "components/table.html#th" with alinhamento="direita" rotulo_somente_leitura="Ações" %}
-        </tr>
-      </thead>
-      <tbody class="divide-y divide-border bg-surface">
-        {% for req in page_obj.object_list %}
-          <tr class="hover:bg-bg-page">
-            <td class="whitespace-nowrap px-4 py-3 text-sm text-text-secondary">{{ req.criado_em|date:"d/m/Y H:i" }}</td>
-            <td class="whitespace-nowrap px-4 py-3 text-sm font-medium text-text-primary">
-              {% if req.numero_publico %}{{ req.numero_publico }}{% else %}<span class="text-text-tertiary">Rascunho</span>{% endif %}
-            </td>
-            <td class="whitespace-nowrap px-4 py-3 text-sm text-text-secondary">{{ req.criador.nome }}</td>
-            <td class="whitespace-nowrap px-4 py-3 text-sm text-text-secondary">{{ req.beneficiario.nome }}</td>
-            <td class="whitespace-nowrap px-4 py-3 text-sm text-text-secondary">{{ req.setor_beneficiario.nome }}</td>
-            <td class="px-4 py-3 text-sm text-text-secondary">
-              {# `truncate` implica white-space:nowrap; o nome do material precisa do próprio bloco, senão a segunda linha é cortada sem reticências. #}
-              <span class="whitespace-nowrap">{{ req.quantidade_itens }} {{ req.quantidade_itens|pluralize:"item,itens" }}</span>
-              {% if req.quantidade_itens == 1 %}
-                <span class="block max-w-xs truncate text-xs text-text-tertiary" title="{{ req.primeiro_material_nome }}">{{ req.primeiro_material_nome }}</span>
-              {% endif %}
-            </td>
-            <td class="whitespace-nowrap px-4 py-3 text-sm">
-              {% include "requisicoes/partials/_estado_badge.html" with requisicao=req %}
-            </td>
-            <td class="whitespace-nowrap px-4 py-3 text-right text-sm">
-              {% url 'requisicoes:detalhe' pk=req.pk as url_detalhe_req_row %}
-              {% with next_encoded=request.get_full_path|urlencode criada_em=req.criado_em|date:"d/m/Y H:i" %}
-                {% if req.numero_publico %}
-                  {% include "components/button.html" with variant="secondary" size="sm" href=url_detalhe_req_row|add:"?next="|add:next_encoded label="Ver" aria_label="Ver detalhes da requisição "|add:req.numero_publico %}
-                {% else %}
-                  {% include "components/button.html" with variant="secondary" size="sm" href=url_detalhe_req_row|add:"?next="|add:next_encoded label="Ver" aria_label="Ver detalhes do rascunho criado em "|add:criada_em %}
-                {% endif %}
-              {% endwith %}
-            </td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
     </div>
 
     {% include 'components/pagination.html' with page_obj=page_obj querystring_filtros=querystring_filtros rotulo_itens='requisições' aria_label='Paginação do histórico de requisições' %}

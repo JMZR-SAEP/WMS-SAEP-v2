@@ -206,84 +206,9 @@
     {% if linhas %}
 
       {# ── Desktop: tabela ─────────────────────────────────────────────── #}
-      <div class="hidden overflow-x-auto rounded-xl border border-border bg-surface shadow-sm sm:block">
-        <table class="min-w-full divide-y divide-border">
-          <caption class="sr-only">
-            Pré-visualização da importação SCPI.
-            {{ total }} linha{{ total|pluralize:"s" }},
-            {{ divergencias }} divergênc{{ divergencias|pluralize:"ia,ias" }},
-            {{ novos }} materia{{ novos|pluralize:"l,is" }} novo{{ novos|pluralize:"s" }}.
-          </caption>
-          <thead class="sticky top-0 bg-bg-page shadow-[0_1px_0_0] shadow-border">
-            <tr>
-              <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-text-tertiary">CADPRO</th>
-              <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-text-tertiary">Material</th>
-              <th scope="col" class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-text-tertiary">
-                <abbr title="Saldo físico no WMS" class="no-underline cursor-help">Saldo WMS</abbr>
-              </th>
-              <th scope="col" class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-text-tertiary">
-                <abbr title="Quantidade no arquivo SCPI" class="no-underline cursor-help">Saldo SCPI</abbr>
-              </th>
-              <th scope="col" class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-text-tertiary">
-                <abbr title="SCPI − WMS" class="no-underline cursor-help">Delta</abbr>
-              </th>
-              <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-text-tertiary">Status</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-border bg-surface">
-            {% for linha in linhas %}
-              <tr
-                class="transition-colors duration-100 motion-reduce:transition-none
-                  {% if linha.status == 'divergente' %}bg-warning-subtle hover:bg-warning-muted
-                  {% elif linha.status == 'novo' %}bg-return-subtle hover:bg-return-muted
-                  {% else %}hover:bg-bg-page{% endif %}"
-              >
-                <td class="whitespace-nowrap px-4 py-3 font-mono text-sm font-medium text-text-primary">
-                  {{ linha.cadpro }}
-                </td>
-                <td class="px-4 py-3 text-sm text-text-secondary">
-                  {% if linha.nome_material %}
-                    {{ linha.nome_material }}
-                  {% else %}
-                    <em class="not-italic text-return-text">Novo material (a criar)</em>
-                  {% endif %}
-                </td>
-                <td class="whitespace-nowrap px-4 py-3 text-right font-mono text-sm tabular-nums text-text-secondary">
-                  {{ linha.saldo_wms }}
-                </td>
-                <td class="whitespace-nowrap px-4 py-3 text-right font-mono text-sm tabular-nums text-text-secondary">
-                  {{ linha.saldo_scpi }}
-                </td>
-                <td class="whitespace-nowrap px-4 py-3 text-right font-mono text-sm tabular-nums font-semibold">
-                  {% if linha.delta > 0 %}
-                    <span class="text-success-text" aria-label="Delta positivo: +{{ linha.delta }}">
-                      ▲ +{{ linha.delta }}
-                    </span>
-                  {% elif linha.delta < 0 %}
-                    <span class="text-danger-text" aria-label="Delta negativo: {{ linha.delta }}">
-                      ▼ {{ linha.delta }}
-                    </span>
-                  {% else %}
-                    <span class="text-text-disabled">—</span>
-                  {% endif %}
-                </td>
-                <td class="whitespace-nowrap px-4 py-3 text-sm">
-                  {% if linha.status == 'ok' %}
-                    {% include "components/badge.html" with variant="green" label="OK" %}
-                  {% elif linha.status == 'divergente' %}
-                    {% include "components/badge.html" with variant="amber" label="Divergência" aria_label="Divergência: saldo SCPI difere do WMS" %}
-                  {% else %}
-                    {% include "components/badge.html" with variant="teal" label="Novo" aria_label="Material novo: não existe no WMS" %}
-                  {% endif %}
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
 
       {# ── Mobile: cards ───────────────────────────────────────────────── #}
-      <div class="space-y-3 sm:hidden">
+      <div class="space-y-3">
         {% for linha in linhas %}
           <article
             class="rounded-xl border px-4 py-4 shadow-sm

@@ -537,10 +537,10 @@ Render: `<dialog>` ou `<div role="dialog">`
 
 Adiado. Implementar quando houver HTMX modal concreto.
 
-### 8. Listagem responsiva (cards mobile + tabela desktop)
+### 8. Listagem responsiva (cartões)
 
-Render: `<table>` desktop (`sm:` acima) + cards `<article>` mobile — mesmo dado, duas
-apresentações. Chrome vive em `apps/core/templates/components/table.html`, via
+Render: cartões `<article>` em grade, em qualquer largura — 1 coluna, 2 a partir de
+`sm`, 3 a partir de `2xl`. Chrome vive em `apps/core/templates/components/table.html`, via
 `{% partialdef %}` nativo do Django 6 (`{% partialdef nome %}...{% endpartialdef %}`
 define; `{% include "components/table.html#nome" with ... %}` renderiza de outro
 arquivo). Implementado a partir das filas gêmeas (`fila_atendimento.html`,
@@ -549,36 +549,30 @@ arquivo). Implementado a partir das filas gêmeas (`fila_atendimento.html`,
 **Decisão de arquitetura**: nada de `DataTable` genérico config-driven (colunas como
 lista de dicts) — células reais têm HTML rico e condicional de domínio; uma DSL de
 colunas seria pior que HTML explícito e hostil ao ARIA custom. Só as **aberturas**
-com string de classe canônica viram `partialdef` — fechamentos (`</table>`, `</div>`,
+com string de classe canônica viram `partialdef` — fechamentos (`</div>`,
 `</article>`) são triviais e ficam literais na tela. Células `<td>` e conteúdo do
 card permanecem 100% explícitos na tela chamadora.
 
 Fragmentos disponíveis:
 ```text
-tabela_abertura   wrapper desktop: div.hidden...sm:block + table.min-w-full
-                  (fechamento literal: </tbody></table></div>)
-th                <th scope="col"> — rotulo, alinhamento ("direita", default
-                  esquerda), rotulo_somente_leitura (renderiza <span class="sr-only">)
-cards_abertura    container mobile: div.space-y-3.sm:hidden
+cards_abertura    container: div.grid — 1 coluna, 2 a partir de sm, 3 a partir de 2xl
                   (fechamento literal: </div>)
 card_abertura     card individual: article.rounded-xl...
                   (fechamento literal: </article>)
 ```
 
-**Contrato do `<caption>`**: `tabela_abertura` não inclui `<caption>` — a tela chamadora
-fornece a sua, com descrição específica da listagem, imediatamente após o
-`{% include "components/table.html#tabela_abertura" %}` (ver exemplo abaixo). O
-componente compartilhado não conhece semântica de negócio o suficiente para descrever
-o que a tabela lista; colocar a caption nele generalizaria conteúdo de célula, o que o
-guardrail abaixo proíbe. Divergência entre este contrato e o código (ex. tela sem
-caption, ou caption dentro do chrome) deve ser sinalizada em vez de silenciosamente
-replicada.
+**Não existe renderização em tabela.** `tabela_abertura` e `th` foram removidos do
+chrome. A decisão veio de medição: com a side nav de 240px e o `p-6` do `<main>`, um
+viewport de 1024px deixa 734px de conteúdo, e as listagens precisavam de 808 a 1081px —
+colunas `whitespace-nowrap` não comprimem. Nem a 1280px cabia. Resultado prático era
+scroll horizontal em qualquer janela de desktop não maximizada. Listagem nova usa
+cartão; ver "A Regra do Cartão Único" no DESIGN.md.
 
 **Guardrail**: se o chrome precisar de parâmetro que descreve conteúdo de célula
 (não estrutura visual), a abstração está errada — parar e registrar, não generalizar.
 
 **One-template pattern (HTMX)**: a própria tela envolve o bloco de resultado
-(cards + tabela + empty state) em `{% partialdef resultados %}` e renderiza com
+(cartões + empty state) em `{% partialdef resultados %}` e renderiza com
 `{% partial resultados %}` logo abaixo. Isso elimina o par página/partial em
 arquivos separados: quando uma tela ganhar swap HTMX (filtro, paginação), a view
 passa a renderizar `template.html#resultados` para esse mesmo fragmento — sempre
@@ -601,19 +595,6 @@ Exemplo canônico:
     {% endfor %}
   </div>
 
-  {% include "components/table.html#tabela_abertura" %}
-    <caption class="sr-only">Descrição da listagem.</caption>
-    <thead class="bg-slate-50">
-      <tr>
-        {% include "components/table.html#th" with rotulo="Número" %}
-        {% include "components/table.html#th" with alinhamento="direita" rotulo_somente_leitura="Ações" %}
-      </tr>
-    </thead>
-    <tbody class="divide-y divide-border bg-white">
-      {# <tr><td>...</td></tr> explícito #}
-    </tbody>
-  </table>
-  </div>
 {% else %}
   {% include 'components/empty_state.html' with titulo='Nada por aqui' %}
 {% endif %}

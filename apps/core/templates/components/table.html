@@ -1,32 +1,26 @@
 {% comment %}
-Chrome de listagem responsiva (cards mobile + tabela desktop) via partialdef
-nativo do Django 6. Só as aberturas com string de classe canônica viram
-partial — fechamentos (`</div>`, `</table>`, `</article>`) são triviais,
-carregam nenhuma string de classe pra deduplicar e ficam literais na tela
-chamadora. Células <td> e conteúdo do card permanecem 100% explícitos na
-tela; este arquivo não conhece semântica de domínio.
+Chrome de listagem em cartões, via partialdef nativo do Django 6.
 
-Fragmentos (só abertura — sem parâmetro de classe extra, ver guardrail abaixo):
-  tabela_abertura   wrapper desktop: div.hidden...sm:block + table.min-w-full
-                    Fechamento literal na tela: </tbody></table></div>
-  th                <th scope="col"> canônico
-      Parâmetros: rotulo (obrigatório se não for coluna de ação),
-                  alinhamento (opcional: "direita", default esquerda),
-                  rotulo_somente_leitura (opcional — renderiza
-                  <span class="sr-only"> em vez do rótulo visível)
-  cards_abertura    container mobile: div.space-y-3.sm:hidden
-                    Fechamento literal na tela: </div>
-  card_abertura     card individual: article.rounded-xl...
-                    Fechamento literal na tela: </article>
+Não há mais renderização em tabela. A decisão veio de medição: com a side nav de
+240px e o respiro do <main>, um viewport de 1024px deixa 734px de conteúdo, e as
+listagens reais precisavam de 808 a 1081px — as colunas com `whitespace-nowrap`
+não comprimem. A tabela só caberia a partir de ~1370px de viewport, ou seja,
+scroll horizontal em praticamente toda janela de desktop que não esteja
+maximizada. O cartão responde em qualquer largura e carrega mais campos que a
+tabela carregava.
 
-tabela_abertura, cards_abertura e card_abertura não recebem nenhum
-parâmetro — são strings de classe fixas. Não parametrizar (ex. `class` extra)
-sem antes registrar a decisão: "se o chrome precisar de parâmetro que
-descreve conteúdo de célula, a abstração está errada" (guardrail da issue #83).
+Fragmentos (só abertura — fechamentos ficam literais na tela chamadora):
+  cards_abertura   container: grid de cartões, 1 coluna no mobile, 2 a partir de
+                   `sm`, 3 a partir de `2xl`. Fechamento literal: </div>
+  card_abertura    cartão individual: article.rounded-xl...
+                   Fechamento literal: </article>
 
-Uso canônico (dentro de {% partialdef resultados %} da própria tela, GET-only
-— transições HTMX continuam retornando 204 + HX-Redirect, nunca renderizam
-este fragmento):
+Nenhum dos dois recebe parâmetro — são strings de classe fixas. Não parametrizar
+(ex. `class` extra) sem antes registrar a decisão: "se o chrome precisar de
+parâmetro que descreve conteúdo de célula, a abstração está errada" (guardrail
+da issue #83).
+
+Uso canônico (dentro de {% partialdef resultados %} da própria tela, GET-only):
 
   {% include "components/table.html#cards_abertura" %}
     {% for item in lista %}
@@ -41,36 +35,9 @@ este fragmento):
       </article>
     {% endfor %}
   </div>
-
-  {% include "components/table.html#tabela_abertura" %}
-    <caption class="sr-only">Descrição da listagem.</caption>
-    <thead class="bg-bg-subtle">
-      <tr>
-        {% include "components/table.html#th" with rotulo="Número" %}
-        {% include "components/table.html#th" with alinhamento="direita" rotulo_somente_leitura="Ações" %}
-      </tr>
-    </thead>
-    <tbody class="divide-y divide-border bg-surface">
-      ... <tr><td>...</td></tr> explícito ...
-    </tbody>
-  </table>
-  </div>
 {% endcomment %}
-{% partialdef tabela_abertura %}
-<div class="hidden overflow-x-auto rounded-xl border border-border bg-surface shadow-sm sm:block">
-  <table class="min-w-full divide-y divide-border">
-{% endpartialdef %}
-
-{% partialdef th %}
-{% if alinhamento == 'direita' %}
-<th scope="col" class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-text-tertiary">{% if rotulo_somente_leitura %}<span class="sr-only">{{ rotulo_somente_leitura }}</span>{% else %}{{ rotulo }}{% endif %}</th>
-{% else %}
-<th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-text-tertiary">{% if rotulo_somente_leitura %}<span class="sr-only">{{ rotulo_somente_leitura }}</span>{% else %}{{ rotulo }}{% endif %}</th>
-{% endif %}
-{% endpartialdef %}
-
 {% partialdef cards_abertura %}
-<div class="space-y-3 sm:hidden">
+<div class="grid items-start gap-3 sm:grid-cols-2 2xl:grid-cols-3">
 {% endpartialdef %}
 
 {% partialdef card_abertura %}

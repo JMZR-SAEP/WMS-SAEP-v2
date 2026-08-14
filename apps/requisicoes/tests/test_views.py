@@ -768,9 +768,8 @@ def test_minhas_botao_ver_detalhes_corrige_drift_a11y(
     html = response.content.decode()
     aria_label = 'Ver detalhes da requisição REQ-2026-0010'
     marker = f'aria-label="{aria_label}"'
-    first_idx = html.index(marker)
-    second_idx = html.index(marker, first_idx + 1)
-    for idx in (first_idx, second_idx):
+    assert html.count(marker) == 1, 'sem tabela, o nome acessível aparece uma vez'
+    for idx in (html.index(marker),):
         tag = html[html.rindex('<a', 0, idx) : html.index('>', idx) + 1]
         assert 'min-h-11' in tag
         assert 'focus-visible:ring-2' in tag
@@ -792,26 +791,30 @@ def test_minhas_botao_ver_detalhes_rascunho_preserva_aria_label(
         '%d/%m/%Y %H:%M'
     )
     aria_label = f'Ver detalhes do rascunho criado em {criada_em}'
-    assert html.count(f'aria-label="{aria_label}"') == 2
+    assert html.count(f'aria-label="{aria_label}"') == 1
     assert f'Rascunho #{req_rascunho_solicitante.pk}' not in html
 
 
 @pytest.mark.django_db
-def test_minhas_tabela_tem_caption_sr_only(
+def test_minhas_renderiza_um_cartao_por_requisicao(
     client, solicitante, req_enviada_solicitante
 ):
+    """Sem tabela, o cartão é a única renderização: um <article> por registro,
+    dentro do grid do chrome compartilhado.
+    """
     _login(client, solicitante)
-    response = client.get(reverse('requisicoes:minhas'))
-    conteudo = response.content.decode()
-    # Adjacência, não indentação: o <caption> tem que ser o primeiro filho da
-    # <table> para valer como nome acessível — a folga de whitespace entre os
-    # dois é irrelevante e não deve quebrar o teste a cada reindentação.
-    padrao = re.compile(
-        r'<table class="min-w-full divide-y divide-border">\s*'
-        r'<caption class="sr-only">Requisições onde você é '
-        r'criador ou beneficiário\.</caption>'
+    conteudo = client.get(reverse('requisicoes:minhas')).content.decode()
+    assert (
+        '<div class="grid items-start gap-3 sm:grid-cols-2 2xl:grid-cols-3">'
+        in conteudo
     )
-    assert len(padrao.findall(conteudo)) == 1
+    assert (
+        conteudo.count(
+            '<article class="rounded-xl border border-border bg-surface p-4 shadow-sm">'
+        )
+        == 1
+    )
+    assert req_enviada_solicitante.numero_publico in conteudo
 
 
 @pytest.mark.django_db
@@ -2646,33 +2649,39 @@ def test_fila_atendimento_coluna_autorizada_em(
 
 
 @pytest.mark.django_db
-def test_fila_atendimento_caption_e_acoes_sr_only_apos_refactor_chrome(
+def test_fila_atendimento_renderiza_cartoes(
     client, aux_almoxarifado, req_autorizada_view
 ):
     _login(client, aux_almoxarifado)
     response = client.get(reverse('requisicoes:atendimentos'))
     assert response.status_code == 200
     html = response.content.decode('utf-8')
+    assert '<div class="grid items-start gap-3 sm:grid-cols-2 2xl:grid-cols-3">' in html
     assert (
-        '<caption class="sr-only">Fila de atendimento com requisições autorizadas'
-        ' e prontas para retirada.</caption>' in html
+        html.count(
+            '<article class="rounded-xl border border-border bg-surface p-4 shadow-sm">'
+        )
+        == 1
     )
-    assert '<span class="sr-only">Ações</span>' in html
+    assert 'Atender' in html
 
 
 @pytest.mark.django_db
-def test_fila_autorizacao_caption_e_acoes_sr_only_apos_refactor_chrome(
+def test_fila_autorizacao_renderiza_cartoes(
     client, chefe_obras, req_enviada_solicitante
 ):
     _login(client, chefe_obras)
     response = client.get(reverse('requisicoes:autorizacoes'))
     assert response.status_code == 200
     html = response.content.decode('utf-8')
+    assert '<div class="grid items-start gap-3 sm:grid-cols-2 2xl:grid-cols-3">' in html
     assert (
-        '<caption class="sr-only">Fila de autorização com requisições aguardando'
-        ' decisão.</caption>' in html
+        html.count(
+            '<article class="rounded-xl border border-border bg-surface p-4 shadow-sm">'
+        )
+        == 1
     )
-    assert '<span class="sr-only">Ações</span>' in html
+    assert 'Analisar' in html
 
 
 @pytest.mark.django_db
@@ -3964,7 +3973,7 @@ def test_historico_ordenacao_disponivel_no_mobile(
     _login(client, superuser)
     html = client.get(reverse('requisicoes:historico')).content.decode()
     assert 'Mais recentes primeiro' in html
-    assert html.count('aria-label="Ordenar por data/hora, atualmente decrescente"') == 2
+    assert html.count('aria-label="Ordenar por data/hora, atualmente decrescente"') == 1
 
 
 @pytest.mark.django_db
@@ -3974,7 +3983,7 @@ def test_historico_botoes_ver_tem_nome_acessivel_unico(
     _login(client, superuser)
     html = client.get(reverse('requisicoes:historico')).content.decode()
     marcador = 'aria-label="Ver detalhes da requisição REQ-2026-0010"'
-    assert html.count(marcador) == 2
+    assert html.count(marcador) == 1
 
 
 @pytest.mark.django_db
@@ -4248,14 +4257,14 @@ def test_copiar_confirmacao_nao_expoe_pk_de_rascunho(
 
 @pytest.mark.django_db
 def test_detalhe_nao_usa_token_com_modificador_de_opacidade(
-    client, solicitante, req_enviada_solicitante
+    client, solicitante, req_pronta_view_com_itens
 ):
     """`bg-token/60` produz cor que não existe na paleta e depende do que está
     atrás — o rebrand deixa de ser troca de valor em input.css.
     """
     _login(client, solicitante)
     html = client.get(
-        reverse('requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk})
+        reverse('requisicoes:detalhe', kwargs={'pk': req_pronta_view_com_itens.pk})
     ).content.decode()
     import re
 
@@ -4265,14 +4274,14 @@ def test_detalhe_nao_usa_token_com_modificador_de_opacidade(
 
 @pytest.mark.django_db
 def test_detalhe_respeita_a_escala_de_elevacao(
-    client, solicitante, req_enviada_solicitante
+    client, solicitante, req_pronta_view_com_itens
 ):
     """0, 1dp, 8dp e 24dp — `shadow-md` é degrau inventado, e sombra como
     ênfase visual está fora do design system.
     """
     _login(client, solicitante)
     html = client.get(
-        reverse('requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk})
+        reverse('requisicoes:detalhe', kwargs={'pk': req_pronta_view_com_itens.pk})
     ).content.decode()
     assert 'shadow-md' not in html
 
@@ -4305,3 +4314,53 @@ def test_button_tem_variante_return_outline():
     assert 'text-return-text-strong' in html
     assert 'border-return-border' in html
     assert 'min-h-11' in html
+
+
+# ---------------------------------------------------------------------------
+# Itens do detalhe: dupla renderização (sem tabela espremida no mobile)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_detalhe_itens_renderiza_como_pilha_em_toda_largura(
+    client, solicitante, req_pronta_view_com_itens
+):
+    """Os itens deixaram de ter renderização em tabela: a pilha vale em
+    qualquer viewport, sem contêiner de scroll horizontal.
+    """
+    _login(client, solicitante)
+    html = client.get(
+        reverse('requisicoes:detalhe', kwargs={'pk': req_pronta_view_com_itens.pk})
+    ).content.decode()
+    assert '<ul class="divide-y divide-border">' in html
+    assert 'overflow-x-auto' not in html
+    assert '<table' not in html
+
+
+@pytest.mark.django_db
+def test_detalhe_tabela_de_itens_nao_tem_coluna_de_acoes(
+    client, aux_almoxarifado, req_atendida_view
+):
+    """A ação de devolução saiu da linha: com duas renderizações, um gatilho por
+    linha duplicaria o <dialog> com o mesmo id.
+    """
+    _login(client, aux_almoxarifado)
+    html = client.get(
+        reverse('requisicoes:detalhe', kwargs={'pk': req_atendida_view.pk})
+    ).content.decode()
+    assert '>Ações</th>' not in html
+    assert 'Devolução ao estoque' in html
+
+
+@pytest.mark.django_db
+def test_detalhe_renderiza_um_unico_modal_por_item_devolvivel(
+    client, aux_almoxarifado, req_atendida_view
+):
+    """Id duplicado quebraria getElementById, o trap de foco e o retorno de foco."""
+    _login(client, aux_almoxarifado)
+    html = client.get(
+        reverse('requisicoes:detalhe', kwargs={'pk': req_atendida_view.pk})
+    ).content.decode()
+    item = req_atendida_view.itens.first()
+    assert html.count(f'id="devolver-{item.pk}"') == 1
+    assert html.count(f'data-modal-trigger="devolver-{item.pk}"') == 1

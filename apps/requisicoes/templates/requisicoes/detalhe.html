@@ -80,64 +80,95 @@
 
     {% if itens %}
       {% with estado=requisicao.estado %}
-        <div class="overflow-x-auto scroll-shadow-x rounded-sm">
-          <table class="min-w-full divide-y divide-border text-sm">
-            <caption class="sr-only">Itens da requisição com material, quantidade solicitada e, quando aplicável, autorizada e entregue.</caption>
-            <thead class="bg-bg-page">
-              <tr>
-                <th scope="col" class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-text-tertiary">Material</th>
-                <th scope="col" class="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-text-tertiary">Solicitada</th>
+        {% comment %}
+          Duas renderizações do mesmo dado: pilha abaixo de 640px, tabela acima.
+          Tabela espremida com scroll horizontal não é resposta ao mobile — é o
+          cartão que responde (Regra da Dupla Renderização, DESIGN.md). O
+          `overflow-x-auto` continua na tabela como rede de segurança acima de
+          640px, igual ao chrome de listagem, para nome de material extremo.
+        {% endcomment %}
+        <ul class="divide-y divide-border">
+          {% for item in itens %}
+            <li class="py-3 first:pt-0 last:pb-0">
+              <p class="text-sm font-medium text-text-primary">
+                {{ item.material.codigo }}
+                <span class="font-normal text-text-secondary">— {{ item.material.nome }}</span>
+              </p>
+              <p class="mt-0.5 text-xs text-text-tertiary">{{ item.material.get_unidade_display }}</p>
+              <dl class="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                <div>
+                  <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Solicitada</dt>
+                  <dd class="mt-0.5 tabular-nums text-text-primary">{{ item.quantidade_solicitada|formatar_quantidade:item.material.unidade }}</dd>
+                </div>
                 {% if estado == 'autorizada' or estado == 'pronta_para_retirada' or estado == 'atendida' or estado == 'estornada' or estado == 'cancelada' %}
-                  <th scope="col" class="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-text-tertiary">Autorizada</th>
+                  {% if item.quantidade_autorizada is not None %}
+                    <div>
+                      <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Autorizada</dt>
+                      <dd class="mt-0.5 tabular-nums text-text-primary">{{ item.quantidade_autorizada|formatar_quantidade:item.material.unidade }}</dd>
+                    </div>
+                  {% endif %}
                 {% endif %}
                 {% if estado == 'atendida' or estado == 'estornada' %}
-                  <th scope="col" class="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-text-tertiary">Entregue</th>
+                  {% if item.quantidade_entregue is not None %}
+                    <div>
+                      <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Entregue</dt>
+                      <dd class="mt-0.5 tabular-nums text-text-primary">{{ item.quantidade_entregue|formatar_quantidade:item.material.unidade }}</dd>
+                    </div>
+                  {% endif %}
                 {% endif %}
-                {% if pode_devolver %}
-                  <th scope="col" class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-text-tertiary">Ações</th>
-                {% endif %}
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-border">
-              {% for item in itens %}
-                <tr>
-                  <td class="px-3 py-2 text-text-primary">
-                    <span class="font-medium">{{ item.material.codigo }}</span>
-                    <span class="text-text-secondary">— {{ item.material.nome }}</span>
-                    <span class="text-xs text-text-tertiary">({{ item.material.get_unidade_display }})</span>
-                  </td>
-                  <td class="px-3 py-2 text-right tabular-nums text-text-primary">{{ item.quantidade_solicitada|formatar_quantidade:item.material.unidade }}</td>
-                  {% if estado == 'autorizada' or estado == 'pronta_para_retirada' or estado == 'atendida' or estado == 'estornada' or estado == 'cancelada' %}
-                    <td class="px-3 py-2 text-right tabular-nums text-text-primary">
-                      {% if item.quantidade_autorizada is not None %}{{ item.quantidade_autorizada|formatar_quantidade:item.material.unidade }}{% else %}<span class="text-text-disabled">—</span>{% endif %}
-                    </td>
-                  {% endif %}
-                  {% if estado == 'atendida' or estado == 'estornada' %}
-                    <td class="px-3 py-2 text-right tabular-nums text-text-primary">
-                      {% if item.quantidade_entregue is not None %}{{ item.quantidade_entregue|formatar_quantidade:item.material.unidade }}{% else %}<span class="text-text-disabled">—</span>{% endif %}
-                    </td>
-                  {% endif %}
-                  {% if pode_devolver %}
-                    <td class="px-3 py-2">
-                      {% if item.entregue_liquida > 0 %}
-                        <div x-data="modalController({ id: '{{ item.modal_devolver_id }}' })">
-                          {% include "components/button.html" with variant="return-outline" size="sm" label="Registrar devolução" data_modal_trigger=item.modal_devolver_id aria_haspopup="dialog" %}
-                          {% url 'requisicoes:registrar_devolucao' requisicao.pk item.pk as devolver_url %}
-                          {% include "components/modal.html" with id=item.modal_devolver_id titulo="Registrar devolução" descricao="Informe a quantidade a devolver ao estoque." action_url=devolver_url confirm_label="Registrar devolução" confirm_variant="primary" form=devolucao_form item=item entregue_liquida=item.entregue_liquida form_body_template="requisicoes/partials/_modal_form_devolucao.html" %}
-                        </div>
-                      {% endif %}
-                    </td>
-                  {% endif %}
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
+              </dl>
+            </li>
+          {% endfor %}
+        </ul>
+
       {% endwith %}
     {% else %}
       <p class="text-sm text-text-tertiary">Sem itens registrados.</p>
     {% endif %}
   </section>
+
+  {% if pode_devolver %}
+    {% comment %}
+      Devolução vive fora da tabela de itens: com pilha no mobile e tabela no
+      desktop, um gatilho por linha renderizaria o mesmo modal duas vezes, com
+      id duplicado. Fora dela, cada modal existe uma vez e serve às duas
+      renderizações — e a tabela perde a coluna de ações.
+    {% endcomment %}
+    <section
+      class="mb-6 rounded-xl border border-return-border bg-return-subtle p-4 shadow-sm sm:p-6"
+      aria-labelledby="devolucao-titulo"
+    >
+      <h2 id="devolucao-titulo" class="text-lg font-semibold text-return-text-strong">Devolução ao estoque</h2>
+      <p class="mt-1 text-sm text-return-text">
+        Material já entregue pode voltar ao saldo físico. A quantidade devolvida
+        é registrada como movimentação e aparece no histórico.
+      </p>
+      <ul class="mt-4 divide-y divide-return-border">
+        {% for item in itens %}
+          {% if item.entregue_liquida > 0 %}
+            <li class="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+              <div class="min-w-0">
+                <p class="text-sm font-medium text-text-primary">
+                  {{ item.material.codigo }}
+                  <span class="font-normal text-text-secondary">— {{ item.material.nome }}</span>
+                </p>
+                <p class="mt-0.5 text-xs text-text-tertiary">
+                  Entregue líquida:
+                  <span class="tabular-nums">{{ item.entregue_liquida|formatar_quantidade:item.material.unidade }}</span>
+                  {{ item.material.get_unidade_display }}
+                </p>
+              </div>
+              <div class="shrink-0" x-data="modalController({ id: '{{ item.modal_devolver_id }}' })">
+                {% include "components/button.html" with variant="return-outline" size="sm" label="Registrar devolução" aria_label="Registrar devolução de "|add:item.material.nome data_modal_trigger=item.modal_devolver_id aria_haspopup="dialog" full_width_mobile=True %}
+                {% url 'requisicoes:registrar_devolucao' requisicao.pk item.pk as devolver_url %}
+                {% include "components/modal.html" with id=item.modal_devolver_id titulo="Registrar devolução" descricao="Informe a quantidade a devolver ao estoque." action_url=devolver_url confirm_label="Registrar devolução" confirm_variant="primary" form=devolucao_form item=item entregue_liquida=item.entregue_liquida form_body_template="requisicoes/partials/_modal_form_devolucao.html" %}
+              </div>
+            </li>
+          {% endif %}
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
 
   {# --- 2b. Ações primárias (depois do contexto) --- #}
   {% if pode_enviar or pode_editar %}

@@ -37,8 +37,8 @@
 
   {% if saldos %}
 
-    {# Dispositivos móveis: cartões empilhados — <article> literal (estilo condicional ao estado de domínio, fora do #card_abertura) #}
-    <div class="space-y-3 sm:hidden">
+    {# Cartões: <article> literal porque o estilo é condicional ao estado de domínio (divergência crítica), fora do #card_abertura. O container replica o grid do chrome. #}
+    <div class="grid items-start gap-3 sm:grid-cols-2 2xl:grid-cols-3">
       {% for saldo in saldos %}
         <article
           class="rounded-xl border {% if saldo.divergente_calculado %}border-danger-border-strong bg-danger-subtle{% else %}border-border bg-surface{% endif %} p-4 shadow-sm"
@@ -79,42 +79,6 @@
     </div>
 
     {# Desktop: tabela de dados. <tr> literal (mesmo motivo do <article> acima); <th> "Status" literal (alinhamento central, não suportado por #th) #}
-    {% include "components/table.html#tabela_abertura" %}
-      <caption class="sr-only">Saldo físico, reservado e disponível de cada material no estoque.</caption>
-      <thead class="bg-bg-subtle">
-        <tr>
-          {% include "components/table.html#th" with rotulo="Código" %}
-          {% include "components/table.html#th" with rotulo="Material" %}
-          {% include "components/table.html#th" with rotulo="Físico" alinhamento="direita" %}
-          {% include "components/table.html#th" with rotulo="Reservado" alinhamento="direita" %}
-          {% include "components/table.html#th" with rotulo="Disponível" alinhamento="direita" %}
-          {% include "components/table.html#th" with rotulo="Un." %}
-          <th scope="col" class="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-text-tertiary">Status</th>
-        </tr>
-      </thead>
-      <tbody class="divide-y divide-border bg-surface">
-        {% for saldo in saldos %}
-          <tr class="{% if saldo.divergente_calculado %}bg-danger-subtle hover:bg-danger-muted{% else %}hover:bg-bg-page{% endif %}">
-            <td class="px-4 py-3 font-mono text-xs text-text-secondary">{{ saldo.material.codigo }}</td>
-            <td class="px-4 py-3 text-sm text-text-primary">{{ saldo.material.nome }}</td>
-            <td class="px-4 py-3 text-right text-sm tabular-nums text-text-secondary">{{ saldo.saldo_fisico|formatar_quantidade:saldo.material.unidade }}</td>
-            <td class="px-4 py-3 text-right text-sm tabular-nums text-text-secondary">{{ saldo.saldo_reservado|formatar_quantidade:saldo.material.unidade }}</td>
-            <td class="px-4 py-3 text-right text-sm tabular-nums {% if saldo.divergente_calculado %}font-semibold text-danger-text{% else %}text-text-secondary{% endif %}">
-              {{ saldo.saldo_disponivel_calculado|formatar_quantidade:saldo.material.unidade }}
-            </td>
-            <td class="px-4 py-3 text-sm text-text-secondary">{{ saldo.material.unidade }}</td>
-            <td class="px-4 py-3 text-center">
-              {% if saldo.divergente_calculado %}
-                {% include "components/badge.html" with variant="red-strong" label="Divergente" aria_label="Divergência crítica: físico menor que reservado" %}
-              {% else %}
-                <span class="text-text-tertiary text-xs">—</span>
-              {% endif %}
-            </td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    </div>
 
   {% elif busca %}
     {% url 'estoque:lista_materiais' as cta_lista_materiais_url %}

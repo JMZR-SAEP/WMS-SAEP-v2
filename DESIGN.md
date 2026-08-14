@@ -204,7 +204,7 @@ Os controles são diretos e sinalizáveis: cada botão diz o que faz, e quando n
 - Escala MD2 de elevação com quatro degraus e nada entre eles
 - Raio que cresce com a superfície: controle 6px → campo 8px → papel 12px → modal 16px
 - Alvo de toque de 44px e anel de foco visível em todo controle interativo
-- Duas renderizações do mesmo dado: cartão abaixo de 640px, tabela acima
+- Uma renderização só: cartão em qualquer largura, em grade de 1 a 3 colunas
 
 ## Colors
 
@@ -273,7 +273,11 @@ O ritmo de espaçamento é curto e previsível: 0.25rem entre ícone e texto, 0.
 
 ### Named Rules
 
-**A Regra da Dupla Renderização.** Toda listagem existe duas vezes: pilha de cartões (`space-y-3`) abaixo de 640px e tabela acima (`sm:block`). Não são breakpoints de uma mesma marcação — são dois chromes (`components/table.html#cards_abertura` e `#tabela_abertura`) alimentados pelos mesmos dados. Tabela espremida com scroll horizontal não é resposta ao mobile; é o cartão que responde.
+**A Regra do Cartão Único.** Listagem se renderiza em cartões, em qualquer largura — grade de 1 coluna, 2 a partir de 640px e 3 a partir de 1536px, via `components/table.html#cards_abertura`. Não existe renderização em tabela.
+
+A regra anterior mandava renderizar duas vezes, cartão abaixo de 640px e tabela acima. Ela caiu por medição, não por gosto: com a side nav de 240px e o `p-6` do `<main>`, um viewport de 1024px deixa 734px de conteúdo, e as listagens reais precisavam de 808px (saídas excepcionais) a 1081px (histórico de requisições) — colunas com `whitespace-nowrap` não comprimem. Nem a 1280px cabia: o histórico ainda estourava 91px. A tabela só caberia a partir de ~1370px de viewport, ou seja, scroll horizontal em qualquer janela de desktop que não estivesse maximizada. O cartão responde em toda largura e ainda carrega mais campos do que a tabela carregava.
+
+Consequência para quem escreve tela nova: não reintroduzir `<table>` em listagem. Se a densidade de uma tabela parecer necessária, o problema a resolver primeiro é a largura disponível — não o chrome.
 
 **A Regra do Chrome Sem Parâmetro.** Os fragmentos de chrome de listagem não recebem parâmetro de classe. Se um chrome precisa de um parâmetro que descreve conteúdo de célula, a abstração está errada — a célula fica explícita na tela chamadora.
 
@@ -352,7 +356,7 @@ Três durações (`--duration-fast` 150ms, `--duration-normal` 250ms, `--duratio
 ### Do:
 - **Do** usar as utilities semânticas dos tokens (`bg-primary`, `text-danger-text`, `border-border-strong`) em qualquer template novo — nunca a cor crua da paleta.
 - **Do** manter `min-h-11` (44px) em todo controle acionável; a mesma tela é operada com o dedo, em pé, no galpão.
-- **Do** renderizar toda listagem duas vezes — cartões abaixo de 640px, tabela acima — reusando os fragmentos de `components/table.html`.
+- **Do** renderizar listagem em cartões, reusando `components/table.html#cards_abertura` e `#card_abertura`; não há renderização em tabela.
 - **Do** manter a ação de workflow bloqueada **visível e desabilitada, com o motivo em texto**; só ação administrativa irrelevante some da marcação.
 - **Do** escolher um dos quatro degraus de elevação existentes (0/1/8/24dp) ao criar uma superfície nova.
 - **Do** usar teal (`return`) para devolução e reversão, e reservar vermelho para negação, erro e divergência.
@@ -367,4 +371,5 @@ Três durações (`--duration-fast` 150ms, `--duration-normal` 250ms, `--duratio
 - **Don't** usar cinza-sobre-cinza: texto de conteúdo é grafite (slate-900/700), e cinza de metadado (slate-500) é o piso — nada mais claro carrega informação.
 - **Don't** animar navegação para simular SPA; a página é renderizada no servidor e o movimento serve só a mudança de estado local.
 - **Don't** ensinar semântica de domínio a componente global — `button.html` e `badge.html` recebem variante e label já resolvidos pelo partial de domínio.
+- **Don't** reintroduzir `<table>` em listagem, nem contêiner `overflow-x-auto` para acomodá-la — foi exatamente o que produzia scroll horizontal em desktop estreito.
 - **Don't** parametrizar os fragmentos de chrome de listagem com classes extras; se for preciso, a abstração está no lugar errado.
