@@ -18,33 +18,51 @@ filtros ativos ao navegar. Alvos de toque min-h-11, focáveis.
     </p>
 
     {% comment %}
-      Base da querystring montada uma vez. O separador sai de `yesno` em vez de
-      um bloco condicional porque um `with` aberto dentro de um ramo condicional
-      precisa fechar nesse mesmo ramo — não dá para abrir de um lado e usar do
-      outro. E `firstof` antes dele porque `querystring_filtros` é opcional:
-      `add` sobre variável ausente estoura dentro de `with`, que resolve sem
-      tolerar falha.
+      Base da querystring montada uma vez.
+
+      Três armadilhas do template Django empilhadas aqui, todas já pagas:
+
+      1. `querystring_filtros|default:""` como **base** de filtro, nunca como
+         argumento: argumento de filtro sobre variável ausente estoura, base não
+         — a base cai para string vazia. E `default` em vez de `firstof`, que
+         escapa o valor na atribuição: o `&` dos filtros virava `&amp;`, o
+         `{{ href }}` escapava de novo, e o navegador lia `&amp;setor=1` como um
+         parâmetro chamado `amp;setor`. Ou seja: paginar perdia os filtros.
+      2. O separador sai de `yesno` e não de um bloco condicional: um `with`
+         aberto dentro de um ramo de `if` precisa fechar nesse mesmo ramo.
+      3. `stringformat:"s"` no número da página porque `add` é numérico primeiro
+         — `add('?page=', 2)` tenta `int('?page=')`, falha, tenta `str + int`,
+         falha de novo, e **devolve string vazia em silêncio**. Com href vazio,
+         `button.html` cai no ramo <button> e a paginação inteira deixa de
+         navegar sem quebrar nada visível.
+
+      Os três casos estão travados em test_components.py.
     {% endcomment %}
-    {% firstof querystring_filtros "" as filtros_ativos %}
+    {% with filtros_ativos=querystring_filtros|default:"" %}
     {% with separador=filtros_ativos|yesno:"&," %}
     {% with base_url="?"|add:filtros_ativos|add:separador|add:"page=" %}
     <div class="flex items-center gap-2">
       {% if page_obj.has_previous %}
-        {% with href_anterior=base_url|add:page_obj.previous_page_number %}
-          {% include "components/button.html" with variant="secondary" label="Anterior" href=href_anterior %}
+        {% with pagina_anterior=page_obj.previous_page_number|stringformat:"s" %}
+          {% with href_anterior=base_url|add:pagina_anterior %}
+            {% include "components/button.html" with variant="secondary" label="Anterior" href=href_anterior %}
+          {% endwith %}
         {% endwith %}
       {% else %}
         {% include "components/button.html" with variant="secondary" label="Anterior" disabled=True %}
       {% endif %}
 
       {% if page_obj.has_next %}
-        {% with href_proxima=base_url|add:page_obj.next_page_number %}
-          {% include "components/button.html" with variant="secondary" label="Próxima" href=href_proxima %}
+        {% with pagina_proxima=page_obj.next_page_number|stringformat:"s" %}
+          {% with href_proxima=base_url|add:pagina_proxima %}
+            {% include "components/button.html" with variant="secondary" label="Próxima" href=href_proxima %}
+          {% endwith %}
         {% endwith %}
       {% else %}
         {% include "components/button.html" with variant="secondary" label="Próxima" disabled=True %}
       {% endif %}
     </div>
+    {% endwith %}
     {% endwith %}
     {% endwith %}
   </nav>

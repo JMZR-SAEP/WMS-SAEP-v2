@@ -476,3 +476,101 @@ def test_nenhum_controle_abaixo_do_piso_de_44px():
     assert not infratores, (
         f'Controle abaixo do piso de 44px; use min-h-11: {infratores}'
     )
+
+
+class TestPaginationHref:
+    """A paginação já navegou para lugar nenhum sem quebrar um teste.
+
+    `add` é numérico primeiro: `add('?page=', 2)` tenta `int('?page=')`, falha,
+    tenta `str + int`, falha de novo, e devolve string vazia em silêncio. Com
+    href vazio, `button.html` cai no ramo <button> e os controles de página
+    param de navegar — sem erro, sem log, sem teste vermelho.
+    """
+
+    def _render(self, numero_pagina, **ctx):
+        from django.core.paginator import Paginator
+        from django.template.loader import render_to_string
+
+        paginator = Paginator(list(range(30)), 10)
+        return render_to_string(
+            'components/pagination.html',
+            {
+                'page_obj': paginator.page(numero_pagina),
+                'rotulo_itens': 'itens',
+                **ctx,
+            },
+        )
+
+    def _hrefs(self, html):
+        return re.findall(r'href="([^"]*)"', html)
+
+    def test_href_carrega_o_numero_da_pagina(self):
+        hrefs = self._hrefs(self._render(2))
+        assert hrefs == ['?page=1', '?page=3']
+
+    def test_href_preserva_filtros_ativos(self):
+        html = self._render(2, querystring_filtros='texto=a+b&setor=1')
+        hrefs = self._hrefs(html)
+        assert len(hrefs) == 2
+        for href in hrefs:
+            assert 'texto=a+b' in href
+            assert 'setor=1' in href
+
+    def test_ampersand_dos_filtros_nao_e_escapado_duas_vezes(self):
+        """`&amp;amp;` faz o navegador ler um parâmetro chamado `amp;setor`.
+
+        Ou seja: paginar perderia exatamente os filtros que o param existe para
+        preservar. O escape duplo não quebra nada visível — o link continua
+        clicável e a página continua carregando, só que sem filtro.
+        """
+        import html as html_lib
+        from urllib.parse import parse_qs, urlparse
+
+        html = self._render(2, querystring_filtros='texto=a+b&setor=1')
+        assert '&amp;amp;' not in html
+
+        for href in self._hrefs(html):
+            params = parse_qs(urlparse(html_lib.unescape(href)).query)
+            assert set(params) == {'texto', 'setor', 'page'}
+            assert params['texto'] == ['a b']
+            assert params['setor'] == ['1']
+
+    def test_sem_filtros_nao_deixa_e_comercial_solto(self):
+        assert self._hrefs(self._render(2)) == ['?page=1', '?page=3']
+
+    def test_extremos_desabilitam_em_vez_de_gerar_href_vazio(self):
+        primeira = self._render(1)
+        ultima = self._render(3)
+        assert self._hrefs(primeira) == ['?page=2']
+        assert self._hrefs(ultima) == ['?page=2']
+        assert 'href=""' not in primeira
+        assert 'href=""' not in ultima
+
+
+def test_todo_icon_template_de_button_honra_a_classe():
+    """`button.html` dimensiona o ícone por `class`, a tag {% icon %} por `size`.
+
+    O catálogo tem as duas convenções convivendo: 10 dos 11 `.svg` usam
+    `class="{{ class }}"`, e `voltar.svg` usa `width="{{ size }}"`. Passar um
+    ícone de `size` para `icon_template` renderiza `width=""` — o ícone estoura
+    o botão, e nada quebra: sem erro, sem log, sem teste vermelho.
+    """
+    import re
+    from pathlib import Path
+
+    raiz = Path(__file__).resolve().parents[3]
+    usados = set()
+    for caminho in (raiz / 'apps').rglob('*.html'):
+        usados.update(re.findall(r'icon_template="([^"]+)"', caminho.read_text()))
+
+    incompativeis = []
+    for relativo in sorted(usados):
+        arquivo = raiz / 'apps/core/templates' / relativo
+        if not arquivo.exists():
+            incompativeis.append(f'{relativo} (arquivo não existe)')
+        elif '{{ class' not in arquivo.read_text():
+            incompativeis.append(f'{relativo} (não usa {{{{ class }}}})')
+
+    assert not incompativeis, (
+        f'icon_template precisa de um SVG que dimensione por class: {incompativeis}'
+    )

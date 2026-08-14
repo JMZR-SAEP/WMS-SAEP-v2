@@ -32,7 +32,13 @@
 
     {% url 'estoque:preview_importacao_scpi' as url_preview %}
     <div class="flex gap-3">
-      {% include "components/button.html" with variant="secondary" label="Voltar para pré-visualização" href=url_preview icon_template="components/icons/voltar.svg" %}
+      {% comment %}
+        Sem `icon_template`: `voltar.svg` dimensiona por `{{ size }}`, que só a
+        tag {% icon %} passa — `button.html` passa `class`, e o ícone sairia com
+        `width=""`. É a divergência de convenção do catálogo de ícones; enquanto
+        ela existir, este botão fica só com o rótulo, que já é explícito.
+      {% endcomment %}
+      {% include "components/button.html" with variant="secondary" label="Voltar para pré-visualização" href=url_preview %}
     </div>
   {% endif %}
 
