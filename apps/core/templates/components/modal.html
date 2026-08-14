@@ -7,7 +7,8 @@
     descricao       -> string curta (1-2 linhas)
     action_url      -> URL para POST (form action)
     confirm_label   -> default "Confirmar"
-    confirm_variant -> "primary" (default) | "danger" | "secondary"
+    confirm_variant -> repassado literalmente a components/button.html como `variant`
+                       (default "primary"). Em uso: "primary", "danger", "neutral".
     cancel_label    -> default "Voltar"
     abrir_ao_carregar -> bool (server-side, ex: re-render com erro)
     form_body_template -> caminho de template incluído dentro do form (campos)

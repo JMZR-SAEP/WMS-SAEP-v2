@@ -14,15 +14,11 @@ Uso:
   {% include "components/ordenacao_data.html" with url_ordenacao=url_ordenacao ordem=ordem target_id="resultados-x" %}
 {% endcomment %}
 <div class="mb-3 flex justify-end">
-  <a
-    href="{{ url_ordenacao }}"
-    hx-get="{{ url_ordenacao }}"
-    hx-target="#{{ target_id }}"
-    hx-push-url="true"
-    class="inline-flex min-h-11 items-center gap-1 rounded-md border border-border-strong bg-surface px-3 py-2 text-sm text-text-secondary hover:bg-bg-page hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1"
-    aria-label="Ordenar por data/hora, {% if ordem == 'asc' %}atualmente crescente{% else %}atualmente decrescente{% endif %}"
-  >
-    {% if ordem == 'asc' %}Mais antigas primeiro{% else %}Mais recentes primeiro{% endif %}
-    <span aria-hidden="true">{% if ordem == 'asc' %}↑{% else %}↓{% endif %}</span>
-  </a>
+  {% with seletor_alvo="#"|add:target_id %}
+    {% if ordem == 'asc' %}
+      {% include "components/button.html" with variant="secondary" label="Mais antigas primeiro ↑" href=url_ordenacao hx_get=url_ordenacao hx_target=seletor_alvo hx_push_url="true" aria_label="Ordenar por data/hora, atualmente crescente" %}
+    {% else %}
+      {% include "components/button.html" with variant="secondary" label="Mais recentes primeiro ↓" href=url_ordenacao hx_get=url_ordenacao hx_target=seletor_alvo hx_push_url="true" aria_label="Ordenar por data/hora, atualmente decrescente" %}
+    {% endif %}
+  {% endwith %}
 </div>

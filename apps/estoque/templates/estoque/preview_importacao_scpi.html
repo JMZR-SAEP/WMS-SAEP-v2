@@ -164,8 +164,9 @@
           {% csrf_token %}
           <label
             for="arquivo-novo"
-            class="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-md
-                   border border-border bg-surface px-3 py-1.5 text-sm font-medium text-text-secondary
+            {# Alvo de toque de 44px como qualquer controle: quem troca o arquivo está em pé no galpão. #}
+            class="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-md
+                   border border-border-strong bg-surface px-3 py-2 text-sm font-medium text-text-secondary
                    hover:bg-bg-page hover:text-text-primary
                    focus-within:outline-none focus-within:ring-2 focus-within:ring-border-focus focus-within:ring-offset-1
                    transition-colors duration-150 motion-reduce:transition-none touch-manipulation"

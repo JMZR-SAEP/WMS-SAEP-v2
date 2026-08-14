@@ -130,6 +130,67 @@
 
 @layer components {
   /*
+    Campo de linha única e área de texto — definição única do sistema.
+
+    Existe porque essa string vivia copiada 19 vezes nos `forms.py` dos apps e
+    nos componentes de filtro, e já divergira: dois campos sem o piso de 44px,
+    três com `rounded-md` (raio de controle) em vez de `rounded-lg` (raio de
+    campo, Regra do Raio Crescente). Estilo de campo não é regra de formulário —
+    não pertence ao Python.
+
+    Campo de linha única é controle acionável e segue o mesmo piso de 44px do
+    botão: a mesma tela é operada com o dedo, em pé no galpão, e com teclado no
+    escritório. Em `textarea` com `rows` >= 2 o `min-height` não tem efeito, o
+    que deixa a classe única para os dois casos.
+
+    Modificadores ficam com o chamador (`tabular-nums`, `material-autocomplete`,
+    `mt-2`): eles descrevem a linha, não o campo.
+  */
+  .campo {
+    display: block;
+    width: 100%;
+    min-height: var(--size-touch-target);
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-lg);
+    background-color: var(--color-surface);
+    color: var(--color-text-primary);
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
+  .campo::placeholder {
+    color: var(--color-text-tertiary);
+  }
+
+  /*
+    `focus-visible` e não `focus`: era a única divergência de gramática de foco
+    do sistema — campo acendia o anel no clique de mouse, botão não. Em campo de
+    texto os dois se comportam igual (o navegador casa `:focus-visible` em
+    qualquer foco de campo editável); a diferença aparecia em `select`.
+  */
+  .campo:focus-visible {
+    outline: none;
+    border-color: var(--color-border-focus);
+    box-shadow: 0 0 0 2px var(--color-border-focus);
+  }
+
+  /*
+    Estado inválido visível, e não só anunciado. O `aria-invalid` já era injetado
+    por {% renderizar_campo_com_aria %} em todo campo com erro, mas só
+    `autocomplete.html` pintava a borda — nos demais o erro existia para o leitor
+    de tela e não para o olho.
+  */
+  .campo[aria-invalid='true'] {
+    border-color: var(--color-danger-border-input);
+  }
+
+  .campo[aria-invalid='true']:focus-visible {
+    border-color: var(--color-danger-accent);
+    box-shadow: 0 0 0 2px var(--color-danger-accent);
+  }
+
+  /*
     Linha de item de formset em bloqueio momentâneo — remoção recusada porque
     era a última linha. O realce é uma classe, não `element.style`: estilo
     inline escrito por JS escapa de todo o sistema de tokens e ainda sobrepõe o

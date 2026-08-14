@@ -17,38 +17,35 @@ filtros ativos ao navegar. Alvos de toque min-h-11, focáveis.
       <span class="tabular-nums">{{ page_obj.paginator.count }}</span> {{ rotulo_itens|default:'itens' }}
     </p>
 
+    {% comment %}
+      Base da querystring montada uma vez. O separador sai de `yesno` em vez de
+      um bloco condicional porque um `with` aberto dentro de um ramo condicional
+      precisa fechar nesse mesmo ramo — não dá para abrir de um lado e usar do
+      outro. E `firstof` antes dele porque `querystring_filtros` é opcional:
+      `add` sobre variável ausente estoura dentro de `with`, que resolve sem
+      tolerar falha.
+    {% endcomment %}
+    {% firstof querystring_filtros "" as filtros_ativos %}
+    {% with separador=filtros_ativos|yesno:"&," %}
+    {% with base_url="?"|add:filtros_ativos|add:separador|add:"page=" %}
     <div class="flex items-center gap-2">
       {% if page_obj.has_previous %}
-        <a
-          href="?{% if querystring_filtros %}{{ querystring_filtros }}&{% endif %}page={{ page_obj.previous_page_number }}"
-          class="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-3 py-2 text-sm font-medium text-text-secondary hover:bg-bg-page hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1"
-        >
-          Anterior
-        </a>
+        {% with href_anterior=base_url|add:page_obj.previous_page_number %}
+          {% include "components/button.html" with variant="secondary" label="Anterior" href=href_anterior %}
+        {% endwith %}
       {% else %}
-        <span
-          class="inline-flex min-h-11 cursor-not-allowed items-center rounded-md border border-border bg-bg-page px-3 py-2 text-sm font-medium text-text-disabled"
-          aria-disabled="true"
-        >
-          Anterior
-        </span>
+        {% include "components/button.html" with variant="secondary" label="Anterior" disabled=True %}
       {% endif %}
 
       {% if page_obj.has_next %}
-        <a
-          href="?{% if querystring_filtros %}{{ querystring_filtros }}&{% endif %}page={{ page_obj.next_page_number }}"
-          class="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-3 py-2 text-sm font-medium text-text-secondary hover:bg-bg-page hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1"
-        >
-          Próxima
-        </a>
+        {% with href_proxima=base_url|add:page_obj.next_page_number %}
+          {% include "components/button.html" with variant="secondary" label="Próxima" href=href_proxima %}
+        {% endwith %}
       {% else %}
-        <span
-          class="inline-flex min-h-11 cursor-not-allowed items-center rounded-md border border-border bg-bg-page px-3 py-2 text-sm font-medium text-text-disabled"
-          aria-disabled="true"
-        >
-          Próxima
-        </span>
+        {% include "components/button.html" with variant="secondary" label="Próxima" disabled=True %}
       {% endif %}
     </div>
+    {% endwith %}
+    {% endwith %}
   </nav>
 {% endif %}

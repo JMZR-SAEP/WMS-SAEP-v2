@@ -17,7 +17,7 @@ class RequisicaoForm(forms.Form):
         widget=forms.Textarea(
             attrs={
                 'rows': 3,
-                'class': 'w-full rounded-lg border border-border-strong px-3 py-2 text-sm focus:border-border-focus focus:ring-2 focus:ring-border-focus focus:outline-none',
+                'class': 'campo',
                 'placeholder': 'Opcional — contexto adicional sobre esta requisição',
             }
         ),
@@ -66,11 +66,7 @@ class RequisicaoCriacaoForm(RequisicaoForm):
                 label='Beneficiário',
                 required=False,
                 choices=choices,
-                widget=forms.Select(
-                    attrs={
-                        'class': 'w-full min-h-11 rounded-lg border border-border-strong px-3 py-2 text-sm focus:border-border-focus focus:ring-2 focus:ring-border-focus focus:outline-none'
-                    }
-                ),
+                widget=forms.Select(attrs={'class': 'campo'}),
             )
 
     def clean(self):
@@ -103,7 +99,7 @@ class ItemRequisicaoForm(forms.Form):
         required=False,
         widget=forms.TextInput(
             attrs={
-                'class': 'material-autocomplete w-full min-h-11 rounded-lg border border-border-strong px-3 py-2 text-sm focus:border-border-focus focus:ring-2 focus:ring-border-focus focus:outline-none',
+                'class': 'campo material-autocomplete',
                 'type': 'search',
                 'autocomplete': 'off',
                 'placeholder': 'Buscar por código ou nome...',
@@ -116,7 +112,7 @@ class ItemRequisicaoForm(forms.Form):
         required=False,
         widget=forms.NumberInput(
             attrs={
-                'class': 'w-full min-h-11 rounded-lg border border-border-strong px-3 py-2 text-sm focus:border-border-focus focus:ring-2 focus:ring-border-focus focus:outline-none',
+                'class': 'campo',
                 'inputmode': 'numeric',
                 'autocomplete': 'off',
                 'step': '1',
@@ -230,11 +226,7 @@ class RegistrarAtendimentoCabecalhoForm(forms.Form):
         max_length=150,
         widget=forms.TextInput(
             attrs={
-                'class': (
-                    'w-full min-h-11 rounded-lg border border-border-strong px-3 py-2 '
-                    'text-sm focus:border-border-focus focus:ring-2 '
-                    'focus:ring-border-focus focus:outline-none'
-                ),
+                'class': 'campo',
                 'autocomplete': 'off',
                 'placeholder': 'Nome de quem está retirando',
             }
@@ -246,11 +238,7 @@ class RegistrarAtendimentoCabecalhoForm(forms.Form):
         widget=forms.Textarea(
             attrs={
                 'rows': 2,
-                'class': (
-                    'w-full rounded-lg border border-border-strong px-3 py-2 text-sm '
-                    'focus:border-border-focus focus:ring-2 focus:ring-border-focus '
-                    'focus:outline-none'
-                ),
+                'class': 'campo',
                 'placeholder': 'Opcional',
             }
         ),
@@ -269,11 +257,7 @@ class ItemAtendimentoForm(forms.Form):
         localize=False,
         widget=forms.NumberInput(
             attrs={
-                'class': (
-                    'w-full min-h-11 rounded-lg border border-border-strong px-3 py-2 '
-                    'text-sm tabular-nums focus:border-border-focus focus:ring-2 '
-                    'focus:ring-border-focus focus:outline-none'
-                ),
+                'class': 'campo tabular-nums',
                 'autocomplete': 'off',
                 # `step` não vem daqui: depende da unidade do material daquela
                 # linha (`step_por_unidade`), que só a linha conhece, e entra
@@ -290,11 +274,7 @@ class ItemAtendimentoForm(forms.Form):
         required=False,
         widget=forms.TextInput(
             attrs={
-                'class': (
-                    'w-full min-h-11 rounded-lg border border-border-strong px-3 py-2 '
-                    'text-sm focus:border-border-focus focus:ring-2 '
-                    'focus:ring-border-focus focus:outline-none'
-                ),
+                'class': 'campo',
                 'autocomplete': 'off',
                 'placeholder': 'Obrigatória quando entregue menor que autorizada…',
             }
@@ -354,11 +334,7 @@ class RegistrarDevolucaoForm(forms.Form):
         widget=forms.NumberInput(
             attrs={
                 'inputmode': 'decimal',
-                'class': (
-                    'w-full min-h-11 rounded-lg border border-border-strong px-3 py-2 text-sm '
-                    'focus:border-border-focus focus:ring-2 focus:ring-border-focus '
-                    'focus:outline-none'
-                ),
+                'class': 'campo',
                 'step': '0.001',
                 'min': '0.001',
             }
@@ -370,11 +346,7 @@ class RegistrarDevolucaoForm(forms.Form):
         widget=forms.Textarea(
             attrs={
                 'rows': 2,
-                'class': (
-                    'w-full rounded-lg border border-border-strong px-3 py-2 text-sm '
-                    'focus:border-border-focus focus:ring-2 focus:ring-border-focus '
-                    'focus:outline-none'
-                ),
+                'class': 'campo',
                 'placeholder': 'Opcional',
             }
         ),
@@ -395,11 +367,7 @@ class EstornarRequisicaoForm(forms.Form):
         widget=forms.Textarea(
             attrs={
                 'rows': 3,
-                'class': (
-                    'w-full rounded-lg border border-border-strong px-3 py-2 text-sm '
-                    'focus:border-border-focus focus:ring-2 focus:ring-border-focus '
-                    'focus:outline-none'
-                ),
+                'class': 'campo',
                 'placeholder': 'Motivo obrigatório do estorno',
             }
         ),

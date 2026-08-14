@@ -9,9 +9,7 @@
     {% if notificacoes %}
       <form method="post" action="{% url 'notificacoes:marcar_todas_lidas' %}">
         {% csrf_token %}
-        <button type="submit" class="inline-flex min-h-11 items-center rounded text-sm font-medium text-primary-text hover:text-primary-text-emphasis hover:underline cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1">
-          Marcar todas como lidas
-        </button>
+        {% include "components/button.html" with variant="link" type="submit" label="Marcar todas como lidas" %}
       </form>
     {% endif %}
   </div>

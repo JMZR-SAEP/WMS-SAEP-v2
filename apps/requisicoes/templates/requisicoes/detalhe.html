@@ -262,7 +262,7 @@
 
         {% if pode_retornar %}
           {% url 'requisicoes:retornar_rascunho' requisicao.pk as retornar_url %}
-          {% include "requisicoes/partials/_confirmacao_acao.html" with layout="card" variant_token="warning" modal_id="confirmar-retornar" titulo="Retornar para rascunho" conteudo="Peça ajustes ao criador antes de decidir. Observação opcional." botao_label="Retornar" botao_variant="warning-outline" modal_titulo="Retornar para rascunho?" modal_descricao="A requisição volta a ser rascunho visível apenas ao criador." action_url=retornar_url confirm_label="Confirmar retorno" confirm_variant="secondary" icon_variant="warning" form_body_template="requisicoes/partials/_modal_form_retornar.html" hidden_inputs=retornar_hidden_inputs %}
+          {% include "requisicoes/partials/_confirmacao_acao.html" with layout="card" variant_token="warning" modal_id="confirmar-retornar" titulo="Retornar para rascunho" conteudo="Peça ajustes ao criador antes de decidir. Observação opcional." botao_label="Retornar" botao_variant="warning-outline" modal_titulo="Retornar para rascunho?" modal_descricao="A requisição volta a ser rascunho visível apenas ao criador." action_url=retornar_url confirm_label="Confirmar retorno" confirm_variant="neutral" icon_variant="warning" form_body_template="requisicoes/partials/_modal_form_retornar.html" hidden_inputs=retornar_hidden_inputs %}
         {% endif %}
 
         {% if pode_recusar %}

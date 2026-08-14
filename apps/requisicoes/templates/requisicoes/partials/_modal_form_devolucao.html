@@ -28,7 +28,7 @@
       value="{{ form.quantidade.value|default_if_none:'' }}"
       aria-required="true"
       {% if erro %}aria-invalid="true" aria-describedby="{{ id }}-erro"{% endif %}
-      class="mt-1 block min-h-11 w-full rounded-lg border border-border-strong bg-surface px-3 py-2 text-sm text-text-primary shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1"
+      class="campo mt-1"
     >
   </div>
 
@@ -42,7 +42,7 @@
       name="observacao"
       rows="2"
       autocomplete="off"
-      class="mt-1 block min-h-11 w-full rounded-lg border border-border-strong bg-surface px-3 py-2 text-sm text-text-primary shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1"
+      class="campo mt-1"
       placeholder="Opcional"
     >{{ form.observacao.value|default_if_none:"" }}</textarea>
   </div>

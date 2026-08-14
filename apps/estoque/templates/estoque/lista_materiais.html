@@ -21,17 +21,13 @@
       name="busca"
       value="{{ busca }}"
       placeholder="Código ou nome do material…"
-      class="flex-1 rounded-lg border border-border-strong px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-border-focus"
+      class="campo flex-1"
       aria-label="Buscar por código ou nome"
     >
     {% include "components/button.html" with variant="primary" type="submit" label="Buscar" %}
     {% if busca %}
-      <a
-        href="{% url 'estoque:lista_materiais' %}"
-        class="rounded-lg border border-border-strong px-4 py-2 text-sm font-medium text-text-secondary shadow-sm hover:bg-bg-page focus:outline-none focus:ring-2 focus:ring-border-focus"
-      >
-        Limpar
-      </a>
+      {% url 'estoque:lista_materiais' as url_limpar_busca %}
+      {% include "components/button.html" with variant="secondary" label="Limpar" href=url_limpar_busca %}
     {% endif %}
   </form>
 

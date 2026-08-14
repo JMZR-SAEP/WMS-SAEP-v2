@@ -24,21 +24,10 @@ Uso (reemite OOB dentro do partial de resultados, só quando is_htmx):
   {% if is_htmx %}{% include "components/filter_acoes.html" with id="filtro-acoes-historico-requisicoes" action_url=url_historico target_id="resultados-historico-requisicoes" tem_filtro_ativo=tem_filtro_ativo oob=True %}{% endif %}
 {% endcomment %}
 <div id="{{ id }}" class="mt-4 flex flex-wrap items-center gap-2"{% if oob %} hx-swap-oob="true"{% endif %}>
-  <button
-    type="submit"
-    class="inline-flex min-h-11 items-center rounded-md bg-primary px-4 py-2 text-sm font-semibold text-text-on-primary shadow-sm hover:bg-primary-hover cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-2"
-  >
-    Aplicar filtros
-  </button>
+  {% include "components/button.html" with variant="primary" type="submit" label="Aplicar filtros" %}
   {% if tem_filtro_ativo %}
-    <a
-      href="{{ action_url }}"
-      hx-get="{{ action_url }}"
-      hx-target="#{{ target_id }}"
-      hx-push-url="true"
-      class="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium text-text-secondary hover:bg-bg-page focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1"
-    >
-      Limpar filtros
-    </a>
+    {% with seletor_alvo="#"|add:target_id %}
+      {% include "components/button.html" with variant="secondary" label="Limpar filtros" href=action_url hx_get=action_url hx_target=seletor_alvo hx_push_url="true" %}
+    {% endwith %}
   {% endif %}
 </div>
