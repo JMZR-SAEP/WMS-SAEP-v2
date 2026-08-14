@@ -111,6 +111,28 @@ TRANSICOES: dict[Operacao, TransicaoRequisicao] = {
 }
 
 
+#: Estados em que `quantidade_autorizada` do item já foi decidida e deve ser
+#: exibida. É o destino de AUTORIZAR mais os estados alcançáveis a partir dele —
+#: cancelamento e estorno preservam a decisão de autorização anterior.
+ESTADOS_COM_QUANTIDADE_AUTORIZADA = frozenset(
+    {
+        EstadoRequisicao.AUTORIZADA,
+        EstadoRequisicao.PRONTA_PARA_RETIRADA,
+        EstadoRequisicao.ATENDIDA,
+        EstadoRequisicao.CANCELADA,
+        EstadoRequisicao.ESTORNADA,
+    }
+)
+
+#: Estados em que `quantidade_entregue` já foi registrada pelo atendimento.
+ESTADOS_COM_QUANTIDADE_ENTREGUE = frozenset(
+    {
+        EstadoRequisicao.ATENDIDA,
+        EstadoRequisicao.ESTORNADA,
+    }
+)
+
+
 def verificar_transicao_valida(
     operacao: Operacao, requisicao: Requisicao
 ) -> TransicaoRequisicao:

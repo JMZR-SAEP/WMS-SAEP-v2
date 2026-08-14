@@ -10,6 +10,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 
 import pytest
+from django.contrib.messages import get_messages
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
@@ -4252,20 +4253,40 @@ def test_coletar_erros_achata_form_e_formset():
 
 
 @pytest.mark.django_db
-def test_copiar_confirmacao_nao_expoe_pk_de_rascunho(
+def test_copiar_confirmacao_recusa_estado_nao_copiavel(
     client, solicitante, req_rascunho_solicitante
 ):
-    """A view não restringe estado no GET, então o caminho do rascunho é
-    alcançável — e `{{ requisicao }}` cairia no __str__, que devolve a PK.
+    """A confirmação não pode prometer o que o POST recusaria: rascunho não é
+    estado copiável, então o GET volta ao detalhe com o motivo.
     """
     _login(client, solicitante)
     response = client.get(
         reverse('requisicoes:copiar', kwargs={'pk': req_rascunho_solicitante.pk})
     )
+    assert response.status_code == 302
+    assert response.url == reverse(
+        'requisicoes:detalhe', kwargs={'pk': req_rascunho_solicitante.pk}
+    )
+    mensagens = [str(m) for m in get_messages(response.wsgi_request)]
+    assert any('atendidas ou recusadas' in m for m in mensagens)
+
+
+@pytest.mark.django_db
+def test_copiar_confirmacao_nao_expoe_pk_e_lista_itens(
+    client, solicitante, req_recusada_view
+):
+    """Na tela servida, o título usa o número público (nunca o __str__, que
+    devolve a PK) e os itens a copiar ficam visíveis antes da confirmação.
+    """
+    _login(client, solicitante)
+    response = client.get(
+        reverse('requisicoes:copiar', kwargs={'pk': req_recusada_view.pk})
+    )
     assert response.status_code == 200
     html = response.content.decode()
-    assert 'Criar rascunho a partir de' in html
-    assert f'#{req_rascunho_solicitante.pk}' not in html
+    assert req_recusada_view.numero_publico in html
+    assert f'#{req_recusada_view.pk}' not in html
+    assert 'Itens que serão copiados' in html
 
 
 @pytest.mark.django_db
@@ -4377,6 +4398,67 @@ def test_detalhe_renderiza_um_unico_modal_por_item_devolvivel(
     item = req_atendida_view.itens.first()
     assert html.count(f'id="devolver-{item.pk}"') == 1
     assert html.count(f'data-modal-trigger="devolver-{item.pk}"') == 1
+
+
+@pytest.mark.django_db
+def test_detalhe_omite_bloco_de_devolucao_sem_entregue_liquida(
+    client, aux_almoxarifado, req_atendida_view
+):
+    """Devolvido tudo, o bloco não tem linha nenhuma — então não deve existir.
+
+    A operação continua disponível no domínio; é a lista de itens devolvíveis
+    que decide se a seção é renderizada.
+    """
+    from apps.requisicoes.services import registrar_devolucao
+
+    _login(client, aux_almoxarifado)
+    for item in req_atendida_view.itens.all():
+        registrar_devolucao(
+            ator_id=aux_almoxarifado.pk,
+            requisicao_id=req_atendida_view.pk,
+            item_id=item.pk,
+            quantidade=item.quantidade_entregue,
+        )
+
+    html = client.get(
+        reverse('requisicoes:detalhe', kwargs={'pk': req_atendida_view.pk})
+    ).content.decode()
+    assert 'Devolução ao estoque' not in html
+
+
+@pytest.mark.django_db
+def test_detalhe_nao_compara_estado_cru_no_template(
+    client, aux_almoxarifado, req_atendida_view
+):
+    """Quais quantidades aparecem vem de flags da view, não de `estado == '...'`
+    no template: o grafo de estados tem fonte única (PRODUCT.md).
+    """
+    _login(client, aux_almoxarifado)
+    response = client.get(
+        reverse('requisicoes:detalhe', kwargs={'pk': req_atendida_view.pk})
+    )
+    assert response.context['mostrar_quantidade_autorizada'] is True
+    assert response.context['mostrar_quantidade_entregue'] is True
+    assert response.context['cancelamento_inline'] is False
+    html = response.content.decode()
+    assert '>Autorizada</dt>' in html
+    assert '>Entregue</dt>' in html
+
+
+@pytest.mark.django_db
+def test_detalhe_rascunho_nao_mostra_quantidades_de_decisao(
+    client, solicitante, req_rascunho_solicitante
+):
+    _login(client, solicitante)
+    response = client.get(
+        reverse('requisicoes:detalhe', kwargs={'pk': req_rascunho_solicitante.pk})
+    )
+    assert response.context['mostrar_quantidade_autorizada'] is False
+    assert response.context['mostrar_quantidade_entregue'] is False
+    assert response.context['cancelamento_inline'] is True
+    html = response.content.decode()
+    assert '>Autorizada</dt>' not in html
+    assert '>Entregue</dt>' not in html
 
 
 # ---------------------------------------------------------------------------

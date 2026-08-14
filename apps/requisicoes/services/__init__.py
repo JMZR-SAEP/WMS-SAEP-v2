@@ -26,9 +26,10 @@ from apps.requisicoes.services.ciclo_vida import (
     retornar_para_rascunho,
 )
 from apps.requisicoes.services.composites import criar_e_enviar_requisicao
-from apps.requisicoes.services.copia import copiar_requisicao
+from apps.requisicoes.services.copia import ESTADOS_COPIAVEIS, copiar_requisicao
 
 __all__ = [
+    'ESTADOS_COPIAVEIS',
     'ItemInput',
     'criar_e_enviar_requisicao',
     'criar_requisicao',
