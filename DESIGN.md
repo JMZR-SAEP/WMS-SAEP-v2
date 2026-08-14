@@ -296,6 +296,8 @@ O sistema adota a escala Material Design 2 explicitamente, com quatro degraus e 
 
 **A Regra dos Quatro Degraus.** 0, 1, 8 e 24dp — mais o 4dp exclusivo da barra de aplicação. Nenhuma sombra nova é criada para um componente novo: escolha o degrau que descreve a relação com o plano da página. Sombra colorida, sombra em hover de card e sombra como ênfase visual estão fora.
 
+**A Regra do Empilhamento Fechado.** Elevação descreve a relação com o papel; z-index descreve quem cobre quem, e a escala é fechada: barra de ação fixa `z-10`, popover ancorado `z-20`, barra de aplicação e overlay de navegação `z-30`, drawer `z-40`, skip link `z-50`, modal no top layer do `<dialog>`. A consequência prática é que **a barra de ação fixa fica abaixo do popover** — o inverso esconde o dropdown do autocomplete atrás dela no celular. Ver a tabela em `docs/design-system.md`.
+
 ## Shapes
 
 Retângulos de cantos suaves, sem chanfro, sem forma orgânica, sem clipping decorativo. O raio cresce junto com a superfície, o que torna a hierarquia legível pela geometria: controle 0.375rem (botão, item de menu, ação da barra) → campo 0.5rem (input, select, textarea, alerta) → papel 0.75rem (card, wrapper de tabela, estado vazio) → modal 1rem. Elementos circulares (`9999px`) são reservados a badge/pill, avatar e botão-ícone da barra de aplicação.
@@ -331,7 +333,7 @@ Borda é estrutural, não decorativa: 1px sólido em toda superfície de papel, 
 - **Internal Padding:** 1rem no cartão de listagem; 1.5rem em seção maior.
 
 ### Inputs / Fields
-- **Style:** papel branco, borda `border-strong` (slate-300), raio 0.5rem, padding `0.5rem 0.75rem`, corpo 14px, largura total do container.
+- **Style:** papel branco, borda `border-strong` (slate-300), raio 0.5rem, padding `0.5rem 0.75rem`, corpo 14px, largura total do container e **altura mínima de 2.75rem (44px)** — campo é controle acionável e segue o mesmo piso do botão. Radio e checkbox usam `size-5` dentro de uma label de 44px; `textarea` com duas linhas ou mais já passa do piso.
 - **Focus:** borda blue-500 + `ring-2` blue-500, sem outline.
 - **Erro:** borda `danger-border-input` (red-400), `aria-invalid="true"` e mensagem em `role="alert"` abaixo do campo, vinculada por `aria-describedby`. Texto de erro vem sempre do Form, nunca hardcoded no componente.
 - **Rótulo:** acima do campo, 12px semibold caixa alta em cinza de metadado, com asterisco `danger-accent` quando obrigatório. Texto de ajuda fica entre o rótulo e o campo.

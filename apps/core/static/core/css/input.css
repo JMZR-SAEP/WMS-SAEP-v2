@@ -130,6 +130,18 @@
 
 @layer components {
   /*
+    Linha de item de formset em bloqueio momentâneo — remoção recusada porque
+    era a última linha. O realce é uma classe, não `element.style`: estilo
+    inline escrito por JS escapa de todo o sistema de tokens e ainda sobrepõe o
+    anel de foco da linha, que é a única pista de onde o teclado está.
+    O texto que acompanha vive na live region do formulário (item_form_row.js).
+  */
+  .item-form-row--bloqueada {
+    outline: 2px solid var(--color-danger-accent);
+    outline-offset: -1px;
+  }
+
+  /*
     Skip link — primeiro foco tabulável da página, fora da tela até receber foco.
     Sem ele o teclado atravessa hamburger + toda a navegação lateral antes de
     chegar ao conteúdo, em toda troca de página (WCAG 2.4.1, nível A).

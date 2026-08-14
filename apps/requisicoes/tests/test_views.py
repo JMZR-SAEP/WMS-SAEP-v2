@@ -109,7 +109,10 @@ def test_nova_requisicao_get_container_itens_usa_factory_alpine(client, solicita
     resp = client.get(reverse('requisicoes:nova_requisicao'))
     html = resp.content.decode()
     assert 'id="itens-container"' in html
-    assert 'x-data="itensFormset()"' in html
+    # A factory passa a receber o prefixo do formset para ler o TOTAL_FORMS,
+    # que é a fonte única do índice da próxima linha.
+    assert 'x-data="itensFormset({ prefixo: \'itens\' })"' in html
+    assert 'data-itens-container' in html
 
 
 @pytest.mark.django_db
@@ -417,7 +420,10 @@ def test_editar_rascunho_get_container_itens_usa_factory_alpine(
     )
     html = resp.content.decode()
     assert 'id="itens-container"' in html
-    assert 'x-data="itensFormset()"' in html
+    # A factory passa a receber o prefixo do formset para ler o TOTAL_FORMS,
+    # que é a fonte única do índice da próxima linha.
+    assert 'x-data="itensFormset({ prefixo: \'itens\' })"' in html
+    assert 'data-itens-container' in html
 
 
 @pytest.mark.django_db
@@ -2287,8 +2293,12 @@ def test_atender_get_prepreenche_quantidade_decimal_com_ponto(
         reverse('requisicoes:registrar_atendimento', kwargs={'pk': req.pk})
     )
     html = response.content.decode('utf-8')
-    assert 'value="5.500"' in html
-    assert 'value="5,500"' not in html
+    # Ponto, nunca vírgula: `5,500` seria lido como cinco mil e quinhentos.
+    # E sem os zeros à direita que o DecimalField carrega do banco — mas sem
+    # arredondar 5,5 para 6, que faria confirmar mais do que foi autorizado.
+    assert 'value="5.5"' in html
+    assert 'value="5,5"' not in html
+    assert 'value="5.500"' not in html
 
 
 @pytest.mark.django_db
@@ -3708,7 +3718,10 @@ def test_atender_retirada_itens_sem_scroll_horizontal(
     assert response.status_code == 200
     assert 'overflow-x-auto'.encode() not in response.content
     assert '<table'.encode() not in response.content
-    assert 'Quantidade entregue para'.encode() in response.content
+    # O nome do material saiu do rótulo de cada campo e virou o nome do grupo
+    # da linha; o rótulo curto é o que aparece na tela abaixo de lg.
+    assert 'role="group"'.encode() in response.content
+    assert '>Entregue'.encode() in response.content
 
 
 @pytest.mark.django_db
@@ -4364,3 +4377,221 @@ def test_detalhe_renderiza_um_unico_modal_por_item_devolvivel(
     item = req_atendida_view.itens.first()
     assert html.count(f'id="devolver-{item.pk}"') == 1
     assert html.count(f'data-modal-trigger="devolver-{item.pk}"') == 1
+
+
+# ---------------------------------------------------------------------------
+# Regressões da auditoria de UI — rascunho_form e atender_retirada
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_rascunho_botao_adicionar_deriva_indice_do_total_forms(client, solicitante):
+    """Índice da nova linha vem do TOTAL_FORMS, não de uma contagem no DOM.
+
+    Contando `.item-form-row` no DOM, dois cliques rápidos liam o mesmo número
+    antes de qualquer swap e o POST ficava com dois grupos `itens-N-*` — o
+    QueryDict guardava só o último e um material sumia sem erro na tela.
+    `hx-sync` fecha a janela; o TOTAL_FORMS é a fonte única do número.
+    """
+    _login(client, solicitante)
+    html = client.get(reverse('requisicoes:nova_requisicao')).content.decode()
+    assert 'hx-sync="this:queue all"' in html
+    assert 'id_itens-TOTAL_FORMS' in html
+    assert 'document.querySelectorAll(".item-form-row").length' not in html
+
+
+@pytest.mark.django_db
+def test_rascunho_nao_declara_script_inline_de_formset(client, solicitante):
+    """Comportamento vive na factory Alpine, não num <script> inline global."""
+    _login(client, solicitante)
+    html = client.get(reverse('requisicoes:nova_requisicao')).content.decode()
+    assert 'function incrementarTotalForms' not in html
+    assert 'aoAdicionarLinha($event)' in html
+
+
+@pytest.mark.django_db
+def test_rascunho_radios_tem_id_que_casa_com_ancora_do_sumario(client, aux_obras):
+    """Sem `id`, a âncora `#id_modo_criacao_0` do sumário não acha nada.
+
+    É o campo que separa Criador de Beneficiário — o que o sumário mais precisa
+    alcançar quando o formulário volta com erro no celular.
+    """
+    _login(client, aux_obras)
+    html = client.get(reverse('requisicoes:nova_requisicao')).content.decode()
+    assert 'id="id_modo_criacao_0"' in html
+    assert 'id="id_modo_criacao_1"' in html
+
+
+@pytest.mark.django_db
+def test_rascunho_combobox_beneficiario_carrega_id_do_campo(client, aux_obras):
+    """O id do campo fica no input visível; o hidden usa sufixo `-valor`.
+
+    Âncora em `<input type="hidden">` não move foco nem rolagem: o hidden é
+    `display:none`.
+    """
+    _login(client, aux_obras)
+    html = client.get(reverse('requisicoes:nova_requisicao')).content.decode()
+    assert 'id="id_beneficiario_id"' in html
+    assert 'id="id_beneficiario_id-valor"' in html
+
+
+@pytest.mark.django_db
+def test_rascunho_secao_com_erro_marca_borda_e_nao_fundo(
+    client, solicitante, material_disponivel
+):
+    """Fundo `danger-subtle` levava os rótulos slate-500 para ~4.35:1.
+
+    O sumário de erros continua usando esse fundo — lá o texto é
+    `danger-text-strong` e o contraste sobra. O que saiu foi a pintura da
+    seção inteira, que envolvia campos e rótulos de metadado.
+    """
+    _login(client, solicitante)
+    dados = _formset_post(material_disponivel.pk, quantidade='0')
+    html = client.post(reverse('requisicoes:nova_requisicao'), dados).content.decode()
+    assert 'rounded-xl border bg-surface border-danger-border-strong' in html
+    assert 'border-danger-border-strong bg-danger-subtle' not in html.replace(
+        'rounded-lg border border-danger-border-strong bg-danger-subtle', ''
+    )
+
+
+@pytest.mark.django_db
+def test_rascunho_campo_quantidade_vem_do_componente_com_alvo_de_44px(
+    client, solicitante
+):
+    """Linha de item usa form_field.html — e com ele o piso de toque e o ARIA."""
+    _login(client, solicitante)
+    html = client.get(reverse('requisicoes:nova_requisicao')).content.decode()
+    assert 'id="id_itens-0-quantidade_solicitada"' in html
+    assert 'min-h-11' in html
+    assert 'inputmode="numeric"' in html
+
+
+@pytest.mark.django_db
+def test_rascunho_aviso_de_formset_e_regiao_viva_separada_da_dica(client, solicitante):
+    """A dica estática perdia o texto original em dois cliques seguidos.
+
+    Ela acumulava dica + live region + gancho de JS; agora o aviso tem região
+    própria, vazia no carregamento — que é o único estado em que uma live
+    region anuncia coisa alguma.
+    """
+    _login(client, solicitante)
+    html = client.get(reverse('requisicoes:nova_requisicao')).content.decode()
+    assert 'data-formset-aviso' in html
+    assert 'aviso_quantidade' not in html
+
+
+@pytest.mark.django_db
+def test_atender_retirada_tem_barra_de_acao_fixa_no_mobile(
+    client, aux_almoxarifado, req_pronta_view_com_itens
+):
+    """A separação acontece em pé, no galpão: confirmar não pode exigir rolar
+    a lista inteira de volta."""
+    _login(client, aux_almoxarifado)
+    html = client.get(
+        reverse(
+            'requisicoes:registrar_atendimento',
+            kwargs={'pk': req_pronta_view_com_itens.pk},
+        )
+    ).content.decode()
+    assert 'fixed inset-x-0 bottom-0 z-10' in html
+    assert 'env(safe-area-inset-bottom)' in html
+
+
+@pytest.mark.django_db
+def test_linha_de_item_tira_min_e_step_do_widget_e_nao_do_template(client, solicitante):
+    """`min`/`step` são restrição de domínio: moram no Form, não no template.
+
+    Passá-los também como parâmetro do include criava duas fontes para a mesma
+    regra, com o template ganhando de quem valida.
+    """
+    _login(client, solicitante)
+    html = client.get(reverse('requisicoes:nova_requisicao')).content.decode()
+    campo = re.search(
+        r'<input[^>]*id="id_itens-0-quantidade_solicitada"[^>]*>', html
+    ).group()
+    assert 'min="1"' in campo
+    assert 'step="1"' in campo
+    assert campo.count('min=') == 1
+    assert campo.count('step=') == 1
+
+
+@pytest.mark.django_db
+def test_botao_adicionar_nao_envia_total_forms_que_a_view_ignora(client, solicitante):
+    """`hx-include` do TOTAL_FORMS era atributo morto: a view só lê `index`."""
+    _login(client, solicitante)
+    html = client.get(reverse('requisicoes:nova_requisicao')).content.decode()
+    assert 'hx-include' not in html
+
+
+@pytest.mark.django_db
+def test_atender_sem_itens_desabilita_confirmar_com_motivo(
+    client, aux_almoxarifado, solicitante, setor_obras
+):
+    """Ação de workflow bloqueada fica visível, desabilitada e com o motivo."""
+    req = Requisicao.objects.create(
+        estado=EstadoRequisicao.PRONTA_PARA_RETIRADA,
+        numero_publico='REQ-2026-9200',
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+    )
+    _login(client, aux_almoxarifado)
+    html = client.get(
+        reverse('requisicoes:registrar_atendimento', kwargs={'pk': req.pk})
+    ).content.decode()
+    assert 'Confirmar retirada' in html
+    assert 'disabled' in html
+    assert 'id="motivo-sem-itens"' in html
+    assert 'aria-describedby="motivo-sem-itens"' in html
+
+
+@pytest.mark.django_db
+def test_atender_preenche_quantidade_sem_zeros_a_direita(
+    client, aux_almoxarifado, req_pronta_view_com_itens
+):
+    """`1.000` num campo numérico é lido como mil em pt-BR — e ele baixa estoque."""
+    _login(client, aux_almoxarifado)
+    html = client.get(
+        reverse(
+            'requisicoes:registrar_atendimento',
+            kwargs={'pk': req_pronta_view_com_itens.pk},
+        )
+    ).content.decode()
+    campo = re.search(
+        r'<input[^>]*id="id_itens-0-quantidade_entregue"[^>]*>', html
+    ).group()
+    assert 'value="2"' in campo
+    assert 'value="2.000"' not in campo
+    assert 'value="2,000"' not in campo
+
+
+@pytest.mark.django_db
+def test_atender_rotula_os_campos_da_linha(
+    client, aux_almoxarifado, req_pronta_view_com_itens
+):
+    """O campo que decide quanto sai do estoque não pode ficar sem rótulo.
+
+    Visível abaixo de lg (onde não há cabeçalho de coluna) e `sr-only` a partir
+    dele; o nome do material vem do `role="group"` da linha, não repetido dentro
+    de cada rótulo.
+    """
+    item = req_pronta_view_com_itens.itens.first()
+    _login(client, aux_almoxarifado)
+    html = client.get(
+        reverse(
+            'requisicoes:registrar_atendimento',
+            kwargs={'pk': req_pronta_view_com_itens.pk},
+        )
+    ).content.decode()
+    assert f'aria-labelledby="item-{item.pk}-material"' in html
+    assert f'id="item-{item.pk}-material"' in html
+    assert 'role="group"' in html
+    rotulo = re.search(
+        r'<label[^>]*for="id_itens-0-quantidade_entregue"[^>]*>(.*?)</label>',
+        html,
+        re.S,
+    )
+    assert rotulo, 'campo de quantidade entregue sem <label> vinculada'
+    assert 'Entregue' in rotulo.group(1)
+    assert 'lg:sr-only' in rotulo.group()
+    assert 'class="sr-only"' not in rotulo.group()

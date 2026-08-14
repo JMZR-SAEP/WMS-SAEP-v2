@@ -157,6 +157,43 @@ inputs:   border border-border-strong
 focus:    border-border-focus ring-2 ring-border-focus ring-offset-2
 ```
 
+### Altura de controle — 44px também para campo
+
+Campo de linha única é controle acionável e segue o mesmo piso de `min-h-11`
+(44px) dos botões. Vale para `input` de texto, número, busca e `select`; os
+widgets declaram a classe em `forms.py`, junto do resto do estilo do campo.
+
+```
+campo linha única:  w-full min-h-11 rounded-lg border border-border-strong px-3 py-2 text-sm
+radio / checkbox:   size-5, dentro de <label class="flex min-h-11 items-center gap-2">
+```
+
+`textarea` com `rows` ≥ 2 já ultrapassa o piso e não precisa da classe.
+
+O motivo é o mesmo do botão e está nos Princípios: a mesma tela é operada com o
+dedo, em pé no galpão, e com teclado no escritório. `px-3 py-2 text-sm` sozinho
+entrega ~39px — passa no mínimo de 24px da WCAG 2.5.8 e falha o piso do
+projeto. O controle nativo de radio é o pior caso: ~16px sem a label.
+
+### Empilhamento (z-index)
+
+Escala fechada, para que uma superfície nova não precise adivinhar um valor:
+
+| Camada | z-index | Onde |
+|---|---|---|
+| Conteúdo da página | auto | padrão |
+| Barra de ação fixa no rodapé | `z-10` | ações sticky de formulário no mobile |
+| Popover ancorado | `z-20` | dropdown do `autocomplete.html` |
+| Barra de aplicação / overlay de navegação | `z-30` | `.app-bar`, scrim do menu |
+| Drawer de navegação | `z-40` | `.app-bar__menu-wrap` |
+| Skip link | `z-50` | primeiro foco tabulável |
+| Modal | top layer | `<dialog>` nativo, fora da escala |
+
+A regra que importa: **a barra de ação fixa fica abaixo do popover**. Quando ela
+subiu para `z-30` e empatou com a barra de aplicação, o dropdown de material
+passou a ser pintado por baixo dela no celular, e a opção ativa do combobox
+ficava encoberta (WCAG 2.4.11).
+
 ## Estados de UI
 
 ### Desabilitado (ação bloqueada por permissão/estado)

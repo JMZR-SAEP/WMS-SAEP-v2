@@ -37,7 +37,8 @@ from apps.core.exceptions import (
 from apps.core.http import htmx_redirect, parse_data_iso
 from apps.core.listagem import paginar, paginar_com_filtros
 from apps.core.presentation import traduz_erro_dominio
-from apps.core.templatetags.core_tags import formatar_quantidade
+from apps.core.quantidades import formatar as formatar_quantidade
+from apps.core.quantidades import normalizar
 from apps.estoque.models import SaldoEstoque
 from apps.estoque.selectors import entregue_liquida_por_requisicao
 from apps.requisicoes.forms import (
@@ -450,8 +451,6 @@ def nova_linha_item(request):
             'material_label_field': form['material_label'],
             'quantidade_field': form['quantidade_solicitada'],
             'quantidade_label': 'Quantidade',
-            'quantidade_min': '1',
-            'quantidade_step': '1',
             'autocomplete_url_name': 'requisicoes:buscar_materiais',
             'autocomplete_item_template': 'estoque/partials/_autocomplete_item_material.html',
             'delete_field': form[DELETION_FIELD_NAME],
@@ -724,10 +723,16 @@ def registrar_atendimento_view(request, pk: int):
     if request.method == 'GET':
         cabecalho = RegistrarAtendimentoCabecalhoForm()
         formset = ItemAtendimentoFormSet(
+            # A quantidade autorizada vem do banco com as 3 casas do
+            # DecimalField (`1.000`), e o navegador exibe isso em pt-BR como
+            # `1,000` — mil, num campo que dá baixa em estoque. `normalizar`
+            # tira só os zeros à direita, sem arredondar: um campo que reescreve
+            # o número recebido faria a pessoa confirmar valor diferente do
+            # autorizado sem perceber.
             initial=[
                 {
                     'item_id': item.id,
-                    'quantidade_entregue': item.quantidade_autorizada,
+                    'quantidade_entregue': normalizar(item.quantidade_autorizada),
                     'justificativa': '',
                 }
                 for item in itens_autorizados

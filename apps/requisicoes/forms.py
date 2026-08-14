@@ -68,7 +68,7 @@ class RequisicaoCriacaoForm(RequisicaoForm):
                 choices=choices,
                 widget=forms.Select(
                     attrs={
-                        'class': 'w-full rounded-lg border border-border-strong px-3 py-2 text-sm focus:border-border-focus focus:ring-2 focus:ring-border-focus focus:outline-none'
+                        'class': 'w-full min-h-11 rounded-lg border border-border-strong px-3 py-2 text-sm focus:border-border-focus focus:ring-2 focus:ring-border-focus focus:outline-none'
                     }
                 ),
             )
@@ -103,7 +103,7 @@ class ItemRequisicaoForm(forms.Form):
         required=False,
         widget=forms.TextInput(
             attrs={
-                'class': 'material-autocomplete w-full rounded-lg border border-border-strong px-3 py-2 text-sm focus:border-border-focus focus:ring-2 focus:ring-border-focus focus:outline-none',
+                'class': 'material-autocomplete w-full min-h-11 rounded-lg border border-border-strong px-3 py-2 text-sm focus:border-border-focus focus:ring-2 focus:ring-border-focus focus:outline-none',
                 'type': 'search',
                 'autocomplete': 'off',
                 'placeholder': 'Buscar por código ou nome...',
@@ -116,7 +116,9 @@ class ItemRequisicaoForm(forms.Form):
         required=False,
         widget=forms.NumberInput(
             attrs={
-                'class': 'w-28 rounded-lg border border-border-strong px-3 py-2 text-sm focus:border-border-focus focus:ring-2 focus:ring-border-focus focus:outline-none',
+                'class': 'w-full min-h-11 rounded-lg border border-border-strong px-3 py-2 text-sm focus:border-border-focus focus:ring-2 focus:ring-border-focus focus:outline-none',
+                'inputmode': 'numeric',
+                'autocomplete': 'off',
                 'step': '1',
                 'min': '1',
             }
@@ -229,9 +231,9 @@ class RegistrarAtendimentoCabecalhoForm(forms.Form):
         widget=forms.TextInput(
             attrs={
                 'class': (
-                    'w-full rounded-lg border border-border-strong px-3 py-2 text-sm '
-                    'focus:border-border-focus focus:ring-2 focus:ring-border-focus '
-                    'focus:outline-none'
+                    'w-full min-h-11 rounded-lg border border-border-strong px-3 py-2 '
+                    'text-sm focus:border-border-focus focus:ring-2 '
+                    'focus:ring-border-focus focus:outline-none'
                 ),
                 'autocomplete': 'off',
                 'placeholder': 'Nome de quem está retirando',
@@ -273,7 +275,11 @@ class ItemAtendimentoForm(forms.Form):
                     'focus:ring-border-focus focus:outline-none'
                 ),
                 'autocomplete': 'off',
-                'step': '0.001',
+                # `step` não vem daqui: depende da unidade do material daquela
+                # linha (`step_por_unidade`), que só a linha conhece, e entra
+                # por `attrs_extra` em atender_retirada.html. Declarar um valor
+                # fixo aqui seria uma segunda fonte para a mesma restrição,
+                # sempre sobrescrita e por isso sempre mentirosa.
                 'min': '0',
                 'inputmode': 'decimal',
             }
@@ -347,8 +353,9 @@ class RegistrarDevolucaoForm(forms.Form):
         decimal_places=3,
         widget=forms.NumberInput(
             attrs={
+                'inputmode': 'decimal',
                 'class': (
-                    'w-full rounded-lg border border-border-strong px-3 py-2 text-sm '
+                    'w-full min-h-11 rounded-lg border border-border-strong px-3 py-2 text-sm '
                     'focus:border-border-focus focus:ring-2 focus:ring-border-focus '
                     'focus:outline-none'
                 ),

@@ -24,7 +24,7 @@ class SaidaExcepcionalForm(forms.Form):
         choices=MOTIVO_SAIDA_OPCOES,
         widget=forms.Select(
             attrs={
-                'class': 'w-full rounded-lg border border-border-strong bg-surface px-3 py-2 text-sm focus:border-border-focus focus:outline-none focus:ring-2 focus:ring-border-focus',
+                'class': 'w-full min-h-11 rounded-lg border border-border-strong bg-surface px-3 py-2 text-sm focus:border-border-focus focus:outline-none focus:ring-2 focus:ring-border-focus',
                 'autocomplete': 'off',
             }
         ),
@@ -59,7 +59,7 @@ class ItemSaidaExcepcionalForm(forms.Form):
         required=False,
         widget=forms.TextInput(
             attrs={
-                'class': 'material-autocomplete w-full rounded-lg border border-border-strong px-3 py-2 text-sm focus:border-border-focus focus:ring-2 focus:ring-border-focus focus:outline-none',
+                'class': 'material-autocomplete w-full min-h-11 rounded-lg border border-border-strong px-3 py-2 text-sm focus:border-border-focus focus:ring-2 focus:ring-border-focus focus:outline-none',
                 'type': 'search',
                 'autocomplete': 'off',
                 'placeholder': 'Buscar por código ou nome...',
@@ -73,7 +73,9 @@ class ItemSaidaExcepcionalForm(forms.Form):
         required=False,
         widget=forms.NumberInput(
             attrs={
-                'class': 'w-28 rounded-lg border border-border-strong px-3 py-2 text-sm focus:border-border-focus focus:ring-2 focus:ring-border-focus focus:outline-none',
+                'class': 'w-full min-h-11 rounded-lg border border-border-strong px-3 py-2 text-sm focus:border-border-focus focus:ring-2 focus:ring-border-focus focus:outline-none',
+                'inputmode': 'decimal',
+                'autocomplete': 'off',
                 'step': 'any',
                 'min': '0.001',
             }

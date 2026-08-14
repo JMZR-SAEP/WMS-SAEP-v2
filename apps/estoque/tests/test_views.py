@@ -175,7 +175,10 @@ class TestNovaSaidaExcepcionalView:
         response = client.get(URL_NOVA)
         html = response.content.decode()
         assert 'id="itens-container"' in html
-        assert 'x-data="itensFormset()"' in html
+        # A factory passa a receber o prefixo do formset para ler o TOTAL_FORMS,
+        # que é a fonte única do índice da próxima linha.
+        assert 'x-data="itensFormset({ prefixo: \'itens\' })"' in html
+        assert 'data-itens-container' in html
 
     def test_botao_remover_usa_click_alpine_sem_onclick_inline(
         self, client, chefe_almoxarifado, estoque_principal

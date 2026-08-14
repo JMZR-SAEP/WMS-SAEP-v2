@@ -42,9 +42,16 @@
     {% coletar_erros form formset as erros_formulario %}
     {% include "components/error_summary.html" with erros=erros_formulario %}
 
+    {% comment %}
+      Seção em erro marca a borda, não o fundo. O fundo `danger-subtle` empurrava
+      os rótulos `text-text-tertiary` (slate-500) para ~4.35:1 contra red-50 —
+      abaixo do mínimo de 4.5:1 — e fazia isso justamente quando a pessoa mais
+      precisa ler o formulário. A borda forte carrega o mesmo sinal sem tocar em
+      contraste de texto, e o sumário no topo já nomeia o problema.
+    {% endcomment %}
     {# --- Seção 1: Beneficiário --- #}
-    <section class="mb-6 rounded-xl border {% if form.modo_criacao.errors or form.beneficiario_id.errors %}border-danger-border-strong bg-danger-subtle{% else %}border-border bg-surface{% endif %} p-6 shadow-sm">
-      <h2 class="text-base font-medium text-text-primary mb-4">
+    <section class="mb-6 rounded-xl border bg-surface {% if form.modo_criacao.errors or form.beneficiario_id.errors %}border-danger-border-strong{% else %}border-border{% endif %} p-6 shadow-sm">
+      <h2 class="text-lg font-semibold text-text-primary mb-4">
         <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-bg-subtle text-text-tertiary text-xs font-semibold mr-1.5" aria-hidden="true">1</span>
         <span class="sr-only">Etapa 1 de 3: </span>
         Beneficiário
@@ -86,23 +93,32 @@
             o leitor de tela anuncia "Para mim, botão de opção, 1 de 2" sem
             dizer de quê. É a decisão que separa Criador de Beneficiário — a
             distinção mais sutil do domínio.
+
+            Pelo mesmo motivo, cada radio leva `id` explícito: sem ele o sumário
+            de erros linka para `#id_modo_criacao_0` — o que `coletar_erros`
+            deriva de `id_for_label` — e a âncora não encontra nada.
+
+            O `aria-describedby` do erro fica em cada `<input>`, não no
+            `<fieldset>`: NVDA e JAWS anunciam descrição de fieldset de forma
+            inconsistente ao entrar no grupo, e o `aria-invalid` já mora aqui.
           {% endcomment %}
-          <fieldset
-            class="mb-4"
-            {% if form.modo_criacao.errors %}aria-describedby="{{ form.modo_criacao.id_for_label }}-erro"{% endif %}
-          >
+          <fieldset class="mb-4">
             <legend class="sr-only">{{ form.modo_criacao.label }}</legend>
-            <div class="flex gap-6">
+            <div class="flex flex-wrap gap-x-6">
               {% for radio in form.modo_criacao %}
-                <label class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
+                <label
+                  for="{{ form.modo_criacao.auto_id }}_{{ forloop.counter0 }}"
+                  class="flex min-h-11 items-center gap-2 text-sm text-text-secondary cursor-pointer"
+                >
                   <input
                     type="radio"
+                    id="{{ form.modo_criacao.auto_id }}_{{ forloop.counter0 }}"
                     name="{{ form.modo_criacao.html_name }}"
                     value="{{ radio.data.value }}"
                     {% if radio.data.selected %}checked{% endif %}
-                    {% if form.modo_criacao.errors %}aria-invalid="true"{% endif %}
+                    {% if form.modo_criacao.errors %}aria-invalid="true" aria-describedby="{{ form.modo_criacao.id_for_label }}-erro"{% endif %}
                     x-model="modoCriacao"
-                    class="accent-primary"
+                    class="size-5 accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1"
                   >
                   {{ radio.choice_label }}
                 </label>
@@ -127,13 +143,20 @@
               initialLabel: '{{ benef_label|escapejs }}',
             })"
           >
+            {% comment %}
+              O `id_for_label` do campo vai para o input de busca (via
+              `input_id`), não para este hidden: é o input visível que a pessoa
+              foca, e é para ele que a âncora `#id_beneficiario_id` do sumário
+              de erros precisa levar. Um hidden é `display:none` — âncora nele
+              não move o foco nem a rolagem.
+            {% endcomment %}
             <input
               type="hidden"
               name="{{ form.beneficiario_id.html_name }}"
-              id="{{ form.beneficiario_id.id_for_label }}"
+              id="{{ form.beneficiario_id.id_for_label }}-valor"
               x-ref="hiddenInput"
             />
-            {% include "components/autocomplete.html" with label="Selecione o beneficiário" placeholder="Buscar por nome ou matrícula…" item_template="requisicoes/partials/_autocomplete_item_beneficiario.html" sem_resultados_label="Nenhum beneficiário encontrado." com_erro=form.beneficiario_id.errors erro_id=form.beneficiario_id.id_for_label|add:"-erro" %}
+            {% include "components/autocomplete.html" with label="Selecione o beneficiário" placeholder="Buscar por nome ou matrícula…" item_template="requisicoes/partials/_autocomplete_item_beneficiario.html" sem_resultados_label="Nenhum beneficiário encontrado." input_id=form.beneficiario_id.id_for_label com_erro=form.beneficiario_id.errors erro_id=form.beneficiario_id.id_for_label|add:"-erro" %}
             {% if form.beneficiario_id.errors %}
               <p id="{{ form.beneficiario_id.id_for_label }}-erro" class="mt-1 text-xs text-danger-text" role="alert">{{ form.beneficiario_id.errors|join:", " }}</p>
             {% endif %}
@@ -145,13 +168,20 @@
     </section>
 
     {# --- Seção 2: Itens --- #}
-    <section class="mb-6 rounded-xl border {% if formset.non_form_errors or formset.total_error_count %}border-danger-border-strong bg-danger-subtle{% else %}border-border bg-surface{% endif %} p-6 shadow-sm">
-      <h2 class="text-base font-medium text-text-primary mb-1">
+    <section class="mb-6 rounded-xl border bg-surface {% if formset.non_form_errors or formset.total_error_count %}border-danger-border-strong{% else %}border-border{% endif %} p-6 shadow-sm">
+      <h2 class="text-lg font-semibold text-text-primary mb-1">
         <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-bg-subtle text-text-tertiary text-xs font-semibold mr-1.5" aria-hidden="true">2</span>
         <span class="sr-only">Etapa 2 de 3: </span>
         Itens
       </h2>
-      <p class="aviso_quantidade text-xs text-text-tertiary mb-4" role="status">Adicione ao menos um material com quantidade solicitada.</p>
+      {% comment %}
+        Dica estática sem `role`: live region só anuncia mudança, e conteúdo já
+        presente no carregamento nunca dispara — o role era ruído semântico. Os
+        avisos do formset entram na região vazia e dedicada logo abaixo, que
+        antes era este mesmo parágrafo fazendo três papéis (dica, live region e
+        gancho de JS) e perdia o texto original em dois cliques seguidos.
+      {% endcomment %}
+      <p class="text-xs text-text-tertiary mb-4">Adicione ao menos um material com quantidade solicitada.</p>
 
       {% if tem_item_inelegivel %}
         {% include "components/alert.html" with variant="warning" body_template="requisicoes/partials/_alert_itens_inelegiveis_corpo.html" class="mb-4" %}
@@ -165,34 +195,63 @@
         {% include "components/alert.html" with variant="danger" icone=False body_template="requisicoes/partials/_alert_erros_formset.html" class="mb-3" %}
       {% endif %}
 
-      {# Container de linhas — alvo do HTMX swap #}
-      <div id="itens-container" class="flex flex-col gap-3" x-data="itensFormset()">
-        {% for item_form in formset %}
-          {% with saldo_item=saldo_info|get_item:item_form.material_id.value %}
-          {% include "components/item_form_row.html" with material_id_field=item_form.material_id material_label_field=item_form.material_label quantidade_field=item_form.quantidade_solicitada quantidade_label="Quantidade" quantidade_min="1" quantidade_step="1" autocomplete_url_name="requisicoes:buscar_materiais" autocomplete_item_template="estoque/partials/_autocomplete_item_material.html" delete_field=item_form.DELETE form_index=forloop.counter0 saldo_item=saldo_item %}
-          {% endwith %}
-        {% endfor %}
-      </div>
+      {% comment %}
+        O escopo Alpine envolve as linhas E o botão de adicionar: o índice da
+        próxima linha vem do TOTAL_FORMS (fonte única) e o botão precisa estar
+        dentro do escopo para lê-lo. `hx-sync="this:queue all"` serializa os
+        cliques em vez de deixá-los correr em paralelo: o HTMX reavalia o
+        `hx-vals` ao emitir cada requisição da fila, então a segunda já lê o
+        TOTAL_FORMS que a primeira incrementou. São as duas metades da correção
+        da corrida que duplicava `itens-N-*` e perdia um material sem erro.
+        `drop` também a fecharia, mas descartando cliques — quem toca três vezes
+        para somar três materiais receberia um só.
+      {% endcomment %}
+      <div x-data="itensFormset({ prefixo: 'itens' })">
+        {# Container de linhas — alvo do HTMX swap #}
+        <div id="itens-container" data-itens-container class="flex flex-col gap-3">
+          {% for item_form in formset %}
+            {% with saldo_item=saldo_info|get_item:item_form.material_id.value %}
+            {% include "components/item_form_row.html" with material_id_field=item_form.material_id material_label_field=item_form.material_label quantidade_field=item_form.quantidade_solicitada quantidade_label="Quantidade" autocomplete_url_name="requisicoes:buscar_materiais" autocomplete_item_template="estoque/partials/_autocomplete_item_material.html" delete_field=item_form.DELETE form_index=forloop.counter0 saldo_item=saldo_item %}
+            {% endwith %}
+          {% endfor %}
+        </div>
 
-      {# Botão adicionar item via HTMX #}
-      <button
-        type="button"
-        class="mt-6 -mx-2 flex min-h-11 items-center gap-2 rounded-md px-2 text-sm font-medium text-primary-text hover:text-primary-text-emphasis cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1"
-        hx-get="{% url 'requisicoes:nova_linha_item' %}"
-        hx-target="#itens-container"
-        hx-swap="beforeend"
-        hx-include="#id_itens-TOTAL_FORMS"
-        hx-vals='js:{"index": document.querySelectorAll(".item-form-row").length}'
-        hx-on::after-request="incrementarTotalForms(event)"
-      >
-        {% icon "adicionar" class="h-4 w-4" %}
-        Adicionar material
-      </button>
+        {% comment %}
+          Sem `hidden`: um elemento `display:none` sai da árvore de
+          acessibilidade, e mutação em live region fora da árvore não é
+          anunciada. Escondê-lo e revelá-lo junto com o texto, na mesma tarefa
+          de JS, é uma corrida que cada leitor de tela resolve de um jeito. A
+          região fica sempre presente e vazia — que é o único estado em que ela
+          consegue anunciar a mudança seguinte. Vazia ela não ocupa altura, e a
+          margem colapsa com a do botão abaixo.
+        {% endcomment %}
+        <p
+          data-formset-aviso
+          role="status"
+          aria-live="polite"
+          class="mt-3 text-xs font-medium text-danger-text"
+        ></p>
+
+        {# Botão adicionar item via HTMX #}
+        <button
+          type="button"
+          class="mt-6 -mx-2 flex min-h-11 items-center gap-2 rounded-md px-2 text-sm font-medium text-primary-text hover:text-primary-text-emphasis cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1"
+          hx-get="{% url 'requisicoes:nova_linha_item' %}"
+          hx-target="#itens-container"
+          hx-swap="beforeend"
+          hx-sync="this:queue all"
+          hx-vals='js:{"index": Number(document.getElementById("id_itens-TOTAL_FORMS").value)}'
+          @htmx:after-request="aoAdicionarLinha($event)"
+        >
+          {% icon "adicionar" class="h-4 w-4" %}
+          Adicionar material
+        </button>
+      </div>
     </section>
 
     {# --- Seção 3: Observação geral --- #}
-    <section class="mb-6 rounded-xl border {% if form.observacao_geral.errors %}border-danger-border-strong bg-danger-subtle{% else %}border-border bg-surface{% endif %} p-6 shadow-sm">
-      <h2 class="text-base font-medium text-text-primary mb-3">
+    <section class="mb-6 rounded-xl border bg-surface {% if form.observacao_geral.errors %}border-danger-border-strong{% else %}border-border{% endif %} p-6 shadow-sm">
+      <h2 class="text-lg font-semibold text-text-primary mb-3">
         <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-bg-subtle text-text-tertiary text-xs font-semibold mr-1.5" aria-hidden="true">3</span>
         <span class="sr-only">Etapa 3 de 3: </span>
         Observação geral
@@ -213,7 +272,14 @@
       default ao pressionar Enter. Visualmente, envio fica à direita via flex order.
 
     {% endcomment %}
-    <div class="fixed bottom-0 inset-x-0 z-30 bg-surface border-t border-border px-4 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] flex flex-nowrap items-center justify-end gap-2 sm:static sm:z-auto sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:pb-0">
+    {% comment %}
+      z-10, não z-30: a barra só precisa ficar acima do conteúdo da página. Em
+      z-30 ela empatava com o dropdown do autocomplete (z-20) e vencia — no
+      celular, buscar material numa linha perto do fim da tela pintava os
+      resultados por baixo da barra, e a opção ativa do combobox ficava
+      encoberta (WCAG 2.4.11).
+    {% endcomment %}
+    <div class="fixed bottom-0 inset-x-0 z-10 bg-surface border-t border-border px-4 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] flex flex-nowrap items-center justify-end gap-2 sm:static sm:z-auto sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:pb-0">
       {% if modo == 'criar' %}
         {% include "components/button.html" with variant="secondary" type="submit" name="acao" value="rascunho" label="Salvar rascunho" loading_label="Salvando…" class="order-1 shrink-0 transition-colors" %}
         {% include "components/button.html" with variant="primary" type="submit" name="acao" value="enviar" label="Criar e enviar para autorização" label_mobile="Enviar" loading_label="Enviando…" icon_template="components/icons/enviar.svg" icon_class="h-4 w-4 shrink-0" class="order-2 shrink-0 transition-colors" %}
@@ -224,18 +290,4 @@
 
   </form>
 </div>
-{% endblock %}
-
-{% block extra_scripts %}
-<script>
-  // Incrementa TOTAL_FORMS após adicionar nova linha via HTMX
-  function incrementarTotalForms(event) {
-    if (event && event.detail?.xhr?.status !== 200) return;
-    const input = document.getElementById('id_itens-TOTAL_FORMS');
-    if (input) {
-      input.value = parseInt(input.value, 10) + 1;
-    }
-  }
-
-</script>
 {% endblock %}
