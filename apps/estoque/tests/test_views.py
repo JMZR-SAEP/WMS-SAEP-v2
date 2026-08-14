@@ -1079,7 +1079,12 @@ class TestHistoricoImportacoesScpiView:
         resp = client.get(self.URL)
         assert b'conteudo_csv' not in resp.content
 
-    def test_tabela_tem_caption_sr_only(self, client, superuser, estoque_principal):
+    def test_renderiza_cartoes_com_metadados(
+        self, client, superuser, estoque_principal
+    ):
+        """Esta tela não tinha renderização em cartões e ganhou uma quando as
+        tabelas saíram do sistema — sem ela, ficaria sem listagem nenhuma.
+        """
         from apps.estoque.models import ImportacaoSCPI, StatusImportacaoSCPI
 
         ImportacaoSCPI.objects.create(
@@ -1090,17 +1095,21 @@ class TestHistoricoImportacoesScpiView:
             status=StatusImportacaoSCPI.CONCLUIDA,
         )
         client.force_login(superuser)
-        resp = client.get(self.URL)
-        conteudo = resp.content.decode()
-        assert conteudo.count('<caption class="sr-only">') == 1
-        assert 'Histórico de importações SCPI, mais recente primeiro.' in conteudo
+        conteudo = client.get(self.URL).content.decode()
+        assert (
+            '<article class="rounded-xl border border-border bg-surface p-4 shadow-sm">'
+            in conteudo
+        )
+        assert 'relatorio.csv' in conteudo
+        assert 'Concluída' in conteudo
+        assert '<table' not in conteudo
 
-    def test_wrapper_da_tabela_permanece_visivel_no_mobile(
+    def test_listagem_nao_usa_contentor_de_scroll_horizontal(
         self, client, superuser, estoque_principal
     ):
-        # Regressão: #tabela_abertura é hidden + sm:block (não há cards
-        # mobile aqui). Se alguém trocar o wrapper literal pelo fragmento
-        # canônico, a tabela some em mobile silenciosamente.
+        """Antes a tabela ficava num wrapper `overflow-x-auto` que rolava em
+        qualquer janela de desktop não maximizada. O cartão dispensa o wrapper.
+        """
         from apps.estoque.models import ImportacaoSCPI, StatusImportacaoSCPI
 
         ImportacaoSCPI.objects.create(
@@ -1111,17 +1120,8 @@ class TestHistoricoImportacoesScpiView:
             status=StatusImportacaoSCPI.CONCLUIDA,
         )
         client.force_login(superuser)
-        resp = client.get(self.URL)
-        conteudo = resp.content.decode()
-        marcador_wrapper = (
-            '<div class="overflow-x-auto rounded-xl border border-border '
-            'bg-surface shadow-sm">'
-        )
-        assert marcador_wrapper in conteudo
-        inicio_wrapper = conteudo.index(marcador_wrapper)
-        fim_tabela = conteudo.index('</table>', inicio_wrapper)
-        wrapper_e_tabela = conteudo[inicio_wrapper:fim_tabela]
-        assert 'sm:block' not in wrapper_e_tabela
+        conteudo = client.get(self.URL).content.decode()
+        assert 'overflow-x-auto' not in conteudo
 
     def test_exibe_link_de_download_quando_ha_arquivo(
         self, client, settings, tmp_path, superuser, estoque_principal
@@ -1391,17 +1391,16 @@ class TestListaMateriaisView:
         critico = next(s for s in saldos if s.material == material_scpi_critico)
         assert critico.divergente_calculado is True
 
-    def test_tabela_tem_caption_sr_only(
+    def test_renderiza_cartoes(
         self, client, chefe_almoxarifado, material_disponivel, estoque_principal
     ):
         client.force_login(chefe_almoxarifado)
-        response = client.get(URL_MATERIAIS)
-        conteudo = response.content.decode()
-        assert conteudo.count('<caption class="sr-only">') == 1
-        assert (
-            'Saldo físico, reservado e disponível de cada material no estoque.'
-            in conteudo
-        )
+        conteudo = client.get(URL_MATERIAIS).content.decode()
+        # <article> literal aqui: o estilo do cartão depende do estado de
+        # divergência, então esta tela não usa o #card_abertura do chrome.
+        assert '<article' in conteudo
+        assert 'grid items-start gap-3 sm:grid-cols-2' in conteudo
+        assert '<table' not in conteudo
 
     def test_material_divergente_realca_linha_e_card(
         self, client, chefe_almoxarifado, material_scpi_critico, estoque_principal
@@ -1409,10 +1408,10 @@ class TestListaMateriaisView:
         client.force_login(chefe_almoxarifado)
         response = client.get(URL_MATERIAIS)
         conteudo = response.content.decode()
-        assert 'bg-danger-subtle hover:bg-danger-muted' in conteudo
+        # Sem tabela, o realce de divergência vive só no cartão.
         assert 'border-danger-border-strong bg-danger-subtle' in conteudo
         assert 'aria-label="Material com divergência crítica"' in conteudo
-        assert conteudo.count('Divergente') == 2
+        assert conteudo.count('Divergente') == 1
 
 
 URL_MOVIMENTACOES = reverse('estoque:historico_movimentacoes')

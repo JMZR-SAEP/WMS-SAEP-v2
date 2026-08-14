@@ -56,49 +56,6 @@
     {% endfor %}
   </div>
 
-  {% include "components/table.html#tabela_abertura" %}
-    <caption class="sr-only">Fila de atendimento com requisições autorizadas e prontas para retirada.</caption>
-    <thead class="bg-bg-subtle">
-      <tr>
-        {% include "components/table.html#th" with rotulo="Número" %}
-        {% include "components/table.html#th" with rotulo="Estado" %}
-        {% include "components/table.html#th" with rotulo="Beneficiário" %}
-        {% include "components/table.html#th" with rotulo="Setor" %}
-        {% include "components/table.html#th" with rotulo="Autorizada em" %}
-        {% include "components/table.html#th" with rotulo="Itens" alinhamento="direita" %}
-        {% include "components/table.html#th" with alinhamento="direita" rotulo_somente_leitura="Ações" %}
-      </tr>
-    </thead>
-    <tbody class="divide-y divide-border bg-surface">
-      {% for req in requisicoes %}
-        <tr class="hover:bg-bg-page">
-          <td class="whitespace-nowrap px-4 py-3 text-sm font-medium text-text-primary">{{ req.numero_publico }}</td>
-          <td class="whitespace-nowrap px-4 py-3 text-sm">
-            {% if req.estado == 'autorizada' %}
-              {% include "components/badge.html" with variant="blue" label="Autorizada" prefixo_sr="Estado: " %}
-            {% else %}
-              {% include "components/badge.html" with variant="teal" label="Pronta para retirada" prefixo_sr="Estado: " %}
-            {% endif %}
-          </td>
-          <td class="whitespace-nowrap px-4 py-3 text-sm text-text-secondary">
-            {{ req.beneficiario.nome }}
-            <span class="text-text-tertiary">({{ req.beneficiario.matricula }})</span>
-          </td>
-          <td class="whitespace-nowrap px-4 py-3 text-sm text-text-secondary">{{ req.setor_beneficiario.nome }}</td>
-          <td class="whitespace-nowrap px-4 py-3 text-sm text-text-secondary">{% if req.autorizada_em %}{{ req.autorizada_em|date:"d/m/Y H:i" }}{% else %}—{% endif %}</td>
-          <td class="whitespace-nowrap px-4 py-3 text-right text-sm tabular-nums text-text-secondary">{{ req.quantidade_itens }}</td>
-          <td class="whitespace-nowrap px-4 py-3 text-right text-sm">
-            {% url 'requisicoes:detalhe' pk=req.pk as url_detalhe_req_row %}
-            {% with next_encoded=request.path|urlencode %}
-              {% include "components/button.html" with variant="secondary" size="sm" href=url_detalhe_req_row|add:"?next="|add:next_encoded label="Atender" aria_label="Atender requisição "|add:req.numero_publico %}
-            {% endwith %}
-          </td>
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  </div>
-
   {% include 'components/pagination.html' with page_obj=page_obj rotulo_itens='requisições' aria_label='Paginação da fila de atendimento' %}
 {% else %}
   {% include 'components/empty_state.html' with icone='components/icons/_caixa_entrada.html' titulo='Nenhuma requisição aguardando atendimento' descricao='A fila do almoxarifado está vazia.' %}

@@ -43,6 +43,7 @@
     {% partialdef resultados %}
     {% if page_obj.object_list %}
 
+      {% include "components/ordenacao_data.html" with url_ordenacao=url_ordenacao ordem=ordem target_id="resultados-movimentacoes" %}
       {% include "components/table.html#cards_abertura" %}
         {% for mov in page_obj.object_list %}
           {% include "components/table.html#card_abertura" %}
@@ -77,54 +78,6 @@
             </dl>
           </article>
         {% endfor %}
-      </div>
-
-      {% include "components/table.html#tabela_abertura" %}
-        <caption class="sr-only">
-          Movimentações de estoque, ordenadas por data/hora em ordem
-          {% if ordem == 'asc' %}crescente (mais antiga primeiro){% else %}decrescente (mais recente primeiro){% endif %}.
-        </caption>
-        <thead class="bg-bg-subtle">
-          <tr>
-            <th scope="col" aria-sort="{{ aria_sort }}" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-text-tertiary">
-              <a
-                href="{{ url_ordenacao }}"
-                hx-get="{{ url_ordenacao }}"
-                hx-target="#resultados-movimentacoes"
-                hx-push-url="true"
-                class="-my-1 inline-flex items-center gap-1 rounded py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
-                aria-label="Ordenar por data/hora, {% if ordem == 'asc' %}atualmente crescente{% else %}atualmente decrescente{% endif %}"
-              >
-                Data/hora
-                <span aria-hidden="true">{% if ordem == 'asc' %}↑{% else %}↓{% endif %}</span>
-              </a>
-            </th>
-            {% include "components/table.html#th" with rotulo="Tipo" %}
-            {% include "components/table.html#th" with rotulo="Material" %}
-            {% include "components/table.html#th" with rotulo="Δ Físico" alinhamento="direita" %}
-            {% include "components/table.html#th" with rotulo="Δ Reservado" alinhamento="direita" %}
-            {% include "components/table.html#th" with rotulo="Origem" %}
-            {% include "components/table.html#th" with rotulo="Ator" %}
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-border bg-surface">
-          {% for mov in page_obj.object_list %}
-            <tr class="hover:bg-bg-page">
-              <td class="whitespace-nowrap px-4 py-3 text-sm text-text-secondary">{{ mov.criado_em|date:"d/m/Y H:i" }}</td>
-              <td class="whitespace-nowrap px-4 py-3 text-sm">
-                {% include 'estoque/partials/_badge_tipo_movimentacao.html' with tipo=mov.tipo rotulo=mov.get_tipo_display %}
-              </td>
-              <td class="max-w-xs truncate px-4 py-3 text-sm font-medium text-text-primary">{{ mov.material }}</td>
-              <td class="whitespace-nowrap px-4 py-3 text-right text-sm">{% include 'estoque/partials/_delta_movimentacao.html' with valor=mov.delta_fisico %}</td>
-              <td class="whitespace-nowrap px-4 py-3 text-right text-sm">{% include 'estoque/partials/_delta_movimentacao.html' with valor=mov.delta_reservado %}</td>
-              <td class="whitespace-nowrap px-4 py-3 text-sm text-text-secondary">
-                {% if mov.requisicao_id %}{{ mov.requisicao.numero_publico|default:"—" }}{% else %}{{ mov.saida_excepcional.numero_publico|default:"—" }}{% endif %}
-              </td>
-              <td class="whitespace-nowrap px-4 py-3 text-sm text-text-secondary">{{ mov.ator.nome }}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
       </div>
 
       {% include 'components/pagination.html' with page_obj=page_obj querystring_filtros=querystring_filtros rotulo_itens='movimentações' aria_label='Paginação das movimentações' %}

@@ -27,54 +27,56 @@
   </div>
 
   {% if importacoes %}
-    <div class="overflow-x-auto rounded-xl border border-border bg-surface shadow-sm">
-      <table class="w-full text-sm">
-        <caption class="sr-only">Histórico de importações SCPI, mais recente primeiro.</caption>
-        <thead>
-          <tr class="border-b border-border bg-bg-subtle">
-            {% include "components/table.html#th" with rotulo="Arquivo" %}
-            {% include "components/table.html#th" with rotulo="Hash" %}
-            {% include "components/table.html#th" with rotulo="Usuário" %}
-            {% include "components/table.html#th" with rotulo="Data/Hora" %}
-            {% include "components/table.html#th" with rotulo="Status" %}
-            {% include "components/table.html#th" with rotulo="Linhas" alinhamento="direita" %}
-            {% include "components/table.html#th" with rotulo="Novos" alinhamento="direita" %}
-            {% include "components/table.html#th" with rotulo="Divergentes" alinhamento="direita" %}
-            {% include "components/table.html#th" with rotulo="Arquivo CSV" %}
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-border">
-          {% for imp in importacoes %}
-          <tr class="hover:bg-bg-page transition-colors duration-75">
-            <td class="px-4 py-3 font-mono text-xs text-text-secondary break-all">{{ imp.arquivo_nome }}</td>
-            <td class="px-4 py-3 font-mono text-xs text-text-tertiary truncate max-w-[8rem]" title="{{ imp.arquivo_hash }}">{{ imp.arquivo_hash|slice:":12" }}…</td>
-            <td class="px-4 py-3 text-text-secondary">{{ imp.importado_por }}</td>
-            <td class="px-4 py-3 text-text-tertiary whitespace-nowrap">{{ imp.importado_em|date:"d/m/Y H:i" }}</td>
-            <td class="px-4 py-3">
+    {% include "components/table.html#cards_abertura" %}
+      {% for imp in importacoes %}
+        {% include "components/table.html#card_abertura" %}
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <h2 class="font-mono text-xs break-all text-text-primary">{{ imp.arquivo_nome }}</h2>
+              <p class="mt-1 text-xs text-text-tertiary">{{ imp.importado_em|date:"d/m/Y H:i" }}</p>
+            </div>
+            <span class="shrink-0">
               {% if imp.status == 'concluida' %}
-                {% include "components/badge.html" with variant="green" label="Concluída" %}
+                {% include "components/badge.html" with variant="green" label="Concluída" prefixo_sr="Estado: " %}
               {% elif imp.status == 'com_alertas' %}
-                {% include "components/badge.html" with variant="yellow" label="Com alertas" %}
+                {% include "components/badge.html" with variant="yellow" label="Com alertas" prefixo_sr="Estado: " %}
               {% else %}
-                {% include "components/badge.html" with variant="slate" label=imp.get_status_display %}
+                {% include "components/badge.html" with variant="slate" label=imp.get_status_display prefixo_sr="Estado: " %}
               {% endif %}
-            </td>
-            <td class="px-4 py-3 text-right tabular-nums text-text-secondary">{{ imp.total_linhas }}</td>
-            <td class="px-4 py-3 text-right tabular-nums text-text-secondary">{{ imp.total_novos }}</td>
-            <td class="px-4 py-3 text-right tabular-nums {% if imp.total_divergentes > 0 %}text-warning-text font-medium{% else %}text-text-secondary{% endif %}">{{ imp.total_divergentes }}</td>
-            <td class="px-4 py-3 whitespace-nowrap">
-              {% if imp.arquivo %}
-                {% url 'estoque:baixar_arquivo_importacao_scpi' pk=imp.pk as url_download %}
-                {% include "components/button.html" with variant="link" size="sm" label="Baixar" href=url_download aria_label="Baixar CSV de "|add:imp.arquivo_nome %}
-              {% else %}
-                <span class="text-text-tertiary" aria-hidden="true">—</span>
-                <span class="sr-only">Importação anterior ao arquivamento: CSV não disponível.</span>
-              {% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+            </span>
+          </div>
+
+          <dl class="mt-4 grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Usuário</dt>
+              <dd class="mt-0.5 text-text-primary">{{ imp.importado_por }}</dd>
+            </div>
+            <div>
+              <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Hash</dt>
+              <dd class="mt-0.5 font-mono text-xs text-text-tertiary" title="{{ imp.arquivo_hash }}">{{ imp.arquivo_hash|slice:":12" }}…</dd>
+            </div>
+            <div>
+              <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Linhas</dt>
+              <dd class="mt-0.5 tabular-nums text-text-primary">{{ imp.total_linhas }}</dd>
+            </div>
+            <div>
+              <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Novos</dt>
+              <dd class="mt-0.5 tabular-nums text-text-primary">{{ imp.total_novos }}</dd>
+            </div>
+            <div>
+              <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Divergentes</dt>
+              <dd class="mt-0.5 tabular-nums {% if imp.total_divergentes > 0 %}font-medium text-warning-text{% else %}text-text-primary{% endif %}">{{ imp.total_divergentes }}</dd>
+            </div>
+          </dl>
+
+          {% if imp.arquivo %}
+            {% url 'estoque:baixar_arquivo_importacao_scpi' pk=imp.pk as url_download %}
+            {% include "components/button.html" with variant="secondary" size="sm" label="Baixar CSV" href=url_download aria_label="Baixar CSV de "|add:imp.arquivo_nome class="mt-4" %}
+          {% else %}
+            <p class="mt-4 text-xs text-text-tertiary">Importação anterior ao arquivamento: CSV não disponível.</p>
+          {% endif %}
+        </article>
+      {% endfor %}
     </div>
   {% endif %}
 

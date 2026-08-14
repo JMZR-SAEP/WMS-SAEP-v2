@@ -1,0 +1,28 @@
+{% comment %}
+Controle de ordenação por data/hora das listagens paginadas.
+
+Antes vivia dentro de um `<th aria-sort>`, que era o lugar certo enquanto havia
+tabela. Sem tabela, o controle precisa de casa própria — e visível em toda
+largura, não só no mobile, senão ordenar deixa de existir no desktop.
+
+Parâmetros:
+  url_ordenacao (obrigatório) URL que inverte a ordem, já montada pela view
+  ordem         (obrigatório) 'asc' ou 'desc' — ordem corrente
+  target_id     (obrigatório) id do wrapper alvo do swap HTMX (sem #)
+
+Uso:
+  {% include "components/ordenacao_data.html" with url_ordenacao=url_ordenacao ordem=ordem target_id="resultados-x" %}
+{% endcomment %}
+<div class="mb-3 flex justify-end">
+  <a
+    href="{{ url_ordenacao }}"
+    hx-get="{{ url_ordenacao }}"
+    hx-target="#{{ target_id }}"
+    hx-push-url="true"
+    class="inline-flex min-h-11 items-center gap-1 rounded-md border border-border-strong bg-surface px-3 py-2 text-sm text-text-secondary hover:bg-bg-page hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1"
+    aria-label="Ordenar por data/hora, {% if ordem == 'asc' %}atualmente crescente{% else %}atualmente decrescente{% endif %}"
+  >
+    {% if ordem == 'asc' %}Mais antigas primeiro{% else %}Mais recentes primeiro{% endif %}
+    <span aria-hidden="true">{% if ordem == 'asc' %}↑{% else %}↓{% endif %}</span>
+  </a>
+</div>

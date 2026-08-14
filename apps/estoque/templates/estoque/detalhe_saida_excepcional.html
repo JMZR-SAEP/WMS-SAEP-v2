@@ -84,7 +84,7 @@
     </div>
 
     {# Mobile: cards #}
-    <div class="divide-y divide-border sm:hidden">
+    <div class="divide-y divide-border">
       {% for item in saida.itens.all %}
         <div class="px-4 py-4">
           <p class="text-sm font-medium text-text-primary">{{ item.material.nome }}</p>
@@ -109,33 +109,6 @@
     </div>
 
     {# Desktop: tabela #}
-    <div class="hidden overflow-x-auto sm:block">
-      <table class="min-w-full divide-y divide-border">
-        <caption class="sr-only">Itens da saída excepcional {{ saida.numero_publico }}</caption>
-        <thead class="bg-bg-page">
-          <tr>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-text-tertiary">Material</th>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-text-tertiary">Código</th>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-text-tertiary">Unidade</th>
-            <th scope="col" class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-text-tertiary">Qtd. baixada</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-border bg-surface">
-          {% for item in saida.itens.all %}
-            <tr>
-              <td class="px-6 py-3 text-sm text-text-primary">{{ item.material.nome }}</td>
-              <td class="px-6 py-3 font-mono text-sm text-text-secondary">{{ item.material.codigo }}</td>
-              <td class="px-6 py-3 text-sm text-text-secondary">{{ item.material.get_unidade_display }}</td>
-              <td class="px-6 py-3 text-right text-sm tabular-nums font-semibold text-text-primary">{{ item.quantidade }}</td>
-            </tr>
-          {% empty %}
-            <tr>
-              <td colspan="4" class="px-6 py-4 text-sm text-text-tertiary">Nenhum item registrado.</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
   </div>
 
   {# Timeline #}
