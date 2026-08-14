@@ -6,7 +6,7 @@ Nenhuma regra de domínio, query de escopo ou decisão de autorização própria
 
 from decimal import Decimal
 
-from apps.accounts.papeis import papel_efetivo
+from apps.accounts.papeis import PapelEfetivo, papel_efetivo
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
@@ -80,6 +80,7 @@ from apps.requisicoes.selectors import (
     setores_do_historico,
 )
 from apps.requisicoes.services import (
+    ESTADOS_COPIAVEIS,
     autorizar_requisicao,
     copiar_requisicao,
     criar_e_enviar_requisicao,
@@ -94,7 +95,11 @@ from apps.requisicoes.services import (
     retornar_para_rascunho,
     separar_para_retirada,
 )
-from apps.requisicoes.transitions import cancelamento_info
+from apps.requisicoes.transitions import (
+    ESTADOS_COM_QUANTIDADE_AUTORIZADA,
+    ESTADOS_COM_QUANTIDADE_ENTREGUE,
+    cancelamento_info,
+)
 
 
 def _voltar_url(request, default: str = '') -> str:
@@ -106,6 +111,18 @@ def _voltar_url(request, default: str = '') -> str:
     ):
         next_url = default
     return next_url
+
+
+def _pode_copiar_agora(papel: PapelEfetivo, requisicao: Requisicao) -> bool:
+    """Estado copiável + permissão do ator.
+
+    Mesma pergunta que o detalhe faz para mostrar o botão e que a confirmação de
+    cópia faz para existir — uma função só, para a tela nunca oferecer o que o
+    service vai recusar.
+    """
+    return requisicao.estado in ESTADOS_COPIAVEIS and pode_copiar_requisicao(
+        papel, requisicao
+    )
 
 
 def _detalhe_context(
@@ -121,12 +138,17 @@ def _detalhe_context(
     papel = papel_efetivo(request.user)
     acoes = acoes_disponiveis(papel, requisicao)
     itens = list(requisicao.itens.select_related('material').all())
-    pode_devolver = Operacao.REGISTRAR_DEVOLUCAO in acoes
-    if pode_devolver:
+    itens_devolviveis: list[ItemRequisicao] = []
+    if Operacao.REGISTRAR_DEVOLUCAO in acoes:
         entregues = entregue_liquida_por_requisicao(requisicao_id=requisicao.pk)
         for item in itens:
             item.entregue_liquida = entregues.get(item.material_id, Decimal('0'))
             item.modal_devolver_id = f'devolver-{item.pk}'
+            if item.entregue_liquida > 0:
+                itens_devolviveis.append(item)
+    # A operação estar disponível não basta: com tudo já devolvido a seção não
+    # teria linha nenhuma. A lista é que decide se o bloco existe.
+    pode_devolver = bool(itens_devolviveis)
     eventos = list(
         requisicao.eventos.select_related('ator').order_by('-criado_em', '-id')
     )
@@ -139,10 +161,7 @@ def _detalhe_context(
     cancelavel = Operacao.CANCELAR in acoes
     info_cancelamento = cancelamento_info(requisicao) if cancelavel else None
 
-    estados_copiavel = {EstadoRequisicao.ATENDIDA, EstadoRequisicao.RECUSADA}
-    pode_copiar = requisicao.estado in estados_copiavel and pode_copiar_requisicao(
-        papel, requisicao
-    )
+    pode_copiar = _pode_copiar_agora(papel, requisicao)
 
     return {
         'requisicao': requisicao,
@@ -157,6 +176,10 @@ def _detalhe_context(
         'pode_separar_retirada': Operacao.SEPARAR_PARA_RETIRADA in acoes,
         'pode_atender_retirada': Operacao.REGISTRAR_ATENDIMENTO in acoes,
         'pode_cancelar': cancelavel,
+        # Cancelar convive com editar/enviar no bloco de rascunho; nos demais
+        # estados vira banner próprio. É decisão de layout, por isso mora aqui
+        # e não em `cancelamento_info`, que descreve efeitos de domínio.
+        'cancelamento_inline': requisicao.estado == EstadoRequisicao.RASCUNHO,
         'pode_copiar': pode_copiar,
         'cancelamento_info': info_cancelamento,
         'cancelamento_requer_justificativa': (
@@ -174,7 +197,14 @@ def _detalhe_context(
         'enviar_hidden_inputs': {'next': _voltar_url(request)},
         'separar_hidden_inputs': {'next': _voltar_url(request)},
         'enviada_em': enviada_em,
+        'mostrar_quantidade_autorizada': (
+            requisicao.estado in ESTADOS_COM_QUANTIDADE_AUTORIZADA
+        ),
+        'mostrar_quantidade_entregue': (
+            requisicao.estado in ESTADOS_COM_QUANTIDADE_ENTREGUE
+        ),
         'pode_devolver': pode_devolver,
+        'itens_devolviveis': itens_devolviveis,
         'devolucao_form': RegistrarDevolucaoForm(),
         'pode_estornar': Operacao.ESTORNAR in acoes,
         'estorno_form': EstornarRequisicaoForm(),
@@ -1022,10 +1052,22 @@ def copiar_requisicao_view(request, pk: int):
     )
 
     if request.method == 'GET':
+        # A confirmação não pode prometer o que o POST recusaria: sem estado
+        # copiável ou sem permissão, o usuário volta ao detalhe com o motivo.
+        if not _pode_copiar_agora(papel_efetivo(request.user), requisicao):
+            messages.warning(
+                request,
+                'Só é possível copiar requisições atendidas ou recusadas '
+                'para as quais você pode criar rascunho.',
+            )
+            return redirect('requisicoes:detalhe', pk=requisicao.pk)
         return render(
             request,
             'requisicoes/copiar_confirmacao.html',
-            {'requisicao': requisicao},
+            {
+                'requisicao': requisicao,
+                'itens': list(requisicao.itens.select_related('material').all()),
+            },
         )
 
     try:

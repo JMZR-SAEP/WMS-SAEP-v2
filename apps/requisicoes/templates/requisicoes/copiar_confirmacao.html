@@ -1,5 +1,6 @@
 {% extends "base_auth.html" %}
 {% load core_tags %}
+{% load requisicoes_tags %}
 
 {% block title %}Copiar requisição — WMS-SAEP{% endblock %}
 
@@ -14,18 +15,40 @@
 <div class="max-w-2xl mx-auto pb-12">
   <div class="rounded-xl border border-border bg-surface p-6 shadow-sm">
     {% comment %}
-      Texto explícito: `{{ requisicao }}` cai no __str__ do model, que devolve
-      "Rascunho #<pk>" e expõe a chave do banco. A view não restringe estado no
-      GET, então o caminho é alcançável.
+      `{{ requisicao }}` não entra aqui: o __str__ do model expõe a chave do
+      banco. A view só serve esta tela para requisição atendida ou recusada e
+      com permissão de cópia, então o número público sempre existe.
     {% endcomment %}
     <h2 class="text-lg font-semibold text-text-primary mb-1">
-      Criar rascunho a partir de {% if requisicao.numero_publico %}{{ requisicao.numero_publico }}{% else %}Rascunho{% endif %}
+      Criar rascunho a partir de {{ requisicao.numero_publico }}
     </h2>
     <p class="text-sm text-text-secondary mb-6">
       Um novo rascunho será criado com todos os itens desta requisição.
       Itens sem saldo disponível ou com divergência crítica serão incluídos e marcados para revisão.
       O rascunho não será enviado automaticamente.
     </p>
+
+    <div class="mb-6 rounded-lg border border-border">
+      <h3 class="border-b border-border px-4 py-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
+        Itens que serão copiados ({{ itens|length }})
+      </h3>
+      <ul class="divide-y divide-border px-4">
+        {% for item in itens %}
+          {# Mobile empilha sempre; a partir de sm a quantidade alinha à direita. #}
+          {# Wrap por item deixaria a mesma lista com dois alinhamentos. #}
+          <li class="flex flex-col gap-0.5 py-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
+            <p class="min-w-0 text-sm font-medium text-text-primary">
+              {{ item.material.codigo }}
+              <span class="font-normal text-text-secondary">— {{ item.material.nome }}</span>
+            </p>
+            <p class="shrink-0 text-sm tabular-nums text-text-secondary">
+              {{ item.quantidade_solicitada|formatar_quantidade:item.material.unidade }}
+              {{ item.material.get_unidade_display }}
+            </p>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
 
     {# variant="warning": aviso de perda de dado (quantidades autorizadas/entregues não são copiadas), #}
     {# não uma confirmação neutra — usa o role="alert" automático do contrato, sem override custom #}
@@ -34,9 +57,11 @@
     {% url 'requisicoes:detalhe' requisicao.pk as url_cancelar %}
     <form method="post" action="{% url 'requisicoes:copiar' requisicao.pk %}">
       {% csrf_token %}
-      <div class="flex gap-3 justify-end">
-        {% include "components/button.html" with variant="secondary" href=url_cancelar label="Cancelar" %}
-        {% include "components/button.html" with variant="primary" type="submit" label="Criar rascunho" icon_template="components/icons/copiar.svg" %}
+      {# Mesma ordem do resto do fluxo: ação primária por último no desktop, no #}
+      {# topo da pilha no mobile — o polegar encontra "Criar rascunho" primeiro. #}
+      <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
+        {% include "components/button.html" with variant="secondary" href=url_cancelar label="Cancelar" full_width_mobile=True %}
+        {% include "components/button.html" with variant="primary" type="submit" label="Criar rascunho" icon_template="components/icons/copiar.svg" full_width_mobile=True %}
       </div>
     </form>
   </div>

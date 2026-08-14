@@ -27,6 +27,10 @@ logger = logging.getLogger(__name__)
 # TR-019: copiar requisição
 # ---------------------------------------------------------------------------
 
+#: Estados a partir dos quais a cópia é permitida. Fonte única — a view de
+#: confirmação consome esta constante em vez de repetir o conjunto.
+ESTADOS_COPIAVEIS = frozenset({EstadoRequisicao.ATENDIDA, EstadoRequisicao.RECUSADA})
+
 
 @transaction.atomic
 def copiar_requisicao(
@@ -55,8 +59,7 @@ def copiar_requisicao(
             'Requisição não encontrada.', code='requisicao_nao_encontrada'
         )
 
-    estados_copiavel = {EstadoRequisicao.ATENDIDA, EstadoRequisicao.RECUSADA}
-    if origem.estado not in estados_copiavel:
+    if origem.estado not in ESTADOS_COPIAVEIS:
         raise EstadoInvalido(
             'Só é possível copiar requisições atendidas ou recusadas.',
             code='estado_invalido',
