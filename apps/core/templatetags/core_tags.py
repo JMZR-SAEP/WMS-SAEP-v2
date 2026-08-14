@@ -1,6 +1,5 @@
 from collections.abc import Mapping
 from datetime import timedelta
-from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from django.core.exceptions import NON_FIELD_ERRORS, ImproperlyConfigured
@@ -9,9 +8,9 @@ from django.forms import BoundField
 from django.template.loader import render_to_string
 from django.utils.safestring import SafeString, mark_safe
 
-register = template.Library()
+from apps.core import quantidades
 
-_UMA_DECIMAL = ('kg', 'l', 'm')
+register = template.Library()
 
 
 @register.filter
@@ -67,24 +66,12 @@ def formatar_quantidade(qtd, unidade: str) -> str:
     - 'un' → inteiro
     - 'kg', 'l', 'm' → 1 casa decimal
     - demais → strip trailing zeros (casas significativas)
+
+    A regra em si vive em `apps.core.quantidades`, junto do `step` do campo e do
+    valor inicial que o preenche: são três faces da mesma política, e views
+    também precisam dela — templatetag não é lugar de onde uma view importa.
     """
-    if qtd is None:
-        return '—'
-    try:
-        d = Decimal(str(qtd))
-    except (InvalidOperation, TypeError, ValueError):
-        return str(qtd)
-
-    if unidade == 'un':
-        return str(int(d))
-
-    if unidade in _UMA_DECIMAL:
-        return format(d.quantize(Decimal('0.1')), 'f')
-
-    normalized = d.normalize()
-    if normalized == normalized.to_integral_value():
-        return str(int(normalized))
-    return format(normalized, 'f')
+    return quantidades.formatar(qtd, unidade)
 
 
 @register.simple_tag
@@ -167,14 +154,11 @@ def step_por_unidade(unidade: str) -> str:
     """Passo do <input type="number"> conforme a unidade de medida.
 
     Espelha a política de precisão de `formatar_quantidade`: se a tela formata
-    'un' como inteiro, o campo não pode aceitar 0,001 unidade. Manter as duas
-    funções lado a lado é proposital — divergirem é o bug.
+    'un' como inteiro, o campo não pode aceitar 0,001 unidade. Antes as duas
+    funções eram mantidas lado a lado na esperança de não divergirem; hoje leem
+    a mesma tabela em `apps.core.quantidades`, e divergir deixou de ser possível.
     """
-    if unidade == 'un':
-        return '1'
-    if unidade in _UMA_DECIMAL:
-        return '0.1'
-    return '0.001'
+    return quantidades.step(unidade)
 
 
 @register.simple_tag
