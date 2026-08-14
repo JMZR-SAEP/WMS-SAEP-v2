@@ -50,7 +50,13 @@ Usuário com múltiplos papéis: hierarquia de prioridade `chefe_almox > aux_alm
 
 ### Primary navigation (top nav, visível após login)
 
-Máximo de 4 links por papel. Links são condicionais — o usuário só vê o que pode usar.
+Links são condicionais — o usuário só vê o que pode usar, e quem acumula papéis vê a união.
+Fonte única em `core_tags.secoes_navegacao`, agrupada em seções nomeadas.
+
+O limite de 4 links por papel caiu quando o almoxarifado ganhou catálogo, movimentações e
+importação SCPI: hoje a seção Almoxarifado tem 6 itens e o chefe de almoxarifado chega a 11
+links no total. O agrupamento por seção é o que substituiu o limite — a decisão passou a ser
+"qual seção", com 2 a 3 opções, e não "qual link" entre 11.
 
 | Papel | Links visíveis |
 |---|---|
@@ -84,11 +90,14 @@ Usuário com múltiplos papéis: união dos links permitidos.
 
 ### Secondary navigation
 
-Não há sidebar. Dentro do detalhe da requisição: link `← Voltar` para lista de origem (preservado via query param `?next=`).
+Sidebar fixa a partir de `lg:` (64rem), em `core/partials/_side_nav.html`. Dentro do detalhe da
+requisição: ícone de voltar na barra de aplicação, para a lista de origem (preservada via query
+param `?next=`).
 
 ### Mobile navigation
 
-Hamburger → dropdown simples via Alpine.js `x-show`. Links mesmos do desktop. Sem sidebar mobile.
+Abaixo de `lg:`, hamburger na barra de aplicação abre um popover ancorado de 16rem com scrim e
+foco preso (`x-trap.inert.noscroll`). Mesmo conteúdo da sidebar, mesma fonte de dados.
 
 ## Content Hierarchy
 
