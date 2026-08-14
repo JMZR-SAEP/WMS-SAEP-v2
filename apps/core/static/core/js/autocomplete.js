@@ -76,8 +76,14 @@
         this._debounceTimer = setTimeout(() => this._buscarComGate(query), 300);
       },
 
+      // Foco com campo vazio só lista tudo quando a tela pediu isso
+      // explicitamente com `minChars: 0` (ex. beneficiários, escopo pequeno e
+      // limitado a 20 no servidor). Com um piso declarado, listar tudo no foco
+      // contradiz o próprio piso e gasta uma ida à rede por foco — inclusive
+      // nos foques acidentais de quem tabula o formulário inteiro.
       async buscarTodos() {
         if (!this.query) {
+          if (this.minChars > 0) return;
           await this.buscar('');
         } else if (this.resultados.length > 0) {
           this.aberto = true;

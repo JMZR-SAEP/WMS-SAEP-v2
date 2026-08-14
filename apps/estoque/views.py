@@ -295,8 +295,6 @@ def nova_linha_item_saida_excepcional_view(request):
             'material_label_field': form['material_label'],
             'quantidade_field': form['quantidade'],
             'quantidade_label': 'Quantidade',
-            'quantidade_min': '0.001',
-            'quantidade_step': 'any',
             'autocomplete_url_name': 'estoque:buscar_materiais_saida_excepcional',
             'autocomplete_item_template': 'estoque/partials/_autocomplete_item_material.html',
             'delete_field': form[DELETION_FIELD_NAME],

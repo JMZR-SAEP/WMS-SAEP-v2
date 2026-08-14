@@ -21,6 +21,14 @@
     erro_id             -> id do elemento que exibe a mensagem de erro
                            (obrigatório junto com com_erro para expor o erro
                            ao leitor de tela via aria-describedby)
+    input_id            -> (opcional) id fixo, definido no servidor, para o
+                           input visível. Sem ele o id vem do `idBase` gerado
+                           pelo Alpine em tempo de execução — que ninguém
+                           consegue prever do lado do servidor, e por isso a
+                           âncora `#id_<campo>` do components/error_summary.html
+                           não tinha onde aterrissar. Passe sempre o
+                           `id_for_label` do BoundField que carrega o erro
+                           deste controle.
 
   Uso típico (no template chamador, dentro do x-data que também declara o
   hidden input):
@@ -31,11 +39,11 @@
        sem_resultados_label="Nenhum beneficiário encontrado."
     %}
 {% endcomment %}
-<label class="mb-1 block text-xs font-medium uppercase tracking-wide text-text-tertiary" :for="idBase + '-busca'">{{ label }}</label>
+<label class="mb-1 block text-xs font-medium uppercase tracking-wide text-text-tertiary" {% if input_id %}for="{{ input_id }}"{% else %}:for="idBase + '-busca'"{% endif %}>{{ label }}</label>
 <div class="relative">
   <input
     type="{{ tipo_input|default:'text' }}"
-    :id="idBase + '-busca'"
+    {% if input_id %}id="{{ input_id }}"{% else %}:id="idBase + '-busca'"{% endif %}
     x-ref="displayInput"
     x-model="query"
     @input="buscarComDebounce()"
@@ -52,7 +60,7 @@
     data-lpignore="true"
     data-1p-ignore="true"
     placeholder="{{ placeholder }}"
-    class="w-full rounded-lg border {% if com_erro %}border-danger-border-input{% else %}border-border-strong{% endif %} px-3 py-2 text-sm focus:border-border-focus focus:ring-2 focus:ring-border-focus focus:outline-none"
+    class="w-full min-h-11 rounded-lg border {% if com_erro %}border-danger-border-input{% else %}border-border-strong{% endif %} px-3 py-2 text-sm focus:border-border-focus focus:ring-2 focus:ring-border-focus focus:outline-none"
     role="combobox"
     aria-autocomplete="list"
     aria-haspopup="listbox"

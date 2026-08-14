@@ -2,26 +2,66 @@
  * itensFormset — Alpine factory para o container de linhas de item de um
  * formset dinâmico (`item_form_row.html`, ADR-0016).
  *
- * Vive no container (ex. `#itens-container`), não em cada linha, porque
- * "pode remover" depende de contar linhas-irmãs ainda visíveis — uma linha
- * isolada não enxerga as demais. As linhas herdam este escopo Alpine por
- * aninhamento normal do DOM (sem `x-data` próprio), então o botão de cada
- * linha chama `removerLinha($event)` direto.
+ * Vive num elemento que envolve as linhas E o botão "adicionar", não em cada
+ * linha, porque "pode remover" depende de contar linhas-irmãs ainda visíveis e
+ * "qual o próximo índice" depende do TOTAL_FORMS do formset — nenhuma linha
+ * isolada enxerga isso. As linhas herdam este escopo Alpine por aninhamento
+ * normal do DOM (sem `x-data` próprio), então o botão de cada linha chama
+ * `removerLinha($event)` direto.
  *
  * Uso no template chamador:
- *   <div id="itens-container" x-data="itensFormset()">
- *     {% include "components/item_form_row.html" ... %}
+ *   <div x-data="itensFormset({ prefixo: 'itens' })">
+ *     <div id="itens-container">
+ *       {% include "components/item_form_row.html" ... %}
+ *     </div>
+ *     <button
+ *       hx-sync="this:queue all"
+ *       hx-vals='js:{"index": Number(document.getElementById("id_itens-TOTAL_FORMS").value)}'
+ *       @htmx:after-request="aoAdicionarLinha($event)" ...>
  *   </div>
  */
 (function () {
   'use strict';
 
-  function factory() {
+  function factory(config = {}) {
     return {
+      prefixo: config.prefixo || 'itens',
+
       // $el reflete o elemento onde a expressão Alpine foi avaliada (o botão
-      // clicado), não a raiz do x-data — por isso guardamos o container aqui.
+      // clicado), não a raiz do x-data — por isso guardamos a raiz aqui.
       init() {
-        this._container = this.$el;
+        this._raiz = this.$el;
+        this._container = this.$el.querySelector('[data-itens-container]') || this.$el;
+        this._aviso = this._raiz.querySelector('[data-formset-aviso]');
+        this._timerAviso = null;
+      },
+
+      _totalFormsInput() {
+        return document.getElementById(`id_${this.prefixo}-TOTAL_FORMS`);
+      },
+
+      /**
+       * Contabiliza a linha recém-inserida no TOTAL_FORMS.
+       *
+       * Só incrementa em resposta 200: num erro o HTMX não faz o swap, e somar
+       * assim mesmo declararia uma linha fantasma que quebra o POST seguinte.
+       *
+       * O índice enviado na requisição sai deste mesmo TOTAL_FORMS (ver o
+       * `hx-vals` do botão), não de uma contagem de `.item-form-row` no DOM.
+       * Contar o DOM parecia equivalente e não era: era um segundo número para
+       * a mesma verdade, e com `hx-sync` ausente dois cliques rápidos liam o
+       * mesmo valor antes de qualquer swap — o POST ficava com dois grupos
+       * `<prefixo>-N-*`, o QueryDict guardava só o último, e um material sumia
+       * sem erro nenhum na tela. O `hx-sync="this:queue all"` do botão serializa
+       * os cliques, e é por isso que a leitura seguinte já enxerga o incremento
+       * feito aqui.
+       */
+      aoAdicionarLinha(event) {
+        if (event?.detail?.xhr?.status !== 200) return;
+        const input = this._totalFormsInput();
+        if (!input) return;
+        const atual = parseInt(input.value, 10);
+        input.value = (Number.isNaN(atual) ? 0 : atual) + 1;
       },
 
       podRemoverItem() {
@@ -48,27 +88,28 @@
         botaoFoco?.focus();
       },
 
+      // O realce sozinho comunicava o bloqueio só por cor: leitor de tela não
+      // recebia nada e daltônico dependia do contorno. O texto entra numa live
+      // region vazia e dedicada — uma por formulário, não por linha, e separada
+      // da dica estática. A dica anterior fazia os dois papéis e, em dois
+      // cliques dentro da janela de 4s, a segunda captura do "texto original"
+      // já era o próprio aviso: a dica ficava substituída para sempre. Aqui não
+      // há o que restaurar, só o que limpar.
+      //
+      // A região nunca é escondida — mesmo motivo que o aviso de duplicidade da
+      // saída excepcional já documenta: mutação em elemento `display:none` não
+      // é anunciada, porque ele não está na árvore de acessibilidade.
       _avisarNaoPodeRemover(row) {
-        // Cor vem do token do design system, nunca de um hex hardcoded:
-        // rebrand troca o valor em input.css sem tocar este arquivo.
-        const cor = 'var(--color-danger-accent)';
-        const aviso = document.querySelector('.aviso_quantidade');
-        // O realce sozinho comunicava o bloqueio só por cor: leitor de tela não
-        // recebia nada e daltônico dependia do outline. O texto muda dentro do
-        // `role="status"` do próprio aviso — uma live region por formulário, não
-        // por linha — e volta ao normal junto com o realce.
-        const textoOriginal = aviso ? aviso.textContent : null;
-        if (aviso) {
-          aviso.textContent = 'É preciso manter ao menos um material.';
-          aviso.style.color = cor;
+        clearTimeout(this._timerAviso);
+        if (this._aviso) {
+          this._aviso.textContent = 'É preciso manter ao menos um material.';
         }
-        row.style.outline = `2px solid ${cor}`;
-        setTimeout(() => {
-          if (aviso) {
-            aviso.textContent = textoOriginal;
-            aviso.style.color = '';
+        row.classList.add('item-form-row--bloqueada');
+        this._timerAviso = setTimeout(() => {
+          if (this._aviso) {
+            this._aviso.textContent = '';
           }
-          row.style.outline = '';
+          row.classList.remove('item-form-row--bloqueada');
         }, 4000);
       },
     };

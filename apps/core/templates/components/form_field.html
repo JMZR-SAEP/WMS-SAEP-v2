@@ -48,7 +48,11 @@ Uso:
   {% endif %}
   {% renderizar_campo_com_aria field tem_ajuda=texto_ajuda tem_erro=field.errors attrs_extra=attrs_extra describedby_extra=describedby_ext %}
   {% if field.errors %}
-    <p id="{{ field.id_for_label }}-erro" class="mt-1 text-xs text-danger" role="alert">{{ field.errors|join:", " }}</p>
+    {% comment %}
+      `danger-text` (red-700), não `danger` (red-600): mesmo tom de todo texto
+      de erro do sistema, e 5.9:1 em vez dos 4.8:1 raspando o mínimo.
+    {% endcomment %}
+    <p id="{{ field.id_for_label }}-erro" class="mt-1 text-xs text-danger-text" role="alert">{{ field.errors|join:", " }}</p>
   {% endif %}
 </div>
 {% endwith %}

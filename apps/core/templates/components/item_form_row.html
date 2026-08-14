@@ -6,7 +6,10 @@ de item compartilhado em vez de reimplementado por tela.
 Parâmetros de contexto (todos BoundField, exceto indicado):
   material_id_field      — campo hidden com o id do material
   material_label_field    — campo de autocomplete (texto exibido)
-  quantidade_field        — campo numérico de quantidade
+  quantidade_field        — campo numérico de quantidade. `min` e `step` saem
+    dos attrs do widget declarado no Form, não de parâmetro deste componente:
+    são restrição de domínio (unidade inteira na requisição, fracionária na
+    saída) e pertencem à camada que valida, não ao template que desenha.
   autocomplete_url_name   — nome da URL do endpoint de busca de materiais (string, resolvido via {% url %})
   autocomplete_item_template — path do template de item do dropdown (string)
   form_index              — índice numérico da linha (int)
@@ -36,6 +39,13 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
     })"
     @click.outside="fecharDropdown()"
   >
+    {% comment %}
+      O hidden guarda o id selecionado, mas quem o usuário enxerga e foca é o
+      input de busca. Por isso o `id_for_label` de `material_label` — o campo em
+      que `clean()` registra "Selecione um material." — vive no input visível
+      (via `input_id`), e não neste hidden: é para lá que a âncora do
+      components/error_summary.html precisa levar.
+    {% endcomment %}
     <input
       type="hidden"
       x-ref="hiddenInput"
@@ -43,12 +53,12 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
       id="{{ material_id_field.id_for_label }}"
       value="{{ material_id_field.value|default:'' }}"
     >
-    {% include "components/autocomplete.html" with label="Material" placeholder="Buscar por código ou descrição…" item_template=autocomplete_item_template sem_resultados_label="Nenhum material elegível encontrado." tipo_input="search" com_erro=material_label_field.errors erro_id=material_label_field.id_for_label|add:"-erro" %}
+    {% include "components/autocomplete.html" with label="Material" placeholder="Buscar por código ou descrição…" item_template=autocomplete_item_template sem_resultados_label="Nenhum material elegível encontrado." tipo_input="search" input_id=material_label_field.id_for_label com_erro=material_label_field.errors erro_id=material_label_field.id_for_label|add:"-erro" %}
     {% if material_label_field.errors %}
       <p id="{{ material_label_field.id_for_label }}-erro" class="mt-1 text-xs text-danger-text" role="alert">{{ material_label_field.errors|join:", " }}</p>
     {% endif %}
     {% if material_id_field.errors %}
-      <p class="mt-1 text-xs text-danger-text" role="alert">{{ material_id_field.errors|join:", " }}</p>
+      <p id="{{ material_id_field.id_for_label }}-erro" class="mt-1 text-xs text-danger-text" role="alert">{{ material_id_field.errors|join:", " }}</p>
     {% endif %}
     {% if saldo_item %}
       {% if not saldo_item.elegivel %}
@@ -64,24 +74,18 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
     {% endif %}
   </div>
 
-  {# Quantidade #}
+  {% comment %}
+    Quantidade pelo componente, não na mão. O `<input>` escrito aqui ignorava os
+    attrs declarados no widget em forms.py (que viravam código morto) e perdia a
+    fiação de aria-describedby/aria-invalid que o form_field entrega de graça.
+
+    `min` e `step` vêm do widget e só de lá. Passá-los também como parâmetro do
+    template criava duas fontes para a mesma restrição, com o template ganhando
+    silenciosamente de quem valida — divergirem seria um campo que aceita no
+    cliente o que o Form recusa no servidor.
+  {% endcomment %}
   <div class="w-28 shrink-0">
-    <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-text-tertiary" for="{{ quantidade_field.id_for_label }}">
-      {{ quantidade_label|default:"Quantidade" }}
-    </label>
-    <input
-      type="number"
-      name="{{ quantidade_field.html_name }}"
-      id="{{ quantidade_field.id_for_label }}"
-      value="{{ quantidade_field.value|default:'' }}"
-      min="{{ quantidade_min|default:'1' }}"
-      step="{{ quantidade_step|default:'1' }}"
-      class="w-full rounded-lg border border-border-strong px-3 py-2 text-sm focus:border-border-focus focus:ring-2 focus:ring-border-focus focus:outline-none"
-      {% if quantidade_field.errors %}aria-invalid="true" aria-describedby="{{ quantidade_field.id_for_label }}-erro"{% endif %}
-    >
-    {% if quantidade_field.errors %}
-      <p id="{{ quantidade_field.id_for_label }}-erro" class="mt-1 text-xs text-danger-text" role="alert">{{ quantidade_field.errors|join:", " }}</p>
-    {% endif %}
+    {% include "components/form_field.html" with field=quantidade_field label_override=quantidade_label|default:"Quantidade" label_class="mb-1 block text-xs font-medium uppercase tracking-wide text-text-tertiary" %}
   </div>
 
   {# Campo DELETE do formset (escondido — controlado por JS/botão) #}

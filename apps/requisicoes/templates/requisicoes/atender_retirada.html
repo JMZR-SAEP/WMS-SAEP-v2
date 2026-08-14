@@ -50,7 +50,7 @@
   action="{% url 'requisicoes:registrar_atendimento' requisicao.pk %}"
   novalidate
   data-prevent-double-submit
-  class="space-y-6"
+  class="space-y-6 pb-20 sm:pb-0"
 >
   {% csrf_token %}
   <input type="hidden" name="next" value="{{ voltar_url }}">
@@ -62,10 +62,15 @@
     class="rounded-xl border border-border bg-surface p-4 shadow-sm sm:p-6"
     aria-labelledby="itens-titulo"
   >
+    {% comment %}
+      Contador lê `linhas`, a mesma coleção que o loop percorre. Lendo `itens`
+      eram duas fontes para o mesmo número: se divergissem, o contador mentiria
+      sem nenhum sintoma na tela.
+    {% endcomment %}
     <div class="mb-4 flex items-baseline justify-between gap-3">
-      <h2 id="itens-titulo" class="text-xl font-semibold text-text-primary">Itens autorizados</h2>
+      <h2 id="itens-titulo" class="text-lg font-semibold text-text-primary">Itens autorizados</h2>
       <span class="text-xs font-medium text-text-tertiary">
-        {{ itens|length }} {{ itens|length|pluralize:"item,itens" }}
+        {{ linhas|length }} {{ linhas|length|pluralize:"item,itens" }}
       </span>
     </div>
     <p class="mb-4 text-sm text-text-secondary">
@@ -83,8 +88,18 @@
         <span class="min-w-0 flex-1 text-xs font-semibold uppercase tracking-wide text-text-tertiary">Justificativa</span>
       </div>
       {% for item, form in linhas %}
+          {% comment %}
+            A linha é um grupo nomeado pelo material. É isso que permite os
+            rótulos curtos abaixo: quem navega por campo ouve "Caneta
+            esferográfica, grupo" ao entrar e só então "Entregue" — em vez de
+            cada campo repetir o nome do material inteiro no próprio rótulo,
+            que era a única forma de dar contexto enquanto os rótulos eram
+            invisíveis.
+          {% endcomment %}
           <div
             class="flex flex-wrap items-start gap-3 p-3"
+            role="group"
+            aria-labelledby="item-{{ item.pk }}-material"
             x-data="{
               autorizada: {{ item.quantidade_autorizada|unlocalize }},
               entregue: '{{ form.quantidade_entregue.value|default_if_none:''|unlocalize }}',
@@ -98,7 +113,7 @@
           >
             {{ form.item_id }}
             <div class="min-w-0 flex-1 basis-full text-text-primary lg:basis-56">
-              <div class="font-medium">{{ item.material.nome }}</div>
+              <div id="item-{{ item.pk }}-material" class="font-medium">{{ item.material.nome }}</div>
               <div class="text-xs text-text-tertiary">{{ item.material.codigo }}</div>
             </div>
             {% comment %}
@@ -121,11 +136,18 @@
               confirmação não barraria campo vazio, que é o caso mais comum.
               Aqui toda linha corresponde a um item autorizado real.
             {% endcomment %}
+            {% comment %}
+              Rótulo visível abaixo de lg e `sr-only` a partir dele, igual ao da
+              coluna Autorizada: sem isso o campo mais importante da tela — o
+              que decide quanto sai do estoque — ficava solto no celular, sem
+              nada dizendo o que digitar ali. Em desktop o cabeçalho da lista já
+              nomeia a coluna, e repetir vira ruído.
+            {% endcomment %}
             {% attrs_widget max=item.quantidade_autorizada|unlocalize step=item.material.unidade|step_por_unidade x_model="entregue" required=True as attrs_qtd %}
-            {% include "components/form_field.html" with field=form.quantidade_entregue label_override="Quantidade entregue para "|add:item.material.nome label_class="sr-only" attrs_extra=attrs_qtd describedby_ext="hint-"|add:form.quantidade_entregue.id_for_label class="min-w-32 shrink-0" %}
+            {% include "components/form_field.html" with field=form.quantidade_entregue label_override="Entregue" label_class="mb-1 block text-xs font-medium uppercase tracking-wide text-text-tertiary lg:sr-only" attrs_extra=attrs_qtd describedby_ext="hint-"|add:form.quantidade_entregue.id_for_label class="min-w-32 shrink-0" %}
             <div class="min-w-0 flex-1 basis-full lg:basis-0">
               {% attrs_widget x_bind_required="parcial" x_bind_aria_required="parcial" as attrs_just %}
-              {% include "components/form_field.html" with field=form.justificativa label_override="Justificativa para entrega menor que autorizada de "|add:item.material.nome label_class="sr-only" attrs_extra=attrs_just %}
+              {% include "components/form_field.html" with field=form.justificativa label_override="Justificativa" label_class="mb-1 block text-xs font-medium uppercase tracking-wide text-text-tertiary lg:sr-only" attrs_extra=attrs_just %}
               {% comment %}
                 Sem aria-live: o aviso é lido via aria-describedby ao focar o
                 campo, e `aria-required` já anuncia a obrigatoriedade na
@@ -142,12 +164,23 @@
               </p>
             </div>
           </div>
+      {% empty %}
+        {% comment %}
+          O domínio não deveria produzir requisição autorizada sem item, mas a
+          tela não pode afirmar isso calada: sem este ramo, a lista virava uma
+          caixa vazia com borda e o botão "Confirmar retirada" seguia oferecendo
+          uma baixa de estoque de coisa nenhuma.
+        {% endcomment %}
+        <p id="motivo-sem-itens" class="p-6 text-center text-sm text-text-secondary">
+          Esta requisição não tem itens autorizados para atender. Volte ao
+          detalhe e confira o estado dela antes de registrar a retirada.
+        </p>
       {% endfor %}
     </div>
   </section>
 
   <section class="rounded-xl border border-border bg-surface p-4 shadow-sm sm:p-6" aria-labelledby="cabecalho-titulo">
-    <h2 id="cabecalho-titulo" class="mb-4 text-sm font-semibold text-text-primary">Dados da retirada</h2>
+    <h2 id="cabecalho-titulo" class="mb-4 text-lg font-semibold text-text-primary">Dados da retirada</h2>
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
       {% include "components/form_field.html" with field=cabecalho.retirante_nome %}
@@ -155,13 +188,30 @@
     </div>
   </section>
 
+  {% comment %}
+    Ações fixas no rodapé abaixo de sm, como no rascunho. A separação acontece
+    em pé, no galpão, com o material nas mãos: numa requisição de 15 itens o
+    "Confirmar retirada" ficava depois de toda a lista, e a única forma de
+    chegar nele era rolar o formulário inteiro de novo. z-10 para ficar acima do
+    conteúdo e abaixo do dropdown do autocomplete (z-20).
+  {% endcomment %}
   <div
-    class="flex flex-col gap-3 sm:flex-row sm:justify-end"
+    class="fixed inset-x-0 bottom-0 z-10 flex flex-nowrap items-center justify-end gap-2 border-t border-border bg-surface px-4 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] sm:static sm:z-auto sm:gap-3 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:pb-0"
     x-data="modalController({ id: 'confirmar-atender-retirada', validarFormId: 'form-atender-retirada' })"
   >
     {% url 'requisicoes:detalhe' requisicao.pk as url_detalhe_req %}
-    {% include "components/button.html" with variant="secondary" href=url_detalhe_req label="Cancelar" %}
-    {% include "components/button.html" with variant="primary" label="Confirmar retirada" data_modal_trigger="confirmar-atender-retirada" %}
+    {% include "components/button.html" with variant="secondary" href=url_detalhe_req label="Cancelar" class="shrink-0" %}
+    {% comment %}
+      Sem item autorizado, confirmar baixaria estoque de coisa nenhuma. O botão
+      fica visível e desabilitado, com o motivo amarrado por `aria-describedby`
+      ao parágrafo da lista vazia — a regra do design system para ação de
+      workflow bloqueada. Só ação administrativa irrelevante some da marcação.
+    {% endcomment %}
+    {% if linhas %}
+      {% include "components/button.html" with variant="primary" label="Confirmar retirada" data_modal_trigger="confirmar-atender-retirada" class="shrink-0" %}
+    {% else %}
+      {% include "components/button.html" with variant="primary" label="Confirmar retirada" disabled=True aria_describedby="motivo-sem-itens" class="shrink-0" %}
+    {% endif %}
 
     {% include "components/modal.html" with id="confirmar-atender-retirada" titulo="Confirmar registro de retirada?" descricao="Esta ação baixa estoque das quantidades entregues e libera as reservas não entregues. Não pode ser desfeita." submit_form_id="form-atender-retirada" confirm_label="Confirmar retirada" icon_variant="info" %}
   </div>
