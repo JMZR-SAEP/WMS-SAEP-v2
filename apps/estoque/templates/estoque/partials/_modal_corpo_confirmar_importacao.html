@@ -1,0 +1,35 @@
+{% comment %}
+  Recapitulação do que a importação vai gravar, dentro do modal de confirmação
+  de preview_importacao_scpi.html.
+
+  Existe porque este era o único ponto de escrita irreversível do sistema sem
+  porta de confirmação, e o PRODUCT.md declara que o fluxo exige "confirmação
+  explícita antes de gravar" para gente que confia mais no papel do que no
+  software. A recapitulação repete o número em vez de mandar rolar de volta: no
+  momento de confirmar, a lista já saiu da tela.
+
+  Espelha os alertas de `_alert_novos_materiais_corpo.html` e
+  `_alert_divergencias_corpo.html`, que só aparecem quando a contagem é maior
+  que zero; aqui as três linhas aparecem sempre, inclusive os zeros — "nenhum
+  material novo" é informação para quem confere.
+{% endcomment %}
+<dl class="space-y-2 text-sm">
+  <div class="flex items-baseline justify-between gap-4">
+    <dt class="text-text-secondary">Materiais novos a criar</dt>
+    <dd class="font-mono text-base font-semibold tabular-nums text-text-primary">{{ novos }}</dd>
+  </div>
+  <div class="flex items-baseline justify-between gap-4">
+    <dt class="text-text-secondary">Divergências a registrar</dt>
+    <dd class="font-mono text-base font-semibold tabular-nums text-text-primary">{{ divergencias }}</dd>
+  </div>
+  <div class="flex items-baseline justify-between gap-4">
+    <dt class="text-text-secondary">Linhas lidas do arquivo</dt>
+    <dd class="font-mono text-base font-semibold tabular-nums text-text-primary">{{ total }}</dd>
+  </div>
+</dl>
+
+<p class="mt-4 border-t border-border pt-3 text-sm text-text-secondary">
+  Arquivo <span class="font-mono text-text-primary">{{ nome_arquivo }}</span>.
+  Nenhum saldo do WMS é sobrescrito — divergência entra como alerta para
+  conferência manual posterior no SCPI.
+</p>

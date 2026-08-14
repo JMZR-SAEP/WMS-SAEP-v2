@@ -883,6 +883,81 @@ class TestPreviewImportacaoScpiView:
         assert 'serão criados' in conteudo
         assert 'seráão' not in conteudo
 
+    def test_confirmar_importacao_passa_por_modal_e_nao_por_submit_nu(
+        self, client, superuser, estoque_principal, material_scpi
+    ):
+        """A gravação é irreversível e precisa de porta.
+
+        Era a única escrita irreversível do sistema sem confirmação: um submit
+        direto, com o botão depois de centenas de cartões. O PRODUCT.md declara
+        que este fluxo exige "confirmação explícita antes de gravar", para gente
+        que confia mais no papel do que no software.
+        """
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        client.force_login(superuser)
+        csv_bytes = self._csv_valido(material_scpi.codigo, '150.000')
+        arquivo = SimpleUploadedFile('teste.csv', csv_bytes, content_type='text/csv')
+        conteudo = client.post(self.URL, {'arquivo': arquivo}).content.decode()
+
+        assert 'data-modal-trigger="confirmar-importacao-scpi"' in conteudo
+        assert '<dialog' in conteudo
+        assert 'id="confirmar-importacao-scpi"' in conteudo
+        assert 'Confirmar importação do SCPI?' in conteudo
+
+    def test_modal_de_confirmacao_recapitula_os_numeros_a_gravar(
+        self, client, superuser, estoque_principal, material_scpi
+    ):
+        """No momento de confirmar, a lista já saiu da tela.
+
+        A recapitulação repete os números em vez de mandar rolar de volta —
+        inclusive os zeros, porque "nenhum material novo" é informação para quem
+        confere contra o papel.
+        """
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        client.force_login(superuser)
+        csv_bytes = (
+            f'CADPRO;DENOMINACAO;QUAN3\n'
+            f'{material_scpi.codigo};Teste;150.000\n'
+            f'000.000.999;Material Novo;5.000\n'
+        ).encode('utf-8')
+        arquivo = SimpleUploadedFile('teste.csv', csv_bytes, content_type='text/csv')
+        conteudo = client.post(self.URL, {'arquivo': arquivo}).content.decode()
+
+        assert 'Materiais novos a criar' in conteudo
+        assert 'Divergências a registrar' in conteudo
+        assert 'Linhas lidas do arquivo' in conteudo
+        assert 'Nenhum saldo do WMS é sobrescrito' in conteudo
+        assert 'teste.csv' in conteudo
+
+    def test_preview_ordena_divergencia_e_novo_antes_de_ok(
+        self, client, superuser, estoque_principal, material_scpi
+    ):
+        """A tela existe para evidenciar delta.
+
+        Na ordem do arquivo, conferir as divergências num CSV de centenas de
+        linhas é caçar. Aqui o material com saldo igual vem no meio do arquivo e
+        precisa cair para o fim da renderização.
+        """
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        client.force_login(superuser)
+        csv_bytes = (
+            f'CADPRO;DENOMINACAO;QUAN3\n'
+            f'{material_scpi.codigo};Igual;100.000\n'
+            f'000.000.999;Material Novo;5.000\n'
+        ).encode('utf-8')
+        arquivo = SimpleUploadedFile('teste.csv', csv_bytes, content_type='text/csv')
+        resp = client.post(self.URL, {'arquivo': arquivo})
+
+        status_renderizados = [linha.status for linha in resp.context['linhas']]
+        prioridade = {'divergente': 0, 'novo': 1, 'ok': 2}
+        assert status_renderizados == sorted(
+            status_renderizados, key=lambda s: prioridade[s]
+        )
+        assert status_renderizados[-1] == 'ok'
+
     def test_post_sem_arquivo_retorna_200_com_erro(self, client, superuser):
         client.force_login(superuser)
         resp = client.post(self.URL, {})
