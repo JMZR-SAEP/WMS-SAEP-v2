@@ -88,8 +88,31 @@
   --color-text-on-primary:   var(--color-white);
 
   /* ─── Bordas ───────────────────────────────────────────────────────── */
+  /*
+    Três papéis distintos, e a diferença entre eles é de contraste medido, não
+    de gosto:
+
+    `border` (slate-200) e `border-strong` (slate-300) são estruturais — borda
+    de papel, divisor de linha, contorno tracejado de estado vazio. Elas
+    separam superfícies que já se distinguem por tom; ninguém precisa enxergar
+    a linha para entender o que a coisa é.
+
+    `border-control` (slate-500) é a borda que *identifica* um controle: campo
+    de texto, select, botão secundário, área de upload. Aí a linha é a única
+    pista de que existe um controle ali, e a WCAG 1.4.11 pede 3:1.
+
+    Medido contra as três superfícies do sistema (sRGB relative luminance):
+      slate-300  1.48:1 / branco   1.42:1 / bg-page   1.35:1 / bg-subtle
+      slate-400  2.63:1 / branco   2.51:1 / bg-page   2.40:1 / bg-subtle
+      slate-500  4.77:1 / branco   4.55:1 / bg-page   4.35:1 / bg-subtle
+
+    Ou seja: `border-strong` estava documentado como "reservada a borda de campo
+    e de botão secundário, que precisam de 3:1" e entregava 1.48:1. slate-500 é
+    o primeiro degrau que passa em toda superfície do sistema.
+  */
   --color-border:            var(--color-slate-200);
   --color-border-strong:     var(--color-slate-300);
+  --color-border-control:    var(--color-slate-500);
   --color-border-focus:      var(--color-blue-500);
 
   /* ─── Motion ───────────────────────────────────────────────────────── */
@@ -151,7 +174,7 @@
     width: 100%;
     min-height: var(--size-touch-target);
     padding: 0.5rem 0.75rem;
-    border: 1px solid var(--color-border-strong);
+    border: 1px solid var(--color-border-control);
     border-radius: var(--radius-lg);
     background-color: var(--color-surface);
     color: var(--color-text-primary);

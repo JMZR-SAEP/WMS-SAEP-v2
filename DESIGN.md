@@ -59,6 +59,7 @@ colors:
   text-on-primary: "#fff"
   border: "oklch(92.9% 0.013 255.508)"
   border-strong: "oklch(86.9% 0.022 252.894)"
+  border-control: "oklch(55.4% 0.046 257.417)"
   border-focus: "oklch(62.3% 0.214 259.815)"
 typography:
   display:
@@ -232,7 +233,8 @@ Uma paleta de trabalho: um azul de carimbo, um grafite de registro, um papel fri
 - **Papel Branco** (`{colors.surface}`, #fff): toda superfície de conteúdo — card, tabela, modal, popover.
 - **Papel Frio** (`{colors.bg-page}`, slate-50): o plano da página, atrás de tudo. Também é o hover do botão secundário.
 - **Papel Frio Sombreado** (`{colors.bg-subtle}`, slate-100): cabeçalho de tabela e hover de item de menu.
-- **Linha de Pauta** (`{colors.border}` / `{colors.border-strong}`, slate-200/300): borda de papel e divisor de linha; a variante forte é reservada a borda de campo e de botão secundário, que precisam de 3:1.
+- **Linha de Pauta** (`{colors.border}` / `{colors.border-strong}`, slate-200/300): borda de papel e divisor de linha. São estruturais: separam superfícies que já se distinguem por tom, e ninguém precisa enxergar a linha para entender o que a coisa é.
+- **Linha de Controle** (`{colors.border-control}`, slate-500): a borda que *identifica* um controle — campo, select, botão secundário, área de upload. Ali a linha é a única pista de que existe um controle, e a WCAG 1.4.11 pede 3:1. Medido contra branco: slate-300 dá 1.48:1 e slate-400 dá 2.63:1; slate-500 dá 4.77:1 e é o primeiro degrau que passa em toda superfície do sistema.
 
 ### Named Rules
 
@@ -302,7 +304,7 @@ O sistema adota a escala Material Design 2 explicitamente, com quatro degraus e 
 
 Retângulos de cantos suaves, sem chanfro, sem forma orgânica, sem clipping decorativo. O raio cresce junto com a superfície, o que torna a hierarquia legível pela geometria: controle 0.375rem (botão, item de menu, ação da barra) → campo 0.5rem (input, select, textarea, alerta) → papel 0.75rem (card, wrapper de tabela, estado vazio) → modal 1rem. Elementos circulares (`9999px`) são reservados a badge/pill, avatar e botão-ícone da barra de aplicação.
 
-Borda é estrutural, não decorativa: 1px sólido em toda superfície de papel, `border-strong` (slate-300) em campo e botão secundário para garantir 3:1, e `border-dashed` exclusivamente no estado vazio — a única textura de contorno do sistema, sinalizando "aqui caberia conteúdo".
+Borda é estrutural, não decorativa: 1px sólido em toda superfície de papel com `border`/`border-strong`, `border-control` (slate-500) em todo controle cuja borda é a única delimitação — campo, select, botão secundário, upload —, e `border-dashed` exclusivamente no estado vazio — a única textura de contorno do sistema, sinalizando "aqui caberia conteúdo".
 
 ### Named Rules
 
