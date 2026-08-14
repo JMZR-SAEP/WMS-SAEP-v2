@@ -1,179 +1,127 @@
 # Design System — WMS-SAEP
 
-Design system pragmático baseado em Django templates, Tailwind CSS, HTMX e Alpine.js. Cobre tokens visuais, componentes globais reutilizáveis e padrões de interação operacional.
+Design system pragmático em Django templates + Tailwind CSS v4 + HTMX + Alpine.js.
+Cobre tokens visuais, componentes globais e padrões de interação operacional.
 
-Não é SPA, não é biblioteca JS pesada, não é identidade de marca. É ferramenta de trabalho.
+Não é SPA, não é biblioteca JS pesada, não é identidade de marca. É ferramenta de
+trabalho.
+
+**Este documento é regra e índice, nunca cópia de API.** A documentação de cada
+componente vive no bloco `{% comment %}` do próprio arquivo, que é onde ela não
+apodrece — ali estão parâmetros, obrigatoriedade, contrato ARIA e o motivo de
+cada decisão. Uma versão anterior deste arquivo mantinha um "inventário" paralelo
+que descrevia quatro componentes inexistentes e uma API que `button.html` não
+tinha há meses. O índice abaixo aponta; não repete.
+
+A linguagem visual — a POV, o vocabulário de cor, a escala de elevação, as regras
+nomeadas em prosa — vive em `DESIGN.md`. Aqui ficam as regras operacionais e o
+mapa do catálogo.
 
 ## Princípios
 
-- **Pragmático**: Decidir baseado em necessidade real, não antecipar
-- **Operacional**: Usuário entende rápido o que pode fazer, qual estado está, onde há erro
-- **Neutro**: Sistema administrativo interno — visual profissional e acessível
-- **Simples**: Componentes com responsabilidade clara; sem excesso de parâmetros
+- **Pragmático**: decidir com base em necessidade real, não antecipar
+- **Operacional**: o usuário entende rápido o que pode fazer, em que estado está, onde há erro
+- **Neutro**: sistema administrativo interno — visual profissional e acessível
+- **Simples**: componentes com responsabilidade clara, sem excesso de parâmetros
 - **Progressivo**: HTMX/Alpine para interação incremental; sem estado de domínio no JavaScript
 
-## Tokens visuais
+## Regras invioláveis
 
-### Paleta base
+Sete regras. Cada uma tem o mecanismo que a verifica, porque **regra sem
+mecanismo vira sugestão** — foi assim que o piso de 44px e o raio de campo
+saíram do ar em silêncio, sem quebrar teste nenhum.
 
-**Cores neutras** — slate para fundos, bordas, texto
-
-```
-slate-50, slate-100, slate-200, slate-300, slate-700, slate-900
-```
-
-**Cor primária** — blue para ações, focos, accents
-
-```
-blue-50, blue-100, blue-200, blue-500, blue-600, blue-700, blue-800
-```
-
-**Semântica de estado**
-
-```
-success:  green     (requisição atendida, saldo disponível)
-warning:  amber     (ação requer atenção/decisão)
-danger:   red       (negação, erro, divergência, risco)
-info:     slate     (neutro, informacional)
-return:   teal      (devolução operacional, reversão não-negativa)
-```
-
-### Shades — regra de aplicação
-
-```
-50–100   = fundos suaves, hover leve, badge/background
-200–300  = bordas suaves, separadores, ring
-400–500  = foco (ring-blue-500), bordas ativas, ícones
-500–600  = ação primária (bg-blue-600)
-700–800  = hover/active forte, texto colorido legível
-900+     = raro; futura expansão para dark mode
-```
-
-### Tokens semânticos dentro dos componentes
-
-Os componentes globais (`components/badge.html`, `button.html`, `alert.html`,
-`pagination.html`, `empty_state.html`, `modal.html`/`_modal_body.html`,
-`core/partials/_messages.html` e os demais em `components/`) usam as
-utilities semânticas geradas pelo Tailwind a partir dos tokens `--color-*`
-de `input.css` (ex. `bg-primary`, `text-danger-text`), não classes de cor de
-paleta crua (`bg-blue-600`, `text-red-700` etc.) nem a variável CSS direto
-no HTML. Isso viabiliza o rebrand futuro descrito em "Quando aparecer
-identidade corporativa da SAEP" — trocar o valor do token muda todos os
-componentes de uma vez, sem tocar templates (#86).
-
-Além da escala base (`-subtle` 50, `-muted` 100, `-border` 200, `-text` 700,
-`-hover`/`-active` para `primary`), os componentes que precisam de mais
-contraste (badges, alertas, estado de erro) usam uma escala estendida:
-
-**Importante — Tailwind v4 só compila o que é usado.** `@theme` declara o
-token em `input.css`, mas a custom property e a utility só entram no
-`app.css` quando algum template referencia a classe (JIT real, não é um
-dump de todas as variáveis pro `:root`). Hoje toda a família
-`--color-info*` está declarada mas **não aparece no `app.css`
-compilado** — nenhum template a consome. A variante `info` de alertas e
-mensagens usa `primary-*`, não `info-*`. Isso é esperado, não é bug: usar
-`bg-info-subtle` num template novo funciona normalmente após
-`npm run css:build` recompilar. Só não espere a classe já existir no
-`app.css` atual sem ter sido consumida em algum lugar primeiro.
-
-| Sufixo | Shade típico | Uso |
+| Regra | O que diz | O que verifica |
 |---|---|---|
-| `-muted-strong` | 200 | fundo do badge "forte" (`primary-muted-strong`, `warning-muted-strong`, `danger-muted-strong`) |
-| `-border-strong` | 300 | ring do badge "forte"; borda do botão `danger-outline` |
-| `-text-subtle` | 700 (só `warning`) | texto de aviso inline menos enfático (ex. saldo insuficiente em `item_form_row.html`) |
-| `-text-emphasis` | 800 | texto de `alert.html`/`_messages.html` (banner, mais contraste que prosa comum) |
-| `-text-strong` | 900 | texto de badge/pill e caixa de erro do modal (contraste máximo em fundo claro) |
-| `-accent` | 500 (só `danger`) | foco do botão `danger`/`danger-outline`, asterisco de campo obrigatório |
-| `-border-input` | 400 (só `danger`) | borda de campo em estado inválido (`autocomplete.html`) |
-| `-hover`/`-active` | 700/800 (também em `danger`, além de `primary`) | estados de botão/confirm de modal |
+| **Token, nunca shade** | Template usa a utility semântica (`bg-primary`, `text-danger-text`), nunca a cor crua da paleta (`bg-blue-600`) nem a custom property no HTML. É o que torna um rebrand uma troca de valor em `input.css`. Exceção viva: as variantes de catálogo de `badge.html` e o backdrop de `modal.html`, ambas declaradas. | revisão |
+| **Piso de 44px** | Todo controle acionável tem `min-h-11` — botão, campo, select, e a *label* que embrulha radio/checkbox. A mesma tela é operada com o dedo, em pé no galpão, e com teclado no escritório. **Exceção: a variante `link` de `button.html`**, que é texto inline no meio de prosa e teria a linha quebrada por uma caixa de 44px (WCAG 2.5.8 isenta link em sentença). `link` usado como ação isolada recebe `class="min-h-11"` explícito — ver `notificacoes/lista.html`. | `test_nenhum_controle_abaixo_do_piso_de_44px` |
+| **Campo tem uma definição só** | Campo de texto, número, busca, select e textarea usam `class="campo"` (definida em `input.css`). Não se escreve a string de campo à mão, nem em template nem em `forms.py`. | `test_nenhum_template_escreve_campo_na_mao` |
+| **Botão tem uma definição só** | Toda ação passa por `components/button.html`. Se uma variante não existe, ela nasce no componente — não numa tela. | revisão |
+| **Raio crescente** | Controle 0.375rem → campo 0.5rem → papel 0.75rem → modal 1rem → pill. Um raio intermediário inventado quebra a leitura de hierarquia por geometria. | revisão |
+| **Quatro degraus de elevação** | 0dp repouso, 1dp papel, 8dp menu, 24dp modal, mais o 4dp exclusivo da barra de aplicação. Nenhuma sombra nova para componente novo. | revisão |
+| **Reversão não é erro** | Devolução e reversão usam teal (`return`), jamais vermelho. Vermelho é negação, falha ou divergência; devolver material é o processo funcionando. | revisão |
 
-**Nota — variante `info` de `alert.html` e `_messages.html`:** o token
-`--color-info*` existe e mapeia pra `slate` (uso neutro/informacional
-reservado para o futuro). A variante `info`/padrão de `alert.html` e o nível
-padrão de `_messages.html`, porém, sempre renderizaram **azul** — por isso
-usam os tokens `primary-*`, não `info-*`. Migrar pra `info-*` mudaria a cor
-renderizada (slate ≠ blue), o que não é o objetivo desta indireção. Se um dia
-precisar de um alerta neutro/cinza de verdade, use `--color-info*`.
+As demais regras nomeadas — Sinal Único, Cartão Único, Chrome Sem Parâmetro,
+Caixa Alta Estrutural, 14px, Empilhamento Fechado — estão em `DESIGN.md` com a
+prosa e a medição que as originaram.
 
-Tokens novos adicionados em #86 (todos alias de shades já existentes na
-paleta Tailwind, sem inventar cor nova):
+## Tokens
 
-```text
---color-primary-muted-strong    blue-200
---color-primary-border-strong   blue-300
---color-primary-text-emphasis   blue-800
---color-primary-text-strong     blue-900
---color-danger-muted-strong     red-200
---color-danger-border-strong    red-300
---color-danger-border-input     red-400
---color-danger-accent           red-500
---color-danger-hover            red-700
---color-danger-active           red-800
---color-danger-text-emphasis    red-800
---color-danger-text-strong      red-900
---color-warning-muted-strong    amber-200
---color-warning-border-strong   amber-300
---color-warning-text-subtle     amber-700
---color-warning-text-strong     amber-900
---color-success-text-emphasis   green-800
---color-success-text-strong     green-900
---color-return-text-strong      teal-900
-```
+Os tokens vivem em `@theme` de `apps/core/static/core/css/input.css`. As
+famílias e o significado de cada shade estão em `DESIGN.md` §Colors; aqui fica só
+o que é operacional.
+
+### Escala de sufixos
+
+| Sufixo | Shade | Uso |
+|---|---|---|
+| `-subtle` | 50 | fundo de alerta, item de navegação ativo |
+| `-muted` | 100 | fundo de badge |
+| `-muted-strong` | 200 | fundo de badge "forte" |
+| `-border` | 200 | borda de alerta, ring de badge |
+| `-border-strong` | 300 | ring de badge forte, borda de botão outline |
+| `-text-subtle` | 700 | aviso inline menos enfático (só `warning`) |
+| `-text` | 700 | texto colorido de corpo |
+| `-text-emphasis` | 800 | texto de banner de alerta |
+| `-text-strong` | 900 | texto de badge e de caixa de erro |
+| `-accent` | 500 | foco de botão destrutivo, asterisco de obrigatório (só `danger`) |
+| `-border-input` | 400 | borda de campo inválido (só `danger`) |
+| `-hover` / `-active` | 700 / 800 | pressão em botão (`primary` e `danger`) |
+
+### As três bordas
+
+Distinção de contraste medido, não de gosto:
+
+- `border` (slate-200) e `border-strong` (slate-300) são **estruturais** — borda
+  de papel, divisor, contorno tracejado de estado vazio. Separam superfícies que
+  já se distinguem por tom.
+- `border-control` (slate-500) **identifica um controle** — campo, select, botão
+  secundário, upload. Ali a linha é a única pista de que há um controle, e a
+  WCAG 1.4.11 pede 3:1.
+
+Medido contra branco: slate-300 dá 1.48:1, slate-400 dá 2.63:1, slate-500 dá
+4.77:1. Só o último passa em todas as superfícies do sistema.
+
+### Tailwind v4 só compila o que é usado
+
+`@theme` declara o token, mas a custom property e a utility só entram no
+`app.css` quando algum template referencia a classe. É JIT real, não um dump.
+Consequência prática: usar `bg-info-subtle` num template novo funciona
+normalmente após `npm run css:build`; só não espere a classe já existir no
+`app.css` sem ter sido consumida antes.
+
+A família `--color-info*` (slate) está declarada e não é consumida por nenhum
+template — a variante `info` de `alert.html` e o nível padrão de `_messages.html`
+renderizam **azul** via `primary-*`, por decisão. Use `info-*` só quando precisar
+de um aviso realmente neutro.
 
 ### Tipografia
 
-**Fonte do sistema** — sem dependência de CDN
+Fonte do sistema, sem CDN: `ui-sans-serif, system-ui, sans-serif`.
 
-```css
-font-family: ui-sans-serif, system-ui, sans-serif;
-```
+| Papel | Tamanho | Peso | Onde |
+|---|---|---|---|
+| Display | 1.875rem | 600 | título de tela em desktop, um por página |
+| Headline | 1.5rem | 600 | título de tela em mobile |
+| Title | 1rem → 1.125rem em `sm` | 500 | título e marca na barra de aplicação |
+| Body | **0.875rem** | 400 | o tamanho dominante do sistema |
+| Label | 0.75rem | 600 | rótulo de campo, cabeçalho de seção, badge (sem caixa alta) |
 
-**Hierarquia**
+O corpo é 0.875rem e não 1rem — decisão de densidade operacional (Regra dos 14px,
+`DESIGN.md`). Se um texto precisa de mais presença, mude o peso ou o tom, não o
+tamanho.
 
-```
-h1:      tela title (text-2xl/3xl)
-h2:      seção (text-xl)
-body:    conteúdo (text-base)
-small:   metadados, timestamp, badges (text-xs)
-```
+Controles (botão, item de menu, ação da barra, skip link) usam peso **500**.
 
-### Espaçamento
-
-Usar Tailwind defaults; customização sob demanda. Padrão conservador:
-
-```
-container:  max-w-5xl
-padding:    p-4, p-6 (cards, seções)
-gap:        gap-4, gap-6 (flex/grid)
-rounded:    rounded-lg (cards, inputs)
-            rounded-full (badges, pills)
-```
-
-### Sombras e bordas
+### Espaçamento e forma
 
 ```
-cards:    shadow-sm border border-border
-inputs:   border border-border-strong
-focus:    border-border-focus ring-2 ring-border-focus ring-offset-2
+container:  80rem (--width-content); card de login 24rem (--width-card-sm)
+padding:    p-4 em cartão de listagem, p-6 em seção maior
+gap:        gap-2 entre controles irmãos, gap-3/gap-4 em grade
+rounded:    controle 0.375 / campo 0.5 / papel 0.75 / modal 1rem / pill
+sombra:     shadow-sm só em papel; campo e botão não têm sombra
 ```
-
-### Altura de controle — 44px também para campo
-
-Campo de linha única é controle acionável e segue o mesmo piso de `min-h-11`
-(44px) dos botões. Vale para `input` de texto, número, busca e `select`; os
-widgets declaram a classe em `forms.py`, junto do resto do estilo do campo.
-
-```
-campo linha única:  w-full min-h-11 rounded-lg border border-border-strong px-3 py-2 text-sm
-radio / checkbox:   size-5, dentro de <label class="flex min-h-11 items-center gap-2">
-```
-
-`textarea` com `rows` ≥ 2 já ultrapassa o piso e não precisa da classe.
-
-O motivo é o mesmo do botão e está nos Princípios: a mesma tela é operada com o
-dedo, em pé no galpão, e com teclado no escritório. `px-3 py-2 text-sm` sozinho
-entrega ~39px — passa no mínimo de 24px da WCAG 2.5.8 e falha o piso do
-projeto. O controle nativo de radio é o pior caso: ~16px sem a label.
 
 ### Empilhamento (z-index)
 
@@ -196,427 +144,218 @@ ficava encoberta (WCAG 2.4.11).
 
 ## Estados de UI
 
-### Desabilitado (ação bloqueada por permissão/estado)
+### Desabilitado (ação bloqueada por permissão ou estado)
 
-**Visual**: slate neutro com motivo textual
+`button.html` já entrega: `disabled:opacity-60 disabled:cursor-not-allowed`,
+preservando a variante — o botão continua reconhecível como a ação que é.
 
-```
-bg-slate-200 text-slate-500 cursor-not-allowed
-```
+- Ação de **workflow** bloqueada: visível + `disabled` + motivo em texto,
+  amarrado por `aria_describedby` ao parágrafo que explica.
+- Ação **administrativa** irrelevante: fora da marcação.
 
-**Comportamento**:
-- Ação de workflow (autorizar, atender, etc) = **visível + disabled + motivo**
-- Ação administrativa/irrelevante = **esconder da markup**
-
-**Motivo**:
-```
-Disponível apenas para o chefe do setor do beneficiário.
-```
-
-**ARIA**:
-```
-aria-disabled="true" (se não usa atributo HTML disabled)
-title="motivo" (tooltip)
-```
-
-**Exemplo**:
 ```django
 {% if pode_autorizar %}
-  {% include "components/button.html" with label="Autorizar" %}
+  {% include "components/button.html" with label="Autorizar" variant="primary" %}
 {% else %}
-  {% include "components/button.html" with 
-    label="Autorizar"
-    disabled=True
-    title="Apenas chefe de setor pode autorizar"
-  %}
+  {% include "components/button.html" with label="Autorizar" variant="primary" disabled=True aria_describedby="motivo-bloqueio" %}
+  <p id="motivo-bloqueio" class="text-sm text-text-tertiary">
+    Disponível apenas para o chefe do setor do beneficiário.
+  </p>
 {% endif %}
 ```
 
-### Loading (operação em andamento)
+### Carregando
 
-**Visual**: preserva variante + spinner inline + texto de progresso
+`button.html` cobre os dois caminhos:
+
+- **Submit de formulário**: `loading_label="Registrando…"` — `form-submit.js`
+  troca o texto e bloqueia o duplo envio.
+- **Estado Alpine**: `x_disabled`, `x_aria_busy`, `spinner_show` e `label_bind`.
+
+O spinner usa `motion-reduce:animate-none`.
+
+### Readonly (campo preenchido, não editável)
+
+`bg-bg-subtle`, borda neutra, cursor padrão. Nunca `disabled`, que impediria o
+envio, e nunca `aria-disabled`, porque o campo não está semanticamente
+desabilitado.
+
+### Foco
+
+Anel de foco em **todo** controle, sempre `focus-visible` e nunca `focus`:
 
 ```
-[spinner] Registrando atendimento...
+focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1
 ```
 
-**Comportamento**:
-- disabled obrigatório
-- pointer-events-none
-- cursor-wait
-- aria-busy="true"
+`.campo` já traz o seu. Em ação destrutiva o anel é `danger-accent`. Remover
+`outline` só é aceitável porque o anel o substitui.
 
-**ARIA**:
+### Erro em campo
+
+Vem sempre do Form, nunca hardcoded no componente. `form_field.html` costura
+`aria-invalid` + `aria-describedby`, e `.campo[aria-invalid="true"]` pinta a
+borda em `danger-border-input`. Formulário longo ganha também
+`error_summary.html` no topo.
+
+## Onde uma coisa mora
+
 ```
-aria-busy="true"
-aria-label ou screen reader vê o label
+É estilo de campo?            -> .campo, em input.css
+É uma ação clicável?          -> components/button.html (variante nova nasce lá)
+Precisa de estado de domínio  -> partial de domínio em apps/<app>/templates/<app>/partials/
+  (status="autorizada")?
+Serve a 2+ telas, sem domínio -> componente global em apps/core/templates/components/
+Usado 1 vez, fluxo instável   -> inline na tela, até estabilizar
 ```
 
-**CSS**:
+### Componente global
+
+Vive em `apps/core/templates/components/`. Conhece variantes visuais, estados e
+ARIA. **Não** conhece semântica de domínio: recebe `variant` e `label` já
+resolvidos.
+
+### Partial de domínio
+
+Vive em `apps/<app>/templates/<app>/partials/`. Conhece enums e regras do app, e
+usa os componentes globais por dentro. É quem mapeia `EstadoRequisicao → variant`.
+
+### Inline
+
+Permitido para bloco usado uma vez, fluxo instável ou markup muito acoplada à
+tela. Extrair quando for reutilizado 2+ vezes, quando o padrão visual estabilizar
+ou quando uma mudança central precisar se refletir em vários lugares.
+
+Estrutura **flat** em `components/`. Hierarquia só se passar de 30–40
+componentes ou surgir uma família grande.
+
+## Índice de componentes
+
+21 componentes. A API de cada um está no `{% comment %}` do próprio arquivo —
+esta tabela diz o que existe e para quê, não como se chama cada parâmetro.
+
+### Ação e navegação
+
+| Componente | Para quê |
+|---|---|
+| `button.html` | Toda ação do sistema. 9 variantes, `<a>` ou `<button>`, passthrough HTMX/Alpine/modal |
+| `pagination.html` | Paginação server-side, preservando filtros ativos |
+| `ordenacao_data.html` | Inverte a ordem por data/hora de uma listagem paginada |
+| `page_header.html` | `<h1>` de tela principal, dentro do `<main>` |
+
+### Formulário
+
+| Componente | Para quê |
+|---|---|
+| `form_field.html` | Campo com label vinculada, ajuda, erro e fiação ARIA completa |
+| `error_summary.html` | Sumário de erros no topo do formulário (padrão GOV.UK, foco no mount) |
+| `item_form_row.html` | Linha de formset de item, compartilhada entre requisição e saída excepcional |
+| `autocomplete.html` | Combobox ARIA de busca de material |
+
+### Filtro
+
+Família `filter_*`, montada por composição explícita na tela chamadora.
+
+| Componente | Para quê |
+|---|---|
+| `filter_shell.html` | Moldura: disclosure no mobile, `<form>` HTMX, grade de campos (`partialdef`) |
+| `filter_busca.html` | Campo de busca textual |
+| `filter_select.html` | Select com opção "Todos…" |
+| `filter_data.html` | Campo de data único — chamar duas vezes para um par De/Até |
+| `filter_checkbox_group.html` | Grupo multi-seleção em `fieldset`/`legend` |
+| `filter_acoes.html` | "Aplicar filtros" + "Limpar filtros" condicional, com reemite OOB |
+
+### Superfície e feedback
+
+| Componente | Para quê |
+|---|---|
+| `table.html` | Chrome de listagem em cartões (`partialdef`). Não há renderização em tabela |
+| `modal.html` | `<dialog>` nativo com foco preso — componente-assinatura |
+| `_modal_body.html` | Corpo compartilhado do modal (header, erro, corpo, rodapé) |
+| `_modal_icon.html` | Ícone semântico do header de modal |
+| `alert.html` | Banner de aviso estático, layout `stack` ou `row` |
+| `badge.html` | Pill de estado. 13 variantes visuais, zero conhecimento de domínio |
+| `empty_state.html` | Estado vazio com causa distinguida e CTA opcional |
+
+Fora de `components/`: `core/partials/_messages.html` (flash messages do Django) e
+`core/partials/_side_nav.html` (navegação lateral em `lg:`).
+
+## Contrato de componente novo
+
 ```
-opacity-75 preserve-variant
+[ ] Bloco {% comment %} de cabeçalho: parâmetros, obrigatoriedade, contrato
+    ARIA e o motivo das decisões não óbvias
+[ ] Só tokens semânticos — zero classe de paleta crua
+[ ] Raio conforme a camada (controle / campo / papel / modal)
+[ ] Elevação em um dos quatro degraus
+[ ] Piso de 44px em qualquer coisa acionável
+[ ] focus-visible:ring-2 com offset
+[ ] Zero semântica de domínio — variante e label chegam resolvidos
+[ ] Uma linha no índice acima
 ```
 
-**Exemplo**:
+Se o componente precisa de um parâmetro que descreve **conteúdo** e não
+estrutura, a abstração está errada. Parar e registrar, não generalizar.
+
+## Checklist de revisão — acessibilidade
+
+```
+[ ] Contraste de texto ≥ 4.5:1; borda que identifica controle ≥ 3:1
+[ ] Todo controle interativo tem focus-visible
+[ ] Botão em carregamento usa aria-busy
+[ ] Campo com erro usa aria-invalid + aria-describedby
+[ ] Readonly e disabled visualmente distintos
+[ ] Modal e dropdown operáveis por teclado (Tab, Escape, Enter/Espaço)
+[ ] Ação bloqueada tem motivo textual amarrado por aria-describedby
+[ ] Atualização HTMX crítica tem aria-live ou feedback visível
+[ ] Ícone tem alternativa textual (aria-label, ou contexto que já o nomeia)
+[ ] Badge de dado estático NÃO usa role="status" — 20 linhas virariam 20 live regions
+```
+
+## Exemplos de uso
+
+Botão de navegação (só `href`, navegação nativa):
+
 ```django
-{% if loading %}
-  <button disabled aria-busy="true">
-    <svg class="spinner inline">...</svg>
-    Registrando atendimento...
-  </button>
-{% else %}
-  <button>Atender requisição</button>
+{% include "components/button.html" with label="Ver detalhes" variant="secondary" href=url_detalhe aria_label="Ver detalhes da requisição REQ-2026-001" %}
+```
+
+Botão com HTMX — `hx_target` é literal, então quem chama manda o seletor pronto, com `#`:
+
+```django
+{% with seletor_alvo="#"|add:target_id %}
+  {% include "components/button.html" with label="Limpar filtros" variant="secondary" href=action_url hx_get=action_url hx_target=seletor_alvo hx_push_url="true" %}
+{% endwith %}
+```
+
+O `href` continua presente de propósito: sem JavaScript o link navega, e o HTMX é a
+melhoria progressiva por cima. É o padrão de `components/filter_acoes.html`.
+
+Campo de formulário:
+
+```django
+{% include "components/form_field.html" with field=form.observacao_geral %}
+```
+
+Campo fora de um Form Django (raro — prefira o Form):
+
+```django
+<input type="search" name="busca" class="campo" aria-label="Buscar material">
+```
+
+Badge de estado, via partial de domínio:
+
+```django
+{# em requisicoes/partials/_estado_badge.html #}
+{% if requisicao.estado == "rascunho" %}
+  {% include "components/badge.html" with variant="slate" label="Rascunho" prefixo_sr="Estado: " %}
+{% elif requisicao.estado == "autorizada" %}
+  {% include "components/badge.html" with variant="blue" label="Autorizada" prefixo_sr="Estado: " %}
 {% endif %}
 ```
 
-### Readonly (campo preenchido, não edita)
+Listagem em cartões, com o fragmento de resultado pronto para swap HTMX:
 
-**Visual**: bg-slate-50, sem border ativo, cursor padrão
-
-```
-bg-slate-50 border border-slate-200 cursor-default
-```
-
-**Não usar**:
-- `disabled` (impede submission)
-- `aria-disabled` (não é semanticamente desabilitado)
-
-**HTML**:
-```html
-<input type="text" readonly value="...">
-```
-
-### Foco (teclado/acessibilidade)
-
-**Ring global** para inputs, buttons, links
-
-```
-focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2
-```
-
-**Inputs + botões**:
-```
-focus:border-blue-500
-focus:ring-2 focus:ring-blue-500
-```
-
-**Perigo**: em ações destrutivas, pode usar ring-red-500 para semântica clara. Preferência: azul global.
-
-## Acessibilidade — requisitos obrigatórios
-
-### Contraste
-
-- Texto: mínimo WCAG AA (4.5:1 contrast ratio)
-- Gráficos/bordas: 3:1
-- Badges: testar antes de codar
-
-**Exemplos seguros**:
-```
-text-slate-700 on bg-slate-100 ✓
-text-amber-800 on bg-amber-50  ✓ (amber-800 bem escuro)
-text-blue-700 on bg-blue-50    ✓
-```
-
-### Foco visível
-
-Todos os controles interativos (button, input, link, dropdown) devem ter `focus-visible` claro.
-
-Nunca remover outline com `outline: none` sem substituir.
-
-### ARIA
-
-**Buttons**:
-```html
-<button aria-busy="true"><!-- loading --></button>
-<button aria-disabled="true"><!-- disabled --></button>
-```
-
-**Inputs com erro**:
-```html
-<input aria-invalid="true" aria-describedby="field-error">
-<span id="field-error">Matrícula já cadastrada</span>
-```
-
-**Alerts**:
-```html
-<div role="alert"><!-- erro crítico --></div>
-<div role="status"><!-- sucesso --></div>
-```
-
-**Modais**:
-```html
-<div role="dialog" aria-modal="true" aria-labelledby="modal-title">
-  <h2 id="modal-title">Confirmar atendimento</h2>
-</div>
-```
-
-### Teclado
-
-- Tab = navega entre controles
-- Shift+Tab = retrocede
-- Enter/Espaço = ativa button
-- Escape = fecha modal/dropdown
-- Setas = navega dentro dropdown (nice-to-have)
-
-**Modal deve**:
-- Trap foco dentro modal
-- Restaurar foco no gatilho ao fechar
-
-**Dropdown deve**:
-- Abrir com Enter/Espaço
-- Fechar com Escape
-- Tab navega itens
-
-### Aria-live para HTMX
-
-Quando HTMX atualiza conteúdo crítico, usar aria-live:
-
-```html
-<div aria-live="polite" aria-atomic="true">
-  <!-- mensagem de sucesso aparece aqui via HTMX -->
-</div>
-```
-
-Use `polite` para mensagens normais; `assertive` apenas para erro crítico.
-
-## Granularidade de componentes
-
-### Componente global (core)
-
-Vive em `apps/core/templates/components/`
-
-- Conhece: variantes visuais, estados, ARIA
-- Não conhece: semântica de domínio
-
-**Exemplos**:
-```
-button.html         (variant, size, state)
-form_field.html     (label, error, required)
-badge.html           (variant color, label)
-alert.html          (role, message)
-card.html           (header, body, footer)
-```
-
-**Decisão**: se precisa de `status="autorizada"` ou `estado="requisicao"`, não é componente global. Cria partial de domínio.
-
-### Partial de domínio (app)
-
-Vive em `apps/<app>/templates/<app>/partials/`
-
-- Conhece: semântica de negócio, estados, enum do app
-- Usa: componentes globais internamente
-
-**Exemplos**:
-```
-_estado_badge.html      (mapeia EstadoRequisicao → variant)
-_acoes_requisicao.html  (botões + permissões + HTMX)
-_filtros_fila.html      (filtros + busca da fila)
-```
-
-### Inline HTML
-
-Permitido para:
-- Bloco usado uma única vez
-- Fluxo ainda instável
-- Muito acoplado à tela
-
-Extrair para componente/partial quando:
-- Reutilizado 2+ vezes
-- Padrão visual estabiliza
-- Mudança central precisa se refletir em vários lugares
-
-## Organização dos componentes
-
-**Estrutura flat** em `apps/core/templates/components/`
-
-```
-components/
-  button.html
-  form_field.html
-  form_errors.html
-  card.html
-  alert.html
-  badge.html
-  page_header.html
-  modal.html
-  table.html
-  table_empty.html
-  dropdown.html
-  pagination.html
-  ...
-```
-
-**Nomes explícitos com prefixos semânticos** quando necessário:
-```
-form_field.html
-form_errors.html
-table_empty.html
-badge.html
-```
-
-**Hierarquia só se ultrapassar 30–40 componentes** ou surgirem famílias grandes (ex: forms/* com 10+ subcomponentes).
-
-## Inventário inicial
-
-### 1. button.html
-
-Render: `<button>`
-
-Parâmetros:
-```
-variant       default=primary (primary, secondary, danger, ghost, link)
-size          default=md (sm, md, lg)
-type          default=button (button, submit)
-label         (obrigatório)
-disabled      (boolean)
-loading       (boolean)
-loading_label (opcional, se loading)
-icon          (opcional)
-icon_position default=left (left, right)
-class         (passthrough para ajustes layout)
-hx_*          (hx_get, hx_post, hx_target, hx_swap, hx_confirm, etc)
-```
-
-Comportamento:
-- Primary: bg-blue-600 hover:bg-blue-700 active:bg-blue-800
-- Secondary: bg-white text-slate-700 border border-slate-300 hover:bg-slate-50
-- Danger: bg-red-600 hover:bg-red-700
-- Ghost: bg-transparent text-slate-700 hover:bg-slate-100
-- Link: text-blue-700 hover:underline
-- Loading: disabled + aria-busy + spinner inline + text
-
-### 2. form_field.html
-
-Render: wrapper <label>/<input> com ajudas e erros
-
-Parâmetros:
-```
-field           Django form field (obrigatório)
-help_text       (opcional, sobrescreve field.help_text)
-```
-
-Comportamento:
-- Label vinculada ao input
-- Mostra field.help_text abaixo
-- Mostra errors se houver
-- required="*" se campo obrigatório
-- focus:border-blue-500 focus:ring-blue-500
-- aria-invalid/aria-describedby se erro
-
-### 3. card.html
-
-Render: `<div>` com bordas, fundo branco, sombra
-
-Parâmetros:
-```
-header   (slot opcional)
-body     (slot; conteúdo principal)
-footer   (slot opcional)
-class    (ajustes layout)
-```
-
-Comportamento:
-- bg-white border border-slate-200 shadow-sm rounded-lg
-- Padding interno conservador
-- Preservar fluidez de conteúdo
-
-### 4. alert.html
-
-Render: `<div role="alert" ou role="status">`
-
-Parâmetros:
-```
-variant   default=info (info, success, warning, danger)
-message   (obrigatório)
-icon      (opcional)
-class     (ajustes)
-```
-
-Comportamento:
-- Info/success: role="status"
-- Warning/danger: role="alert"
-- Cores baseadas em paleta semântica
-- aria-live="polite" se dinâmico
-
-### 5. badge.html
-
-Render: `<span>` compacto com cor e label
-
-Parâmetros:
-```
-variant     (slate, blue, blue-strong, amber, amber-strong, green, red,
-             red-strong, orange, teal, indigo, violet, yellow)
-label       (obrigatório)
-role        (opcional — propagado literalmente como role="{{ role }}")
-aria_label  (opcional — propagado literalmente como aria-label="{{ aria_label }}")
-```
-
-Comportamento:
-- Não conhece estados de requisição
-- Baseado apenas em variante visual
-- Partial de domínio mapeia estado → variant, e decide `role`/`aria_label` (ex. `role="status"` para estados de listagem)
-
-### 6. page_header.html
-
-Render: cabeçalho de página com título, ações, breadcrumb
-
-Parâmetros:
-```
-title     (obrigatório)
-subtitle  (opcional)
-actions   (opcional, conteúdo HTML ou botões)
-breadcrumb (opcional, lista de links)
-```
-
-### 7. modal.html (adiar até uso real)
-
-Render: `<dialog>` ou `<div role="dialog">`
-
-Adiado. Implementar quando houver HTMX modal concreto.
-
-### 8. Listagem responsiva (cartões)
-
-Render: cartões `<article>` em grade, em qualquer largura — 1 coluna, 2 a partir de
-`sm`, 3 a partir de `2xl`. Chrome vive em `apps/core/templates/components/table.html`, via
-`{% partialdef %}` nativo do Django 6 (`{% partialdef nome %}...{% endpartialdef %}`
-define; `{% include "components/table.html#nome" with ... %}` renderiza de outro
-arquivo). Implementado a partir das filas gêmeas (`fila_atendimento.html`,
-`fila_autorizacao.html` — issue #83).
-
-**Decisão de arquitetura**: nada de `DataTable` genérico config-driven (colunas como
-lista de dicts) — células reais têm HTML rico e condicional de domínio; uma DSL de
-colunas seria pior que HTML explícito e hostil ao ARIA custom. Só as **aberturas**
-com string de classe canônica viram `partialdef` — fechamentos (`</div>`,
-`</article>`) são triviais e ficam literais na tela. Células `<td>` e conteúdo do
-card permanecem 100% explícitos na tela chamadora.
-
-Fragmentos disponíveis:
-```text
-cards_abertura    container: div.grid — 1 coluna, 2 a partir de sm, 3 a partir de 2xl
-                  (fechamento literal: </div>)
-card_abertura     card individual: article.rounded-xl...
-                  (fechamento literal: </article>)
-```
-
-**Não existe renderização em tabela.** `tabela_abertura` e `th` foram removidos do
-chrome. A decisão veio de medição: com a side nav de 240px e o `p-6` do `<main>`, um
-viewport de 1024px deixa 734px de conteúdo, e as listagens precisavam de 808 a 1081px —
-colunas `whitespace-nowrap` não comprimem. Nem a 1280px cabia. Resultado prático era
-scroll horizontal em qualquer janela de desktop não maximizada. Listagem nova usa
-cartão; ver "A Regra do Cartão Único" no DESIGN.md.
-
-**Guardrail**: se o chrome precisar de parâmetro que descreve conteúdo de célula
-(não estrutura visual), a abstração está errada — parar e registrar, não generalizar.
-
-**One-template pattern (HTMX)**: a própria tela envolve o bloco de resultado
-(cartões + empty state) em `{% partialdef resultados %}` e renderiza com
-`{% partial resultados %}` logo abaixo. Isso elimina o par página/partial em
-arquivos separados: quando uma tela ganhar swap HTMX (filtro, paginação), a view
-passa a renderizar `template.html#resultados` para esse mesmo fragmento — sempre
-**GET-only**. Transições de estado de domínio continuam retornando `204` com
-`HX-Redirect` (`docs/CONVENTIONS.md`); este fragmento nunca é alvo delas.
-
-Exemplo canônico:
 ```django
 {% partialdef resultados %}
 {% if lista %}
@@ -624,107 +363,58 @@ Exemplo canônico:
     {% for item in lista %}
       {% include "components/table.html#card_abertura" %}
         <div class="flex items-start justify-between gap-3">
-          <h2 class="break-words text-sm font-semibold text-slate-900">{{ item.titulo }}</h2>
-          <span class="shrink-0">{% include "components/badge.html" with variant="blue" label="Estado" %}</span>
+          <h2 class="break-words text-sm font-semibold text-text-primary">{{ item.titulo }}</h2>
+          <span class="shrink-0">{% include "components/badge.html" with variant="blue" label="Autorizada" %}</span>
         </div>
-        {# dl explícito + botão explícito #}
       </article>
     {% endfor %}
   </div>
-
 {% else %}
-  {% include 'components/empty_state.html' with titulo='Nada por aqui' %}
+  {% include "components/empty_state.html" with titulo="Nada por aqui" %}
 {% endif %}
 {% endpartialdef %}
 {% partial resultados %}
 ```
 
-## Code review — checklist acessibilidade
+O fragmento é sempre **GET-only**. Transição de estado de domínio continua
+retornando `204` com `HX-Redirect` (`docs/CONVENTIONS.md`); este fragmento nunca
+é alvo delas.
 
-Ao revisar componente novo ou tela que usa componentes:
-
-```
-[ ] Contraste mínimo WCAG AA (testar com ferramenta)
-[ ] Todos controles interativos têm focus-visible
-[ ] Botões loading usam aria-busy="true"
-[ ] Campos com erro usam aria-invalid="true" + aria-describedby
-[ ] Campos readonly e disabled visualmente distintos
-[ ] Modais/dropdowns funcionam com teclado (Tab, Escape, Enter/Espaço)
-[ ] Ações disabled têm motivo textual quando relevante
-[ ] HTMX updates críticos usam aria-live ou feedback visível
-[ ] Alternativas de texto para ícones (aria-label, title, ou context)
-```
-
-## Exemplos de uso
-
-### Botão primário com HTMX
+Confirmação de ação irreversível:
 
 ```django
-{% include "components/button.html" with
-  label="Autorizar requisição"
-  variant="primary"
-  hx_post="/api/requisicoes/1/autorizar/"
-  hx_target="#requisicao"
-  hx_swap="outerHTML"
-  hx_confirm="Tem certeza que quer autorizar?"
-%}
+<div x-data="modalController({ id: 'confirmar-estorno' })">
+  {% include "components/button.html" with variant="danger-outline" label="Estornar" data_modal_trigger="confirmar-estorno" %}
+  {% include "components/modal.html" with id="confirmar-estorno" titulo="Estornar requisição?" descricao="Esta operação é irreversível." action_url=url_estornar confirm_label="Confirmar estorno" confirm_variant="danger" icon_variant="danger" form_body_template="requisicoes/partials/_modal_form_estorno.html" %}
+</div>
 ```
 
-### Campo de formulário
+## Armadilhas do template Django
 
-```django
-{% include "components/form_field.html" with field=form.matricula %}
-```
+Duas que já custaram bug em produção de tela:
 
-### Card com ações
-
-```django
-{% include "components/card.html" %}
-  {% block header %}
-    <h2>Dados da requisição</h2>
-  {% endblock %}
-  {% block body %}
-    <dl>
-      <dt>Matrícula</dt>
-      <dd>{{ requisicao.criador.matricula }}</dd>
-    </dl>
-  {% endblock %}
-  {% block footer %}
-    {% include "components/button.html" with label="Editar" %}
-  {% endblock %}
-{% endinclude %}
-```
-
-### Badge de estado (via partial de domínio)
-
-```django
-{# Em requisicoes/partials/_estado_badge.html #}
-{% if requisicao.estado == "rascunho" %}
-  {% include "components/badge.html" with variant="slate" label="Rascunho" %}
-{% elif requisicao.estado == "autorizada" %}
-  {% include "components/badge.html" with variant="blue" label="Autorizada" %}
-{% endif %}
-```
-
-Uso na tela:
-```django
-{% include "requisicoes/partials/_estado_badge.html" with requisicao=requisicao %}
-```
+- **`{# … #}` não atravessa linha.** O lexer só casa comentário numa linha só;
+  um `{#` multi-linha não vira comentário, e as tags de dentro são executadas.
+  Para comentário de várias linhas use `{% comment %}`. Travado por
+  `test_nenhum_template_usa_comentario_de_linha_em_varias_linhas`.
+- **`{% with %}` fecha no mesmo bloco.** Não dá para abrir um `{% with %}` num
+  ramo de `{% if %}` e usá-lo fora. Quando precisar de um valor condicional,
+  resolva com filtro (`yesno`, `firstof`, `default`) antes do `with`.
 
 ## Quando aparecer identidade corporativa da SAEP
 
 Se a SAEP trouxer guideline oficial (logo, cores, tipografia):
 
-1. Atualizar `docs/design-system.md` com novos tokens
+1. Atualizar os tokens em `input.css` e o frontmatter de `DESIGN.md`
 2. Não alterar templates individuais
-3. Tokens levam mudanças; componentes herdam
+3. Rodar `npm run css:build`
 
-Isso é possível porque componentes usam `variant="primary"`, não `bg-blue-600` direto.
+Isso é possível porque componentes usam `variant="primary"` e `class="campo"`,
+não `bg-blue-600` nem a string de campo copiada.
 
-## Futuro — dark mode, themes
+## Futuro — dark mode
 
-Adiado. Sistema começa em light mode.
-
-Se dark mode virar requisito: usar CSS custom properties (`--color-primary`, etc) e media query `prefers-color-scheme`.
-
-Componentes já estão estruturados pra suportar isso sem reescrever.
+Adiado; o sistema começa em light mode. Se virar requisito, os tokens `--color-*`
+já são o ponto único de troca: basta redefini-los sob
+`@media (prefers-color-scheme: dark)` e `:root[data-theme="dark"]`. Nenhum
+componente precisa ser reescrito.

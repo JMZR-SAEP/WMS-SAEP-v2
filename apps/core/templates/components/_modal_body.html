@@ -44,30 +44,21 @@
   {% endif %}
 
   <footer class="flex flex-col-reverse gap-2 border-t border-border bg-bg-page px-6 py-4 sm:flex-row sm:justify-end">
-    <button
-      type="button"
-      @click="fechar()"
-      class="inline-flex min-h-11 items-center justify-center rounded-md border border-border-strong bg-surface px-4 py-2 text-sm font-medium text-text-secondary shadow-sm transition hover:bg-bg-page cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-text-disabled focus-visible:ring-offset-2"
-    >
-      {{ cancel_label|default:"Voltar" }}
-    </button>
+    {% comment %}
+      Rodapé usa components/button.html como qualquer outra ação do sistema, e
+      `confirm_variant` é repassado direto: o modal não traduz vocabulário. Ele
+      já teve o seu próprio ("secondary" significava confirmação grafite
+      preenchida, o oposto do `secondary` de button.html, que é papel branco com
+      borda) — dois nomes para coisas diferentes é como o rodapé foi parar fora
+      do componente de botão.
+    {% endcomment %}
+    {% include "components/button.html" with variant="secondary" label=cancel_label|default:"Voltar" x_click="fechar()" %}
     {% if submit_form_id %}
-      <button
-        type="button"
-        data-modal-confirm
-        @click="document.getElementById('{{ submit_form_id }}')?.requestSubmit() ?? console.error('modal {{ id }}: submit_form_id {{ submit_form_id }} nao encontrado')"
-        class="inline-flex min-h-11 items-center justify-center rounded-md px-4 py-2 text-sm font-semibold shadow-sm transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 {% if confirm_variant == 'danger' %}bg-danger text-text-on-primary hover:bg-danger-hover focus-visible:ring-danger-accent{% elif confirm_variant == 'secondary' %}bg-text-secondary text-text-on-primary hover:bg-text-primary focus-visible:ring-text-tertiary{% else %}bg-primary text-text-on-primary hover:bg-primary-hover focus-visible:ring-border-focus{% endif %}"
-      >
-        {{ confirm_label|default:"Confirmar" }}
-      </button>
+      {% with expressao_submit="document.getElementById('"|add:submit_form_id|add:"')?.requestSubmit() ?? console.error('modal "|add:id|add:": submit_form_id "|add:submit_form_id|add:" nao encontrado')" %}
+        {% include "components/button.html" with variant=confirm_variant|default:"primary" label=confirm_label|default:"Confirmar" data_modal_confirm=True x_click=expressao_submit %}
+      {% endwith %}
     {% else %}
-      <button
-        type="submit"
-        data-modal-confirm
-        class="inline-flex min-h-11 items-center justify-center rounded-md px-4 py-2 text-sm font-semibold shadow-sm transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 {% if confirm_variant == 'danger' %}bg-danger text-text-on-primary hover:bg-danger-hover focus-visible:ring-danger-accent{% elif confirm_variant == 'secondary' %}bg-text-secondary text-text-on-primary hover:bg-text-primary focus-visible:ring-text-tertiary{% else %}bg-primary text-text-on-primary hover:bg-primary-hover focus-visible:ring-border-focus{% endif %}"
-      >
-        {{ confirm_label|default:"Confirmar" }}
-      </button>
+      {% include "components/button.html" with variant=confirm_variant|default:"primary" type="submit" label=confirm_label|default:"Confirmar" data_modal_confirm=True %}
     {% endif %}
   </footer>
 </div>

@@ -24,23 +24,13 @@ class MatriculaAuthenticationForm(AuthenticationForm):
             {
                 'autocomplete': 'username',
                 'autofocus': True,
-                'class': (
-                    'mt-2 block min-h-11 w-full rounded-lg border border-border-strong '
-                    'bg-surface px-3 py-2 text-text-primary shadow-sm '
-                    'placeholder:text-text-tertiary focus:border-border-focus '
-                    'focus:outline-none focus:ring-2 focus:ring-border-focus'
-                ),
+                'class': 'campo mt-2',
             }
         )
         self.fields['password'].widget.attrs.update(
             {
                 'autocomplete': 'current-password',
-                'class': (
-                    'mt-2 block min-h-11 w-full rounded-lg border border-border-strong '
-                    'bg-surface px-3 py-2 text-text-primary shadow-sm '
-                    'placeholder:text-text-tertiary focus:border-border-focus '
-                    'focus:outline-none focus:ring-2 focus:ring-border-focus'
-                ),
+                'class': 'campo mt-2',
             }
         )
         if self.is_bound:

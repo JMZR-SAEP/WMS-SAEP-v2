@@ -48,20 +48,49 @@ Usuário com múltiplos papéis: hierarquia de prioridade `chefe_almox > aux_alm
 
 ## Navigation Model
 
-### Primary navigation (top nav, visível após login)
+### Navegação principal (sidebar em `lg:`, drawer abaixo disso)
 
-Máximo de 4 links por papel. Links são condicionais — o usuário só vê o que pode usar.
+Fonte única em `core_tags.secoes_navegacao`, que lê a constante `NAVEGACAO` e filtra cada
+item pela flag de permissão já presente no contexto — a tag não reimplementa policy. Seção
+sem nenhum item visível é descartada inteira.
 
-| Papel | Links visíveis |
+**Três seções, 11 itens no total.** Este é o catálogo completo; ninguém vê os 11 exceto o
+superuser.
+
+| Seção | Itens | Flag |
+|---|---|---|
+| Navegação | Início | (sem flag — sempre visível) |
+| Requisições | Nova requisição | (sem flag) |
+| | Minhas requisições | (sem flag) |
+| | Fila de autorizações | `pode_ver_fila_autorizacao` |
+| | Histórico de requisições | `pode_consultar_historico_requisicoes` |
+| Almoxarifado | Atendimento | `pode_ver_fila_atendimento` |
+| | Saídas excepcionais | `pode_consultar_saidas_excepcionais` |
+| | Catálogo de materiais | `pode_consultar_catalogo_estoque` |
+| | Movimentações | `pode_consultar_movimentacoes_estoque` |
+| | Importar SCPI | `pode_visualizar_preview_scpi` |
+| | Histórico de importações SCPI | `pode_consultar_historico_scpi` |
+
+O limite de "máximo 4 links por papel" caiu quando o almoxarifado ganhou catálogo,
+movimentações e importação SCPI. O que substituiu o limite não é um número, é o
+agrupamento: os itens do almoxarifado ficam sob um cabeçalho próprio, então quem tem os
+seis não escolhe entre onze links soltos.
+
+Contagem medida sobre o elenco de `seed_dev`, renderizando a navegação de cada usuário:
+
+| Usuário do seed | Links visíveis |
 |---|---|
-| Solicitante | Nova requisição · Minhas requisições |
-| Auxiliar de setor | Nova requisição · Minhas requisições · Histórico de requisições |
-| Chefe de setor | Nova requisição · Minhas requisições · Fila de Autorizações · Histórico de requisições |
-| Auxiliar de almoxarifado | Nova requisição · Minhas requisições · Histórico de requisições |
-| Chefe de almoxarifado | Nova requisição · Minhas requisições · Histórico de requisições |
-| Superuser/staff | Nova requisição · Minhas requisições · Fila de Autorizações · Histórico de requisições · Admin |
+| Solicitante (`OBRAS003`) | 4 |
+| Auxiliar de setor (`OBRAS002`) | 6 |
+| Chefe de setor (`OBRAS001`) | 7 |
+| Auxiliar de almoxarifado (`ALMOX002`) | 8 |
+| Chefe de almoxarifado (`ALMOX001`) | 10 |
+| Superuser (`SUPER001`) | 11 |
 
-Usuário com múltiplos papéis: união dos links permitidos.
+Os números são do elenco, não do papel puro: papel é efetivo e acumula, então `ALMOX001`
+também é chefe do próprio setor e por isso enxerga a fila de autorizações. "Importar SCPI"
+é o único item que nem o chefe de almoxarifado vê — `pode_visualizar_preview_scpi` exige
+superusuário.
 
 > **Módulo Estoque** — navegação secundária dentro da área de almoxarifado (`_topbar_nav.html`):
 >
@@ -84,11 +113,14 @@ Usuário com múltiplos papéis: união dos links permitidos.
 
 ### Secondary navigation
 
-Não há sidebar. Dentro do detalhe da requisição: link `← Voltar` para lista de origem (preservado via query param `?next=`).
+Sidebar fixa a partir de `lg:` (64rem), em `core/partials/_side_nav.html`. Dentro do detalhe da
+requisição: ícone de voltar na barra de aplicação, para a lista de origem (preservada via query
+param `?next=`).
 
 ### Mobile navigation
 
-Hamburger → dropdown simples via Alpine.js `x-show`. Links mesmos do desktop. Sem sidebar mobile.
+Abaixo de `lg:`, hamburger na barra de aplicação abre um popover ancorado de 16rem com scrim e
+foco preso (`x-trap.inert.noscroll`). Mesmo conteúdo da sidebar, mesma fonte de dados.
 
 ## Content Hierarchy
 

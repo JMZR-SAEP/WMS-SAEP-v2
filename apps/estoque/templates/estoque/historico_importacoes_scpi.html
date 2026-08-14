@@ -14,16 +14,8 @@
         Nenhuma importação registrada.
       {% endif %}
     </p>
-    <a
-      href="{% url 'estoque:preview_importacao_scpi' %}"
-      class="inline-flex min-h-9 items-center gap-2 rounded-lg border border-border
-             bg-surface px-3 py-1.5 text-sm font-medium text-text-secondary
-             hover:bg-bg-page focus-visible:outline-none focus-visible:ring-2
-             focus-visible:ring-border-focus focus-visible:ring-offset-1
-             transition-colors duration-150 touch-manipulation"
-    >
-      Nova importação
-    </a>
+    {% url 'estoque:preview_importacao_scpi' as url_nova_importacao %}
+    {% include "components/button.html" with variant="secondary" label="Nova importação" href=url_nova_importacao %}
   </div>
 
   {% if importacoes %}

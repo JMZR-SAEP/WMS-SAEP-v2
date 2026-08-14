@@ -24,7 +24,7 @@ class SaidaExcepcionalForm(forms.Form):
         choices=MOTIVO_SAIDA_OPCOES,
         widget=forms.Select(
             attrs={
-                'class': 'w-full min-h-11 rounded-lg border border-border-strong bg-surface px-3 py-2 text-sm focus:border-border-focus focus:outline-none focus:ring-2 focus:ring-border-focus',
+                'class': 'campo',
                 'autocomplete': 'off',
             }
         ),
@@ -34,7 +34,7 @@ class SaidaExcepcionalForm(forms.Form):
         widget=forms.Textarea(
             attrs={
                 'rows': 3,
-                'class': 'w-full rounded-lg border border-border-strong px-3 py-2 text-sm focus:border-border-focus focus:outline-none focus:ring-2 focus:ring-border-focus',
+                'class': 'campo',
                 'placeholder': 'Descreva o contexto e justificativa para esta saída…',
             }
         ),
@@ -59,7 +59,7 @@ class ItemSaidaExcepcionalForm(forms.Form):
         required=False,
         widget=forms.TextInput(
             attrs={
-                'class': 'material-autocomplete w-full min-h-11 rounded-lg border border-border-strong px-3 py-2 text-sm focus:border-border-focus focus:ring-2 focus:ring-border-focus focus:outline-none',
+                'class': 'campo material-autocomplete',
                 'type': 'search',
                 'autocomplete': 'off',
                 'placeholder': 'Buscar por código ou nome...',
@@ -73,7 +73,7 @@ class ItemSaidaExcepcionalForm(forms.Form):
         required=False,
         widget=forms.NumberInput(
             attrs={
-                'class': 'w-full min-h-11 rounded-lg border border-border-strong px-3 py-2 text-sm focus:border-border-focus focus:ring-2 focus:ring-border-focus focus:outline-none',
+                'class': 'campo',
                 'inputmode': 'decimal',
                 'autocomplete': 'off',
                 'step': 'any',

@@ -472,6 +472,14 @@ def preview_importacao_scpi_view(request):
     divergencias = sum(1 for linha in linhas if linha.status == 'divergente')
     novos = sum(1 for linha in linhas if linha.status == 'novo')
 
+    # A tela existe para evidenciar delta: divergência e material novo primeiro,
+    # linha "OK" por último. Na ordem do arquivo, conferir 12 divergências num
+    # CSV de 800 linhas é caçar. Ordenação estável, então dentro de cada grupo a
+    # ordem do arquivo é preservada — o operador confere contra o papel na mesma
+    # sequência em que ele foi impresso.
+    prioridade_status = {'divergente': 0, 'novo': 1, 'ok': 2}
+    linhas = sorted(linhas, key=lambda linha: prioridade_status.get(linha.status, 3))
+
     return render(
         request,
         'estoque/preview_importacao_scpi.html',

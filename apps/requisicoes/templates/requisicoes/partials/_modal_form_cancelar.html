@@ -12,7 +12,7 @@
     aria-required="true"
     aria-describedby="modal-cancelar-hint{% if erro %} {{ id }}-erro{% endif %}"
     {% if erro %}aria-invalid="true"{% endif %}
-    class="mt-3 block w-full rounded-lg border border-border-strong bg-surface px-3 py-2 text-sm text-text-primary shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-accent focus-visible:ring-offset-1"
+    class="campo mt-3"
   >{{ justificativa_cancelamento|default_if_none:"" }}</textarea>
 {% else %}
   <p class="rounded-lg border border-border bg-bg-page px-3 py-2.5 text-sm text-text-secondary">

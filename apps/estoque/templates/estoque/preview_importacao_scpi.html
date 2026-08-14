@@ -73,7 +73,7 @@
               aria-required="true"
               aria-describedby="arquivo-ajuda"
               x-ref="arquivo"
-              class="block w-full cursor-pointer rounded-lg border border-border-strong bg-surface
+              class="block w-full cursor-pointer rounded-lg border border-border-control bg-surface
                      px-3 py-2 text-sm text-text-secondary
                      file:mr-4 file:cursor-pointer file:rounded-md file:border-0
                      file:bg-primary-subtle file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary-text
@@ -164,8 +164,9 @@
           {% csrf_token %}
           <label
             for="arquivo-novo"
-            class="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-md
-                   border border-border bg-surface px-3 py-1.5 text-sm font-medium text-text-secondary
+            {# Alvo de toque de 44px como qualquer controle: quem troca o arquivo está em pé no galpão. #}
+            class="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-md
+                   border border-border-control bg-surface px-3 py-2 text-sm font-medium text-text-secondary
                    hover:bg-bg-page hover:text-text-primary
                    focus-within:outline-none focus-within:ring-2 focus-within:ring-border-focus focus-within:ring-offset-1
                    transition-colors duration-150 motion-reduce:transition-none touch-manipulation"
@@ -268,18 +269,31 @@
         {# role="status" explícito: preserva o anúncio não-assertivo original (divergência é esperada no preview, não bloqueante); o automático de variant=warning seria role="alert" #}
         {% include "components/alert.html" with variant="warning" role="status" aria_live="polite" body_template="estoque/partials/_alert_divergencias_corpo.html" %}
       {% endif %}
-      {% if pode_confirmar %}
-        <form
-          method="post"
-          action="{% url 'requisicoes:confirmar_importacao_scpi' %}"
-          data-prevent-double-submit
-          class="inline"
-        >
-          {% csrf_token %}
-          {% include "components/button.html" with variant="primary" type="submit" label="Confirmar importação" loading_label="Confirmando…" icon_template="components/icons/confirmar_check.svg" class="transition-colors duration-150 motion-reduce:transition-none touch-manipulation" %}
-        </form>
-      {% endif %}
     </div>
+
+    {% if pode_confirmar %}
+      {% comment %}
+        Barra fixa no rodapé abaixo de sm, mesmo padrão de atender_retirada.html:
+        um CSV do SCPI traz centenas de linhas, e o botão de confirmar ficava
+        depois de todas elas. z-10 para ficar acima do conteúdo e abaixo de
+        qualquer popover ancorado (z-20).
+
+        E confirmação por modal, não submit direto: esta é a única escrita
+        irreversível do sistema, e era a única sem porta. O `descricao` do modal
+        não repete o resumo — quem faz isso é o corpo, com os números.
+      {% endcomment %}
+      <div
+        class="fixed inset-x-0 bottom-0 z-10 mt-6 flex flex-nowrap items-center justify-end gap-2 border-t border-border bg-surface px-4 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] sm:static sm:z-auto sm:gap-3 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:pb-0"
+        x-data="modalController({ id: 'confirmar-importacao-scpi' })"
+      >
+        {% include "components/button.html" with variant="primary" label="Confirmar importação" icon_template="components/icons/confirmar_check.svg" data_modal_trigger="confirmar-importacao-scpi" class="shrink-0" %}
+
+        {% url 'requisicoes:confirmar_importacao_scpi' as url_confirmar_importacao %}
+        {% include "components/modal.html" with id="confirmar-importacao-scpi" titulo="Confirmar importação do SCPI?" descricao="A gravação não pode ser desfeita." action_url=url_confirmar_importacao confirm_label="Confirmar importação" icon_variant="warning" form_body_template="estoque/partials/_modal_corpo_confirmar_importacao.html" %}
+      </div>
+      {# Compensa a altura da barra fixa abaixo de sm, para o último cartão não ficar embaixo dela. #}
+      <div class="h-20 sm:hidden" aria-hidden="true"></div>
+    {% endif %}
   {% endif %}
 
 </div>

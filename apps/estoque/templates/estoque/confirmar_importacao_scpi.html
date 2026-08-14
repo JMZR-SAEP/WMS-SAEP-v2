@@ -10,17 +10,18 @@
     {# ── Sucesso ─────────────────────────────────────────────────────── #}
     {% include "components/alert.html" with variant="success" aria_live="polite" body_template="estoque/partials/_alert_sucesso_importacao_corpo.html" class="mb-6" %}
 
-    <div class="flex gap-3">
-      <a
-        href="{% url 'estoque:preview_importacao_scpi' %}"
-        class="inline-flex min-h-10 items-center gap-2 rounded-lg border border-border
-               bg-surface px-4 py-2 text-sm font-medium text-text-secondary
-               hover:bg-bg-page focus-visible:outline-none focus-visible:ring-2
-               focus-visible:ring-border-focus focus-visible:ring-offset-1
-               transition-colors duration-150 touch-manipulation"
-      >
-        Nova importação
-      </a>
+    {% url 'estoque:preview_importacao_scpi' as url_preview %}
+    {% url 'estoque:historico_importacoes_scpi' as url_historico %}
+    {% url 'estoque:lista_materiais' as url_catalogo %}
+    {% comment %}
+      Três saídas, não uma. A tela terminava oferecendo só "Nova importação" —
+      depois de gravar, a pessoa que confere no papel não tinha para onde ir
+      conferir o que acabou de gravar.
+    {% endcomment %}
+    <div class="flex flex-wrap gap-3">
+      {% include "components/button.html" with variant="primary" label="Ver histórico de importações" href=url_historico %}
+      {% include "components/button.html" with variant="secondary" label="Ver catálogo de materiais" href=url_catalogo %}
+      {% include "components/button.html" with variant="ghost" label="Nova importação" href=url_preview %}
     </div>
 
   {% else %}
@@ -29,17 +30,15 @@
       {% include "components/alert.html" with variant="danger" aria_live="assertive" body_template="estoque/partials/_alert_erro_confirmacao_corpo.html" class="mb-6" %}
     {% endif %}
 
+    {% url 'estoque:preview_importacao_scpi' as url_preview %}
     <div class="flex gap-3">
-      <a
-        href="{% url 'estoque:preview_importacao_scpi' %}"
-        class="inline-flex min-h-10 items-center gap-2 rounded-lg border border-border
-               bg-surface px-4 py-2 text-sm font-medium text-text-secondary
-               hover:bg-bg-page focus-visible:outline-none focus-visible:ring-2
-               focus-visible:ring-border-focus focus-visible:ring-offset-1
-               transition-colors duration-150 touch-manipulation"
-      >
-        ← Voltar para pré-visualização
-      </a>
+      {% comment %}
+        Sem `icon_template`: `voltar.svg` dimensiona por `{{ size }}`, que só a
+        tag {% icon %} passa — `button.html` passa `class`, e o ícone sairia com
+        `width=""`. É a divergência de convenção do catálogo de ícones; enquanto
+        ela existir, este botão fica só com o rótulo, que já é explícito.
+      {% endcomment %}
+      {% include "components/button.html" with variant="secondary" label="Voltar para pré-visualização" href=url_preview %}
     </div>
   {% endif %}
 

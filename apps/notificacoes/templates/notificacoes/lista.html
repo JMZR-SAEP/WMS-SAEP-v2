@@ -9,9 +9,12 @@
     {% if notificacoes %}
       <form method="post" action="{% url 'notificacoes:marcar_todas_lidas' %}">
         {% csrf_token %}
-        <button type="submit" class="inline-flex min-h-11 items-center rounded text-sm font-medium text-primary-text hover:text-primary-text-emphasis hover:underline cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1">
-          Marcar todas como lidas
-        </button>
+        {% comment %}
+          `min-h-11` explícito: a variante `link` é a única sem piso de altura,
+          porque foi desenhada para link inline no meio de prosa. Aqui é uma ação
+          isolada ao lado do título, e ação isolada segue o piso de 44px.
+        {% endcomment %}
+        {% include "components/button.html" with variant="link" type="submit" label="Marcar todas como lidas" class="min-h-11" %}
       </form>
     {% endif %}
   </div>

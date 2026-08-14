@@ -1,6 +1,13 @@
 @import "tailwindcss";
 @source not "../../../../*/tests";
 @source not "../../../../../docs";
+/*
+  Saída de ferramenta, não código de tela. Sem esta exclusão o build depende de
+  quem tem esses arquivos no disco: um relatório que *cita* `min-h-9` como
+  violação faz o Tailwind emitir `.min-h-9`, e o `app.css` de quem tem o
+  relatório passa a divergir do de quem não tem — que é como o CI pega.
+*/
+@source not "../../../../../.impeccable";
 
 /*
   Design tokens — WMS-SAEP
@@ -88,8 +95,31 @@
   --color-text-on-primary:   var(--color-white);
 
   /* ─── Bordas ───────────────────────────────────────────────────────── */
+  /*
+    Três papéis distintos, e a diferença entre eles é de contraste medido, não
+    de gosto:
+
+    `border` (slate-200) e `border-strong` (slate-300) são estruturais — borda
+    de papel, divisor de linha, contorno tracejado de estado vazio. Elas
+    separam superfícies que já se distinguem por tom; ninguém precisa enxergar
+    a linha para entender o que a coisa é.
+
+    `border-control` (slate-500) é a borda que *identifica* um controle: campo
+    de texto, select, botão secundário, área de upload. Aí a linha é a única
+    pista de que existe um controle ali, e a WCAG 1.4.11 pede 3:1.
+
+    Medido contra as três superfícies do sistema (sRGB relative luminance):
+      slate-300  1.48:1 / branco   1.42:1 / bg-page   1.35:1 / bg-subtle
+      slate-400  2.63:1 / branco   2.51:1 / bg-page   2.40:1 / bg-subtle
+      slate-500  4.77:1 / branco   4.55:1 / bg-page   4.35:1 / bg-subtle
+
+    Ou seja: `border-strong` estava documentado como "reservada a borda de campo
+    e de botão secundário, que precisam de 3:1" e entregava 1.48:1. slate-500 é
+    o primeiro degrau que passa em toda superfície do sistema.
+  */
   --color-border:            var(--color-slate-200);
   --color-border-strong:     var(--color-slate-300);
+  --color-border-control:    var(--color-slate-500);
   --color-border-focus:      var(--color-blue-500);
 
   /* ─── Motion ───────────────────────────────────────────────────────── */
@@ -129,6 +159,67 @@
 /* ── Componentes globais ──────────────────────────────────────────────────── */
 
 @layer components {
+  /*
+    Campo de linha única e área de texto — definição única do sistema.
+
+    Existe porque essa string vivia copiada 19 vezes nos `forms.py` dos apps e
+    nos componentes de filtro, e já divergira: dois campos sem o piso de 44px,
+    três com `rounded-md` (raio de controle) em vez de `rounded-lg` (raio de
+    campo, Regra do Raio Crescente). Estilo de campo não é regra de formulário —
+    não pertence ao Python.
+
+    Campo de linha única é controle acionável e segue o mesmo piso de 44px do
+    botão: a mesma tela é operada com o dedo, em pé no galpão, e com teclado no
+    escritório. Em `textarea` com `rows` >= 2 o `min-height` não tem efeito, o
+    que deixa a classe única para os dois casos.
+
+    Modificadores ficam com o chamador (`tabular-nums`, `material-autocomplete`,
+    `mt-2`): eles descrevem a linha, não o campo.
+  */
+  .campo {
+    display: block;
+    width: 100%;
+    min-height: var(--size-touch-target);
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--color-border-control);
+    border-radius: var(--radius-lg);
+    background-color: var(--color-surface);
+    color: var(--color-text-primary);
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
+  .campo::placeholder {
+    color: var(--color-text-tertiary);
+  }
+
+  /*
+    `focus-visible` e não `focus`: era a única divergência de gramática de foco
+    do sistema — campo acendia o anel no clique de mouse, botão não. Em campo de
+    texto os dois se comportam igual (o navegador casa `:focus-visible` em
+    qualquer foco de campo editável); a diferença aparecia em `select`.
+  */
+  .campo:focus-visible {
+    outline: none;
+    border-color: var(--color-border-focus);
+    box-shadow: 0 0 0 2px var(--color-border-focus);
+  }
+
+  /*
+    Estado inválido visível, e não só anunciado. O `aria-invalid` já era injetado
+    por {% renderizar_campo_com_aria %} em todo campo com erro, mas só
+    `autocomplete.html` pintava a borda — nos demais o erro existia para o leitor
+    de tela e não para o olho.
+  */
+  .campo[aria-invalid='true'] {
+    border-color: var(--color-danger-border-input);
+  }
+
+  .campo[aria-invalid='true']:focus-visible {
+    border-color: var(--color-danger-accent);
+    box-shadow: 0 0 0 2px var(--color-danger-accent);
+  }
+
   /*
     Linha de item de formset em bloqueio momentâneo — remoção recusada porque
     era a última linha. O realce é uma classe, não `element.style`: estilo
