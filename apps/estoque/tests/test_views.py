@@ -932,31 +932,34 @@ class TestPreviewImportacaoScpiView:
         assert 'teste.csv' in conteudo
 
     def test_preview_ordena_divergencia_e_novo_antes_de_ok(
-        self, client, superuser, estoque_principal, material_scpi
+        self, client, superuser, estoque_principal, material_scpi, material_scpi_critico
     ):
         """A tela existe para evidenciar delta.
 
         Na ordem do arquivo, conferir as divergências num CSV de centenas de
-        linhas é caçar. Aqui o material com saldo igual vem no meio do arquivo e
-        precisa cair para o fim da renderização.
+        linhas é caçar. O CSV entra na ordem inversa da desejada — "ok"
+        primeiro, "divergente" por último — para que a asserção só passe se a
+        ordenação de fato aconteceu.
+
+        Os três status precisam existir de verdade: com só `novo` e `ok` o teste
+        passa sem nunca exercitar a prioridade de `divergente`, que é a razão de
+        a ordenação existir.
         """
         from django.core.files.uploadedfile import SimpleUploadedFile
 
         client.force_login(superuser)
+        # material_scpi tem saldo físico 100; material_scpi_critico tem 2.
         csv_bytes = (
             f'CADPRO;DENOMINACAO;QUAN3\n'
-            f'{material_scpi.codigo};Igual;100.000\n'
+            f'{material_scpi_critico.codigo};Saldo igual;2.000\n'
             f'000.000.999;Material Novo;5.000\n'
+            f'{material_scpi.codigo};Saldo diferente;250.000\n'
         ).encode('utf-8')
         arquivo = SimpleUploadedFile('teste.csv', csv_bytes, content_type='text/csv')
         resp = client.post(self.URL, {'arquivo': arquivo})
 
         status_renderizados = [linha.status for linha in resp.context['linhas']]
-        prioridade = {'divergente': 0, 'novo': 1, 'ok': 2}
-        assert status_renderizados == sorted(
-            status_renderizados, key=lambda s: prioridade[s]
-        )
-        assert status_renderizados[-1] == 'ok'
+        assert status_renderizados == ['divergente', 'novo', 'ok']
 
     def test_post_sem_arquivo_retorna_200_com_erro(self, client, superuser):
         client.force_login(superuser)

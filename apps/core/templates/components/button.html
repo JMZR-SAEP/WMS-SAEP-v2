@@ -38,14 +38,16 @@ Parâmetros:
                      + `@click="abrir($event)"` juntos, conforme contrato de
                      components/modal.html (o wrapper precisa envolver trigger
                      e modal no mesmo `x-data="modalController(...)"`)
+
+  Os params abaixo só têm efeito no ramo <button> (href ausente):
   data_modal_confirm (opcional, boolean) emite `data-modal-confirm` — o outro
-                     lado do mesmo contrato de components/modal.html, lido por
-                     modal.js para travar o duplo envio
+                     lado do contrato de components/modal.html. Só <button> por
+                     contrato do consumidor: form-submit.js seleciona
+                     `button[data-modal-confirm]`, e o rodapé de modal nunca é
+                     um link.
   x_click            (opcional, expressão Alpine) emite `@click="..."`. Ignorado
                      quando `data_modal_trigger` está presente, que já emite o
                      seu próprio `@click`
-
-  Os params abaixo só têm efeito no ramo <button> (href ausente):
   loading_label      (opcional) valor de `data-submit-loading-label`, lido pelo
                      form-submit.js; envolve `label` em `<span data-submit-text>`
   label_mobile       (opcional) só tem efeito junto de `loading_label`; troca o

@@ -1,5 +1,26 @@
 # Auditoria do design system — `input.css` + `docs/design-system.md`
 
+> **Linha de base histórica, anterior a este PR. Não é contrato vigente.**
+>
+> Este arquivo registra o estado do design system em 2026-08-14 *antes* das
+> correções, e é o documento que motivou os quatro P1. Ele descreve problemas
+> que já foram resolvidos e propõe ações já executadas — é assim de propósito:
+> serve de registro do porquê, não de instrução.
+>
+> Onde este arquivo divergir do estado atual, **o contrato vigente é
+> `docs/design-system.md` e `DESIGN.md`**. Divergências conhecidas e esperadas:
+>
+> | Este arquivo diz | Estado após o PR |
+> |---|---|
+> | `border-strong` garante 3:1 em campo e botão secundário | Falso por medição (1,48:1). Quem garante 3:1 é `border-control` (slate-500, 4,77:1) |
+> | 22 componentes | 21 |
+> | `button.html` tem 8 variantes | 9, com a inclusão de `neutral` |
+> | Propõe remover o inventário, reescrever os estados, criar o índice e o contrato de componente novo | Todos feitos |
+> | 19 cópias da string de campo, 8 botões hand-rolled | Zero; `.campo` e `button.html` são fonte única |
+>
+> A afirmação sobre `border-strong` aparece aqui como o sistema a documentava na
+> época — era exatamente o achado. Ver a nota da seção correspondente.
+
 Data: 2026-08-14. Escopo: tokens (`apps/core/static/core/css/input.css`),
 documentação (`docs/design-system.md`), catálogo de componentes
 (`apps/core/templates/components/`), estilo de campo em `apps/*/forms.py`.
@@ -236,6 +257,13 @@ escrevem o botão na mão — com estilo que não bate:
 A última linha é a que importa para acessibilidade: `border-border` é slate-200,
 ~1,5:1 sobre `bg-surface`. O DESIGN.md declara que `border-strong` (slate-300) é
 "reservada a borda de campo e de botão secundário, que precisam de 3:1"
+
+> **Correção posterior:** a medição mostrou que nem `border-strong` cumpria o
+> 3:1 — dá 1,48:1 contra o papel branco. O token que hoje garante o contraste
+> de borda de controle é `border-control` (slate-500, 4,77:1). A afirmação do
+> DESIGN.md citada acima foi corrigida no PR.
+
+O texto original do achado segue abaixo, como registrado na época
 (WCAG 1.4.11). Os dois botões secundários mais usados do sistema — "Limpar
 filtros" e "Anterior/Próxima" — não seguem isso.
 

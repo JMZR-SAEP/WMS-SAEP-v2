@@ -315,7 +315,7 @@ Borda é estrutural, não decorativa: 1px sólido em toda superfície de papel c
 ### Buttons
 - **Shape:** cantos suaves (0.375rem), altura mínima de 2.75rem (44px) e padding `0.5rem 0.75rem`. A variante `link` é a única sem altura mínima e sem preenchimento.
 - **Primary:** Azul de Carimbo com texto branco; hover blue-700, active blue-800.
-- **Secondary:** papel branco, texto grafite médio, borda `border-strong`; hover troca o fundo para papel frio e escurece o texto.
+- **Secondary:** papel branco, texto grafite médio, borda `border-control`; hover troca o fundo para papel frio e escurece o texto.
 - **Danger / Danger-outline:** vermelho preenchido para a ação destrutiva confirmada; contorno vermelho sobre papel branco quando a destruição ainda é uma proposta na tela.
 - **Warning-outline:** contorno âmbar para ação que exige atenção sem ser destrutiva.
 - **Ghost / Link:** sem fundo, para ações terciárias e navegação inline.
@@ -335,7 +335,7 @@ Borda é estrutural, não decorativa: 1px sólido em toda superfície de papel c
 - **Internal Padding:** 1rem no cartão de listagem; 1.5rem em seção maior.
 
 ### Inputs / Fields
-- **Style:** papel branco, borda `border-strong` (slate-300), raio 0.5rem, padding `0.5rem 0.75rem`, corpo 14px, largura total do container e **altura mínima de 2.75rem (44px)** — campo é controle acionável e segue o mesmo piso do botão. Radio e checkbox usam `size-5` dentro de uma label de 44px; `textarea` com duas linhas ou mais já passa do piso.
+- **Style:** papel branco, borda `border-control` (slate-500), raio 0.5rem, padding `0.5rem 0.75rem`, corpo 14px, largura total do container e **altura mínima de 2.75rem (44px)** — campo é controle acionável e segue o mesmo piso do botão. Radio e checkbox usam `size-5` dentro de uma label de 44px; `textarea` com duas linhas ou mais já passa do piso.
 - **Focus:** borda blue-500 + `ring-2` blue-500, sem outline.
 - **Erro:** borda `danger-border-input` (red-400), `aria-invalid="true"` e mensagem em `role="alert"` abaixo do campo, vinculada por `aria-describedby`. Texto de erro vem sempre do Form, nunca hardcoded no componente.
 - **Rótulo:** acima do campo, 12px semibold caixa alta em cinza de metadado, com asterisco `danger-accent` quando obrigatório. Texto de ajuda fica entre o rótulo e o campo.

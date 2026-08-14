@@ -1,6 +1,13 @@
 @import "tailwindcss";
 @source not "../../../../*/tests";
 @source not "../../../../../docs";
+/*
+  Saída de ferramenta, não código de tela. Sem esta exclusão o build depende de
+  quem tem esses arquivos no disco: um relatório que *cita* `min-h-9` como
+  violação faz o Tailwind emitir `.min-h-9`, e o `app.css` de quem tem o
+  relatório passa a divergir do de quem não tem — que é como o CI pega.
+*/
+@source not "../../../../../.impeccable";
 
 /*
   Design tokens — WMS-SAEP

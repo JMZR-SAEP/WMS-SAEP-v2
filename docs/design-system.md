@@ -34,7 +34,7 @@ saíram do ar em silêncio, sem quebrar teste nenhum.
 | Regra | O que diz | O que verifica |
 |---|---|---|
 | **Token, nunca shade** | Template usa a utility semântica (`bg-primary`, `text-danger-text`), nunca a cor crua da paleta (`bg-blue-600`) nem a custom property no HTML. É o que torna um rebrand uma troca de valor em `input.css`. Exceção viva: as variantes de catálogo de `badge.html` e o backdrop de `modal.html`, ambas declaradas. | revisão |
-| **Piso de 44px** | Todo controle acionável tem `min-h-11` — botão, campo, select, e a *label* que embrulha radio/checkbox. A mesma tela é operada com o dedo, em pé no galpão, e com teclado no escritório. | `test_nenhum_controle_abaixo_do_piso_de_44px` |
+| **Piso de 44px** | Todo controle acionável tem `min-h-11` — botão, campo, select, e a *label* que embrulha radio/checkbox. A mesma tela é operada com o dedo, em pé no galpão, e com teclado no escritório. **Exceção: a variante `link` de `button.html`**, que é texto inline no meio de prosa e teria a linha quebrada por uma caixa de 44px (WCAG 2.5.8 isenta link em sentença). `link` usado como ação isolada recebe `class="min-h-11"` explícito — ver `notificacoes/lista.html`. | `test_nenhum_controle_abaixo_do_piso_de_44px` |
 | **Campo tem uma definição só** | Campo de texto, número, busca, select e textarea usam `class="campo"` (definida em `input.css`). Não se escreve a string de campo à mão, nem em template nem em `forms.py`. | `test_nenhum_template_escreve_campo_na_mao` |
 | **Botão tem uma definição só** | Toda ação passa por `components/button.html`. Se uma variante não existe, ela nasce no componente — não numa tela. | revisão |
 | **Raio crescente** | Controle 0.375rem → campo 0.5rem → papel 0.75rem → modal 1rem → pill. Um raio intermediário inventado quebra a leitura de hierarquia por geometria. | revisão |
@@ -314,11 +314,22 @@ estrutura, a abstração está errada. Parar e registrar, não generalizar.
 
 ## Exemplos de uso
 
-Botão com HTMX:
+Botão de navegação (só `href`, navegação nativa):
 
 ```django
 {% include "components/button.html" with label="Ver detalhes" variant="secondary" href=url_detalhe aria_label="Ver detalhes da requisição REQ-2026-001" %}
 ```
+
+Botão com HTMX — `hx_target` é literal, então quem chama manda o seletor pronto, com `#`:
+
+```django
+{% with seletor_alvo="#"|add:target_id %}
+  {% include "components/button.html" with label="Limpar filtros" variant="secondary" href=action_url hx_get=action_url hx_target=seletor_alvo hx_push_url="true" %}
+{% endwith %}
+```
+
+O `href` continua presente de propósito: sem JavaScript o link navega, e o HTMX é a
+melhoria progressiva por cima. É o padrão de `components/filter_acoes.html`.
 
 Campo de formulário:
 
