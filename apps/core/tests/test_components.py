@@ -6,6 +6,7 @@ import pytest
 from django.template.loader import render_to_string
 
 from apps.core.templatetags.core_tags import _VARIANTES_BOTAO
+from apps.core.tests.marcacao import TAGS_DJANGO, classes, elementos
 
 
 def _render(**ctx):
@@ -344,8 +345,6 @@ def test_nenhum_template_usa_comentario_de_linha_em_varias_linhas():
     )
 
 
-_TAGS_DJANGO = re.compile(r'\{%.*?%\}|\{\{.*?\}\}', re.S)
-
 # Bordas que *identificam* um controle. `border-border` fica de fora: é borda
 # estrutural de papel, e o dropdown de autocomplete a usa legitimamente.
 _BORDAS_DE_CONTROLE = (
@@ -379,24 +378,12 @@ _TIPOS_DE_TEXTO = frozenset(
 def _controles_de_texto(texto: str):
     """Devolve (tag, atributos, linha) de cada input/select/textarea de texto.
 
-    Varre respeitando aspas em vez de usar `<[^>]*>`: um atributo pode conter
-    `>` (o `@keydown.enter="if (ativo >= 0)"` de autocomplete.html contém), e o
-    regex ingênuo truncaria o elemento no meio, justamente antes do `class`.
+    A varredura respeita aspas (ver apps/core/tests/marcacao.py): um atributo
+    pode conter `>` — o `@keydown.enter="if (ativo >= 0)"` de autocomplete.html
+    contém —, e um `<[^>]*>` ingênuo truncaria o elemento no meio, justamente
+    antes do `class`.
     """
-    for encontro in re.finditer(r'<(input|select|textarea)\b', texto, re.I):
-        i, aspas = encontro.end(), None
-        while i < len(texto):
-            caractere = texto[i]
-            if aspas:
-                if caractere == aspas:
-                    aspas = None
-            elif caractere in '"\'':
-                aspas = caractere
-            elif caractere == '>':
-                break
-            i += 1
-        linha = texto.count('\n', 0, encontro.start()) + 1
-        yield encontro.group(1).lower(), texto[encontro.end() : i], linha
+    yield from elementos(texto, 'input', 'select', 'textarea')
 
 
 def test_nenhum_template_escreve_campo_na_mao():
@@ -425,7 +412,7 @@ def test_nenhum_template_escreve_campo_na_mao():
     for caminho in (raiz / 'apps').rglob('*.html'):
         texto = caminho.read_text()
         for tag, atributos, numero in _controles_de_texto(texto):
-            limpo = _TAGS_DJANGO.sub(' ', atributos)
+            limpo = TAGS_DJANGO.sub(' ', atributos)
             if 'class=' not in limpo or 'campo' in limpo:
                 continue
             if tag == 'input':
@@ -619,7 +606,7 @@ def test_mecanismo_de_campo_enxerga_classe_condicional():
     assert len(controles) == 1, 'o `>` dentro do atributo truncou o elemento'
 
     _, atributos, _ = controles[0]
-    limpo = _TAGS_DJANGO.sub(' ', atributos)
+    limpo = TAGS_DJANGO.sub(' ', atributos)
     assert 'campo' not in limpo
     assert any(borda in limpo for borda in _BORDAS_DE_CONTROLE)
 
@@ -639,15 +626,13 @@ def test_nenhum_rotulo_de_campo_escrito_a_mao():
     from pathlib import Path
 
     raiz = Path(__file__).resolve().parents[3]
-    padrao = re.compile(
-        r'<label\b[^>]*\bclass="[^"]*text-xs font-medium uppercase', re.I | re.S
-    )
+    tipografia_de_rotulo = {'text-xs', 'font-medium', 'uppercase'}
     infratores: list[str] = []
     for caminho in (raiz / 'apps').rglob('*.html'):
         texto = caminho.read_text()
-        for encontro in padrao.finditer(texto):
-            numero = texto.count('\n', 0, encontro.start()) + 1
-            infratores.append(f'{caminho.relative_to(raiz)}:{numero}')
+        for _, atributos, numero in elementos(texto, 'label'):
+            if tipografia_de_rotulo <= classes(atributos):
+                infratores.append(f'{caminho.relative_to(raiz)}:{numero}')
 
     assert not infratores, (
         'Rótulo de campo escrito à mão; use class="rotulo-campo" (definido em '
@@ -665,10 +650,16 @@ def test_nenhum_widget_carrega_margem_de_rotulo():
     from pathlib import Path
 
     raiz = Path(__file__).resolve().parents[3]
+    # A chave e o valor aceitam qualquer uma das duas aspas, e o valor pode
+    # atravessar linhas — a varredura procura o literal, não uma grafia dele.
+    padrao = re.compile(r'["\']class["\']\s*:\s*(["\'])(?P<valor>.*?)\1', re.S)
+    margem = re.compile(r'\b(mt|mb)-\d')
     infratores: list[str] = []
     for caminho in (raiz / 'apps').rglob('forms.py'):
-        for numero, linha in enumerate(caminho.read_text().splitlines(), 1):
-            if re.search(r"'class':\s*'[^']*\b(mt|mb)-\d", linha):
+        texto = caminho.read_text()
+        for encontro in padrao.finditer(texto):
+            if margem.search(encontro.group('valor')):
+                numero = texto.count('\n', 0, encontro.start()) + 1
                 infratores.append(f'{caminho.relative_to(raiz)}:{numero}')
 
     assert not infratores, (

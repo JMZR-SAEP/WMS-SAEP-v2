@@ -1,9 +1,10 @@
 """Testes diretos de components/field_error.html (sem DB, sem view)."""
 
-import re
 from pathlib import Path
 
 from django.template.loader import render_to_string
+
+from apps.core.tests.marcacao import atributo, classes, elementos
 
 
 def _render(**ctx):
@@ -47,15 +48,16 @@ def test_nenhum_template_escreve_erro_de_campo_a_mao():
     de texto para dizer a mesma coisa não é decisão de tela.
     """
     raiz = Path(__file__).resolve().parents[3]
-    padrao = re.compile(r'<p\b[^>]*\btext-danger-text\b[^>]*role="alert"', re.S)
     infratores: list[str] = []
     for caminho in (raiz / 'apps').rglob('*.html'):
         if caminho.name == 'field_error.html':
             continue
         texto = caminho.read_text()
-        for encontro in padrao.finditer(texto):
-            numero = texto.count('\n', 0, encontro.start()) + 1
-            infratores.append(f'{caminho.relative_to(raiz)}:{numero}')
+        for _, atributos, numero in elementos(texto, 'p'):
+            if atributo(atributos, 'role') == 'alert' and 'text-danger-text' in classes(
+                atributos
+            ):
+                infratores.append(f'{caminho.relative_to(raiz)}:{numero}')
 
     assert not infratores, (
         f'Erro de campo escrito à mão; use components/field_error.html: {infratores}'
