@@ -427,6 +427,61 @@ def test_nenhum_template_usa_comentario_de_linha_em_varias_linhas():
     )
 
 
+_TAGS_DJANGO = re.compile(r'\{%.*?%\}|\{\{.*?\}\}', re.S)
+
+# Bordas que *identificam* um controle. `border-border` fica de fora: é borda
+# estrutural de papel, e o dropdown de autocomplete a usa legitimamente.
+_BORDAS_DE_CONTROLE = (
+    'border-border-strong',
+    'border-border-control',
+    'border-danger-border-input',
+)
+
+# `.campo` é a definição de campo de texto. Checkbox e radio seguem `size-5`
+# dentro de uma label de 44px, e upload é outro controle — nenhum dos três
+# passa por `.campo`, então não são infração.
+_TIPOS_DE_TEXTO = frozenset(
+    {
+        '',
+        'text',
+        'search',
+        'number',
+        'email',
+        'password',
+        'tel',
+        'url',
+        'date',
+        'datetime-local',
+        'month',
+        'week',
+        'time',
+    }
+)
+
+
+def _controles_de_texto(texto: str):
+    """Devolve (tag, atributos, linha) de cada input/select/textarea de texto.
+
+    Varre respeitando aspas em vez de usar `<[^>]*>`: um atributo pode conter
+    `>` (o `@keydown.enter="if (ativo >= 0)"` de autocomplete.html contém), e o
+    regex ingênuo truncaria o elemento no meio, justamente antes do `class`.
+    """
+    for encontro in re.finditer(r'<(input|select|textarea)\b', texto, re.I):
+        i, aspas = encontro.end(), None
+        while i < len(texto):
+            caractere = texto[i]
+            if aspas:
+                if caractere == aspas:
+                    aspas = None
+            elif caractere in '"\'':
+                aspas = caractere
+            elif caractere == '>':
+                break
+            i += 1
+        linha = texto.count('\n', 0, encontro.start()) + 1
+        yield encontro.group(1).lower(), texto[encontro.end() : i], linha
+
+
 def test_nenhum_template_escreve_campo_na_mao():
     """Campo tem uma definição só: `.campo`, em input.css.
 
@@ -435,20 +490,35 @@ def test_nenhum_template_escreve_campo_na_mao():
     piso de 44px e três com raio de controle em vez de raio de campo. Nada
     quebrava quando isso acontecia, que é exatamente por que aconteceu.
 
-    O que trava aqui é a assinatura da borda de campo escrita à mão. Regra sem
-    mecanismo vira sugestão.
+    A versão anterior deste teste procurava a assinatura contígua
+    `border border-border-strong px-3 py-2`, e por isso era cega para o único
+    infrator que existia: o input de autocomplete escrevia
+    `border {% if com_erro %}...{% else %}border-border-strong{% endif %} px-3`,
+    e a tag no meio quebrava a string. A regra tinha mecanismo e o mecanismo não
+    alcançava o infrator — que ficou a 1.48:1 de contraste de borda, contra os
+    3:1 da WCAG 1.4.11, pelo tempo em que ninguém olhou.
+
+    Agora a varredura é por elemento, com as tags de template removidas antes da
+    comparação, para que uma classe condicional não sirva de esconderijo.
     """
     from pathlib import Path
 
     raiz = Path(__file__).resolve().parents[3]
-    assinaturas = (
-        'border border-border-strong px-3 py-2',
-        'border border-border-control px-3 py-2',
-    )
     infratores: list[str] = []
     for caminho in (raiz / 'apps').rglob('*.html'):
-        for numero, linha in enumerate(caminho.read_text().splitlines(), 1):
-            if any(assinatura in linha for assinatura in assinaturas):
+        texto = caminho.read_text()
+        for tag, atributos, numero in _controles_de_texto(texto):
+            limpo = _TAGS_DJANGO.sub(' ', atributos)
+            if 'class=' not in limpo or 'campo' in limpo:
+                continue
+            if tag == 'input':
+                tipo = re.search(r'type="([^"]*)"', limpo)
+                if (
+                    tipo.group(1).strip().lower() if tipo else ''
+                ) not in _TIPOS_DE_TEXTO:
+                    continue
+            escreveu_borda = any(b in limpo for b in _BORDAS_DE_CONTROLE)
+            if escreveu_borda or 'px-3 py-2' in limpo:
                 infratores.append(f'{caminho.relative_to(raiz)}:{numero}')
 
     assert not infratores, (
@@ -610,3 +680,28 @@ def test_aria_disabled_tem_tratamento_visual_de_desabilitado():
     html = _render(label='Estornar', disabled=True, aria_describedby='motivo-bloqueio')
     assert 'aria-disabled:opacity-60' in html
     assert 'aria-disabled:cursor-not-allowed' in html
+
+
+def test_mecanismo_de_campo_enxerga_classe_condicional():
+    """Teste do teste: a varredura acima não pode voltar a ser cega.
+
+    O infrator real não era um campo escrito numa string limpa — era um campo
+    cuja borda vinha de `{% if %}`. Se alguém trocar a varredura por busca de
+    substring contígua de novo, isto quebra antes de o furo voltar a existir.
+    """
+    marcacao = (
+        '<input\n'
+        '  type="search"\n'
+        '  @keydown.enter="if (ativo >= 0) { confirmar(); }"\n'
+        '  class="w-full min-h-11 rounded-lg border '
+        '{% if com_erro %}border-danger-border-input'
+        '{% else %}border-border-strong{% endif %} px-3 py-2 text-sm"\n'
+        '>'
+    )
+    controles = list(_controles_de_texto(marcacao))
+    assert len(controles) == 1, 'o `>` dentro do atributo truncou o elemento'
+
+    _, atributos, _ = controles[0]
+    limpo = _TAGS_DJANGO.sub(' ', atributos)
+    assert 'campo' not in limpo
+    assert any(borda in limpo for borda in _BORDAS_DE_CONTROLE)
