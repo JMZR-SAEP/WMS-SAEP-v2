@@ -146,11 +146,18 @@ ficava encoberta (WCAG 2.4.11).
 
 ### Desabilitado (ação bloqueada por permissão ou estado)
 
-`button.html` já entrega: `disabled:opacity-60 disabled:cursor-not-allowed`,
-preservando a variante — o botão continua reconhecível como a ação que é.
+`button.html` já entrega `opacity-60` e `cursor-not-allowed` nos dois estados
+(`disabled:` e `aria-disabled:`), preservando a variante — o botão continua
+reconhecível como a ação que é.
 
-- Ação de **workflow** bloqueada: visível + `disabled` + motivo em texto,
-  amarrado por `aria_describedby` ao parágrafo que explica.
+- Ação de **workflow** bloqueada: visível + motivo em texto, amarrado por
+  `aria_describedby` ao parágrafo que explica. Com esse motivo presente,
+  `button.html` emite `aria-disabled="true"` em vez de `disabled` nativo: o
+  botão continua na ordem de tabulação, e quem navega por Tab chega até ele e
+  ouve a descrição. A ativação é barrada por `core/js/acao-bloqueada.js`, em
+  fase de captura, valendo também para submit, HTMX e `@click` do Alpine.
+- Bloqueio **sem motivo a expor**: `disabled` nativo, que é o caso da paginação
+  — "Anterior" na primeira página não tem o que explicar.
 - Ação **administrativa** irrelevante: fora da marcação.
 
 ```django

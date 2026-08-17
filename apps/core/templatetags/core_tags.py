@@ -79,8 +79,8 @@ _FORMA_LINK = 'inline-flex items-center rounded font-medium'
 _FOCO_BOTAO = (
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1'
 )
-# `aria-disabled` acompanha `disabled` porque a acao de workflow bloqueada com
-# motivo declarado usa o primeiro para continuar focavel (ver button.html).
+# `aria-disabled` acompanha `disabled` porque a ação de workflow bloqueada com
+# motivo declarado usa o primeiro para continuar focável (ver button.html).
 _ESTADOS_BOTAO = (
     'disabled:cursor-not-allowed disabled:opacity-60 '
     'aria-disabled:cursor-not-allowed aria-disabled:opacity-60'
@@ -136,17 +136,17 @@ def classes_botao(
 ) -> str:
     """Monta a classe de components/button.html — uma vez, para os dois ramos.
 
-    A expressao de nove variantes vivia duplicada por inteiro entre o ramo `<a>`
-    e o ramo `<button>` do template, ~900 caracteres cada. As duas copias ja
-    tinham divergido: `cursor-pointer` e os estados `disabled:` existiam so na
+    A expressão de nove variantes vivia duplicada por inteiro entre o ramo `<a>`
+    e o ramo `<button>` do template, ~900 caracteres cada. As duas cópias já
+    tinham divergido: `cursor-pointer` e os estados `disabled:` existiam só na
     segunda. Toda variante nova precisava ser escrita em dois lugares, e nada
     comparava os dois.
 
-    A diferenca real entre os ramos e pequena e esta explicita aqui: um link nao
+    A diferença real entre os ramos é pequena e está explícita aqui: um link não
     tem estado desabilitado nem cursor de ponteiro a declarar.
 
-    `variant` e `size` chegam vazios quando o chamador nao os passa (o Django
-    resolve variavel ausente como string vazia), e caem no default.
+    `variant` e `size` chegam vazios quando o chamador não os passa (o Django
+    resolve variável ausente como string vazia), e caem no default.
     """
     forma = _FORMA_LINK if variant == 'link' else _FORMA_BOTAO
     partes = [forma]
