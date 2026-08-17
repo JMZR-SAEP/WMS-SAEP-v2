@@ -28,11 +28,7 @@
             </label>
             {{ form.username }}
             {% if form.username.errors %}
-              <div id="username-error" class="mt-2 text-sm text-danger-text" role="alert">
-                {% for error in form.username.errors %}
-                  <p>{{ error }}</p>
-                {% endfor %}
-              </div>
+              {% include "components/field_error.html" with id="username-error" erros=form.username.errors %}
             {% endif %}
           </div>
 
@@ -42,11 +38,7 @@
             </label>
             {{ form.password }}
             {% if form.password.errors %}
-              <div id="password-error" class="mt-2 text-sm text-danger-text" role="alert">
-                {% for error in form.password.errors %}
-                  <p>{{ error }}</p>
-                {% endfor %}
-              </div>
+              {% include "components/field_error.html" with id="password-error" erros=form.password.errors %}
             {% endif %}
           </div>
         </div>

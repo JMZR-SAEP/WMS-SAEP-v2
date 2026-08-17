@@ -5,6 +5,8 @@ import re
 import pytest
 from django.template.loader import render_to_string
 
+from apps.core.templatetags.core_tags import _VARIANTES_BOTAO
+
 
 def _render(**ctx):
     ctx.setdefault('label', 'Rótulo')
@@ -49,18 +51,6 @@ def test_name_e_value_ausentes_por_padrao():
 def test_value_inteiro_zero_nao_e_tratado_como_ausente():
     html = _render(value=0)
     assert 'value="0"' in html
-
-
-def test_label_bind_tem_precedencia_sobre_loading_label_e_label_mobile():
-    html = _render(
-        label='Confirmar',
-        label_bind="x ? 'A' : 'B'",
-        loading_label='Carregando…',
-        label_mobile='Curto',
-    )
-    assert 'x-text' in html
-    assert 'data-submit-text' not in html
-    assert 'data-submit-loading-label="Carregando…"' in html
 
 
 def test_disabled_aplica_atributo_boolean_na_tag():
@@ -311,88 +301,15 @@ def test_label_mobile_sozinho_sem_loading_label_nao_ativa_spans_responsivos():
     assert 'hidden sm:inline' not in html
 
 
-def test_x_disabled_emite_binding_alpine_sem_atributo_disabled_estatico():
-    html = _render(x_disabled='enviando')
-    assert ':disabled="enviando"' in html
-    abertura = html[: html.index('>') + 1]
-    assert not re.search(r'\bdisabled\b(?!:)(?!=)', abertura.replace(':disabled', ''))
-
-
-def test_x_disabled_ausente_por_padrao():
-    html = _render()
-    assert ':disabled' not in html
-
-
-def test_disabled_e_x_disabled_simultaneos_so_emite_bind_dinamico():
-    html = _render(disabled=True, x_disabled='enviando')
-    assert ':disabled="enviando"' in html
-    abertura = html[: html.index('>') + 1]
-    assert not re.search(r'(?<!:)\bdisabled\b(?!:)(?!=)', abertura)
-
-
-def test_x_aria_busy_emite_binding_alpine():
-    html = _render(x_aria_busy='enviando')
-    assert ':aria-busy="enviando"' in html
-
-
-def test_x_aria_busy_ausente_por_padrao():
-    html = _render()
-    assert ':aria-busy' not in html
-
-
-def test_label_bind_envolve_label_em_span_x_text_com_fallback_estatico():
-    html = _render(label='Entrar', label_bind="submitting ? 'Entrando…' : 'Entrar'")
-    assert 'x-text="submitting ? &#x27;Entrando…&#x27; : &#x27;Entrar&#x27;"' in html
-    assert '>Entrar</span>' in html
-
-
-def test_label_bind_ausente_por_padrao():
-    html = _render()
-    assert 'x-text' not in html
-
-
-def test_spinner_show_renderiza_spinner_com_x_show_antes_do_label():
-    html = _render(spinner_show='enviando')
-    assert 'x-show="enviando"' in html
-    spinner_idx = html.index('x-show="enviando"')
-    label_idx = html.index('Rótulo')
-    assert spinner_idx < label_idx
-
-
-def test_spinner_show_esconde_icon_template_com_x_show_negado():
-    html = render_to_string(
-        'components/button.html',
-        {
-            'label': 'Confirmar importação',
-            'icon_template': 'components/icons/confirmar_check.svg',
-            'spinner_show': 'confirmando',
-        },
-    )
-    assert 'x-show="!(confirmando)"' in html
-
-
-def test_spinner_show_ausente_por_padrao_nao_renderiza_spinner():
-    html = _render()
-    assert 'x-show' not in html
-
-
 def test_href_setado_nao_renderiza_nenhum_param_dinamico_de_button():
     html = _render(
         href='/destino/',
         loading_label='Enviando...',
         label_mobile='Enviar',
-        x_disabled='enviando',
-        x_aria_busy='enviando',
-        spinner_show='enviando',
-        label_bind="'x'",
     )
     for trecho in (
         'data-submit-loading-label',
         'data-submit-text',
-        ':disabled',
-        ':aria-busy',
-        'x-show',
-        'x-text',
     ):
         assert trecho not in html
 
@@ -758,3 +675,49 @@ def test_nenhum_widget_carrega_margem_de_rotulo():
         'Margem vertical na classe do widget; o espaço entre rótulo e campo vem '
         f'de `.rotulo-campo`: {infratores}'
     )
+
+
+def _classes(**ctx):
+    marcacao = _render(**ctx)
+    return set(marcacao.split('class="')[1].split('"')[0].split())
+
+
+def test_ramos_a_e_button_compartilham_a_mesma_classe_de_variante():
+    """A expressão de classe vivia duplicada entre os dois ramos, e já divergira.
+
+    `cursor-pointer` e os estados `disabled:` existiam só no ramo `<button>`, e
+    nada comparava as duas cópias — variante nova precisava ser escrita em dois
+    lugares para não sair torta em um deles. Agora as duas saem de
+    `{% classes_botao %}`, e a única diferença legítima é o que um link não tem:
+    estado desabilitado e cursor de ponteiro.
+    """
+    so_do_botao = {
+        'cursor-pointer',
+        'disabled:cursor-not-allowed',
+        'disabled:opacity-60',
+        'aria-disabled:cursor-not-allowed',
+        'aria-disabled:opacity-60',
+    }
+    for variante in _VARIANTES_BOTAO:
+        link = _classes(variant=variante, href='/x/')
+        botao = _classes(variant=variante)
+        assert botao - link == so_do_botao, f'variante {variante}: {botao - link}'
+        assert not link - botao, (
+            f'variante {variante}: link tem classe que o botão não tem'
+        )
+
+
+def test_params_dinamicos_removidos_nao_voltam_por_engano():
+    """O vocabulário Alpine de loading foi removido por não ter consumidor.
+
+    Se alguém reintroduzir um deles no corpo do template sem uma tela que
+    precise, isto quebra — a alternativa é ele voltar a ser documentado, testado
+    e não usado, que foi exatamente como ele viveu até aqui.
+    """
+    from pathlib import Path
+
+    raiz = Path(__file__).resolve().parents[3]
+    marcacao = (raiz / 'apps/core/templates/components/button.html').read_text()
+    corpo = marcacao[marcacao.index('{% endcomment %}') :]
+    for param in ('spinner_show', 'label_bind', 'x_disabled', 'x_aria_busy'):
+        assert param not in corpo, f'`{param}` voltou ao corpo de button.html'

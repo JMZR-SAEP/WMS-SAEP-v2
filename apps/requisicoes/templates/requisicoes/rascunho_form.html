@@ -126,7 +126,7 @@
             </div>
           </fieldset>
           {% if form.modo_criacao.errors %}
-            <p id="{{ form.modo_criacao.id_for_label }}-erro" class="mb-3 text-xs text-danger-text" role="alert">{{ form.modo_criacao.errors|join:", " }}</p>
+            {% include "components/field_error.html" with id=form.modo_criacao.id_for_label|add:"-erro" erros=form.modo_criacao.errors class="mb-3" %}
           {% endif %}
 
           {# Autocomplete de terceiros (só quando "outro") — HTMX+Alpine com debounce #}
@@ -158,7 +158,7 @@
             />
             {% include "components/autocomplete.html" with label="Selecione o beneficiário" placeholder="Buscar por nome ou matrícula…" item_template="requisicoes/partials/_autocomplete_item_beneficiario.html" sem_resultados_label="Nenhum beneficiário encontrado." input_id=form.beneficiario_id.id_for_label com_erro=form.beneficiario_id.errors erro_id=form.beneficiario_id.id_for_label|add:"-erro" %}
             {% if form.beneficiario_id.errors %}
-              <p id="{{ form.beneficiario_id.id_for_label }}-erro" class="mt-1 text-xs text-danger-text" role="alert">{{ form.beneficiario_id.errors|join:", " }}</p>
+              {% include "components/field_error.html" with id=form.beneficiario_id.id_for_label|add:"-erro" erros=form.beneficiario_id.errors %}
             {% endif %}
           </div>
           {% endwith %}

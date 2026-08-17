@@ -71,10 +71,10 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
     >
     {% include "components/autocomplete.html" with label="Material" placeholder="Buscar por código ou descrição…" item_template=autocomplete_item_template sem_resultados_label="Nenhum material elegível encontrado." tipo_input="search" input_id=material_label_field.id_for_label com_erro=material_label_field.errors erro_id=material_label_field.id_for_label|add:"-erro" %}
     {% if material_label_field.errors %}
-      <p id="{{ material_label_field.id_for_label }}-erro" class="mt-1 text-xs text-danger-text" role="alert">{{ material_label_field.errors|join:", " }}</p>
+      {% include "components/field_error.html" with id=material_label_field.id_for_label|add:"-erro" erros=material_label_field.errors %}
     {% endif %}
     {% if material_id_field.errors %}
-      <p id="{{ material_id_field.id_for_label }}-erro" class="mt-1 text-xs text-danger-text" role="alert">{{ material_id_field.errors|join:", " }}</p>
+      {% include "components/field_error.html" with id=material_id_field.id_for_label|add:"-erro" erros=material_id_field.errors %}
     {% endif %}
     {% if saldo_item %}
       {% if not saldo_item.elegivel %}
