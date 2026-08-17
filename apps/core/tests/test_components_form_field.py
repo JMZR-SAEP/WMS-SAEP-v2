@@ -93,15 +93,34 @@ def test_sem_erro_nao_renderiza_paragrafo_de_erro():
     assert '-erro"' not in html
 
 
-def test_label_class_default_e_uppercase_tracking_wide():
+def test_label_class_default_usa_a_classe_unica_de_rotulo():
     html = _render()
-    assert 'uppercase tracking-wide' in html
+    assert 'class="rotulo-campo"' in html
+
+
+def test_rotulo_campo_carrega_a_regua_ate_o_campo():
+    """A classe existe e traz o espaçamento junto — não só a tipografia.
+
+    O componente entrega só o nome da classe; se `.rotulo-campo` perder a
+    `margin-bottom`, o rótulo volta a encostar no campo em todos os
+    formulários de uma vez, e nenhum teste de marcação perceberia.
+    """
+    from pathlib import Path
+
+    raiz = Path(__file__).resolve().parents[3]
+    css = (raiz / 'apps/core/static/core/css/input.css').read_text()
+    bloco = css[
+        css.index('.rotulo-campo {') : css.index('}', css.index('.rotulo-campo {'))
+    ]
+    assert 'margin-bottom' in bloco
+    assert 'text-transform: uppercase' in bloco
+    assert 'letter-spacing' in bloco
 
 
 def test_label_class_customizado_sobrescreve_default():
     html = _render(label_class='sr-only')
     assert 'sr-only' in html
-    assert 'uppercase tracking-wide' not in html
+    assert 'rotulo-campo' not in html
 
 
 def test_class_passthrough_no_wrapper():

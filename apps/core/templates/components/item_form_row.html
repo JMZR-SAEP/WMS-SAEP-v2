@@ -101,7 +101,7 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
     cliente o que o Form recusa no servidor.
   {% endcomment %}
   <div class="w-28 shrink-0">
-    {% include "components/form_field.html" with field=quantidade_field label_override=quantidade_label|default:"Quantidade" label_class="mb-1 block text-xs font-medium uppercase tracking-wide text-text-tertiary" %}
+    {% include "components/form_field.html" with field=quantidade_field label_override=quantidade_label|default:"Quantidade" %}
   </div>
 
   {# Campo DELETE do formset (escondido — controlado por JS/botão) #}
@@ -115,7 +115,19 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
     (ex. #itens-container) e não nesta linha, porque "pode remover" precisa
     contar linhas-irmãs visíveis.
   {% endcomment %}
-  <div class="pt-5 shrink-0">
+  {% comment %}
+    O botão desce uma altura de rótulo para alinhar com os campos ao lado, e
+    quem dá essa altura é um rótulo de verdade — vazio e fora da árvore de
+    acessibilidade — em vez do `pt-5` que vivia aqui.
+
+    Os 20px do `pt-5` não eram uma medida: eram a soma da linha de 16px do
+    rótulo com os 4px até o campo, copiada à mão. Trocar o `label_class` da
+    quantidade, ou a tipografia de `.rotulo-campo`, desalinhava a linha sem
+    quebrar nada e sem avisar ninguém. O espaçador acompanha porque é a mesma
+    classe.
+  {% endcomment %}
+  <div class="shrink-0">
+    <span class="rotulo-campo" aria-hidden="true">&nbsp;</span>
     <button
       type="button"
       class="flex min-h-11 min-w-11 items-center justify-center gap-1 text-text-secondary hover:text-danger-text cursor-pointer focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-1 transition-colors px-2 py-1.5 rounded text-xs font-medium"

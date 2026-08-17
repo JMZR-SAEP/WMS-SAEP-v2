@@ -913,9 +913,6 @@
   .border-danger-border {
     border-color: var(--color-danger-border);
   }
-  .border-danger-border-input {
-    border-color: var(--color-danger-border-input);
-  }
   .border-danger-border-strong {
     border-color: var(--color-danger-border-strong);
   }
@@ -2196,6 +2193,16 @@
     line-height: 1.5;
   }
   .campo::placeholder {
+    color: var(--color-text-tertiary);
+  }
+  .rotulo-campo {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-size: 0.75rem;
+    line-height: 1rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
     color: var(--color-text-tertiary);
   }
   .campo:focus-visible {

@@ -24,13 +24,13 @@ class MatriculaAuthenticationForm(AuthenticationForm):
             {
                 'autocomplete': 'username',
                 'autofocus': True,
-                'class': 'campo mt-2',
+                'class': 'campo',
             }
         )
         self.fields['password'].widget.attrs.update(
             {
                 'autocomplete': 'current-password',
-                'class': 'campo mt-2',
+                'class': 'campo',
             }
         )
         if self.is_bound:

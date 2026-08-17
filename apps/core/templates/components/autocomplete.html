@@ -42,7 +42,7 @@
        sem_resultados_label="Nenhum beneficiário encontrado."
     %}
 {% endcomment %}
-<label class="mb-1 block text-xs font-medium uppercase tracking-wide text-text-tertiary" {% if input_id %}for="{{ input_id }}"{% else %}:for="idBase + '-busca'"{% endif %}>{{ label }}</label>
+<label class="rotulo-campo" {% if input_id %}for="{{ input_id }}"{% else %}:for="idBase + '-busca'"{% endif %}>{{ label }}</label>
 <div class="relative">
   <input
     type="{{ tipo_input|default:'text' }}"

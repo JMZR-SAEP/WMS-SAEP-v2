@@ -36,7 +36,7 @@ Uso:
 <div{% if class %} class="{{ class }}"{% endif %}>
   <label
     for="{{ field.id_for_label }}"
-    class="{{ label_class|default:'block text-xs font-medium uppercase tracking-wide text-text-tertiary' }}"
+    class="{{ label_class|default:'rotulo-campo' }}"
   >
     {{ label_override|default:field.label }}
     {% if required_marker == False %}{% elif required_marker or field.field.required %}

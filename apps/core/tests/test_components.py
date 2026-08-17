@@ -705,3 +705,56 @@ def test_mecanismo_de_campo_enxerga_classe_condicional():
     limpo = _TAGS_DJANGO.sub(' ', atributos)
     assert 'campo' not in limpo
     assert any(borda in limpo for borda in _BORDAS_DE_CONTROLE)
+
+
+def test_nenhum_rotulo_de_campo_escrito_a_mao():
+    """Rótulo de campo tem uma definição só: `.rotulo-campo`, em input.css.
+
+    Ela carrega também o espaço até o campo — que antes vivia em quatro lugares
+    e três valores: `mb-1` na label, `mt-1` no campo (família filter_*), `mt-2`
+    na classe do widget em accounts/forms.py, e coisa nenhuma nos quatro
+    chamadores de form_field.html que aceitavam o `label_class` padrão, onde o
+    rótulo encostava no campo.
+
+    Só `<label>` é varrido: a mesma tipografia é usada legitimamente em `<dt>`
+    de lista de dados, que é termo de definição e não rótulo de controle.
+    """
+    from pathlib import Path
+
+    raiz = Path(__file__).resolve().parents[3]
+    padrao = re.compile(
+        r'<label\b[^>]*\bclass="[^"]*text-xs font-medium uppercase', re.I | re.S
+    )
+    infratores: list[str] = []
+    for caminho in (raiz / 'apps').rglob('*.html'):
+        texto = caminho.read_text()
+        for encontro in padrao.finditer(texto):
+            numero = texto.count('\n', 0, encontro.start()) + 1
+            infratores.append(f'{caminho.relative_to(raiz)}:{numero}')
+
+    assert not infratores, (
+        'Rótulo de campo escrito à mão; use class="rotulo-campo" (definido em '
+        f'apps/core/static/core/css/input.css): {infratores}'
+    )
+
+
+def test_nenhum_widget_carrega_margem_de_rotulo():
+    """A régua entre rótulo e campo não pertence ao Python.
+
+    `accounts/forms.py` compensava a falta de margem da label escrevendo
+    `campo mt-2` na classe do widget — espaçamento de layout decidido na camada
+    que valida, e divergente dos 4px que o resto do sistema usava.
+    """
+    from pathlib import Path
+
+    raiz = Path(__file__).resolve().parents[3]
+    infratores: list[str] = []
+    for caminho in (raiz / 'apps').rglob('forms.py'):
+        for numero, linha in enumerate(caminho.read_text().splitlines(), 1):
+            if re.search(r"'class':\s*'[^']*\b(mt|mb)-\d", linha):
+                infratores.append(f'{caminho.relative_to(raiz)}:{numero}')
+
+    assert not infratores, (
+        'Margem vertical na classe do widget; o espaço entre rótulo e campo vem '
+        f'de `.rotulo-campo`: {infratores}'
+    )

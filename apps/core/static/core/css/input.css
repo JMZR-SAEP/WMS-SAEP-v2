@@ -194,6 +194,39 @@
   }
 
   /*
+    Rótulo de campo — definição única, e ela inclui o espaço até o campo.
+
+    O espaçamento vivia em quatro lugares e três valores: `mb-1` na label
+    (item_form_row, autocomplete, atender_retirada), `mt-1` no campo
+    (família filter_*), `mt-2` na classe do widget em accounts/forms.py, e
+    coisa nenhuma nos quatro chamadores de form_field.html que aceitavam o
+    `label_class` padrão — onde o rótulo encostava no campo. Ninguém escolheu
+    quatro convenções; elas apareceram porque a régua não tinha dono.
+
+    A margem fica na label, e não num wrapper flex, porque autocomplete.html
+    não passa por form_field.html e precisa do mesmo resultado sem ganhar um
+    elemento novo. Sobrescrever `label_class` continua sendo o jeito de dizer
+    "esta label é diferente" — `sr-only` some e leva a margem junto, que é o
+    comportamento certo, e `rotulo-campo lg:sr-only` mantém a margem só
+    enquanto o rótulo aparece.
+
+    Peso 500, não 600: DESIGN.md descreve o token de label em 600 e a
+    implementação sempre usou `font-medium`. A divergência é real e vale um
+    passe de tipografia; resolvê-la aqui mudaria o peso de todo rótulo do
+    sistema a reboque de uma correção de espaçamento.
+  */
+  .rotulo-campo {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-size: 0.75rem;
+    line-height: 1rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+    color: var(--color-text-tertiary);
+  }
+
+  /*
     `focus-visible` e não `focus`: era a única divergência de gramática de foco
     do sistema — campo acendia o anel no clique de mouse, botão não. Em campo de
     texto os dois se comportam igual (o navegador casa `:focus-visible` em
