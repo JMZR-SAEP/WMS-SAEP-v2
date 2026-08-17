@@ -17,8 +17,13 @@ TAGS_DJANGO = re.compile(r'\{%.*?%\}|\{\{.*?\}\}', re.S)
 
 
 def elementos(texto: str, *tags: str):
-    """Devolve (tag, atributos, linha) de cada tag de abertura pedida."""
-    padrao = re.compile(r'<(' + '|'.join(tags) + r')\b', re.I)
+    """Devolve (tag, atributos, linha) de cada tag de abertura pedida.
+
+    O nome da tag termina em espaço, `/` ou `>` — e não num `\\b`, que aceita
+    `-` como limite e faria `<button-group>` passar por `<button>`.
+    """
+    nomes = '|'.join(re.escape(tag) for tag in tags)
+    padrao = re.compile(r'<(' + nomes + r')(?=[\s/>])', re.I)
     for encontro in padrao.finditer(texto):
         i, aspas = encontro.end(), None
         while i < len(texto):
@@ -35,12 +40,60 @@ def elementos(texto: str, *tags: str):
         yield encontro.group(1).lower(), texto[encontro.end() : i], linha
 
 
+def pares(atributos: str):
+    """Devolve (nome, valor) de cada atributo, da esquerda para a direita.
+
+    A varredura é sequencial e guarda o estado das aspas, porque uma busca
+    plana confunde duas coisas diferentes com o atributo procurado: um nome
+    que só termina igual (`data-class` casaria com `class`) e um trecho que
+    mora *dentro* do valor de outro atributo (`x-bind="class=…"`).
+
+    Atributo sem valor (`disabled`, `novalidate`) vem com valor `None`.
+    """
+    i, n = 0, len(atributos)
+    while i < n:
+        if atributos[i].isspace():
+            i += 1
+            continue
+
+        inicio = i
+        while i < n and not atributos[i].isspace() and atributos[i] != '=':
+            i += 1
+        nome = atributos[inicio:i]
+        if not nome:
+            i += 1
+            continue
+
+        j = i
+        while j < n and atributos[j].isspace():
+            j += 1
+        if j >= n or atributos[j] != '=':
+            yield nome, None
+            continue
+
+        j += 1
+        while j < n and atributos[j].isspace():
+            j += 1
+        if j < n and atributos[j] in '"\'':
+            fim = atributos.find(atributos[j], j + 1)
+            fim = n if fim == -1 else fim
+            yield nome, atributos[j + 1 : fim]
+            i = fim + 1
+        else:
+            fim = j
+            while fim < n and not atributos[fim].isspace():
+                fim += 1
+            yield nome, atributos[j:fim]
+            i = fim
+
+
 def atributo(atributos: str, nome: str) -> str | None:
-    """Valor literal do atributo, com aspas simples ou duplas. `None` se ausente."""
-    encontro = re.search(
-        rf'\b{re.escape(nome)}\s*=\s*(["\'])(?P<valor>.*?)\1', atributos, re.S
-    )
-    return encontro.group('valor') if encontro else None
+    """Valor do atributo. `None` se ausente ou se ele não tiver valor."""
+    procurado = nome.lower()
+    for chave, valor in pares(atributos):
+        if chave.lower() == procurado:
+            return valor
+    return None
 
 
 def classes(atributos: str) -> set[str]:
