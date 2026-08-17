@@ -233,6 +233,29 @@
   }
 
   /*
+    Live region do formset de itens. Carrega dois tons de mensagem: a confirmação
+    neutra de inserção/remoção de linha e a recusa de remover a última. O tom é
+    classe e não `element.style` pelo mesmo motivo da regra acima — e é classe e
+    não utility trocada por JS porque quem escreve o texto (item_form_row.js) não
+    deve conhecer o token que o pinta.
+
+    Vazia, a região não ocupa altura e a margem colapsa com a do botão abaixo;
+    ela nunca é escondida, porque mutação em elemento fora da árvore de
+    acessibilidade não é anunciada.
+  */
+  .formset-aviso {
+    margin-top: 0.75rem;
+    font-size: 0.75rem;
+    line-height: 1.33;
+    font-weight: 500;
+    color: var(--color-text-tertiary);
+  }
+
+  .formset-aviso--alerta {
+    color: var(--color-danger-text);
+  }
+
+  /*
     Skip link — primeiro foco tabulável da página, fora da tela até receber foco.
     Sem ele o teclado atravessa hamburger + toda a navegação lateral antes de
     chegar ao conteúdo, em toda troca de página (WCAG 2.4.1, nível A).

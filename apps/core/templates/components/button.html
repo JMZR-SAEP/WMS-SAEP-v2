@@ -85,8 +85,27 @@ Uso:
   type="{{ type|default:'button' }}"
   {% if name %}name="{{ name }}"{% endif %}
   {% if value is not None %}value="{{ value }}"{% endif %}
-  {% if x_disabled %}:disabled="{{ x_disabled }}"{% elif disabled %}disabled{% endif %}
-  class="{% if variant == 'link' %}inline-flex items-center rounded font-medium{% else %}inline-flex items-center justify-center min-h-11 rounded-md font-medium{% endif %} cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-60 {% if variant == 'secondary' %}bg-surface text-text-secondary border border-border-control hover:bg-bg-page hover:text-text-primary focus-visible:ring-border-focus{% elif variant == 'danger' %}bg-danger text-text-on-primary hover:bg-danger-hover active:bg-danger-active focus-visible:ring-danger-accent{% elif variant == 'danger-outline' %}bg-surface text-danger-text border border-danger-border-strong hover:bg-danger-subtle focus-visible:ring-danger-accent{% elif variant == 'warning-outline' %}bg-surface text-warning-text-strong border border-warning-border-strong hover:bg-warning-muted focus-visible:ring-warning{% elif variant == 'return-outline' %}bg-surface text-return-text-strong border border-return-border hover:bg-return-subtle focus-visible:ring-return{% elif variant == 'neutral' %}bg-text-secondary text-text-on-primary hover:bg-text-primary focus-visible:ring-text-tertiary{% elif variant == 'ghost' %}bg-transparent text-text-secondary hover:bg-bg-subtle focus-visible:ring-border-focus{% elif variant == 'link' %}bg-transparent text-primary-text hover:underline focus-visible:ring-border-focus{% else %}bg-primary text-text-on-primary hover:bg-primary-hover active:bg-primary-active focus-visible:ring-border-focus{% endif %} {% if size == 'sm' %}px-3 py-2 text-xs{% else %}px-3 py-2 text-sm{% endif %}{% if full_width_mobile %} w-full sm:w-auto{% endif %}{% if class %} {{ class }}{% endif %}"
+  {% comment %}
+    `aria-disabled` quando o bloqueio tem motivo declarado; `disabled` nativo
+    quando não tem.
+
+    Um `<button disabled>` sai da ordem de tabulação, e com ele sai o
+    `aria-describedby` que amarra o motivo — quem navega por Tab nunca chega ao
+    botão e nunca ouve por que a ação está bloqueada. O padrão do design system
+    ("permanece visível e desabilitada, com o motivo em texto") só funcionava
+    para quem lê a tela com os olhos.
+
+    Com `aria-disabled` o botão continua focável, o leitor de tela anuncia
+    "desabilitado" e em seguida a descrição. A ativação é barrada por
+    core/js/acao-bloqueada.js, em fase de captura, para que o bloqueio valha
+    também para submit, HTMX e @click do Alpine.
+
+    Sem `aria_describedby` não há o que alcançar, então `disabled` nativo segue
+    sendo o certo — é o caso da paginação, onde "Anterior" na primeira página
+    não tem motivo a explicar.
+  {% endcomment %}
+  {% if x_disabled %}:disabled="{{ x_disabled }}"{% elif disabled and aria_describedby %}aria-disabled="true"{% elif disabled %}disabled{% endif %}
+  class="{% if variant == 'link' %}inline-flex items-center rounded font-medium{% else %}inline-flex items-center justify-center min-h-11 rounded-md font-medium{% endif %} cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-60 aria-disabled:cursor-not-allowed aria-disabled:opacity-60 {% if variant == 'secondary' %}bg-surface text-text-secondary border border-border-control hover:bg-bg-page hover:text-text-primary focus-visible:ring-border-focus{% elif variant == 'danger' %}bg-danger text-text-on-primary hover:bg-danger-hover active:bg-danger-active focus-visible:ring-danger-accent{% elif variant == 'danger-outline' %}bg-surface text-danger-text border border-danger-border-strong hover:bg-danger-subtle focus-visible:ring-danger-accent{% elif variant == 'warning-outline' %}bg-surface text-warning-text-strong border border-warning-border-strong hover:bg-warning-muted focus-visible:ring-warning{% elif variant == 'return-outline' %}bg-surface text-return-text-strong border border-return-border hover:bg-return-subtle focus-visible:ring-return{% elif variant == 'neutral' %}bg-text-secondary text-text-on-primary hover:bg-text-primary focus-visible:ring-text-tertiary{% elif variant == 'ghost' %}bg-transparent text-text-secondary hover:bg-bg-subtle focus-visible:ring-border-focus{% elif variant == 'link' %}bg-transparent text-primary-text hover:underline focus-visible:ring-border-focus{% else %}bg-primary text-text-on-primary hover:bg-primary-hover active:bg-primary-active focus-visible:ring-border-focus{% endif %} {% if size == 'sm' %}px-3 py-2 text-xs{% else %}px-3 py-2 text-sm{% endif %}{% if full_width_mobile %} w-full sm:w-auto{% endif %}{% if class %} {{ class }}{% endif %}"
   {% if aria_label %}aria-label="{{ aria_label }}"{% endif %}
   {% if aria_haspopup %}aria-haspopup="{{ aria_haspopup }}"{% endif %}
   {% if aria_describedby %}aria-describedby="{{ aria_describedby }}"{% endif %}

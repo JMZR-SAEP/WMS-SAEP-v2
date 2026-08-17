@@ -34,10 +34,24 @@
         this._container = this.$el.querySelector('[data-itens-container]') || this.$el;
         this._aviso = this._raiz.querySelector('[data-formset-aviso]');
         this._timerAviso = null;
+        this._timerRealce = null;
       },
 
       _totalFormsInput() {
         return document.getElementById(`id_${this.prefixo}-TOTAL_FORMS`);
+      },
+
+      _linhasVisiveis() {
+        return Array.from(
+          this._container.querySelectorAll(
+            '.item-form-row:not([style*="display: none"])'
+          )
+        );
+      },
+
+      _rotuloDaLinha(row) {
+        const indice = Number.parseInt(row.dataset.index, 10);
+        return Number.isNaN(indice) ? 'Item' : `Item ${indice + 1}`;
       },
 
       /**
@@ -62,55 +76,91 @@
         if (!input) return;
         const atual = parseInt(input.value, 10);
         input.value = (Number.isNaN(atual) ? 0 : atual) + 1;
+
+        // Sem isto, o toque em "Adicionar material" deixava o foco no botão e a
+        // linha nova aparecia abaixo, em silêncio: quem usa teclado tinha de
+        // tabular até lá a cada material, e quem usa leitor de tela não recebia
+        // nada dizendo que algo tinha sido inserido. Numa saída de 15 itens são
+        // 15 viagens que a interface pode poupar.
+        //
+        // `requestAnimationFrame` porque o Alpine inicializa a linha nova pelo
+        // MutationObserver, em microtarefa: focar antes disso dispara um focus
+        // nativo num input que ainda não tem o `@focus="buscarTodos()"` ligado,
+        // e o dropdown não abre. No quadro seguinte o escopo já existe.
+        const linhaNova = this._linhasVisiveis().at(-1);
+        if (!linhaNova) return;
+        requestAnimationFrame(() => {
+          linhaNova.querySelector('input[role="combobox"]')?.focus();
+          this._anunciar(`${this._rotuloDaLinha(linhaNova)} adicionado.`);
+        });
       },
 
-      podRemoverItem() {
-        return this._container.querySelectorAll('.item-form-row:not([style*="display: none"])').length > 1;
+      podeRemoverItem() {
+        return this._linhasVisiveis().length > 1;
       },
 
       removerLinha(event) {
         const row = event.target.closest('.item-form-row');
         if (!row) return;
 
-        if (!this.podRemoverItem()) {
+        if (!this.podeRemoverItem()) {
           this._avisarNaoPodeRemover(row);
           return;
         }
 
-        const outraLinhaVisivel = Array.from(
-          this._container.querySelectorAll('.item-form-row:not([style*="display: none"])')
-        ).find((linha) => linha !== row);
-        const botaoFoco = outraLinhaVisivel?.querySelector('button[aria-label="Remover item"]');
+        // A linha seguinte, e não a primeira da lista: `find` devolvia sempre a
+        // primeira linha visível, então remover o item 5 de 6 jogava o foco lá
+        // no item 1. O fallback é a anterior, para o caso de remover a última.
+        const visiveis = this._linhasVisiveis();
+        const posicao = visiveis.indexOf(row);
+        const vizinha = visiveis[posicao + 1] || visiveis[posicao - 1];
+        const botaoFoco = vizinha?.querySelector('[data-remover-item]');
 
+        const rotulo = this._rotuloDaLinha(row);
         row.style.display = 'none';
         const deleteInput = row.querySelector('[name$="-DELETE"]');
         if (deleteInput) deleteInput.value = 'on';
         botaoFoco?.focus();
+        this._anunciar(`${rotulo} removido.`);
       },
 
-      // O realce sozinho comunicava o bloqueio só por cor: leitor de tela não
-      // recebia nada e daltônico dependia do contorno. O texto entra numa live
-      // region vazia e dedicada — uma por formulário, não por linha, e separada
-      // da dica estática. A dica anterior fazia os dois papéis e, em dois
-      // cliques dentro da janela de 4s, a segunda captura do "texto original"
-      // já era o próprio aviso: a dica ficava substituída para sempre. Aqui não
-      // há o que restaurar, só o que limpar.
+      // Live region vazia e dedicada — uma por formulário, não por linha, e
+      // separada da dica estática. A dica anterior fazia os dois papéis e, em
+      // dois cliques dentro da janela de 4s, a segunda captura do "texto
+      // original" já era o próprio aviso: a dica ficava substituída para
+      // sempre. Aqui não há o que restaurar, só o que limpar.
       //
       // A região nunca é escondida — mesmo motivo que o aviso de duplicidade da
       // saída excepcional já documenta: mutação em elemento `display:none` não
       // é anunciada, porque ele não está na árvore de acessibilidade.
-      _avisarNaoPodeRemover(row) {
+      //
+      // `alerta` só troca o tom visual, via classe declarada em input.css. O
+      // papel ARIA continua o mesmo (`role="status"`, polido) nos dois casos:
+      // nem a inserção nem a recusa interrompem o que a pessoa está digitando.
+      _anunciar(texto, { alerta = false } = {}) {
         clearTimeout(this._timerAviso);
-        if (this._aviso) {
-          this._aviso.textContent = 'É preciso manter ao menos um material.';
-        }
-        row.classList.add('item-form-row--bloqueada');
+        if (!this._aviso) return;
+        this._aviso.textContent = texto;
+        this._aviso.classList.toggle('formset-aviso--alerta', alerta);
         this._timerAviso = setTimeout(() => {
-          if (this._aviso) {
-            this._aviso.textContent = '';
-          }
-          row.classList.remove('item-form-row--bloqueada');
+          this._aviso.textContent = '';
+          this._aviso.classList.remove('formset-aviso--alerta');
         }, 4000);
+      },
+
+      // O realce sozinho comunicava o bloqueio só por cor: leitor de tela não
+      // recebia nada e daltônico dependia do contorno.
+      _avisarNaoPodeRemover(row) {
+        this._anunciar('É preciso manter ao menos um material.', { alerta: true });
+        // Timer próprio, e limpo antes de rearmar: dois cliques dentro da
+        // janela de 4s deixariam o primeiro timer apagar o realce enquanto o
+        // segundo aviso ainda está na tela.
+        clearTimeout(this._timerRealce);
+        row.classList.add('item-form-row--bloqueada');
+        this._timerRealce = setTimeout(
+          () => row.classList.remove('item-form-row--bloqueada'),
+          4000
+        );
       },
     };
   }

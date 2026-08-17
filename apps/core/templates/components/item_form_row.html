@@ -22,7 +22,23 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
     opcional; a fonte de verdade continua sendo o clean() do formset)
 {% endcomment %}
 {% load core_tags %}
+{% comment %}
+  A linha é um grupo nomeado, como em requisicoes/atender_retirada.html. Sem
+  isso, uma requisição de 10 materiais entrega 30 controles seguidos cujos
+  nomes acessíveis se repetem ("Material", "Quantidade", "Remover item") e nada
+  diz em qual linha o foco está.
+
+  O nome do grupo é posicional, e não o material: o material vive num
+  combobox cujo valor muda no cliente, e um `aria-label` renderizado no
+  servidor congelaria o nome da linha no material que ela tinha ao carregar a
+  página — um rótulo errado é pior que um rótulo genérico. A posição é estável
+  (`form_index` é o índice do formset, que não se renumera quando uma linha é
+  removida) e o material continua sendo anunciado pelo próprio combobox, que
+  sempre carrega o valor atual.
+{% endcomment %}
 <div class="item-form-row flex flex-wrap items-start gap-3 p-3 rounded-lg border {% if saldo_item and not saldo_item.elegivel %}border-warning-border-strong bg-warning-subtle/40{% else %}border-border bg-surface{% endif %}"
+     role="group"
+     aria-label="Item {{ form_index|add:1 }}"
      data-index="{{ form_index }}"
      {% if delete_field.value %}style="display: none"{% endif %}>
 
@@ -103,7 +119,8 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
     <button
       type="button"
       class="flex min-h-11 min-w-11 items-center justify-center gap-1 text-text-secondary hover:text-danger-text cursor-pointer focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-1 transition-colors px-2 py-1.5 rounded text-xs font-medium"
-      aria-label="Remover item"
+      aria-label="Remover item {{ form_index|add:1 }}"
+      data-remover-item
       @click="removerLinha($event)"
     >
       {% icon "remover" class="h-4 w-4 shrink-0" %}

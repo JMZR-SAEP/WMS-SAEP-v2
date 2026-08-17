@@ -574,3 +574,39 @@ def test_todo_icon_template_de_button_honra_a_classe():
     assert not incompativeis, (
         f'icon_template precisa de um SVG que dimensione por class: {incompativeis}'
     )
+
+
+def test_disabled_com_motivo_usa_aria_disabled_e_continua_focavel():
+    """Botão `disabled` nativo sai da ordem de tabulação — e leva o motivo junto.
+
+    O design system manda a ação de workflow bloqueada permanecer visível com o
+    motivo em texto, amarrado por `aria-describedby`. Com `disabled` nativo, quem
+    navega por Tab nunca chega ao botão e nunca ouve o motivo: o padrão só
+    funcionava para quem lê a tela com os olhos.
+    """
+    html = _render(label='Estornar', disabled=True, aria_describedby='motivo-bloqueio')
+    abertura = html[: html.index('>') + 1]
+    assert 'aria-disabled="true"' in abertura
+    assert 'aria-describedby="motivo-bloqueio"' in abertura
+    assert not re.search(r'(?<![-:])\bdisabled\b(?![:=])', abertura)
+
+
+def test_disabled_sem_motivo_continua_disabled_nativo():
+    """Sem motivo declarado não há o que alcançar pelo foco.
+
+    É o caso da paginação: "Anterior" na primeira página não tem explicação a
+    dar, e um controle focável que não faz nada seria só ruído no Tab.
+    """
+    html = _render(label='Anterior', disabled=True)
+    abertura = html[: html.index('>') + 1]
+    assert re.search(r'(?<![-:])\bdisabled\b(?![:=])', abertura)
+    # Atributo, não substring: as classes `aria-disabled:*` estão sempre no
+    # `class`, porque a variante é estática e só o atributo é condicional.
+    assert 'aria-disabled="true"' not in abertura
+
+
+def test_aria_disabled_tem_tratamento_visual_de_desabilitado():
+    """`aria-disabled` não herda o estilo de `:disabled` — precisa da variante."""
+    html = _render(label='Estornar', disabled=True, aria_describedby='motivo-bloqueio')
+    assert 'aria-disabled:opacity-60' in html
+    assert 'aria-disabled:cursor-not-allowed' in html
