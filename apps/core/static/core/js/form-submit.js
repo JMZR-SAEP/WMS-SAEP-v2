@@ -47,7 +47,8 @@
  * A liberação restaura só o que este script mexeu, e por botão: `disabled`
  * volta ao valor que tinha antes (uma ação de workflow bloqueada pelo servidor
  * chega aqui já desabilitada e não pode ser reabilitada por efeito colateral),
- * e o rótulo volta ao texto capturado no momento do envio.
+ * `aria-busy` volta ao valor anterior — ou some, se não existia — e o rótulo
+ * volta ao texto capturado no momento do envio.
  *
  * ## O spinner que saiu daqui
  *
@@ -75,6 +76,7 @@
   function travar(form, alvos) {
     const rotulos = [];
     const botoes = alvos.map((btn) => {
+      const ariaBusyAntes = btn.getAttribute('aria-busy');
       btn.setAttribute('aria-busy', 'true');
 
       const loading = btn.dataset.submitLoadingLabel;
@@ -85,7 +87,7 @@
         });
       }
 
-      return { btn, desabilitadoAntes: btn.disabled };
+      return { btn, desabilitadoAntes: btn.disabled, ariaBusyAntes };
     });
 
     emVoo.set(form, { botoes, rotulos });
@@ -108,9 +110,13 @@
     estado.rotulos.forEach(([node, texto]) => {
       node.textContent = texto;
     });
-    estado.botoes.forEach(({ btn, desabilitadoAntes }) => {
+    estado.botoes.forEach(({ btn, desabilitadoAntes, ariaBusyAntes }) => {
       btn.disabled = desabilitadoAntes;
-      btn.removeAttribute('aria-busy');
+      if (ariaBusyAntes === null) {
+        btn.removeAttribute('aria-busy');
+      } else {
+        btn.setAttribute('aria-busy', ariaBusyAntes);
+      }
     });
   }
 
@@ -155,15 +161,19 @@
 
   // `htmx:afterRequest` dispara em qualquer desfecho — 2xx, erro de resposta,
   // falha de rede ou abort —, que é exatamente a condição de liberação: a
-  // requisição acabou, com ou sem sucesso. O evento sobe pelo DOM, então o
-  // `closest` cobre tanto o form que enviou quanto um filho que disparou
-  // requisição própria (ex. o botão "Adicionar material" dentro do formulário
-  // de rascunho); nesse segundo caso `liberar` sai no primeiro `if`, porque
-  // aquele form nunca chegou a ser travado.
+  // requisição acabou, com ou sem sucesso.
+  //
+  // Quem libera é o elemento que fez a requisição (`event.detail.elt`), e só
+  // quando ele é o próprio form protegido. O evento sobe pelo DOM, então um
+  // `closest` a partir do alvo também acharia o form quando o emissor foi um
+  // filho com requisição própria — o botão "Adicionar material" dentro do
+  // formulário de rascunho é exatamente esse caso. Se essa requisição filha
+  // terminasse com o form já travado, o bloqueio caía no meio do envio em
+  // andamento.
   document.addEventListener('htmx:afterRequest', (event) => {
-    const form = event.target.closest?.('form[data-prevent-double-submit]');
-    if (form) {
-      liberar(form);
+    const elt = event.detail?.elt;
+    if (elt instanceof HTMLFormElement && elt.matches('form[data-prevent-double-submit]')) {
+      liberar(elt);
     }
   });
 
