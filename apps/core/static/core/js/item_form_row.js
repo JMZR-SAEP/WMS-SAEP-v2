@@ -91,7 +91,7 @@
         if (!linhaNova) return;
         requestAnimationFrame(() => {
           linhaNova.querySelector('input[role="combobox"]')?.focus();
-          this._anunciar(`${this._rotuloDaLinha(linhaNova)} adicionado.`);
+          this._anunciar(this._copy('avisoAdicionado', { item: this._rotuloDaLinha(linhaNova) }));
         });
       },
 
@@ -121,7 +121,7 @@
         const deleteInput = row.querySelector('[name$="-DELETE"]');
         if (deleteInput) deleteInput.value = 'on';
         botaoFoco?.focus();
-        this._anunciar(`${rotulo} removido.`);
+        this._anunciar(this._copy('avisoRemovido', { item: rotulo }));
       },
 
       // Live region vazia e dedicada — uma por formulário, não por linha, e
@@ -134,12 +134,30 @@
       // saída excepcional já documenta: mutação em elemento `display:none` não
       // é anunciada, porque ele não está na árvore de acessibilidade.
       //
+      // A copy vive no `data-*` da própria live region, não aqui. Texto que a
+      // pessoa lê é conteúdo da tela: em `.js` ele escapa do `{% trans %}`, do
+      // grep de revisão de copy e da possibilidade de cada formulário dizer o
+      // que faz sentido ali — "ao menos um material" é a frase da requisição,
+      // não uma verdade sobre formsets.
+      //
+      // `{item}` é substituído pelo rótulo da linha. O placeholder fica dentro
+      // da frase, e não concatenado antes dela, para que a ordem das palavras
+      // continue sendo decisão de quem escreve o texto.
+      _copy(chave, substituicoes = {}) {
+        const texto = this._aviso?.dataset[chave];
+        if (!texto) return '';
+        return Object.entries(substituicoes).reduce(
+          (acc, [nome, valor]) => acc.replaceAll(`{${nome}}`, valor),
+          texto
+        );
+      },
+
       // `alerta` só troca o tom visual, via classe declarada em input.css. O
       // papel ARIA continua o mesmo (`role="status"`, polido) nos dois casos:
       // nem a inserção nem a recusa interrompem o que a pessoa está digitando.
       _anunciar(texto, { alerta = false } = {}) {
         clearTimeout(this._timerAviso);
-        if (!this._aviso) return;
+        if (!this._aviso || !texto) return;
         this._aviso.textContent = texto;
         this._aviso.classList.toggle('formset-aviso--alerta', alerta);
         this._timerAviso = setTimeout(() => {
@@ -151,7 +169,7 @@
       // O realce sozinho comunicava o bloqueio só por cor: leitor de tela não
       // recebia nada e daltônico dependia do contorno.
       _avisarNaoPodeRemover(row) {
-        this._anunciar('É preciso manter ao menos um material.', { alerta: true });
+        this._anunciar(this._copy('avisoMinimo'), { alerta: true });
         // Timer próprio, e limpo antes de rearmar: dois cliques dentro da
         // janela de 4s deixariam o primeiro timer apagar o realce enquanto o
         // segundo aviso ainda está na tela.

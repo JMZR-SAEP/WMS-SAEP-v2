@@ -166,13 +166,19 @@ preservando a variante — o botão continua reconhecível como a ação que é.
 
 ### Carregando
 
-`button.html` cobre os dois caminhos:
+`button.html` cobre um caminho só: `loading_label="Registrando…"`.
+`form-submit.js` troca o texto do `[data-submit-text]`, aplica `aria-busy` e
+libera tudo em `htmx:afterRequest` e na volta pelo bfcache.
 
-- **Submit de formulário**: `loading_label="Registrando…"` — `form-submit.js`
-  troca o texto e bloqueia o duplo envio.
-- **Estado Alpine**: `x_disabled`, `x_aria_busy`, `spinner_show` e `label_bind`.
+Em form que envia por HTMX, o bloqueio real do duplo envio é
+`hx-sync="this:drop"` no próprio `<form>`: o `preventDefault()` do
+`form-submit.js` roda num listener em `document`, depois do listener que o HTMX
+instala no elemento, e o HTMX não consulta `defaultPrevented`.
 
-O spinner usa `motion-reduce:animate-none`.
+Não existe spinner de submit. Houve um vocabulário Alpine paralelo para isso
+(`x_disabled`, `x_aria_busy`, `spinner_show`, `label_bind`), com implementação,
+teste e documentação — e nenhuma tela que o usasse. Foi removido. Se um botão
+precisar de estado reativo no cliente, ele volta junto com a tela que precisa.
 
 ### Readonly (campo preenchido, não editável)
 

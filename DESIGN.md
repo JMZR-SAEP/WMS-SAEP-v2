@@ -320,8 +320,8 @@ Borda é estrutural, não decorativa: 1px sólido em toda superfície de papel c
 - **Warning-outline:** contorno âmbar para ação que exige atenção sem ser destrutiva.
 - **Ghost / Link:** sem fundo, para ações terciárias e navegação inline.
 - **Foco:** `focus-visible:ring-2` com offset de 1px — azul por padrão, vermelho (`danger-accent`) nas variantes destrutivas. Outline nativo é removido apenas porque o anel o substitui.
-- **Desabilitado:** `opacity-60` + `cursor-not-allowed`, mantendo a variante. Ação de workflow bloqueada permanece visível com o motivo em `title`; ação administrativa irrelevante é removida da marcação.
-- **Loading:** spinner inline substitui o ícone, o label troca por texto de progresso, `aria-busy="true"` e submit duplo bloqueado.
+- **Desabilitado:** `opacity-60` + `cursor-not-allowed`, mantendo a variante. Ação de workflow bloqueada permanece visível, com o motivo em texto na tela amarrado por `aria-describedby` — e o botão usa `aria-disabled`, não `disabled` nativo, porque um botão desabilitado sai da ordem de tabulação e leva o motivo junto. A ativação é barrada por `core/js/acao-bloqueada.js`. Sem motivo a declarar (paginação), `disabled` nativo. Ação administrativa irrelevante é removida da marcação.
+- **Loading:** o label troca por texto de progresso (`data-submit-loading-label`), `aria-busy="true"` e submit duplo bloqueado — em form HTMX, por `hx-sync="this:drop"` no próprio form, porque o `preventDefault` do `form-submit.js` roda depois do HTMX. Não há spinner de submit: o vocabulário existia sem nenhuma tela que o produzisse.
 
 ### Chips (badges de estado)
 - **Style:** pill (`9999px`), fundo `-muted` (shade 100), texto `-text-strong` (shade 900), `ring-1 ring-inset` na cor `-border` (shade 200). 0.75rem semibold, sem caixa alta.

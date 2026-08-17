@@ -244,9 +244,14 @@ def material_eh_elegivel(material: Material) -> bool:
 
 
 def saldos_por_materiais(material_ids: list[int]) -> dict[int, dict]:
-    """Retorna dict {material_id: {elegivel, saldo_disponivel, motivo}} para exibição.
+    """Retorna dict {material_id: {elegivel, saldo_disponivel, motivo, unidade}}.
 
     Usado para sinalizar itens inelegíveis no form de edição de rascunho copiado.
+
+    `unidade` acompanha o saldo porque quantidade sem unidade não é informação:
+    "Saldo disponível: 12,5" não diz se sobram 12 quilos ou 12 caixas, e a
+    decisão que a pessoa toma logo abaixo é justamente quanto pedir. A unidade
+    também define a precisão com que o número é escrito.
     """
     from apps.estoque.models import Material
 
@@ -274,6 +279,7 @@ def saldos_por_materiais(material_ids: list[int]) -> dict[int, dict]:
             'elegivel': elegivel,
             'saldo_disponivel': saldo_disponivel,
             'motivo': motivo,
+            'unidade': material.unidade,
         }
     return resultado
 
