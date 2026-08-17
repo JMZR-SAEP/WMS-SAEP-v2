@@ -35,3 +35,16 @@ def test_submit_form_id_sozinho_nao_renderiza_form_interno():
     html = _render_modal(submit_form_id='form-externo')
     assert 'form-externo' in html
     assert '<form' not in html
+
+
+def test_form_htmx_bloqueia_duplo_envio_no_proprio_htmx():
+    """O bloqueio de duplo envio deste form tem que estar no HTMX, não só no JS.
+
+    `form-submit.js` escuta `submit` em `document`, depois do listener que o
+    HTMX instala no próprio `<form>`, e o HTMX não consulta `defaultPrevented`
+    antes de emitir o XHR — o `preventDefault()` de lá chega tarde. Sem
+    `hx-sync`, um clique duplo no rodapé grava duas vezes uma ação que o modal
+    apresenta como irreversível.
+    """
+    html = _render_modal(action_url='/confirmar/')
+    assert 'hx-sync="this:drop"' in html

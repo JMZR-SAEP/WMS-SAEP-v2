@@ -9,9 +9,6 @@
  *   um botão `disabled` não envia seu `name=valor`);
  * - aplica `aria-busy="true"` e troca o rótulo via
  *   `data-submit-loading-label` / `[data-submit-text]`;
- * - quando o alvo tem `[data-submit-spinner]`, revela o spinner e aplica
- *   `pointer-events-none`/`cursor-wait` (só nesse caso — não generaliza
- *   para formulários sem spinner);
  * - `disabled` é aplicado com `setTimeout(0)`: se fosse síncrono, o clique
  *   no botão desabilitado descartaria seu `name=valor` do FormData antes do
  *   browser terminar de montar o submit;
@@ -23,11 +20,51 @@
  * Delegação de eventos em `document` — cobre formulários renderizados
  * depois via HTMX (fragmentos trocados por hx-swap) sem precisar de rebind
  * em `htmx:afterSwap`.
+ *
+ * ## O que o `preventDefault` daqui NÃO bloqueia
+ *
+ * Ele não bloqueia o HTMX. O HTMX escuta `submit` no próprio `<form>` (fase
+ * de alvo) e não consulta `defaultPrevented` antes de emitir o XHR — quando
+ * este listener roda, já em fase de bolha no `document`, a requisição saiu.
+ * Form com `hx-post` precisa de `hx-sync="this:drop"` no próprio elemento; é
+ * lá que o segundo envio morre. Ver `components/modal.html`, único form do
+ * sistema que envia por HTMX. Aqui o guard segue valendo para o POST clássico
+ * e continua sendo o que dá o feedback visual nos dois casos.
+ *
+ * ## Por que existe `liberar()`
+ *
+ * O estado era gravado e nunca desfeito. Num POST clássico isso passava
+ * despercebido porque a página navegava — mas não em dois casos reais:
+ *
+ * - **modal com HTMX**: a resposta 422 troca `[data-modal-body]`, que contém
+ *   o rodapé, devolvendo botões novos e habilitados; o `<form>` sobrevive com
+ *   `submitting='1'`. Da segunda tentativa em diante o guard virava no-op e a
+ *   ação irreversível ia sem `aria-busy`, sem troca de rótulo e sem spinner;
+ * - **volta pelo bfcache**: Firefox e Safari restauram o DOM como estava, ou
+ *   seja, com os botões desabilitados e o rótulo preso em "Enviando…", sem
+ *   caminho de recuperação além de recarregar a página.
+ *
+ * A liberação restaura só o que este script mexeu, e por botão: `disabled`
+ * volta ao valor que tinha antes (uma ação de workflow bloqueada pelo servidor
+ * chega aqui já desabilitada e não pode ser reabilitada por efeito colateral),
+ * e o rótulo volta ao texto capturado no momento do envio.
+ *
+ * ## O spinner que saiu daqui
+ *
+ * Havia um ramo que revelava `[data-submit-spinner]` e aplicava
+ * `pointer-events-none`/`cursor-wait`. Ele nasceu para `atender_retirada`
+ * (plano 73) e morreu quando aquele botão passou a ser
+ * `components/button.html`, que nunca emitiu o atributo (plano 94, "não
+ * implementado agora — YAGNI"). Nenhum template do sistema o produz, então o
+ * ramo era inalcançável e obrigava `liberar()` a escrever o inverso de código
+ * que nunca roda. Se um spinner de submit voltar a ser necessário, ele volta
+ * junto com o produtor do atributo e com um teste — não antes.
  */
 (function () {
   'use strict';
 
   const submitters = new WeakMap();
+  const emVoo = new WeakMap();
 
   function alvosDoForm(form) {
     return Array.from(
@@ -35,8 +72,50 @@
     );
   }
 
+  function travar(form, alvos) {
+    const rotulos = [];
+    const botoes = alvos.map((btn) => {
+      btn.setAttribute('aria-busy', 'true');
+
+      const loading = btn.dataset.submitLoadingLabel;
+      if (loading) {
+        btn.querySelectorAll('[data-submit-text]').forEach((node) => {
+          rotulos.push([node, node.textContent]);
+          node.textContent = loading;
+        });
+      }
+
+      return { btn, desabilitadoAntes: btn.disabled };
+    });
+
+    emVoo.set(form, { botoes, rotulos });
+    return botoes;
+  }
+
+  function liberar(form) {
+    if (form.dataset.submitting !== '1') {
+      return;
+    }
+    delete form.dataset.submitting;
+    submitters.delete(form);
+
+    const estado = emVoo.get(form);
+    emVoo.delete(form);
+    if (!estado) {
+      return;
+    }
+
+    estado.rotulos.forEach(([node, texto]) => {
+      node.textContent = texto;
+    });
+    estado.botoes.forEach(({ btn, desabilitadoAntes }) => {
+      btn.disabled = desabilitadoAntes;
+      btn.removeAttribute('aria-busy');
+    });
+  }
+
   document.addEventListener('click', (event) => {
-    const btn = event.target.closest(
+    const btn = event.target.closest?.(
       'button[type="submit"], button[data-modal-confirm]'
     );
     if (!btn) {
@@ -65,29 +144,33 @@
     form.dataset.submitting = '1';
 
     const submitter = submitters.get(form);
-    const targets = submitter ? [submitter] : alvosDoForm(form);
-
-    targets.forEach((btn) => {
-      btn.setAttribute('aria-busy', 'true');
-
-      const loading = btn.dataset.submitLoadingLabel;
-      if (loading) {
-        btn.querySelectorAll('[data-submit-text]').forEach((node) => {
-          node.textContent = loading;
-        });
-      }
-
-      const spinners = btn.querySelectorAll('[data-submit-spinner]');
-      if (spinners.length) {
-        spinners.forEach((node) => node.classList.remove('hidden'));
-        btn.classList.add('pointer-events-none', 'cursor-wait');
-      }
-    });
+    const botoes = travar(form, submitter ? [submitter] : alvosDoForm(form));
 
     setTimeout(() => {
-      targets.forEach((btn) => {
+      botoes.forEach(({ btn }) => {
         btn.disabled = true;
       });
     }, 0);
+  });
+
+  // `htmx:afterRequest` dispara em qualquer desfecho — 2xx, erro de resposta,
+  // falha de rede ou abort —, que é exatamente a condição de liberação: a
+  // requisição acabou, com ou sem sucesso. O evento sobe pelo DOM, então o
+  // `closest` cobre tanto o form que enviou quanto um filho que disparou
+  // requisição própria (ex. o botão "Adicionar material" dentro do formulário
+  // de rascunho); nesse segundo caso `liberar` sai no primeiro `if`, porque
+  // aquele form nunca chegou a ser travado.
+  document.addEventListener('htmx:afterRequest', (event) => {
+    const form = event.target.closest?.('form[data-prevent-double-submit]');
+    if (form) {
+      liberar(form);
+    }
+  });
+
+  window.addEventListener('pageshow', (event) => {
+    if (!event.persisted) {
+      return;
+    }
+    document.querySelectorAll('form[data-prevent-double-submit]').forEach(liberar);
   });
 })();
