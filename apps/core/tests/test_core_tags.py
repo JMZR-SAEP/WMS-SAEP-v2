@@ -131,3 +131,92 @@ def test_compoe_aria_describedby_do_widget_com_ajuda_e_erro():
 )
 def test_formatar_quantidade(qtd, unidade, esperado):
     assert formatar_quantidade(qtd, unidade) == esperado
+
+
+class _MensagemFalsa:
+    """Dublê de `django.contrib.messages.storage.base.Message`.
+
+    O filtro só lê `level_tag`, então o dublê evita montar um storage inteiro
+    para exercitar ordenação — os testes de render, esses sim, usam o
+    `FallbackStorage` real.
+    """
+
+    def __init__(self, level_tag: str, texto: str = ''):
+        self.level_tag = level_tag
+        self.texto = texto
+
+    def __str__(self) -> str:
+        return self.texto or self.level_tag
+
+    def __repr__(self) -> str:
+        return f'<{self.level_tag}:{self.texto}>'
+
+
+class TestMensagensVisiveis:
+    """O partial decide wrapper, ordem e visibilidade a partir desta lista.
+
+    Enquanto o template iterava `messages` duas vezes, três defeitos moravam
+    juntos: o wrapper polido renderizava vazio, `debug` chegava ao usuário final
+    disfarçado de info, e tudo isso dependia de o `BaseStorage` do Django ser
+    re-iterável — comportamento de framework que ninguém tinha declarado.
+    """
+
+    def _filtrar(self, *niveis):
+        from apps.core.templatetags.core_tags import mensagens_visiveis
+
+        return mensagens_visiveis([_MensagemFalsa(n) for n in niveis])
+
+    def _tags(self, *niveis):
+        return [m.level_tag for m in self._filtrar(*niveis)]
+
+    def test_descarta_debug(self):
+        assert self._tags('debug') == []
+
+    def test_debug_nao_vira_info(self):
+        """O catch-all antigo (`!= 'error' and != 'warning'`) renderizava debug."""
+        assert self._tags('debug', 'success') == ['success']
+
+    def test_storage_so_com_debug_devolve_lista_vazia(self):
+        """É este caso que decide o wrapper: `{% if messages %}` seria verdadeiro."""
+        assert self._filtrar('debug', 'debug') == []
+
+    def test_assertivas_antes_de_polidas(self):
+        assert self._tags('success', 'error') == ['error', 'success']
+
+    def test_info_e_success_ficam_depois_de_warning(self):
+        assert self._tags('info', 'warning') == ['warning', 'info']
+
+    def test_nao_reordena_dentro_do_grupo_assertivo(self):
+        """Não existe regra de warning antes de error — manda a ordem da view.
+
+        Os `{% if %}/{% elif %}` do partial sempre foram condicionais por
+        mensagem, não ordenação entre níveis: quem enfileirou primeiro aparece
+        primeiro, porque é a ordem em que os fatos aconteceram.
+        """
+        assert self._tags('error', 'warning') == ['error', 'warning']
+        assert self._tags('warning', 'error') == ['warning', 'error']
+
+    def test_nao_reordena_dentro_do_grupo_polido(self):
+        assert self._tags('info', 'success') == ['info', 'success']
+        assert self._tags('success', 'info') == ['success', 'info']
+
+    def test_preserva_ordem_de_chegada_entre_mensagens_do_mesmo_nivel(self):
+        from apps.core.templatetags.core_tags import mensagens_visiveis
+
+        mensagens = [_MensagemFalsa('success', t) for t in ('a', 'b', 'c')]
+        assert [str(m) for m in mensagens_visiveis(mensagens)] == ['a', 'b', 'c']
+
+    def test_entrada_vazia(self):
+        assert self._filtrar() == []
+
+    def test_nivel_desconhecido_e_tratado_como_polido(self):
+        """Nível customizado é decisão consciente de quem o registrou.
+
+        Descartar em silêncio esconderia a mensagem; tratar como assertivo daria
+        a ela prioridade que ninguém pediu.
+        """
+        assert self._tags('error', 'custom') == ['error', 'custom']
+
+    def test_devolve_lista_e_nao_gerador(self):
+        """O template precisa iterar e testar verdade sobre o mesmo objeto."""
+        assert isinstance(self._filtrar('success'), list)

@@ -74,6 +74,47 @@ def formatar_quantidade(qtd, unidade: str) -> str:
     return quantidades.formatar(qtd, unidade)
 
 
+# `debug` é nível de desenvolvimento: nunca teve texto escrito para o usuário
+# final. O catch-all anterior do partial (`!= 'error' and != 'warning'`) o
+# renderizava como info em produção.
+_NIVEIS_OCULTOS = frozenset({'debug'})
+_NIVEIS_ASSERTIVOS = frozenset({'error', 'warning'})
+
+
+@register.filter
+def mensagens_visiveis(mensagens: Any) -> list[Any]:
+    """Mensagens que chegam ao usuário final, na ordem em que devem aparecer.
+
+    Existe para que `core/partials/_messages.html` decida wrapper, ordem e
+    visibilidade a partir de *uma* lista, em vez de iterar `messages` duas vezes.
+    A versão com dois loops funcionava só porque o `BaseStorage` do Django é
+    re-iterável depois do primeiro consumo — dependência num detalhe de framework
+    que o arquivo não declarava —, e cobrava caro por isso: o segundo wrapper
+    renderizava mesmo sem nenhuma mensagem polida para colocar dentro.
+
+    Ordem: assertivo (`error`, `warning`) antes de polido, que é o que o
+    comentário do topo do partial sempre prometeu — o leitor de tela recebe
+    primeiro o que interrompe. Dentro de cada grupo, `sorted` estável preserva a
+    ordem em que a view enfileirou, que é a ordem em que os fatos aconteceram.
+    Não há prioridade entre `error` e `warning`, nem entre `success` e `info`:
+    os `{% if %}/{% elif %}` do partial sempre foram condicionais por mensagem,
+    e inventar uma aqui mudaria a ordem que a tela tem hoje.
+
+    Nível desconhecido conta como polido: descartá-lo em silêncio esconderia a
+    mensagem de quem a registrou de propósito, e tratá-lo como assertivo lhe daria
+    prioridade que ninguém pediu.
+    """
+    visiveis = [
+        mensagem
+        for mensagem in mensagens
+        if getattr(mensagem, 'level_tag', '') not in _NIVEIS_OCULTOS
+    ]
+    return sorted(
+        visiveis,
+        key=lambda m: 0 if getattr(m, 'level_tag', '') in _NIVEIS_ASSERTIVOS else 1,
+    )
+
+
 _FORMA_BOTAO = 'inline-flex items-center justify-center min-h-11 rounded-md font-medium'
 _FORMA_LINK = 'inline-flex items-center rounded font-medium'
 _FOCO_BOTAO = (
