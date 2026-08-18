@@ -23,8 +23,9 @@ do `docs/plans/audit-frontend-restante.md`.
    `item_form_row.js`.
 4. **`apps/core/templates/base.html`** — inclui o novo `mensagens.js` na lista de scripts.
 5. **`apps/accounts/templates/accounts/login.html`** — `_messages.html` passa para dentro
-   do bloco centralizado.
-6. **`apps/accounts/templates/accounts/login_bloqueado.html`** — passa a incluir `_messages.html`.
+   do bloco centralizado; `<main>` ganha `id="conteudo" tabindex="-1"`.
+6. **`apps/accounts/templates/accounts/login_bloqueado.html`** — passa a incluir
+   `_messages.html`; `<main>` ganha `id="conteudo" tabindex="-1"`.
 7. **`apps/core/tests/test_components.py`** — testes novos do contrato.
 8. **`docs/plans/77-alert-component.md`** e **`.design/TASKS.md`** — correção das duas
    afirmações falsas sobre o estado do dismiss.
@@ -202,10 +203,26 @@ Isso cobre os três caminhos com uma condição só, sem o componente precisar a
 modalidade de entrada, e trata de graça o clique de mouse no botão (que também deixa o foco
 lá dentro em alguns navegadores).
 
-Destino: `#conteudo` quando ele existir e for focável — o `<main id="conteudo" tabindex="-1">`
-de `base_auth.html:171`, mesmo alvo do skip link, que recomeça a tabulação no início do
-conteúdo sem inventar destino novo. Nas telas de auth o `<main>` não tem `tabindex`, então o
-alvo é o primeiro focável do card de login; se nem esse existir, `document.body`.
+Destino: `#conteudo` — o `<main id="conteudo" tabindex="-1">` de `base_auth.html:171`,
+mesmo alvo do skip link, que recomeça a tabulação no início do conteúdo sem inventar
+destino novo.
+
+**As telas de auth ganham a mesma âncora, em vez de uma cadeia de fallback.** Hoje o
+`<main>` de `login.html` e `login_bloqueado.html` não tem `id` nem `tabindex`, e a saída
+óbvia seria "cai no primeiro focável do card". Ela não sobrevive ao caso concreto:
+`login_bloqueado.html` não tem **nenhum** elemento focável no card — é só texto, sem form,
+sem botão e sem link —, então a cadeia terminaria no `<body>` justamente na tela onde ela
+seria exercida. E em `login.html` o primeiro focável é o campo de matrícula: mandar o foco
+para lá abre o teclado virtual no celular, depois de um gesto cuja única intenção era
+limpar chrome.
+
+Então as duas telas recebem `<main id="conteudo" tabindex="-1">`, igual ao `base_auth.html`.
+O destino passa a ser um só em todo o projeto, a regra deixa de ter ramo, e o
+`document.body` volta a ser o que deveria ser: rede de segurança para um template futuro
+que esqueça a âncora, não caminho esperado de duas telas que existem hoje.
+
+Isso também é testável em pytest — asserção de que os três layouts renderizam a âncora —,
+enquanto "primeiro focável do card" só daria para verificar no QA.
 
 `x-show` com valor inicial `true` não pisca, então não há `x-cloak` a declarar.
 Com JS desligado o botão não faz nada e a faixa continua legível: degradação aceitável
@@ -252,6 +269,7 @@ não "limpo".
 | Ordem do DOM | assertivas antes de polidas |
 | `login.html` renderiza a faixa | com uma mensagem enfileirada, o texto aparece **exatamente uma vez**, e dentro do `<div>` centralizado — não antes dele |
 | `login_bloqueado.html` renderiza a faixa | idem, com o alerta fixo de bloqueio excluído da contagem: ele é `components/alert.html`, não flash message, e contá-lo mascararia a faixa ausente |
+| Âncora de foco existe nos três layouts | `base_auth.html`, `login.html` e `login_bloqueado.html` renderizam `<main id="conteudo" tabindex="-1">` — sem ela o dismiss por teclado perde o destino, e `login_bloqueado.html` não tem nenhum outro focável no card |
 
 Testes de `mensagens_visiveis` em Python direto: descarta `debug`, ordena assertivas
 primeiro, **estabilidade dentro de cada grupo** (um storage `[error, warning]` sai como
@@ -277,10 +295,16 @@ O que fica no lugar, declarado como limite conhecido e não como cobertura equiv
 
 1. **Roteiro de QA por Playwright**, registrado neste plano e executado antes do merge:
    mensagem `success` some sozinha; `hover` durante 4s e sair faz o restante durar ~4s, não
-   8s; `warning` continua na tela após 30s **e ainda fecha no clique do botão**; fechar por
-   `Tab`+`Enter` devolve o foco a `#conteudo`; auto-dismiss com o foco num campo de texto
-   **não** move o foco. É aqui que a ausência de timer é verificada em comportamento — o
-   teste de template prova a declaração, o QA prova o efeito.
+   8s; `warning` continua na tela após 30s **e ainda fecha no clique do botão**; auto-dismiss
+   com o foco num campo de texto **não** move o foco. É aqui que a ausência de timer é
+   verificada em comportamento — o teste de template prova a declaração, o QA prova o efeito.
+
+   O dismiss por `Tab`+`Enter` é exercido nos **três layouts**, porque o destino do foco é a
+   única parte da regra que depende de onde a faixa está: em `base_auth.html` (fila de
+   trabalho), em `login.html` (card com campos, onde o teste é que o foco vá para
+   `#conteudo` e **não** para o campo de matrícula, que abriria o teclado virtual) e em
+   `login_bloqueado.html` (card sem nenhum outro focável — é o layout que provaria a cadeia
+   de fallback se ela existisse).
 2. **Superfície mínima de JS**: toda a decisão de *quando* há timer vive no template, que é
    testável em pytest. O `mensagens.js` fica com o mecanismo, não com a política — quanto
    menos regra morar lá, menos o vão importa.
