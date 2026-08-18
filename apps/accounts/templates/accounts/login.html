@@ -3,10 +3,13 @@
 {% block title %}Entrar — WMS-SAEP{% endblock %}
 
 {% block body %}
-<main>
-  {% include "core/partials/_messages.html" %}
+{# id/tabindex: destino do foco depois do dismiss de uma flash message, mesma âncora do base_auth.html #}
+<main id="conteudo" tabindex="-1">
   <div class="flex min-h-screen items-center justify-center bg-bg-page px-4 py-10 sm:px-6">
-    <section class="w-full max-w-sm rounded-lg border border-border bg-surface p-6 shadow-sm" aria-labelledby="login-title">
+    <div class="w-full max-w-sm">
+      {# Dentro do bloco centralizado, não antes: acima dele a faixa fica atrás de uma dobra de 100vh e o celular nunca a mostra #}
+      {% include "core/partials/_messages.html" %}
+    <section class="mt-2 w-full rounded-lg border border-border bg-surface p-6 shadow-sm" aria-labelledby="login-title">
       <div class="mb-8 text-center">
         <p class="text-xs font-semibold uppercase tracking-wide text-primary-text">Acesso institucional</p>
         <h1 id="login-title" class="mt-2 text-2xl font-semibold text-text-primary">WMS SAEP</h1>
@@ -50,6 +53,7 @@
 
       <p class="mt-6 text-center text-xs text-text-tertiary">Acesso restrito a funcionários autorizados.</p>
     </section>
+    </div>
   </div>
 </main>
 {% endblock %}

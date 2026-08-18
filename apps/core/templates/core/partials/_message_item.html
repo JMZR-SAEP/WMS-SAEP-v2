@@ -1,0 +1,47 @@
+{% comment %}
+Uma faixa de flash message. Só é incluído por core/partials/_messages.html, que
+resolve a variante — este partial não conhece nível de mensagem.
+
+Parâmetros (todos obrigatórios, todos vindos do chamador):
+  variante  error, warning, success, info — escolhe o ícone
+  auto      "true"/"false" (string, montada no x-data) — se há timer de 8s
+  role      alert (assertivo) ou status (polite)
+  caixa     classes de borda/fundo/texto da variante
+  foco      classe de anel de foco do botão de fechar
+
+O botão fica fora do nó com `role` de propósito: dentro dele, entraria no texto
+anunciado pelo leitor de tela.
+{% endcomment %}
+<div
+  x-data="mensagemFlash({ auto: {{ auto }} })"
+  x-show="visivel"
+  {# hover e foco são motivos independentes: sem distingui-los, tirar o mouse de uma faixa ainda focada retomaria a contagem #}
+  @mouseenter="pausar('hover')"
+  @mouseleave="retomar('hover')"
+  @focusin="pausar('foco')"
+  @focusout="retomar('foco')"
+  class="flex items-start gap-2 rounded-md border px-3 py-2 text-sm {{ caixa }}"
+>
+  <svg aria-hidden="true" class="mt-0.5 h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+    {% if variante == 'warning' %}
+      <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.169 2.625-1.515 2.625H3.72c-1.346 0-2.188-1.458-1.515-2.625L8.485 2.495ZM10 6a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 6Zm0 7a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z" clip-rule="evenodd"/>
+    {% elif variante == 'error' %}
+      <path fill-rule="evenodd" d="M10 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16Zm-.75-11.25a.75.75 0 0 1 1.5 0v4.5a.75.75 0 0 1-1.5 0v-4.5ZM10 14a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z" clip-rule="evenodd"/>
+    {% elif variante == 'success' %}
+      <path fill-rule="evenodd" d="M16.704 5.29a1 1 0 0 1 .006 1.415l-7.5 7.55a1 1 0 0 1-1.42.004L3.29 9.79a1 1 0 1 1 1.42-1.41l3.79 3.812 6.79-6.836a1 1 0 0 1 1.414-.006Z" clip-rule="evenodd"/>
+    {% else %}
+      <path fill-rule="evenodd" d="M10 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16Zm.75-11.25a.75.75 0 0 0-1.5 0v.5a.75.75 0 0 0 1.5 0v-.5ZM9.25 9a.75.75 0 0 1 1.5 0v4.5a.75.75 0 0 1-1.5 0V9Z" clip-rule="evenodd"/>
+    {% endif %}
+  </svg>
+  <div role="{{ role }}" class="min-w-0 flex-1">{{ message }}</div>
+  <button
+    type="button"
+    @click="fechar()"
+    aria-label="Fechar mensagem"
+    class="-my-2 -mr-2 inline-flex min-h-11 min-w-11 shrink-0 cursor-pointer items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 {{ foco }}"
+  >
+    <svg aria-hidden="true" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+      <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z"/>
+    </svg>
+  </button>
+</div>
