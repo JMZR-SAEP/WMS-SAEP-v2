@@ -23,30 +23,22 @@
         {% csrf_token %}
         <div class="space-y-5">
           <div>
-            <label for="{{ form.username.id_for_label }}" class="block text-xs font-medium uppercase tracking-wide text-text-tertiary">
+            <label for="{{ form.username.id_for_label }}" class="rotulo-campo">
               {{ form.username.label }}{% if form.username.field.required %}<span class="ml-0.5 text-danger-accent" aria-hidden="true">*</span>{% endif %}
             </label>
             {{ form.username }}
             {% if form.username.errors %}
-              <div id="username-error" class="mt-2 text-sm text-danger-text" role="alert">
-                {% for error in form.username.errors %}
-                  <p>{{ error }}</p>
-                {% endfor %}
-              </div>
+              {% include "components/field_error.html" with id="username-error" erros=form.username.errors %}
             {% endif %}
           </div>
 
           <div>
-            <label for="{{ form.password.id_for_label }}" class="block text-xs font-medium uppercase tracking-wide text-text-tertiary">
+            <label for="{{ form.password.id_for_label }}" class="rotulo-campo">
               {{ form.password.label }}{% if form.password.field.required %}<span class="ml-0.5 text-danger-accent" aria-hidden="true">*</span>{% endif %}
             </label>
             {{ form.password }}
             {% if form.password.errors %}
-              <div id="password-error" class="mt-2 text-sm text-danger-text" role="alert">
-                {% for error in form.password.errors %}
-                  <p>{{ error }}</p>
-                {% endfor %}
-              </div>
+              {% include "components/field_error.html" with id="password-error" erros=form.password.errors %}
             {% endif %}
           </div>
         </div>

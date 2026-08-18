@@ -5,6 +5,9 @@ import re
 import pytest
 from django.template.loader import render_to_string
 
+from apps.core.templatetags.core_tags import _VARIANTES_BOTAO
+from apps.core.tests.marcacao import TAGS_DJANGO, classes, elementos
+
 
 def _render(**ctx):
     ctx.setdefault('label', 'Rótulo')
@@ -49,18 +52,6 @@ def test_name_e_value_ausentes_por_padrao():
 def test_value_inteiro_zero_nao_e_tratado_como_ausente():
     html = _render(value=0)
     assert 'value="0"' in html
-
-
-def test_label_bind_tem_precedencia_sobre_loading_label_e_label_mobile():
-    html = _render(
-        label='Confirmar',
-        label_bind="x ? 'A' : 'B'",
-        loading_label='Carregando…',
-        label_mobile='Curto',
-    )
-    assert 'x-text' in html
-    assert 'data-submit-text' not in html
-    assert 'data-submit-loading-label="Carregando…"' in html
 
 
 def test_disabled_aplica_atributo_boolean_na_tag():
@@ -311,88 +302,15 @@ def test_label_mobile_sozinho_sem_loading_label_nao_ativa_spans_responsivos():
     assert 'hidden sm:inline' not in html
 
 
-def test_x_disabled_emite_binding_alpine_sem_atributo_disabled_estatico():
-    html = _render(x_disabled='enviando')
-    assert ':disabled="enviando"' in html
-    abertura = html[: html.index('>') + 1]
-    assert not re.search(r'\bdisabled\b(?!:)(?!=)', abertura.replace(':disabled', ''))
-
-
-def test_x_disabled_ausente_por_padrao():
-    html = _render()
-    assert ':disabled' not in html
-
-
-def test_disabled_e_x_disabled_simultaneos_so_emite_bind_dinamico():
-    html = _render(disabled=True, x_disabled='enviando')
-    assert ':disabled="enviando"' in html
-    abertura = html[: html.index('>') + 1]
-    assert not re.search(r'(?<!:)\bdisabled\b(?!:)(?!=)', abertura)
-
-
-def test_x_aria_busy_emite_binding_alpine():
-    html = _render(x_aria_busy='enviando')
-    assert ':aria-busy="enviando"' in html
-
-
-def test_x_aria_busy_ausente_por_padrao():
-    html = _render()
-    assert ':aria-busy' not in html
-
-
-def test_label_bind_envolve_label_em_span_x_text_com_fallback_estatico():
-    html = _render(label='Entrar', label_bind="submitting ? 'Entrando…' : 'Entrar'")
-    assert 'x-text="submitting ? &#x27;Entrando…&#x27; : &#x27;Entrar&#x27;"' in html
-    assert '>Entrar</span>' in html
-
-
-def test_label_bind_ausente_por_padrao():
-    html = _render()
-    assert 'x-text' not in html
-
-
-def test_spinner_show_renderiza_spinner_com_x_show_antes_do_label():
-    html = _render(spinner_show='enviando')
-    assert 'x-show="enviando"' in html
-    spinner_idx = html.index('x-show="enviando"')
-    label_idx = html.index('Rótulo')
-    assert spinner_idx < label_idx
-
-
-def test_spinner_show_esconde_icon_template_com_x_show_negado():
-    html = render_to_string(
-        'components/button.html',
-        {
-            'label': 'Confirmar importação',
-            'icon_template': 'components/icons/confirmar_check.svg',
-            'spinner_show': 'confirmando',
-        },
-    )
-    assert 'x-show="!(confirmando)"' in html
-
-
-def test_spinner_show_ausente_por_padrao_nao_renderiza_spinner():
-    html = _render()
-    assert 'x-show' not in html
-
-
 def test_href_setado_nao_renderiza_nenhum_param_dinamico_de_button():
     html = _render(
         href='/destino/',
         loading_label='Enviando...',
         label_mobile='Enviar',
-        x_disabled='enviando',
-        x_aria_busy='enviando',
-        spinner_show='enviando',
-        label_bind="'x'",
     )
     for trecho in (
         'data-submit-loading-label',
         'data-submit-text',
-        ':disabled',
-        ':aria-busy',
-        'x-show',
-        'x-text',
     ):
         assert trecho not in html
 
@@ -427,6 +345,47 @@ def test_nenhum_template_usa_comentario_de_linha_em_varias_linhas():
     )
 
 
+# Bordas que *identificam* um controle. `border-border` fica de fora: é borda
+# estrutural de papel, e o dropdown de autocomplete a usa legitimamente.
+_BORDAS_DE_CONTROLE = (
+    'border-border-strong',
+    'border-border-control',
+    'border-danger-border-input',
+)
+
+# `.campo` é a definição de campo de texto. Checkbox e radio seguem `size-5`
+# dentro de uma label de 44px, e upload é outro controle — nenhum dos três
+# passa por `.campo`, então não são infração.
+_TIPOS_DE_TEXTO = frozenset(
+    {
+        '',
+        'text',
+        'search',
+        'number',
+        'email',
+        'password',
+        'tel',
+        'url',
+        'date',
+        'datetime-local',
+        'month',
+        'week',
+        'time',
+    }
+)
+
+
+def _controles_de_texto(texto: str):
+    """Devolve (tag, atributos, linha) de cada input/select/textarea de texto.
+
+    A varredura respeita aspas (ver apps/core/tests/marcacao.py): um atributo
+    pode conter `>` — o `@keydown.enter="if (ativo >= 0)"` de autocomplete.html
+    contém —, e um `<[^>]*>` ingênuo truncaria o elemento no meio, justamente
+    antes do `class`.
+    """
+    yield from elementos(texto, 'input', 'select', 'textarea')
+
+
 def test_nenhum_template_escreve_campo_na_mao():
     """Campo tem uma definição só: `.campo`, em input.css.
 
@@ -435,20 +394,35 @@ def test_nenhum_template_escreve_campo_na_mao():
     piso de 44px e três com raio de controle em vez de raio de campo. Nada
     quebrava quando isso acontecia, que é exatamente por que aconteceu.
 
-    O que trava aqui é a assinatura da borda de campo escrita à mão. Regra sem
-    mecanismo vira sugestão.
+    A versão anterior deste teste procurava a assinatura contígua
+    `border border-border-strong px-3 py-2`, e por isso era cega para o único
+    infrator que existia: o input de autocomplete escrevia
+    `border {% if com_erro %}...{% else %}border-border-strong{% endif %} px-3`,
+    e a tag no meio quebrava a string. A regra tinha mecanismo e o mecanismo não
+    alcançava o infrator — que ficou a 1.48:1 de contraste de borda, contra os
+    3:1 da WCAG 1.4.11, pelo tempo em que ninguém olhou.
+
+    Agora a varredura é por elemento, com as tags de template removidas antes da
+    comparação, para que uma classe condicional não sirva de esconderijo.
     """
     from pathlib import Path
 
     raiz = Path(__file__).resolve().parents[3]
-    assinaturas = (
-        'border border-border-strong px-3 py-2',
-        'border border-border-control px-3 py-2',
-    )
     infratores: list[str] = []
     for caminho in (raiz / 'apps').rglob('*.html'):
-        for numero, linha in enumerate(caminho.read_text().splitlines(), 1):
-            if any(assinatura in linha for assinatura in assinaturas):
+        texto = caminho.read_text()
+        for tag, atributos, numero in _controles_de_texto(texto):
+            limpo = TAGS_DJANGO.sub(' ', atributos)
+            if 'class=' not in limpo or 'campo' in limpo:
+                continue
+            if tag == 'input':
+                tipo = re.search(r'type="([^"]*)"', limpo)
+                if (
+                    tipo.group(1).strip().lower() if tipo else ''
+                ) not in _TIPOS_DE_TEXTO:
+                    continue
+            escreveu_borda = any(b in limpo for b in _BORDAS_DE_CONTROLE)
+            if escreveu_borda or 'px-3 py-2' in limpo:
                 infratores.append(f'{caminho.relative_to(raiz)}:{numero}')
 
     assert not infratores, (
@@ -574,3 +548,167 @@ def test_todo_icon_template_de_button_honra_a_classe():
     assert not incompativeis, (
         f'icon_template precisa de um SVG que dimensione por class: {incompativeis}'
     )
+
+
+def test_disabled_com_motivo_usa_aria_disabled_e_continua_focavel():
+    """Botão `disabled` nativo sai da ordem de tabulação — e leva o motivo junto.
+
+    O design system manda a ação de workflow bloqueada permanecer visível com o
+    motivo em texto, amarrado por `aria-describedby`. Com `disabled` nativo, quem
+    navega por Tab nunca chega ao botão e nunca ouve o motivo: o padrão só
+    funcionava para quem lê a tela com os olhos.
+    """
+    html = _render(label='Estornar', disabled=True, aria_describedby='motivo-bloqueio')
+    abertura = html[: html.index('>') + 1]
+    assert 'aria-disabled="true"' in abertura
+    assert 'aria-describedby="motivo-bloqueio"' in abertura
+    assert not re.search(r'(?<![-:])\bdisabled\b(?![:=])', abertura)
+
+
+def test_disabled_sem_motivo_continua_disabled_nativo():
+    """Sem motivo declarado não há o que alcançar pelo foco.
+
+    É o caso da paginação: "Anterior" na primeira página não tem explicação a
+    dar, e um controle focável que não faz nada seria só ruído no Tab.
+    """
+    html = _render(label='Anterior', disabled=True)
+    abertura = html[: html.index('>') + 1]
+    assert re.search(r'(?<![-:])\bdisabled\b(?![:=])', abertura)
+    # Atributo, não substring: as classes `aria-disabled:*` estão sempre no
+    # `class`, porque a variante é estática e só o atributo é condicional.
+    assert 'aria-disabled="true"' not in abertura
+
+
+def test_aria_disabled_tem_tratamento_visual_de_desabilitado():
+    """`aria-disabled` não herda o estilo de `:disabled` — precisa da variante."""
+    html = _render(label='Estornar', disabled=True, aria_describedby='motivo-bloqueio')
+    assert 'aria-disabled:opacity-60' in html
+    assert 'aria-disabled:cursor-not-allowed' in html
+
+
+def test_mecanismo_de_campo_enxerga_classe_condicional():
+    """Teste do teste: a varredura acima não pode voltar a ser cega.
+
+    O infrator real não era um campo escrito numa string limpa — era um campo
+    cuja borda vinha de `{% if %}`. Se alguém trocar a varredura por busca de
+    substring contígua de novo, isto quebra antes de o furo voltar a existir.
+    """
+    marcacao = (
+        '<input\n'
+        '  type="search"\n'
+        '  @keydown.enter="if (ativo >= 0) { confirmar(); }"\n'
+        '  class="w-full min-h-11 rounded-lg border '
+        '{% if com_erro %}border-danger-border-input'
+        '{% else %}border-border-strong{% endif %} px-3 py-2 text-sm"\n'
+        '>'
+    )
+    controles = list(_controles_de_texto(marcacao))
+    assert len(controles) == 1, 'o `>` dentro do atributo truncou o elemento'
+
+    _, atributos, _ = controles[0]
+    limpo = TAGS_DJANGO.sub(' ', atributos)
+    assert 'campo' not in limpo
+    assert any(borda in limpo for borda in _BORDAS_DE_CONTROLE)
+
+
+def test_nenhum_rotulo_de_campo_escrito_a_mao():
+    """Rótulo de campo tem uma definição só: `.rotulo-campo`, em input.css.
+
+    Ela carrega também o espaço até o campo — que antes vivia em quatro lugares
+    e três valores: `mb-1` na label, `mt-1` no campo (família filter_*), `mt-2`
+    na classe do widget em accounts/forms.py, e coisa nenhuma nos quatro
+    chamadores de form_field.html que aceitavam o `label_class` padrão, onde o
+    rótulo encostava no campo.
+
+    Só `<label>` é varrido: a mesma tipografia é usada legitimamente em `<dt>`
+    de lista de dados, que é termo de definição e não rótulo de controle.
+    """
+    from pathlib import Path
+
+    raiz = Path(__file__).resolve().parents[3]
+    tipografia_de_rotulo = {'text-xs', 'font-medium', 'uppercase'}
+    infratores: list[str] = []
+    for caminho in (raiz / 'apps').rglob('*.html'):
+        texto = caminho.read_text()
+        for _, atributos, numero in elementos(texto, 'label'):
+            if tipografia_de_rotulo <= classes(atributos):
+                infratores.append(f'{caminho.relative_to(raiz)}:{numero}')
+
+    assert not infratores, (
+        'Rótulo de campo escrito à mão; use class="rotulo-campo" (definido em '
+        f'apps/core/static/core/css/input.css): {infratores}'
+    )
+
+
+def test_nenhum_widget_carrega_margem_de_rotulo():
+    """A régua entre rótulo e campo não pertence ao Python.
+
+    `accounts/forms.py` compensava a falta de margem da label escrevendo
+    `campo mt-2` na classe do widget — espaçamento de layout decidido na camada
+    que valida, e divergente dos 4px que o resto do sistema usava.
+    """
+    from pathlib import Path
+
+    raiz = Path(__file__).resolve().parents[3]
+    # A chave e o valor aceitam qualquer uma das duas aspas, e o valor pode
+    # atravessar linhas — a varredura procura o literal, não uma grafia dele.
+    padrao = re.compile(r'["\']class["\']\s*:\s*(["\'])(?P<valor>.*?)\1', re.S)
+    margem = re.compile(r'\b(mt|mb)-\d')
+    infratores: list[str] = []
+    for caminho in (raiz / 'apps').rglob('forms.py'):
+        texto = caminho.read_text()
+        for encontro in padrao.finditer(texto):
+            if margem.search(encontro.group('valor')):
+                numero = texto.count('\n', 0, encontro.start()) + 1
+                infratores.append(f'{caminho.relative_to(raiz)}:{numero}')
+
+    assert not infratores, (
+        'Margem vertical na classe do widget; o espaço entre rótulo e campo vem '
+        f'de `.rotulo-campo`: {infratores}'
+    )
+
+
+def _classes(**ctx):
+    marcacao = _render(**ctx)
+    return set(marcacao.split('class="')[1].split('"')[0].split())
+
+
+def test_ramos_a_e_button_compartilham_a_mesma_classe_de_variante():
+    """A expressão de classe vivia duplicada entre os dois ramos, e já divergira.
+
+    `cursor-pointer` e os estados `disabled:` existiam só no ramo `<button>`, e
+    nada comparava as duas cópias — variante nova precisava ser escrita em dois
+    lugares para não sair torta em um deles. Agora as duas saem de
+    `{% classes_botao %}`, e a única diferença legítima é o que um link não tem:
+    estado desabilitado e cursor de ponteiro.
+    """
+    so_do_botao = {
+        'cursor-pointer',
+        'disabled:cursor-not-allowed',
+        'disabled:opacity-60',
+        'aria-disabled:cursor-not-allowed',
+        'aria-disabled:opacity-60',
+    }
+    for variante in _VARIANTES_BOTAO:
+        link = _classes(variant=variante, href='/x/')
+        botao = _classes(variant=variante)
+        assert botao - link == so_do_botao, f'variante {variante}: {botao - link}'
+        assert not link - botao, (
+            f'variante {variante}: link tem classe que o botão não tem'
+        )
+
+
+def test_params_dinamicos_removidos_nao_voltam_por_engano():
+    """O vocabulário Alpine de loading foi removido por não ter consumidor.
+
+    Se alguém reintroduzir um deles no corpo do template sem uma tela que
+    precise, isto quebra — a alternativa é ele voltar a ser documentado, testado
+    e não usado, que foi exatamente como ele viveu até aqui.
+    """
+    from pathlib import Path
+
+    raiz = Path(__file__).resolve().parents[3]
+    marcacao = (raiz / 'apps/core/templates/components/button.html').read_text()
+    corpo = marcacao[marcacao.index('{% endcomment %}') :]
+    for param in ('spinner_show', 'label_bind', 'x_disabled', 'x_aria_busy'):
+        assert param not in corpo, f'`{param}` voltou ao corpo de button.html'

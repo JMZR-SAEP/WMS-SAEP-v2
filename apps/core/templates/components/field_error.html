@@ -1,0 +1,28 @@
+{% comment %}
+Mensagem de erro de um campo. Uma voz só para o erro inline.
+
+O markup vivia copiado em sete lugares, com três grafias: `mt-1 text-xs
+text-danger-text` no componente e nas linhas de item, `mb-3` numa variante do
+rascunho, e um `<div class="mt-2 text-sm">` com um `<p>` por erro no login. Três
+tamanhos de texto para dizer a mesma coisa não é decisão de tela — é a cópia
+divergindo sozinha.
+
+O texto vem sempre do Form, nunca daqui: este componente desenha o erro, não o
+formula. Vários erros do mesmo campo entram numa frase única, separados por
+vírgula, porque `role="alert"` lê o nó inteiro de uma vez — quebrar em vários
+parágrafos não muda o que é anunciado, só o que ocupa a tela.
+
+Parâmetros:
+  id     (obrigatório) id do elemento, para o `aria-describedby` do campo
+         apontar para cá. Convenção do sistema: `<id_do_campo>-erro`
+  erros  (obrigatório) ErrorList ou lista de strings
+  class  (opcional) passthrough de layout do chamador
+
+Uso:
+  {% include "components/field_error.html" with id=field.id_for_label|add:"-erro" erros=field.errors %}
+{% endcomment %}
+<p
+  id="{{ id }}"
+  class="mt-1 text-xs text-danger-text{% if class %} {{ class }}{% endif %}"
+  role="alert"
+>{{ erros|join:", " }}</p>

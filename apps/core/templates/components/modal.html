@@ -67,6 +67,20 @@
       hx-post="{{ action_url }}"
       hx-target="[data-modal-body='{{ id }}']"
       hx-swap="outerHTML"
+      {% comment %}
+        `hx-sync="this:drop"` é o bloqueio real de duplo envio deste form, e
+        não o `data-prevent-double-submit`. O `preventDefault()` do
+        form-submit.js roda num listener em `document`, ou seja, depois do
+        listener que o HTMX instala no próprio `<form>` — e o HTMX não consulta
+        `defaultPrevented` antes de emitir o XHR. O atributo abaixo faz o
+        segundo envio morrer no HTMX; o `data-prevent-double-submit` continua
+        respondendo pelo feedback visual (`aria-busy`, rótulo de progresso).
+
+        `drop` e não `queue`: aqui o segundo envio é o mesmo envio repetido por
+        clique duplo, não um pedido novo. Enfileirá-lo gravaria duas vezes uma
+        ação que o rodapé descreve como irreversível.
+      {% endcomment %}
+      hx-sync="this:drop"
       data-prevent-double-submit
       x-trap.inert.noscroll="$refs.dialog.open"
       class="flex max-h-[calc(100dvh-2rem)] flex-col"

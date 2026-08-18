@@ -74,6 +74,98 @@ def formatar_quantidade(qtd, unidade: str) -> str:
     return quantidades.formatar(qtd, unidade)
 
 
+_FORMA_BOTAO = 'inline-flex items-center justify-center min-h-11 rounded-md font-medium'
+_FORMA_LINK = 'inline-flex items-center rounded font-medium'
+_FOCO_BOTAO = (
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1'
+)
+# `aria-disabled` acompanha `disabled` porque a ação de workflow bloqueada com
+# motivo declarado usa o primeiro para continuar focável (ver button.html).
+_ESTADOS_BOTAO = (
+    'disabled:cursor-not-allowed disabled:opacity-60 '
+    'aria-disabled:cursor-not-allowed aria-disabled:opacity-60'
+)
+_VARIANTES_BOTAO: dict[str, str] = {
+    'primary': (
+        'bg-primary text-text-on-primary hover:bg-primary-hover '
+        'active:bg-primary-active focus-visible:ring-border-focus'
+    ),
+    'secondary': (
+        'bg-surface text-text-secondary border border-border-control '
+        'hover:bg-bg-page hover:text-text-primary focus-visible:ring-border-focus'
+    ),
+    'neutral': (
+        'bg-text-secondary text-text-on-primary hover:bg-text-primary '
+        'focus-visible:ring-text-tertiary'
+    ),
+    'danger': (
+        'bg-danger text-text-on-primary hover:bg-danger-hover '
+        'active:bg-danger-active focus-visible:ring-danger-accent'
+    ),
+    'danger-outline': (
+        'bg-surface text-danger-text border border-danger-border-strong '
+        'hover:bg-danger-subtle focus-visible:ring-danger-accent'
+    ),
+    'warning-outline': (
+        'bg-surface text-warning-text-strong border border-warning-border-strong '
+        'hover:bg-warning-muted focus-visible:ring-warning'
+    ),
+    'return-outline': (
+        'bg-surface text-return-text-strong border border-return-border '
+        'hover:bg-return-subtle focus-visible:ring-return'
+    ),
+    'ghost': (
+        'bg-transparent text-text-secondary hover:bg-bg-subtle '
+        'focus-visible:ring-border-focus'
+    ),
+    'link': (
+        'bg-transparent text-primary-text hover:underline focus-visible:ring-border-focus'
+    ),
+}
+_TAMANHOS_BOTAO = {'sm': 'px-3 py-2 text-xs', 'md': 'px-3 py-2 text-sm'}
+
+
+@register.simple_tag
+def classes_botao(
+    *,
+    variant: str = '',
+    size: str = '',
+    tag: str = 'button',
+    full_width_mobile: Any = False,
+    extra: Any = '',
+) -> str:
+    """Monta a classe de components/button.html — uma vez, para os dois ramos.
+
+    A expressão de nove variantes vivia duplicada por inteiro entre o ramo `<a>`
+    e o ramo `<button>` do template, ~900 caracteres cada. As duas cópias já
+    tinham divergido: `cursor-pointer` e os estados `disabled:` existiam só na
+    segunda. Toda variante nova precisava ser escrita em dois lugares, e nada
+    comparava os dois.
+
+    A diferença real entre os ramos é pequena e está explícita aqui: um link não
+    tem estado desabilitado nem cursor de ponteiro a declarar.
+
+    `variant` e `size` chegam vazios quando o chamador não os passa (o Django
+    resolve variável ausente como string vazia), e caem no default.
+    """
+    forma = _FORMA_LINK if variant == 'link' else _FORMA_BOTAO
+    partes = [forma]
+    if tag == 'button':
+        partes.append('cursor-pointer')
+    partes.append(_FOCO_BOTAO)
+    if tag == 'button':
+        partes.append(_ESTADOS_BOTAO)
+    partes.append(
+        _VARIANTES_BOTAO.get(variant or 'primary', _VARIANTES_BOTAO['primary'])
+    )
+    partes.append(_TAMANHOS_BOTAO.get(size or 'md', _TAMANHOS_BOTAO['md']))
+    if full_width_mobile:
+        partes.append('w-full sm:w-auto')
+    if extra:
+        partes.append(str(extra))
+    return ' '.join(partes)
+
+
 @register.simple_tag
 def validar_contrato_modal(action_url, submit_form_id):
     """Exige exatamente um entre action_url e submit_form_id em components/modal.html."""

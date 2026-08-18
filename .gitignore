@@ -59,3 +59,5 @@ docs/code-reviews/
 # Local QA
 .playwright-mcp/
 output/
+# Snapshots do /impeccable critique — artefato de sessão, não de projeto
+.impeccable/critique/

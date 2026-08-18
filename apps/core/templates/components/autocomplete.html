@@ -16,8 +16,11 @@
                            `requisicoes/partials/...`, `estoque/partials/...`)
     sem_resultados_label -> texto exibido quando a busca não retorna nada
     tipo_input          -> "text" (default) | "search"
-    com_erro            -> (boolean) aplica borda vermelha e aria-invalid
-                           (paridade com form_field.html)
+    com_erro            -> (boolean) emite aria-invalid; a borda vermelha vem
+                           de `.campo[aria-invalid='true']` em input.css, não
+                           de classe condicional aqui (paridade com
+                           form_field.html, que também só emite o estado e
+                           deixa o CSS pintar)
     erro_id             -> id do elemento que exibe a mensagem de erro
                            (obrigatório junto com com_erro para expor o erro
                            ao leitor de tela via aria-describedby)
@@ -39,7 +42,7 @@
        sem_resultados_label="Nenhum beneficiário encontrado."
     %}
 {% endcomment %}
-<label class="mb-1 block text-xs font-medium uppercase tracking-wide text-text-tertiary" {% if input_id %}for="{{ input_id }}"{% else %}:for="idBase + '-busca'"{% endif %}>{{ label }}</label>
+<label class="rotulo-campo" {% if input_id %}for="{{ input_id }}"{% else %}:for="idBase + '-busca'"{% endif %}>{{ label }}</label>
 <div class="relative">
   <input
     type="{{ tipo_input|default:'text' }}"
@@ -60,7 +63,20 @@
     data-lpignore="true"
     data-1p-ignore="true"
     placeholder="{{ placeholder }}"
-    class="w-full min-h-11 rounded-lg border {% if com_erro %}border-danger-border-input{% else %}border-border-strong{% endif %} px-3 py-2 text-sm focus:border-border-focus focus:ring-2 focus:ring-border-focus focus:outline-none"
+    {% comment %}
+      `campo`, e não a string à mão que vivia aqui. Ela usava
+      `border-border-strong` (slate-300, 1.48:1 contra branco) num controle cuja
+      borda é a única pista de que ele existe — abaixo dos 3:1 que a WCAG 1.4.11
+      pede, e justamente o valor que o design system nomeia como o que não
+      passa. `.campo` usa `border-control` (slate-500, 4.77:1).
+
+      Junto vinham duas divergências menores: `focus:` em vez de
+      `focus-visible:`, a única gramática de foco fora do padrão do sistema, e
+      a borda de erro condicional — que `.campo[aria-invalid='true']` já pinta,
+      e o `aria-invalid` abaixo já emite. Por isso o `{% templatetag openblock %}
+      if com_erro {% templatetag closeblock %}` saiu do `class`.
+    {% endcomment %}
+    class="campo"
     role="combobox"
     aria-autocomplete="list"
     aria-haspopup="listbox"

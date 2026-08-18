@@ -98,11 +98,22 @@
           consegue anunciar a mudança seguinte. Vazia ela não ocupa altura, e a
           margem colapsa com a do botão abaixo.
         {% endcomment %}
+        {% comment %}
+          A copy dos avisos vive aqui, e não no JavaScript: é texto que a pessoa
+          lê, e no `.js` ele escapava do `{% templatetag openblock %} trans
+          {% templatetag closeblock %}`, da revisão de copy e da chance de cada
+          formulário dizer o que faz sentido nele. `{item}` é substituído pelo
+          rótulo da linha, dentro da frase, para a ordem das palavras continuar
+          sendo decisão do texto.
+        {% endcomment %}
         <p
           data-formset-aviso
+          data-aviso-minimo="É preciso manter ao menos um material na saída."
+          data-aviso-adicionado="{item} adicionado."
+          data-aviso-removido="{item} removido."
           role="status"
           aria-live="polite"
-          class="mt-3 text-xs font-medium text-danger-text"
+          class="formset-aviso"
         ></p>
 
         {# Botão adicionar item via HTMX #}

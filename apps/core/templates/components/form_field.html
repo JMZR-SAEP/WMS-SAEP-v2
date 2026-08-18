@@ -36,7 +36,7 @@ Uso:
 <div{% if class %} class="{{ class }}"{% endif %}>
   <label
     for="{{ field.id_for_label }}"
-    class="{{ label_class|default:'block text-xs font-medium uppercase tracking-wide text-text-tertiary' }}"
+    class="{{ label_class|default:'rotulo-campo' }}"
   >
     {{ label_override|default:field.label }}
     {% if required_marker == False %}{% elif required_marker or field.field.required %}
@@ -52,7 +52,7 @@ Uso:
       `danger-text` (red-700), não `danger` (red-600): mesmo tom de todo texto
       de erro do sistema, e 5.9:1 em vez dos 4.8:1 raspando o mínimo.
     {% endcomment %}
-    <p id="{{ field.id_for_label }}-erro" class="mt-1 text-xs text-danger-text" role="alert">{{ field.errors|join:", " }}</p>
+    {% include "components/field_error.html" with id=field.id_for_label|add:"-erro" erros=field.errors %}
   {% endif %}
 </div>
 {% endwith %}

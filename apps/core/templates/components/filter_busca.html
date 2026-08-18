@@ -13,7 +13,7 @@ Uso:
   {% include "components/filter_busca.html" with id="filtro-texto" name="texto" label="Solicitante ou beneficiário" value=filtros.texto placeholder="Nome ou matrícula" %}
 {% endcomment %}
 <div>
-  <label for="{{ id }}" class="block text-xs font-medium uppercase tracking-wide text-text-tertiary">
+  <label for="{{ id }}" class="rotulo-campo">
     {{ label }}
   </label>
   <input
@@ -22,6 +22,6 @@ Uso:
     name="{{ name }}"
     value="{{ value }}"
     placeholder="{{ placeholder }}"
-    class="campo mt-1"
+    class="campo"
   >
 </div>

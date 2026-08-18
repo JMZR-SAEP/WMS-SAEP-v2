@@ -21,6 +21,7 @@ from apps.requisicoes.selectors import (
     minhas_requisicoes,
     pode_filtrar_historico_por_setor,
     requisicoes_visiveis_para,
+    saldos_por_materiais,
     setores_do_historico,
 )
 
@@ -1016,3 +1017,24 @@ def test_chefe_autorizador_equivale_a_fila_autorizacao(
     esperado = setor_ativo and chefe_ativo
     assert resolve_chefe is ve_na_fila
     assert resolve_chefe is esperado
+
+
+class TestSaldosPorMateriais:
+    """`saldos_por_materiais` alimenta o aviso de saldo da linha de item."""
+
+    def test_inclui_a_unidade_do_material(self, material_disponivel):
+        """Sem a unidade, a tela escrevia "Saldo disponível: 90" e pronto.
+
+        O número sozinho não diz se sobram 90 unidades ou 90 quilos, e a decisão
+        que a pessoa toma logo abaixo é quanto pedir. A unidade também define com
+        quantas casas o número é escrito.
+        """
+        resultado = saldos_por_materiais([material_disponivel.pk])
+        assert (
+            resultado[material_disponivel.pk]['unidade'] == material_disponivel.unidade
+        )
+
+    def test_material_inelegivel_tambem_carrega_a_unidade(self, material_sem_saldo):
+        resultado = saldos_por_materiais([material_sem_saldo.pk])
+        assert resultado[material_sem_saldo.pk]['elegivel'] is False
+        assert resultado[material_sem_saldo.pk]['unidade'] == material_sem_saldo.unidade

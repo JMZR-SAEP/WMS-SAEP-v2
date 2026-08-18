@@ -22,7 +22,23 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
     opcional; a fonte de verdade continua sendo o clean() do formset)
 {% endcomment %}
 {% load core_tags %}
+{% comment %}
+  A linha é um grupo nomeado, como em requisicoes/atender_retirada.html. Sem
+  isso, uma requisição de 10 materiais entrega 30 controles seguidos cujos
+  nomes acessíveis se repetem ("Material", "Quantidade", "Remover item") e nada
+  diz em qual linha o foco está.
+
+  O nome do grupo é posicional, e não o material: o material vive num
+  combobox cujo valor muda no cliente, e um `aria-label` renderizado no
+  servidor congelaria o nome da linha no material que ela tinha ao carregar a
+  página — um rótulo errado é pior que um rótulo genérico. A posição é estável
+  (`form_index` é o índice do formset, que não se renumera quando uma linha é
+  removida) e o material continua sendo anunciado pelo próprio combobox, que
+  sempre carrega o valor atual.
+{% endcomment %}
 <div class="item-form-row flex flex-wrap items-start gap-3 p-3 rounded-lg border {% if saldo_item and not saldo_item.elegivel %}border-warning-border-strong bg-warning-subtle/40{% else %}border-border bg-surface{% endif %}"
+     role="group"
+     aria-label="Item {{ form_index|add:1 }}"
      data-index="{{ form_index }}"
      {% if delete_field.value %}style="display: none"{% endif %}>
 
@@ -55,10 +71,10 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
     >
     {% include "components/autocomplete.html" with label="Material" placeholder="Buscar por código ou descrição…" item_template=autocomplete_item_template sem_resultados_label="Nenhum material elegível encontrado." tipo_input="search" input_id=material_label_field.id_for_label com_erro=material_label_field.errors erro_id=material_label_field.id_for_label|add:"-erro" %}
     {% if material_label_field.errors %}
-      <p id="{{ material_label_field.id_for_label }}-erro" class="mt-1 text-xs text-danger-text" role="alert">{{ material_label_field.errors|join:", " }}</p>
+      {% include "components/field_error.html" with id=material_label_field.id_for_label|add:"-erro" erros=material_label_field.errors %}
     {% endif %}
     {% if material_id_field.errors %}
-      <p id="{{ material_id_field.id_for_label }}-erro" class="mt-1 text-xs text-danger-text" role="alert">{{ material_id_field.errors|join:", " }}</p>
+      {% include "components/field_error.html" with id=material_id_field.id_for_label|add:"-erro" erros=material_id_field.errors %}
     {% endif %}
     {% if saldo_item %}
       {% if not saldo_item.elegivel %}
@@ -66,10 +82,17 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
           <svg aria-hidden="true" class="h-3.5 w-3.5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495ZM10 5a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 5Zm0 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clip-rule="evenodd"/>
           </svg>
-          {{ saldo_item.motivo }} — saldo atual: {{ saldo_item.saldo_disponivel|floatformat:"-3" }}
+          {% comment %}
+            Quantidade com a unidade, e com a precisão que a unidade manda —
+            `floatformat:"-3"` dava "12,5" sem dizer de quê, e escrevia três
+            casas para um material contado em caixas. A grafia é a mesma de
+            estoque/lista_materiais.html: valor formatado seguido do código
+            curto.
+          {% endcomment %}
+          {{ saldo_item.motivo }} — saldo atual: {{ saldo_item.saldo_disponivel|formatar_quantidade:saldo_item.unidade }} {{ saldo_item.unidade }}
         </p>
       {% else %}
-        <p class="mt-1.5 text-xs text-text-tertiary">Saldo disponível: {{ saldo_item.saldo_disponivel|floatformat:"-3" }}</p>
+        <p class="mt-1.5 text-xs text-text-tertiary">Saldo disponível: {{ saldo_item.saldo_disponivel|formatar_quantidade:saldo_item.unidade }} {{ saldo_item.unidade }}</p>
       {% endif %}
     {% endif %}
   </div>
@@ -85,7 +108,7 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
     cliente o que o Form recusa no servidor.
   {% endcomment %}
   <div class="w-28 shrink-0">
-    {% include "components/form_field.html" with field=quantidade_field label_override=quantidade_label|default:"Quantidade" label_class="mb-1 block text-xs font-medium uppercase tracking-wide text-text-tertiary" %}
+    {% include "components/form_field.html" with field=quantidade_field label_override=quantidade_label|default:"Quantidade" %}
   </div>
 
   {# Campo DELETE do formset (escondido — controlado por JS/botão) #}
@@ -99,11 +122,24 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
     (ex. #itens-container) e não nesta linha, porque "pode remover" precisa
     contar linhas-irmãs visíveis.
   {% endcomment %}
-  <div class="pt-5 shrink-0">
+  {% comment %}
+    O botão desce uma altura de rótulo para alinhar com os campos ao lado, e
+    quem dá essa altura é um rótulo de verdade — vazio e fora da árvore de
+    acessibilidade — em vez do `pt-5` que vivia aqui.
+
+    Os 20px do `pt-5` não eram uma medida: eram a soma da linha de 16px do
+    rótulo com os 4px até o campo, copiada à mão. Trocar o `label_class` da
+    quantidade, ou a tipografia de `.rotulo-campo`, desalinhava a linha sem
+    quebrar nada e sem avisar ninguém. O espaçador acompanha porque é a mesma
+    classe.
+  {% endcomment %}
+  <div class="shrink-0">
+    <span class="rotulo-campo" aria-hidden="true">&nbsp;</span>
     <button
       type="button"
       class="flex min-h-11 min-w-11 items-center justify-center gap-1 text-text-secondary hover:text-danger-text cursor-pointer focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-1 transition-colors px-2 py-1.5 rounded text-xs font-medium"
-      aria-label="Remover item"
+      aria-label="Remover item {{ form_index|add:1 }}"
+      data-remover-item
       @click="removerLinha($event)"
     >
       {% icon "remover" class="h-4 w-4 shrink-0" %}

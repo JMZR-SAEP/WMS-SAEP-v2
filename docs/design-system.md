@@ -146,11 +146,18 @@ ficava encoberta (WCAG 2.4.11).
 
 ### Desabilitado (ação bloqueada por permissão ou estado)
 
-`button.html` já entrega: `disabled:opacity-60 disabled:cursor-not-allowed`,
-preservando a variante — o botão continua reconhecível como a ação que é.
+`button.html` já entrega `opacity-60` e `cursor-not-allowed` nos dois estados
+(`disabled:` e `aria-disabled:`), preservando a variante — o botão continua
+reconhecível como a ação que é.
 
-- Ação de **workflow** bloqueada: visível + `disabled` + motivo em texto,
-  amarrado por `aria_describedby` ao parágrafo que explica.
+- Ação de **workflow** bloqueada: visível + motivo em texto, amarrado por
+  `aria_describedby` ao parágrafo que explica. Com esse motivo presente,
+  `button.html` emite `aria-disabled="true"` em vez de `disabled` nativo: o
+  botão continua na ordem de tabulação, e quem navega por Tab chega até ele e
+  ouve a descrição. A ativação é barrada por `core/js/acao-bloqueada.js`, em
+  fase de captura, valendo também para submit, HTMX e `@click` do Alpine.
+- Bloqueio **sem motivo a expor**: `disabled` nativo, que é o caso da paginação
+  — "Anterior" na primeira página não tem o que explicar.
 - Ação **administrativa** irrelevante: fora da marcação.
 
 ```django
@@ -166,13 +173,19 @@ preservando a variante — o botão continua reconhecível como a ação que é.
 
 ### Carregando
 
-`button.html` cobre os dois caminhos:
+`button.html` cobre um caminho só: `loading_label="Registrando…"`.
+`form-submit.js` troca o texto do `[data-submit-text]`, aplica `aria-busy` e
+libera tudo em `htmx:afterRequest` e na volta pelo bfcache.
 
-- **Submit de formulário**: `loading_label="Registrando…"` — `form-submit.js`
-  troca o texto e bloqueia o duplo envio.
-- **Estado Alpine**: `x_disabled`, `x_aria_busy`, `spinner_show` e `label_bind`.
+Em form que envia por HTMX, o bloqueio real do duplo envio é
+`hx-sync="this:drop"` no próprio `<form>`: o `preventDefault()` do
+`form-submit.js` roda num listener em `document`, depois do listener que o HTMX
+instala no elemento, e o HTMX não consulta `defaultPrevented`.
 
-O spinner usa `motion-reduce:animate-none`.
+Não existe spinner de submit. Houve um vocabulário Alpine paralelo para isso
+(`x_disabled`, `x_aria_busy`, `spinner_show`, `label_bind`), com implementação,
+teste e documentação — e nenhuma tela que o usasse. Foi removido. Se um botão
+precisar de estado reativo no cliente, ele volta junto com a tela que precisa.
 
 ### Readonly (campo preenchido, não editável)
 

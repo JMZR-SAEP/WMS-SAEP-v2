@@ -121,7 +121,7 @@
               recortá-las, e continua com o mesmo piso de largura.
             {% endcomment %}
             <div class="min-w-24 shrink-0 text-sm text-text-secondary tabular-nums lg:text-right" translate="no">
-              <span class="mb-1 block text-xs font-medium uppercase tracking-wide text-text-tertiary lg:sr-only">Autorizada</span>
+              <span class="rotulo-campo lg:sr-only">Autorizada</span>
               {{ item.quantidade_autorizada|formatar_quantidade:item.material.unidade }}
             </div>
             {% comment %}
@@ -144,10 +144,10 @@
               nomeia a coluna, e repetir vira ruído.
             {% endcomment %}
             {% attrs_widget max=item.quantidade_autorizada|unlocalize step=item.material.unidade|step_por_unidade x_model="entregue" required=True as attrs_qtd %}
-            {% include "components/form_field.html" with field=form.quantidade_entregue label_override="Entregue" label_class="mb-1 block text-xs font-medium uppercase tracking-wide text-text-tertiary lg:sr-only" attrs_extra=attrs_qtd describedby_ext="hint-"|add:form.quantidade_entregue.id_for_label class="min-w-32 shrink-0" %}
+            {% include "components/form_field.html" with field=form.quantidade_entregue label_override="Entregue" label_class="rotulo-campo lg:sr-only" attrs_extra=attrs_qtd describedby_ext="hint-"|add:form.quantidade_entregue.id_for_label class="min-w-32 shrink-0" %}
             <div class="min-w-0 flex-1 basis-full lg:basis-0">
               {% attrs_widget x_bind_required="parcial" x_bind_aria_required="parcial" as attrs_just %}
-              {% include "components/form_field.html" with field=form.justificativa label_override="Justificativa" label_class="mb-1 block text-xs font-medium uppercase tracking-wide text-text-tertiary lg:sr-only" attrs_extra=attrs_just %}
+              {% include "components/form_field.html" with field=form.justificativa label_override="Justificativa" label_class="rotulo-campo lg:sr-only" attrs_extra=attrs_just %}
               {% comment %}
                 Sem aria-live: o aviso é lido via aria-describedby ao focar o
                 campo, e `aria-required` já anuncia a obrigatoriedade na
