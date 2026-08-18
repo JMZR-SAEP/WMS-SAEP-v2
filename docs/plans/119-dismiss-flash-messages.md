@@ -15,7 +15,9 @@ do `docs/plans/audit-frontend-restante.md`.
    - um mecanismo de espaçamento só (`space-y-2` no wrapper, sem `mb-2` nos filhos).
 2. **`apps/core/templatetags/core_tags.py`** — nova tag/filtro que ordena e filtra as
    mensagens, seguindo o precedente de `classes_botao` (apresentação derivada em Python,
-   template fino).
+   template fino). O partial passa a declarar `{% load core_tags %}` — hoje ele não carrega
+   nenhuma biblioteca, e `core_tags` não é `builtins` em `TEMPLATES`, então sem o `load`
+   o filtro resolve como string vazia e o arquivo inteiro para de renderizar em silêncio.
 3. **`apps/core/static/core/js/mensagens.js`** (novo) — componente Alpine `mensagemFlash`,
    registrado em `alpine:init`, no mesmo padrão de `modal.js`, `autocomplete.js` e
    `item_form_row.js`.
@@ -101,6 +103,32 @@ duas vezes de novo, que é justamente o que se quer eliminar.
 - devolve uma `list`, então o template itera uma vez só e o `{% if %}` do wrapper passa a
   ser decidível.
 
+**Só dois degraus de prioridade, não quatro.** Os `{% if %}/{% elif %}` de hoje são
+condicionais *por mensagem*, não ordenação: no template atual um storage `[error, warning]`
+renderiza o erro primeiro, porque o loop caminha na ordem do storage e cada item cai no seu
+ramo. Não existe hoje regra de `warning` antes de `error`, nem de `success` antes de `info`
+— inventar uma aqui mudaria a ordem que a tela tem, sem que ninguém tenha pedido. A única
+ordem que o arquivo declara, no comentário do topo, é assertivo antes de polido, e é essa
+que a chave de ordenação reproduz. Dentro de cada grupo manda a ordem em que a view
+enfileirou, que é a ordem em que os fatos aconteceram.
+
+O partial passa a decidir tudo a partir da lista já filtrada, nunca de `messages`:
+
+```django
+{% load core_tags %}
+{% with visiveis=messages|mensagens_visiveis %}
+  {% if visiveis %}
+    <div class="space-y-2">
+      {% for message in visiveis %}…{% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}
+```
+
+`{% if messages %}` seria errado agora: um storage só com `debug` é verdadeiro e faria o
+wrapper renderizar vazio — exatamente o defeito que esta issue está removendo, reintroduzido
+por outra porta.
+
 Isso resolve três achados de higiene de uma vez (wrapper vazio, `debug`, re-iteração) em
 vez de comentar dois deles.
 
@@ -119,6 +147,26 @@ adotada, registrada como comentário no template:
 O par pausa/retoma é o mecanismo de "estender" da 2.2.1; a exclusão de `warning`/`error`
 é o "desligar" onde a perda seria real.
 
+**Pausa em hover/foco não basta sozinha.** A 2.2.1 se satisfaz com desligar, ajustar ou
+estender — e quem não usa mouse nem tabula até a faixa não exerce nenhum dos três. O que
+sustenta o auto-dismiss é a redundância: em `success`/`info` a informação continua na tela
+depois que a faixa some. Isso precisa valer fluxo a fluxo, não como afirmação genérica:
+
+| Fluxo | Mensagem | Onde a informação permanece |
+|---|---|---|
+| Transição de requisição (autorizar, atender, cancelar, estornar) | `success` com `numero_publico` | o estado novo no badge da requisição e o evento novo na `TimelineRequisicao` |
+| Criação de requisição | `success` | a requisição existe na listagem, com o número exibido |
+| Importação SCPI concluída | `success` | a tela de sucesso da importação, que é o destino do redirect |
+| Logout | `info` "Sessão encerrada." | a própria tela de login: estar nela **é** a confirmação de não estar mais autenticado |
+
+O caso do logout é o único em que a mensagem não tem par estrutural na tela, e é também
+aquele em que a tela inteira já comunica o mesmo fato — por isso ele passa. Se um fluxo
+futuro emitir `success`/`info` sem redundância equivalente, o nível certo para ele é
+`warning`, que não tem timer.
+
+A tabela acima entra no teste: cada fluxo listado tem asserção de que o estado permanece
+legível na resposta do redirect, independentemente da faixa.
+
 ### Componente Alpine `mensagemFlash`
 
 Arquivo novo `apps/core/static/core/js/mensagens.js`, registrado em `alpine:init`
@@ -126,16 +174,38 @@ Arquivo novo `apps/core/static/core/js/mensagens.js`, registrado em `alpine:init
 projeto. Carregado em `base.html` **antes** de `alpine.min.js`, na mesma posição dos demais.
 
 Estado: `visivel`, mais o handle do timer. API: `fechar()`, `pausar()`, `retomar()`.
-Sem timer quando `auto` é falso — `warning`/`error` só ganham `fechar()`.
 
-**Destino do foco após o dismiss.** Quem fecha pelo teclado está com o foco no próprio
-botão que some. Sem tratamento, o foco cai no `<body>` e o usuário perde o lugar na tela —
-o critério "dispensável só pelo teclado" só vale se depois de dispensar ainda dá pra
-trabalhar. `fechar()` devolve o foco ao `<main id="conteudo" tabindex="-1">`
-(`base_auth.html:171`), que é o mesmo alvo do skip link: recomeça a ordem de tabulação no
-início do conteúdo, sem inventar um destino novo. Nas telas de auth, onde o `<main>` não
-tem `tabindex`, o fallback é `document.body`, e o efeito prático é o mesmo porque o card
-de login é o primeiro focável da página.
+O template passa `auto` **explicitamente nos quatro níveis** — `mensagemFlash({ auto: true })`
+em `success`/`info` e `mensagemFlash({ auto: false })` em `warning`/`error` — em vez de
+deixar os níveis sem timer caírem num default implícito. Assim a ausência de timer é uma
+declaração legível no markup, e o teste que a protege é uma asserção positiva sobre
+`auto: false`, não uma asserção de ausência de substring (que passaria vacuamente se o
+atributo mudasse de nome). Com `auto: false` o componente não cria timer algum e só expõe
+`fechar()`; `pausar()`/`retomar()` viram no-ops.
+
+**Destino do foco após o dismiss — e só quando o foco estava lá dentro.** Quem fecha pelo
+teclado está com o foco no próprio botão que some. Sem tratamento, o foco cai no `<body>` e
+o usuário perde o lugar na tela — o critério "dispensável só pelo teclado" só vale se depois
+de dispensar ainda dá pra trabalhar.
+
+Mas mover o foco incondicionalmente é pior do que não mover: o auto-dismiss dispara 8s
+depois, provavelmente no meio de uma digitação, e arrastaria o foco para longe do campo em
+uso. Roubo de foco não solicitado é falha de 3.2.1, trocada por uma correção de 2.1.1.
+
+A regra, então, não é "quem fechou" e sim **onde o foco está no momento de esconder**:
+
+- se o elemento focado está dentro do item que vai sumir (`item.contains(document.activeElement)`),
+  o foco é reposicionado antes de ocultar;
+- caso contrário — timer, clique com o foco em outro lugar — o foco fica exatamente onde está.
+
+Isso cobre os três caminhos com uma condição só, sem o componente precisar adivinhar a
+modalidade de entrada, e trata de graça o clique de mouse no botão (que também deixa o foco
+lá dentro em alguns navegadores).
+
+Destino: `#conteudo` quando ele existir e for focável — o `<main id="conteudo" tabindex="-1">`
+de `base_auth.html:171`, mesmo alvo do skip link, que recomeça a tabulação no início do
+conteúdo sem inventar destino novo. Nas telas de auth o `<main>` não tem `tabindex`, então o
+alvo é o primeiro focável do card de login; se nem esse existir, `document.body`.
 
 `x-show` com valor inicial `true` não pisca, então não há `x-cloak` a declarar.
 Com JS desligado o botão não faz nada e a faixa continua legível: degradação aceitável
@@ -174,15 +244,46 @@ não "limpo".
 | Auto-dismiss em success/info | o item traz o argumento de auto no `x-data` |
 | Ausência de auto-dismiss | `warning` e `error` **não** trazem auto — asserção de ausência, que é o buraco que o guarda de 44px tinha |
 | Pausa | `@mouseenter`/`@mouseleave` e `@focusin`/`@focusout` presentes no item com timer |
-| Foco após dismiss | `fechar()` move o foco para `#conteudo` — coberto em teste de unidade do componente Alpine, com DOM mínimo |
+| Foco após dismiss | o foco só é reposicionado quando estava dentro do item; auto-dismiss não mexe no foco |
 | `debug` não renderiza | mensagem `debug` não aparece no HTML e não gera caixa |
 | Wrapper vazio | sem mensagens polidas, não sobra `<div class="space-y-2">` vazio |
 | Espaçamento único | `mb-2` não coexiste com `space-y-2` no arquivo |
 | Ordem do DOM | assertivas antes de polidas |
-| `login_bloqueado.html` inclui `_messages.html` | render da view/template contém a faixa quando há mensagem |
+| `login.html` renderiza a faixa | com uma mensagem enfileirada, o texto aparece **exatamente uma vez**, e dentro do `<div>` centralizado — não antes dele |
+| `login_bloqueado.html` renderiza a faixa | idem, com o alerta fixo de bloqueio excluído da contagem: ele é `components/alert.html`, não flash message, e contá-lo mascararia a faixa ausente |
 
 Testes de `mensagens_visiveis` em Python direto: descarta `debug`, ordena assertivas
-primeiro, estabilidade dentro do grupo, entrada vazia.
+primeiro, **estabilidade dentro de cada grupo** (um storage `[error, warning]` sai como
+`[error, warning]`, não reordenado), entrada vazia, e storage só com `debug` devolvendo
+lista vazia — que é o caso que decide o wrapper.
+
+### O que a suíte automatizada não alcança, e o que cobre esse vão
+
+As asserções acima provam o **contrato do markup**: que `success`/`info` pedem timer e que
+`warning`/`error` pedem explicitamente que não haja timer. Elas não provam o **comportamento
+em tempo de execução** do componente Alpine — que 8s realmente disparam, que `pausar()`
+preserva o tempo restante em vez de reiniciá-lo, que `retomar()` continua de onde parou, e
+que `fechar()` limpa o timer em vez de deixá-lo rodando sobre um elemento oculto.
+
+Cobrir isso com relógio controlado exigiria um runner de JS no CI, que o projeto não tem: o
+`package.json` traz `playwright` como devDependency para QA manual (precedente em
+`docs/plans/gh5-modal-universal.md:139`), e o CI roda pytest e nada mais. Introduzir um
+segundo runner é decisão de infraestrutura maior que esta issue, e um teste que o CI não
+executa é decoração — que é justamente o modo de falha que `docs/design-system.md` descreve
+em *"regra sem mecanismo vira sugestão"*.
+
+O que fica no lugar, declarado como limite conhecido e não como cobertura equivalente:
+
+1. **Roteiro de QA por Playwright**, registrado neste plano e executado antes do merge:
+   mensagem `success` some sozinha; `hover` durante 4s e sair faz o restante durar ~4s, não
+   8s; `warning` continua na tela após 30s; fechar por `Tab`+`Enter` devolve o foco a
+   `#conteudo`; auto-dismiss com o foco num campo de texto **não** move o foco.
+2. **Superfície mínima de JS**: toda a decisão de *quando* há timer vive no template, que é
+   testável em pytest. O `mensagens.js` fica com o mecanismo, não com a política — quanto
+   menos regra morar lá, menos o vão importa.
+
+Se o projeto adotar um runner de JS no CI, o item 1 vira teste de unidade com relógio
+falso e este parágrafo sai do plano.
 
 Teclado: o botão é `<button type="button">` nativo, focável e acionável por `Enter`/`Espaço`
 sem nenhum handler de teclado próprio — o critério "dispensável só pelo teclado" é
