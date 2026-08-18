@@ -241,8 +241,9 @@ não "limpo".
 | Alvo de 44px | o botão carrega `min-h-11` e `min-w-11` |
 | Botão fora da live region | o nó com `role` não contém o `<button>` — extraído por `apps/core/tests/marcacao.py`, não por regex de grafia |
 | Contagem de role | `role="alert"` e `role="status"` uma vez por mensagem (espelha `test_views.py:2713`) |
-| Auto-dismiss em success/info | o item traz o argumento de auto no `x-data` |
-| Ausência de auto-dismiss | `warning` e `error` **não** trazem auto — asserção de ausência, que é o buraco que o guarda de 44px tinha |
+| Auto-dismiss em success/info | o item declara `mensagemFlash({ auto: true })` |
+| `warning`/`error` sem timer | asserção **positiva** de `mensagemFlash({ auto: false })` — não de ausência de substring, que é o buraco do guarda de 44px (`test_components.py:434`) reproduzido: uma asserção de ausência passa vacuamente quando o atributo muda de nome, some por inteiro, ou o item deixa de renderizar |
+| `warning`/`error` mantêm o dismiss manual | os dois níveis continuam com botão de fechar — não ter timer não pode virar não ter saída |
 | Pausa | `@mouseenter`/`@mouseleave` e `@focusin`/`@focusout` presentes no item com timer |
 | Foco após dismiss | o foco só é reposicionado quando estava dentro do item; auto-dismiss não mexe no foco |
 | `debug` não renderiza | mensagem `debug` não aparece no HTML e não gera caixa |
@@ -276,8 +277,10 @@ O que fica no lugar, declarado como limite conhecido e não como cobertura equiv
 
 1. **Roteiro de QA por Playwright**, registrado neste plano e executado antes do merge:
    mensagem `success` some sozinha; `hover` durante 4s e sair faz o restante durar ~4s, não
-   8s; `warning` continua na tela após 30s; fechar por `Tab`+`Enter` devolve o foco a
-   `#conteudo`; auto-dismiss com o foco num campo de texto **não** move o foco.
+   8s; `warning` continua na tela após 30s **e ainda fecha no clique do botão**; fechar por
+   `Tab`+`Enter` devolve o foco a `#conteudo`; auto-dismiss com o foco num campo de texto
+   **não** move o foco. É aqui que a ausência de timer é verificada em comportamento — o
+   teste de template prova a declaração, o QA prova o efeito.
 2. **Superfície mínima de JS**: toda a decisão de *quando* há timer vive no template, que é
    testável em pytest. O `mensagens.js` fica com o mecanismo, não com a política — quanto
    menos regra morar lá, menos o vão importa.
