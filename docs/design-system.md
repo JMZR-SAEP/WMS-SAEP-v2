@@ -322,6 +322,9 @@ estrutura, a abstração está errada. Parar e registrar, não generalizar.
 [ ] Modal e dropdown operáveis por teclado (Tab, Escape, Enter/Espaço)
 [ ] Ação bloqueada tem motivo textual amarrado por aria-describedby
 [ ] Atualização HTMX crítica tem aria-live ou feedback visível
+[ ] Live region NÃO é o mecanismo depois de um POST full-page — conteúdo já
+    presente no carregamento não é anunciado; o que funciona é foco programático
+    (tabindex="-1" + foco no mount), com anel `focus:` e não `focus-visible:`
 [ ] Ícone tem alternativa textual (aria-label, ou contexto que já o nomeia)
 [ ] Badge de dado estático NÃO usa role="status" — 20 linhas virariam 20 live regions
 ```

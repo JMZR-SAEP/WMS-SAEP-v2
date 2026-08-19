@@ -74,7 +74,29 @@ A requisição deve possuir um ciclo de vida claro, com estados explícitos. A v
 
 Esses estados formam a base do controle operacional e devem ser usados tanto nos contratos do sistema quanto nas regras de negócio.
 
-## 1.4 Fluxos alternativos e exceções
+## 1.4 Importação SCPI e divergência
+
+O WMS **coexiste indefinidamente com o SCPI** — não o substitui. A conferência
+entre os dois é rotina recorrente, não etapa de migração com prazo.
+
+- A importação SCPI **nunca sobrescreve saldo**. Ela cria material que ainda não
+  existe no catálogo, com saldo inicial vindo do arquivo, e registra divergência
+  para os que já existem — sem tocar no saldo desses.
+- **Divergência entre WMS e SCPI é estado esperado da coexistência, não erro.**
+  Nenhuma operação é bloqueada por ela existir. A interface a evidencia por
+  delta, para conferência humana, em vez de tentar reconciliá-la sozinha.
+- **A decisão sobre cada divergência é do chefe de almoxarifado**, e o ajuste é
+  feito manualmente no próprio SCPI — o WMS não tem, e não deve ter, superfície
+  para escrever no SCPI.
+- Por isso a divergência é apresentada em âmbar, o tom de "a decisão está com
+  alguém", e não em vermelho: nada falhou. A copy do preview nomeia esse dono e
+  a próxima ação, para que quem opera não leia o alerta como erro do sistema.
+- O material criado pela importação nasce com a denominação do arquivo e com
+  unidade padrão, porque o CSV do SCPI não informa unidade. Conferir a unidade
+  no catálogo depois da importação também cabe ao chefe de almoxarifado.
+- O preview é sempre read-only e a gravação exige confirmação explícita.
+
+## 1.5 Fluxos alternativos e exceções
 
 Fluxos alternativos inicialmente previstos:
 

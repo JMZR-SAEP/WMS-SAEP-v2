@@ -843,9 +843,7 @@ class TestPreviewImportacaoScpiView:
             b'CADPRO' in resp.content or material_scpi.codigo.encode() in resp.content
         )
 
-    def test_post_csv_com_novos_e_divergencias_usa_components_alert_com_aria(
-        self, client, superuser, estoque_principal, material_scpi
-    ):
+    def _preview_com_novos_e_divergencias(self, client, superuser, material_scpi):
         from django.core.files.uploadedfile import SimpleUploadedFile
 
         client.force_login(superuser)
@@ -855,15 +853,107 @@ class TestPreviewImportacaoScpiView:
             f'000.000.999;Material Novo;5.000\n'
         ).encode('utf-8')
         arquivo = SimpleUploadedFile('teste.csv', csv_bytes, content_type='text/csv')
-        resp = client.post(self.URL, {'arquivo': arquivo})
-        conteudo = resp.content.decode()
+        return client.post(self.URL, {'arquivo': arquivo}).content.decode()
+
+    def test_alerta_de_divergencia_mantem_variante_warning_e_role_status(
+        self, client, superuser, estoque_principal, material_scpi
+    ):
+        """O token âmbar e o anúncio não-assertivo são decisão de produto.
+
+        Divergência é estado esperado da coexistência com o SCPI e a decisão é
+        do chefe de almoxarifado — âmbar é exatamente "a decisão está com
+        alguém". E no preview ela pede leitura, não interrupção: por isso o
+        `role="status"` explícito, que sobrescreve o `alert` automático da
+        variante. Sem este teste, nada impede uma passagem futura de "corrigir"
+        qualquer um dos dois.
+        """
+        conteudo = self._preview_com_novos_e_divergencias(
+            client, superuser, material_scpi
+        )
 
         assert (
             'border-primary-border bg-primary-subtle text-primary-text-emphasis'
             in conteudo
         )
         assert 'border-warning-border bg-warning-subtle text-warning-text' in conteudo
-        assert conteudo.count('aria-live="polite"') == 3
+        assert 'role="status"' in conteudo
+
+    def test_preview_nao_declara_live_region_inerte(
+        self, client, superuser, estoque_principal, material_scpi
+    ):
+        """Live region só dispara com mudança.
+
+        Os três `aria_live` passados a `alert.html` descreviam um anúncio que
+        nunca aconteceu: o conteúdo já está presente no carregamento da
+        resposta do POST. Sobra um só `aria-live`, o da barra de resumo, que
+        não passa por `alert.html` e agora é o alvo do foco programático.
+        """
+        conteudo = self._preview_com_novos_e_divergencias(
+            client, superuser, material_scpi
+        )
+
+        assert conteudo.count('aria-live=') == 1
+
+    def test_resumo_do_preview_recebe_foco_no_retorno_do_upload(
+        self, client, superuser, estoque_principal, material_scpi
+    ):
+        """Depois de um POST full-page, o que anuncia é o foco, não a live region.
+
+        Mesmo padrão GOV.UK de `components/error_summary.html`: `tabindex="-1"`
+        mais foco no mount. O anel usa `focus:` e não `focus-visible:`, porque
+        `focus-visible` não casa em foco programático que não veio do teclado.
+        """
+        conteudo = self._preview_com_novos_e_divergencias(
+            client, superuser, material_scpi
+        )
+
+        assert 'tabindex="-1"' in conteudo
+        assert 'x-init="$el.focus()"' in conteudo
+        assert 'focus:ring-2' in conteudo
+
+    def test_erro_de_arquivo_amarra_a_mensagem_ao_campo_de_retry(
+        self, client, superuser
+    ):
+        """O `aria_live="assertive"` daqui também nunca anunciou nada.
+
+        O mecanismo que funciona já estava meio pronto: o campo de retry tem
+        `autofocus` e `aria-invalid`. Falta o texto do erro chegar junto — é o
+        que o checklist do design system cobra, `aria-invalid` mais
+        `aria-describedby`.
+        """
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        client.force_login(superuser)
+        arquivo = SimpleUploadedFile(
+            'ruim.csv', b'COLUNA_ERRADA;OUTRA\nX;Y\n', content_type='text/csv'
+        )
+        conteudo = client.post(self.URL, {'arquivo': arquivo}).content.decode()
+
+        assert 'id="erro-arquivo-alerta"' in conteudo
+        assert 'aria-describedby="erro-arquivo-alerta"' in conteudo
+        assert 'aria-live=' not in conteudo
+
+    def test_botao_de_confirmar_e_descrito_pelos_alertas_da_importacao(
+        self, client, superuser, estoque_principal, material_scpi
+    ):
+        """Os alertas não estão na ordem de tabulação.
+
+        Quem navega por teclado vai da barra de resumo direto ao botão de
+        confirmar e nunca passa pelos dois alertas — ouviria as contagens e
+        gravaria sem saber que a decisão é do chefe de almoxarifado. O
+        `aria-describedby` põe a copy inteira no anúncio do próprio botão, no
+        momento exato da decisão de gravar.
+
+        O `id` fica no bloco que embrulha os alertas, não em cada um: o bloco
+        existe sempre, os alertas são condicionais, e assim o
+        `aria-describedby` nunca aponta para um `id` inexistente.
+        """
+        conteudo = self._preview_com_novos_e_divergencias(
+            client, superuser, material_scpi
+        )
+
+        assert 'id="alertas-importacao"' in conteudo
+        assert 'aria-describedby="alertas-importacao"' in conteudo
 
     def test_post_csv_com_dois_novos_flexiona_plural_corretamente(
         self, client, superuser, estoque_principal

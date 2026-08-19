@@ -90,7 +90,11 @@
 
   {# ── Estado de erro no upload ────────────────────────────────────────── #}
   {% elif erro_arquivo %}
-    {% include "components/alert.html" with variant="danger" aria_live="assertive" body_template="estoque/partials/_alert_erro_arquivo_corpo.html" class="mb-6" %}
+    {% comment %}
+      `id` amarra o texto do erro ao campo de retry por aria-describedby: o campo
+      já tem `autofocus`, e é esse foco que anuncia o erro depois do POST.
+    {% endcomment %}
+    {% include "components/alert.html" with variant="danger" id="erro-arquivo-alerta" body_template="estoque/partials/_alert_erro_arquivo_corpo.html" class="mb-6" %}
 
     <form
       method="post"
@@ -113,6 +117,7 @@
             required
             aria-required="true"
             aria-invalid="true"
+            aria-describedby="erro-arquivo-alerta"
             autofocus
             class="block w-full cursor-pointer rounded-lg border border-danger-border-strong bg-surface
                    px-3 py-2 text-sm text-text-secondary
@@ -129,10 +134,20 @@
   {% else %}
 
     {# Barra de estatísticas #}
+    {% comment %}
+      Alvo do foco programático no retorno do upload. Depois de um POST
+      full-page o que anuncia é o foco, não a live region: conteúdo já presente
+      no carregamento não dispara `aria-live`. Mesmo padrão GOV.UK de
+      components/error_summary.html. O anel usa `focus:`, não `focus-visible:`,
+      que não casa em foco que não veio do teclado.
+    {% endcomment %}
     <div
-      class="mb-4 flex flex-wrap gap-3"
+      class="mb-4 flex flex-wrap gap-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-border-focus focus:ring-offset-1"
       role="status"
       aria-live="polite"
+      tabindex="-1"
+      x-data
+      x-init="$el.focus()"
       aria-label="Resumo: {{ total }} linha{{ total|pluralize:'s' }}, {{ divergencias }} divergência{{ divergencias|pluralize:'s' }}, {{ novos }} materia{{ novos|pluralize:'l,is' }} novo{{ novos|pluralize:'s' }}"
     >
       <div class="flex min-w-0 items-center gap-2 rounded-lg border border-border bg-surface px-4 py-2.5 shadow-sm">
@@ -261,13 +276,20 @@
     {% endif %}
 
     {# CTA: confirmação da importação #}
-    <div class="mt-6 flex flex-col gap-3">
+    {% comment %}
+      `id` no bloco, não em cada alerta: o botão de confirmar o referencia por
+      aria-describedby, e os alertas são condicionais. Sem isso, quem navega por
+      teclado vai da barra de resumo direto ao botão e grava sem passar pela
+      copy que diz de quem é a decisão. O bloco existe sempre; vazio, o
+      aria-describedby simplesmente não anuncia nada.
+    {% endcomment %}
+    <div id="alertas-importacao" class="mt-6 flex flex-col gap-3">
       {% if novos > 0 %}
-        {% include "components/alert.html" with variant="info" aria_live="polite" body_template="estoque/partials/_alert_novos_materiais_corpo.html" %}
+        {% include "components/alert.html" with variant="info" body_template="estoque/partials/_alert_novos_materiais_corpo.html" %}
       {% endif %}
       {% if divergencias > 0 %}
         {# role="status" explícito: preserva o anúncio não-assertivo original (divergência é esperada no preview, não bloqueante); o automático de variant=warning seria role="alert" #}
-        {% include "components/alert.html" with variant="warning" role="status" aria_live="polite" body_template="estoque/partials/_alert_divergencias_corpo.html" %}
+        {% include "components/alert.html" with variant="warning" role="status" body_template="estoque/partials/_alert_divergencias_corpo.html" %}
       {% endif %}
     </div>
 
@@ -286,7 +308,7 @@
         class="fixed inset-x-0 bottom-0 z-10 mt-6 flex flex-nowrap items-center justify-end gap-2 border-t border-border bg-surface px-4 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] sm:static sm:z-auto sm:gap-3 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:pb-0"
         x-data="modalController({ id: 'confirmar-importacao-scpi' })"
       >
-        {% include "components/button.html" with variant="primary" label="Confirmar importação" icon_template="components/icons/confirmar_check.svg" data_modal_trigger="confirmar-importacao-scpi" class="shrink-0" %}
+        {% include "components/button.html" with variant="primary" label="Confirmar importação" icon_template="components/icons/confirmar_check.svg" data_modal_trigger="confirmar-importacao-scpi" aria_describedby="alertas-importacao" class="shrink-0" %}
 
         {% url 'requisicoes:confirmar_importacao_scpi' as url_confirmar_importacao %}
         {% include "components/modal.html" with id="confirmar-importacao-scpi" titulo="Confirmar importação do SCPI?" descricao="A gravação não pode ser desfeita." action_url=url_confirmar_importacao confirm_label="Confirmar importação" icon_variant="warning" form_body_template="estoque/partials/_modal_corpo_confirmar_importacao.html" %}
