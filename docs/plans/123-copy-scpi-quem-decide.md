@@ -16,9 +16,10 @@ copy, mais dois defeitos adjacentes nas mesmas linhas.
 ### O que muda
 
 1. **Copy de `_alert_divergencias_corpo.html`** — nomeia a divergência como
-   sendo entre WMS e SCPI, afirma que é estado esperado da coexistência (não
-   falha da importação), mantém a garantia de que o saldo do WMS não muda, e diz
-   a próxima ação com dono: o chefe de almoxarifado confere e ajusta no SCPI.
+   sendo entre o saldo do WMS e a quantidade informada no arquivo do SCPI,
+   afirma que é estado esperado da coexistência (não falha da importação),
+   mantém a garantia de que o saldo do WMS não muda, e diz a próxima ação com
+   dono: o chefe de almoxarifado confere e ajusta no SCPI.
 2. **Copy de `_alert_novos_materiais_corpo.html`** — passa a dizer o que o
    material novo herda do SCPI e o que fica pendente de conferência humana.
 3. **Corpo em 14px** — os dois corpos trocam `text-xs` (12px) por `text-sm`.
@@ -51,10 +52,10 @@ Direção (texto final ajustado ao glossário do `CONTEXT.md`, que define
 "Divergência SCPI" como a diferença entre a quantidade do arquivo SCPI e o saldo
 do WMS para o mesmo `CADPRO`):
 
-> **N** divergências entre o saldo do WMS e o do SCPI. Divergência é estado
-> esperado da coexistência entre os dois sistemas, não falha da importação — o
-> saldo do WMS não será alterado. Cabe ao chefe de almoxarifado conferir cada
-> divergência e ajustar no SCPI.
+> **N** divergências entre o saldo do WMS e a quantidade informada no arquivo do
+> SCPI. Divergência é estado esperado da coexistência entre os dois sistemas, não
+> falha da importação — o saldo do WMS não será alterado. Cabe ao chefe de
+> almoxarifado conferir cada divergência e ajustar no SCPI.
 
 Três coisas que quem lê passa a entender sem perguntar a ninguém: que aquilo é
 esperado, que nada foi corrompido, e o que precisa acontecer a seguir. Nenhum
@@ -104,7 +105,23 @@ mecanismo que funciona depois de um POST full-page:
 | Erro de arquivo (`:93`) | `aria_live="assertive"` inerte; o input de retry já tem `autofocus` e `aria-invalid` | O alerta ganha `id="erro-arquivo-alerta"` e o input de retry ganha `aria-describedby="erro-arquivo-alerta"`. O foco automático passa a anunciar rótulo + inválido + o texto do erro. É o padrão que o próprio checklist de `docs/design-system.md` cobra: "campo com erro usa `aria-invalid` + `aria-describedby`" |
 | Alerta de materiais novos (`:266`) | `aria_live="polite"` inerte | Sem `aria_live`. O `role="status"` automático da variante `info` permanece |
 | Alerta de divergências (`:270`) | `aria_live="polite"` inerte | Sem `aria_live`. `role="status"` explícito permanece, com o comentário |
-| Barra de resumo (`:131-136`) | `role="status"` + `aria-live="polite"`, sem foco | Ganha `tabindex="-1"` e `x-init="$el.focus()"`: vira o alvo de foco programático no retorno do upload, que é o mecanismo que de fato anuncia depois de um POST. É o padrão GOV.UK já usado em `error_summary.html` |
+| Barra de resumo (`:131-136`) | `role="status"` + `aria-live="polite"`, sem foco | Ganha `tabindex="-1"` e `x-init="$el.focus()"`: vira o alvo de foco programático no retorno do upload, que é o mecanismo que de fato anuncia após um POST. É o padrão GOV.UK já usado em `error_summary.html` |
+| Bloco de CTA que embrulha os dois alertas | sem `id` | Ganha `id="alertas-importacao"`, e o botão "Confirmar importação" ganha `aria_describedby="alertas-importacao"` |
+
+**Por que a barra de resumo não basta sozinha.** Ela anuncia contagens — "3
+divergências" — e não a responsabilidade nem a próxima ação, que é justamente o
+que esta issue existe para dizer. E os dois alertas não estão na ordem de
+tabulação: quem navega por teclado vai da barra de resumo direto ao botão
+"Confirmar importação" sem nunca passar por eles. Por isso o bloco de CTA que já
+embrulha os dois alertas ganha `id="alertas-importacao"` e o botão de confirmar
+os referencia por `aria_describedby` — parâmetro que `button.html` já expõe, sem
+mudança no componente. Focar o botão passa a anunciar quem decide e o que fazer
+a seguir, no exato momento em que a decisão de gravar é tomada.
+
+O `id` fica no **wrapper**, não em cada alerta, porque o wrapper existe sempre e
+os alertas são condicionais (`novos > 0`, `divergencias > 0`). Sem divergência
+nem material novo o wrapper renderiza vazio e o `aria-describedby` simplesmente
+não anuncia nada — em vez de apontar para um `id` inexistente.
 
 O anel de foco da barra de resumo usa `focus:`, **não** `focus-visible:` —
 `focus-visible` não casa em foco programático que não veio do teclado, armadilha
@@ -135,7 +152,7 @@ Dois lugares, cada um com o pedaço que lhe cabe:
 |---|---|
 | `apps/estoque/templates/estoque/partials/_alert_divergencias_corpo.html` | Copy nova (D-1); `text-xs` → `text-sm` |
 | `apps/estoque/templates/estoque/partials/_alert_novos_materiais_corpo.html` | Copy nova (D-2); `text-xs` → `text-sm` |
-| `apps/estoque/templates/estoque/preview_importacao_scpi.html` | Remove os 3 `aria_live`; `id` no alerta de erro; `aria-describedby` no input de retry; `tabindex="-1"` + `x-init` + anel `focus:` na barra de resumo |
+| `apps/estoque/templates/estoque/preview_importacao_scpi.html` | Remove os 3 `aria_live`; `id` no alerta de erro; `aria-describedby` no input de retry; `tabindex="-1"` + `x-init` + anel `focus:` na barra de resumo; `id="alertas-importacao"` no bloco de CTA e `aria_describedby` no botão de confirmar |
 | `apps/estoque/tests/test_partials.py` | Testes de copy e de tamanho de corpo dos dois partials, sem DB |
 | `apps/estoque/tests/test_views.py` | Atualiza `test_post_csv_com_novos_e_divergencias_usa_components_alert_com_aria`; novos testes de foco programático e de `aria-describedby` |
 | `docs/processos-almoxarifado.md` | Seção 1.5 |
@@ -166,6 +183,7 @@ sugestão* — e neste conjunto de arquivos isso já aconteceu três vezes.
 | `test_preview_nao_declara_live_region_inerte` (renomeia o teste `..._usa_components_alert_com_aria`) | `aria-live` aparece exatamente uma vez na resposta — só a barra de resumo. Antes eram 3 |
 | `test_resumo_do_preview_recebe_foco_no_retorno_do_upload` | `tabindex="-1"` + `x-init="$el.focus()"` na barra de resumo |
 | `test_erro_de_arquivo_amarra_a_mensagem_ao_campo_de_retry` | `id` no alerta e `aria-describedby` correspondente no input; `aria-live="assertive"` ausente |
+| `test_botao_de_confirmar_e_descrito_pelos_alertas_da_importacao` | `id="alertas-importacao"` no wrapper e `aria-describedby="alertas-importacao"` no botão de confirmar — trava o caminho pelo qual quem usa teclado ouve quem decide antes de gravar |
 
 O teste existente `test_post_csv_com_dois_novos_flexiona_plural_corretamente`
 depende da string `'serão criados'`, que a copy de D-2 preserva — sem alteração
@@ -175,10 +193,19 @@ necessária. `test_modal_de_confirmacao_recapitula_os_numeros_a_gravar` depende 
 
 ### Verificação de suíte
 
-`uv run pytest -q -ra --tb=short --strict-markers --disable-warnings -n logical`,
-`uv run ruff check .`, `uv run ruff format --check .` e `uv run mypy apps`
-verdes, com contagem de aprovados igual ou maior que a baseline medida em
-`main` antes desta branch: **1842 passed**.
+Validação a executar **depois** da implementação — nada aqui é resultado já
+obtido:
+
+```
+uv run pytest -q -ra --tb=short --strict-markers --disable-warnings -n logical
+uv run ruff check .
+uv run ruff format --check .
+uv run mypy apps
+```
+
+Baseline observada na branch `main`, antes desta branch e antes de qualquer
+alteração: **1842 passed**. O critério é a suíte terminar verde com contagem
+igual ou maior que essa.
 
 ## Invariantes
 
@@ -191,12 +218,54 @@ verdes, com contagem de aprovados igual ou maior que a baseline medida em
 | Regra dos 14px (`DESIGN.md:266`) | De violada para respeitada nos dois corpos |
 | Piso de 44px | Não se aplica: nenhum controle acionável novo. A barra de resumo recebe `tabindex="-1"`, que a torna alvo de foco programático, **não** um controle na ordem de tabulação |
 
+## Divergências com a revisão do plano
+
+Duas sugestões da revisão automatizada foram verificadas contra o código e a
+documentação vivos e **não** foram adotadas. Ficam registradas aqui para que a
+decisão não precise ser refeita.
+
+### `role="alert"` no alerta de divergência — recusado
+
+A sugestão cita `docs/CONVENTIONS.md` §Níveis e ARIA, onde `warning` → `alert`.
+Essa tabela vive dentro de `## Mensagens ao usuário` e governa o contrato de
+**flash messages** do Django — os mesmos níveis que trazem auto-dismiss de 8s,
+botão de dismiss e o mapeamento `EstadoInvalido → messages.warning`. Ela é
+renderizada por `core/partials/_messages.html`.
+
+O próprio cabeçalho de `components/alert.html` diz isso literalmente: *"Fora do
+contrato de dismiss de `docs/CONVENTIONS.md` (§Níveis e ARIA) — essa regra
+governa o contrato de flash messages Django, renderizado por
+`core/partials/_messages.html`, que não usa este componente."*
+
+Somam-se duas razões independentes:
+
+- O `role="status"` explícito é **critério de aceite da issue #123**, com a
+  justificativa registrada: divergência no preview pede leitura, não interrupção
+  assertiva. Rebaixar isso aqui reabriria uma decisão do dono do produto.
+- O override foi introduzido deliberadamente pela issue #95
+  (`docs/plans/95-migrar-banners-alert.md`), justamente para não regredir a
+  assertividade do anúncio na migração para `alert.html`.
+
+### Restringir "nunca sobrescreve saldo" ao preview — recusado
+
+A sugestão pede que a garantia valha só no preview. Ela vale também na
+confirmação: `confirmar_importacao_scpi` só escreve `SaldoEstoque` para linhas
+com `status == 'novo'`; nenhuma linha divergente tem saldo tocado. O `PRODUCT.md`
+afirma a regra sem recorte — *"a importação SCPI nunca sobrescreve saldo"* — e o
+`CONTEXT.md` repete: *"Divergência SCPI gera alerta; nunca altera
+`saldo_fisico`"*. Estreitar a frase para o preview enfraqueceria uma garantia
+verdadeira e mais forte, e é exatamente a garantia que acalma quem lê o alerta.
+
+A primeira metade da mesma sugestão **foi** adotada: a copy passa a dizer
+"quantidade informada no arquivo do SCPI" em vez de "saldo do SCPI", preservando
+o WMS como fonte única do saldo.
+
 ## Riscos
 
 1. **Alerta mais longo empurra o CTA.** A copy cresce de uma linha para três
    nos dois alertas, e eles ficam logo acima do botão de confirmar. Abaixo de
    `sm` o botão já vive numa barra fixa no rodapé, então o CTA não sai da tela;
-   acima de `sm` o empurrão é de poucas dezenas de pixels. Aceito: o alerta só
+   acima de `sm` o deslocamento é de poucas dezenas de px. Aceito: o alerta só
    aparece quando a contagem é maior que zero, e é exatamente nesse caso que o
    texto precisa ser lido antes do botão.
 2. **Foco programático rouba a posição de rolagem.** Ao voltar do upload, o foco
