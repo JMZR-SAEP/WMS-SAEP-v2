@@ -188,15 +188,24 @@ Duas camadas, porque só a de comportamento não enxergaria um ramo novo escrito
 - **Comportamento**: parametrizado nas 13 variantes conhecidas mais uma desconhecida (14 casos) —
   cada render contém `max-w-48` e `min-w-0 break-words`;
 - **Estrutura**: `test_guarda_de_rotulo_longo_em_todos_os_ramos_do_arquivo` lê `badge.html` e
-  fatia o arquivo **por ramo**, não por contagem global. Cada ramo começa num `<span{% if role %}`
-  e termina no `</span>` de fecho da linha; o teste extrai esse bloco e afirma, **dentro dele**:
-  exatamente um `max-w-48` e exatamente um `min-w-0 break-words`.
+  fatia o arquivo **por ramo**, não por contagem global.
 
-  Comparar totais (`arquivo.count('min-w-0 break-words') == n_ramos`) seria falso conforto: dois
-  no ramo `blue` compensariam zero no ramo `teal` e o teste passaria. Por isso a asserção é por
-  bloco, e o teste também exige que o número de blocos encontrados seja igual ao número de
-  `{% if %}`/`{% elif %}`/`{% else %}` do arquivo — assim um ramo que não renderize `<span>`
-  nenhum não escapa da contagem.
+  A delimitação **não** pode ser por `{% if %}`/`{% elif %}`/`{% else %}` genérico nem pelo
+  primeiro `</span>`: cada ramo carrega condicionais internas (`{% if role %}`,
+  `{% if aria_label %}`, `{% if prefixo_sr %}`) e `<span>`s internos (`sr-only`, e agora o da
+  guarda), de modo que uma contagem ingênua de tags daria muito mais que 14 e o primeiro
+  `</span>` fecharia um filho, não a raiz.
+
+  A delimitação correta é pela **cadeia de variantes**: o teste corta o arquivo nos marcadores
+  `{% if variant == '...' %}`, `{% elif variant == '...' %}` e no `{% else %}` que fecha a cadeia
+  — os únicos que abrem ramo — e trata cada fatia como um ramo. Dentro de cada fatia afirma:
+  exatamente um `max-w-48` e exatamente um `min-w-0 break-words`. O teste também exige que o
+  número de fatias seja 14, para que um ramo novo não passe despercebido nem um ramo existente
+  possa ser removido em silêncio.
+
+  Comparar totais (`arquivo.count('min-w-0 break-words') == 14`) seria falso conforto: dois no
+  ramo `blue` compensariam zero no ramo `teal` e o teste passaria. Por isso a asserção é por
+  fatia.
 
   Um 15º ramo escrito sem guarda quebra este teste, que é o ponto: a guarda vale para os ramos que
   ainda não existem.
