@@ -4,7 +4,12 @@ Partials de domínio (ex. _estado_badge.html) mapeiam estado -> variant/label/ro
 
 Parâmetros:
   variant     (obrigatório) slate, blue, blue-strong, amber, amber-strong,
-              green, red, red-strong, orange, teal, indigo, violet, yellow
+              green, red, red-strong, orange, teal, indigo, violet, yellow.
+              Não pode conter `:` — esse caractere é delimitador reservado do
+              namespace `desconhecida:<valor>` usado por partial de domínio
+              para repassar um valor não mapeado ao fallback (ver
+              _estado_badge.html). Verificado por
+              test_nenhuma_variante_de_catalogo_contem_dois_pontos.
   label       (obrigatório) texto do badge
   prefixo_sr  (opcional) texto só-leitor-de-tela antes do label, para dar
               contexto ao dado ("Estado: ", "Tipo: "). Preferir a `aria_label`:

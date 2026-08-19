@@ -3,6 +3,7 @@
 import pathlib
 import re
 import xml.etree.ElementTree as ET
+from collections import Counter
 
 import pytest
 from django.template.loader import render_to_string
@@ -12,13 +13,28 @@ BADGE_TEMPLATE = BASE_DIR / 'apps' / 'core' / 'templates' / 'components' / 'badg
 
 VARIANTE_DESCONHECIDA = 'estado-que-nao-existe'
 
-# Famílias de paleta crua que o design system declara como exceção viva para
-# este arquivo (`docs/design-system.md`, regra "Token, nunca shade"): as quatro
-# variantes de catálogo que ainda não têm token semântico. Qualquer outra
-# família crua aqui é regressão.
-FAMILIAS_DE_CATALOGO_PERMITIDAS = {'orange', 'indigo', 'violet', 'yellow'}
+# Classes de paleta crua que o design system declara como exceção viva para
+# este arquivo (`docs/design-system.md`, regra "Token, nunca shade"): as
+# quatro variantes de catálogo que ainda não têm token semântico. Allowlist
+# por classe exata com contagem, no mesmo rigor de
+# apps/core/tests/test_tokens_semanticos.py — reaproveitar uma classe isenta
+# num ramo novo, ou colar um shade novo da mesma família, quebra o teste.
+CLASSES_DE_CATALOGO_PERMITIDAS = {
+    'bg-orange-100': 1,
+    'text-orange-900': 1,
+    'ring-orange-200': 1,
+    'bg-indigo-100': 1,
+    'text-indigo-900': 1,
+    'ring-indigo-200': 1,
+    'bg-violet-100': 1,
+    'text-violet-900': 1,
+    'ring-violet-200': 1,
+    'bg-yellow-100': 1,
+    'text-yellow-900': 1,
+    'ring-yellow-200': 1,
+}
 
-CLASSE_DE_PALETA_RE = re.compile(r'(?:bg|text|border|ring|divide)-([a-z]+)-\d')
+CLASSE_DE_PALETA_RE = re.compile(r'(?:bg|text|border|ring|divide)-[a-z]+-\d+')
 
 # Só a cadeia de variantes abre ramo. As condicionais internas de `role`,
 # `aria_label`, `prefixo_sr` e `label` são `{% if %}` também, então contar tag
@@ -271,12 +287,11 @@ def test_fallback_usa_token_semantico_e_nao_text_white():
 
 def test_badge_nao_tem_cor_crua_fora_das_quatro_variantes_de_catalogo():
     conteudo = BADGE_TEMPLATE.read_text(encoding='utf-8')
-    familias = set(CLASSE_DE_PALETA_RE.findall(conteudo))
-    assert familias == FAMILIAS_DE_CATALOGO_PERMITIDAS, (
-        'famílias de paleta crua fora da exceção declarada: '
-        f'{sorted(familias - FAMILIAS_DE_CATALOGO_PERMITIDAS)}; '
-        f'exceção que sumiu do arquivo: '
-        f'{sorted(FAMILIAS_DE_CATALOGO_PERMITIDAS - familias)}'
+    ocorrencias = dict(Counter(CLASSE_DE_PALETA_RE.findall(conteudo)))
+    assert ocorrencias == CLASSES_DE_CATALOGO_PERMITIDAS, (
+        'cor crua de badge.html não bate com a exceção declarada em '
+        f'CLASSES_DE_CATALOGO_PERMITIDAS. Encontrado={ocorrencias} '
+        f'Permitido={CLASSES_DE_CATALOGO_PERMITIDAS}'
     )
 
 
@@ -285,6 +300,24 @@ def test_badge_nao_usa_cor_crua_sem_shade():
     conteudo = BADGE_TEMPLATE.read_text(encoding='utf-8')
     assert 'text-white' not in conteudo
     assert 'bg-white' not in conteudo
+
+
+# ─── `:` é delimitador reservado do vocabulário de variant (issue #122) ───
+
+# Aspas simples ou duplas, com ou sem espaço em volta de `==`/`in` — não um
+# padrão textual fixo, senão uma variante declarada com aspas diferentes
+# escaparia da varredura.
+VARIANTE_LITERAL_RE = re.compile(r'variant\s*(?:==|in)\s*[\'\"]([^\'\"]+)[\'\"]')
+
+
+def test_nenhuma_variante_de_catalogo_contem_dois_pontos():
+    conteudo = BADGE_TEMPLATE.read_text(encoding='utf-8')
+    literais = VARIANTE_LITERAL_RE.findall(conteudo)
+    assert literais, 'a extração não achou nenhum literal — regex quebrou'
+    com_dois_pontos = [v for v in literais if ':' in v]
+    assert com_dois_pontos == [], (
+        f'variante(s) de catálogo contendo o delimitador reservado ":": {com_dois_pontos}'
+    )
 
 
 # ─── Guarda de rótulo longo nos 14 ramos (issue #121) ─────────────────────
