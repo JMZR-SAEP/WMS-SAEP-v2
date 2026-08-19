@@ -14,13 +14,24 @@ register = template.Library()
 
 
 @register.filter
-def minutos_totais(delta: timedelta | None) -> int | None:
+def minutos_totais(delta: object) -> int | None:
     """Converte um `timedelta` em minutos inteiros (piso), pra copy de prazo.
 
     Usado com `cooloff_timedelta` do django-axes, pra que a página de
     bloqueio de login nunca minta o prazo se `AXES_COOLOFF_TIME` mudar.
+
+    Testa o tipo, não `is None`. No permalock (`AXES_COOLOFF_TIME = None`) o
+    axes monta o contexto com `if cool_off:` e simplesmente não inclui a chave
+    (`axes.helpers`); o Django resolve a variável ausente como
+    `string_if_invalid`, que é `''` por padrão. O guarda anterior deixava essa
+    string passar e estourava em `''.total_seconds()` — ou seja, a tela de
+    bloqueio devolvia 500 exatamente na configuração que o comentário de
+    `accounts/login_bloqueado.html` diz suportar com "mensagem sem prazo".
+
+    Nenhum valor faz esta tela quebrar: quem a vê já está bloqueado e sem outra
+    saída na interface.
     """
-    if delta is None:
+    if not isinstance(delta, timedelta):
         return None
     return int(delta.total_seconds() // 60)
 

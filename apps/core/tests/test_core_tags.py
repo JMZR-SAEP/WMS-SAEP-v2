@@ -131,3 +131,81 @@ def test_compoe_aria_describedby_do_widget_com_ajuda_e_erro():
 )
 def test_formatar_quantidade(qtd, unidade, esperado):
     assert formatar_quantidade(qtd, unidade) == esperado
+
+
+class TestMinutosTotais:
+    """O prazo do bloqueio de login nunca é hardcoded na cópia.
+
+    O filtro existe para que `AXES_COOLOFF_TIME` possa mudar sem que alguém
+    lembre de editar o texto de `accounts/login_bloqueado.html`.
+    """
+
+    def _filtrar(self, valor):
+        from apps.core.templatetags.core_tags import minutos_totais
+
+        return minutos_totais(valor)
+
+    def test_timedelta_vira_minutos_inteiros(self):
+        from datetime import timedelta
+
+        assert self._filtrar(timedelta(minutes=15)) == 15
+
+    def test_arredonda_para_baixo(self):
+        from datetime import timedelta
+
+        assert self._filtrar(timedelta(seconds=119)) == 1
+
+    def test_none_devolve_none(self):
+        assert self._filtrar(None) is None
+
+    def test_variavel_ausente_devolve_none(self):
+        """Permalock: o axes omite `cooloff_timedelta` do contexto.
+
+        `axes.helpers` monta o contexto com `if cool_off:` — com
+        `AXES_COOLOFF_TIME = None` as chaves não entram. O Django resolve a
+        variável ausente como `string_if_invalid`, que é `''` por padrão, e o
+        guarda `is None` não pegava esse caso: a tela de bloqueio devolvia 500
+        exatamente na configuração que o comentário do template diz suportar.
+        """
+        assert self._filtrar('') is None
+
+    def test_valor_de_tipo_inesperado_devolve_none(self):
+        """Não pode estourar: esta é a tela que o usuário vê já bloqueado."""
+        assert self._filtrar('quinze minutos') is None
+        assert self._filtrar(15) is None
+
+
+class TestLoginBloqueadoSemPrazo:
+    """A tela de bloqueio precisa renderizar nas duas configurações do axes."""
+
+    def _render(self, **ctx):
+        from django.template.loader import render_to_string
+        from django.test import RequestFactory
+
+        return render_to_string(
+            'accounts/login_bloqueado.html', ctx, request=RequestFactory().get('/')
+        )
+
+    def test_com_prazo_mostra_os_minutos(self):
+        from datetime import timedelta
+
+        html = self._render(cooloff_timedelta=timedelta(minutes=15))
+        assert '15 minutos' in html
+
+    def test_sem_cooloff_renderiza_a_copia_sem_prazo(self):
+        """Permalock (`AXES_COOLOFF_TIME = None`): sem a chave no contexto."""
+        html = self._render()
+        assert 'Aguarde e tente novamente mais tarde.' in html
+        assert (
+            'minuto'
+            not in html.split('Aguarde e tente novamente mais tarde.')[0][-200:]
+        )
+
+    def test_cooloff_none_renderiza_a_copia_sem_prazo(self):
+        html = self._render(cooloff_timedelta=None)
+        assert 'Aguarde e tente novamente mais tarde.' in html
+
+    def test_nao_vaza_a_matricula_tentada(self):
+        """Repetir a matrícula transformaria a tela em oráculo de enumeração."""
+        html = self._render(username='joao.silva')
+        assert 'joao.silva' not in html
