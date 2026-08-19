@@ -21,10 +21,16 @@ pelo dono do produto antes de qualquer linha de código:
    regras" — passa a oito.
 2. **`apps/core/templates/components/alert.html`** deixa de mandar variante
    desconhecida para o azul de info. O `{% else %}` passa a ser o ramo do grito.
-3. **`apps/requisicoes/templates/requisicoes/partials/_estado_badge.html`**
-   deixa de mapear estado desconhecido para `variant="slate"`. Repassa o estado
-   cru como `variant`, deixando o fallback do `badge.html` fazer o trabalho que
-   ele já sabe fazer.
+3. **Os quatro partials de domínio que anulam o fallback** deixam de mapear
+   valor desconhecido para uma variante plausível. Cada um repassa o valor cru
+   como `variant`, deixando o fallback do `badge.html` fazer o trabalho que ele
+   já sabe fazer:
+   `requisicoes/partials/_estado_badge.html` (`slate`),
+   `estoque/partials/_badge_tipo_movimentacao.html` (`slate`),
+   `estoque/partials/_estado_saida_badge.html` (`teal`) e
+   `estoque/historico_importacoes_scpi.html` (`slate`).
+   Os três de estoque entraram no escopo por decisão do dono do produto depois
+   da primeira rodada de revisão: "em todo lugar" da Decisão A-1 é para valer.
 4. **`apps/core/tests/test_tokens_semanticos.py`** passa a enxergar as famílias
    que hoje ficam fora do regex, varre todos os templates do repositório em vez
    de só `components/` + `_messages.html`, e materializa a exceção declarada do
@@ -54,9 +60,11 @@ pelo dono do produto antes de qualquer linha de código:
 - **A lista de variantes de nenhum componente.** `badge.html` continua com 13
   variantes conhecidas + fallback; `alert.html` continua com `info`, `success`,
   `warning`, `danger`.
-- **O visual de qualquer variante conhecida.** Nenhuma classe muda em nenhum
-  ramo reconhecido, nem no `badge.html`, nem no `alert.html`, nem no
-  `_estado_badge.html`.
+- **O visual de qualquer valor que existe hoje.** Nenhuma classe muda em nenhum
+  ramo reconhecido — nem nos componentes globais, nem nos quatro partials de
+  domínio. Os três enums de estoque e o `EstadoRequisicao` continuam pintados
+  exatamente como estão, incluindo o `teal` de `estornada`, que ganha ramo
+  próprio justamente para não mudar.
 - **As quatro variantes de catálogo do `badge.html`** (`orange`, `indigo`,
   `violet`, `yellow`) continuam de pé, com cor crua. Elas são a exceção
   declarada no `docs/design-system.md`; o problema desta issue nunca foi a
@@ -77,6 +85,9 @@ pelo dono do produto antes de qualquer linha de código:
 | `docs/design-system.md` | Regra inviolável nova + contagem "Sete" → "Oito" |
 | `apps/core/templates/components/alert.html` | `{% else %}` vira ramo do grito; `info` ganha ramo explícito |
 | `apps/requisicoes/templates/requisicoes/partials/_estado_badge.html` | `{% else %}` repassa o estado cru como `variant` |
+| `apps/estoque/templates/estoque/partials/_badge_tipo_movimentacao.html` | Idem; `aria_label` sai do ramo do grito e vira `prefixo_sr` |
+| `apps/estoque/templates/estoque/partials/_estado_saida_badge.html` | Ramo explícito para `estornada` **antes** de o `{% else %}` gritar; mesma troca de `aria_label` |
+| `apps/estoque/templates/estoque/historico_importacoes_scpi.html` | `{% else %}` repassa `imp.status` cru como `variant` |
 | `apps/requisicoes/templates/requisicoes/partials/_confirmacao_acao.html` | `variant_token` "primary" → "info": alinhar ao vocabulário do `alert.html` (ver abaixo) |
 | `apps/requisicoes/templates/requisicoes/partials/_confirmacao_acao_corpo.html` | Mesma troca nas duas condicionais de cor |
 | `apps/requisicoes/templates/requisicoes/partials/_confirmacao_acao_banner_corpo.html` | Mesma troca na condicional de cor |
@@ -85,6 +96,7 @@ pelo dono do produto antes de qualquer linha de código:
 | `apps/core/tests/test_components_badge.py` | Guard local apertado para classe+contagem, no mesmo rigor do guard de repositório |
 | `apps/core/tests/test_components_alert.py` | Testes do grito de `alert.html` |
 | `apps/requisicoes/tests/test_partials.py` (novo) | Teste do estado não mapeado chegando ao fallback |
+| `apps/estoque/tests/test_partials.py` (novo) | Mesmos testes para os três partials de estoque |
 
 ## Desenho da implementação
 
@@ -192,6 +204,57 @@ dos dois partials de corpo trocam `variant_token == 'primary'` por
 Um teste fecha a rota: nenhum chamador de `alert.html` no repositório pode
 passar variante fora das quatro conhecidas. Sem ele, o próximo `variant_token`
 inventado só apareceria como grito vermelho numa tela de produção.
+
+### Os três partials de estoque — mesma correção, mesmo motivo
+
+Decisão do dono do produto, tomada depois da primeira rodada de revisão deste
+plano: a Decisão A-1 diz "em todo lugar", então **em todo lugar** inclui os três
+pontos de estoque que hoje mapeiam desconhecido para uma cor plausível. Deixá-los
+de fora criaria uma regra inviolável nova no `docs/design-system.md` com três
+violações vivas no dia em que ela nasce.
+
+| Arquivo | Enum | Ramos explícitos hoje | `{% else %}` hoje | Alcançável hoje? |
+|---|---|---|---|---|
+| `_badge_tipo_movimentacao.html:21-22` | `TipoMovimentacaoEstoque` (7 valores) | 7 | `slate` | Não |
+| `_estado_saida_badge.html:8-9` | `EstadoSaidaExcepcional` (2 valores) | 1 (`registrada`) | `teal` | **Sim** — é por onde passa `estornada` |
+| `historico_importacoes_scpi.html:31-37` | `StatusImportacaoSCPI` (2 valores) | 2 | `slate` | Não |
+
+Dois deles já cobrem o enum inteiro: o `{% else %}` é ramo morto que existe só
+para o valor futuro, e é exatamente aí que ele está armado para mentir. O
+terceiro é diferente e mais grave: o `_estado_saida_badge.html` usa o `{% else %}`
+como **ramo de verdade** — `estornada` chega ali. Então esse arquivo ganha um
+ramo `{% elif estado == 'estornada' %}` explícito com o `teal` de hoje, e só
+depois o `{% else %}` fica livre para gritar. Sem esse passo, a correção pintaria
+de vermelho todo estorno de saída excepcional em produção.
+
+Nos três, o `{% else %}` passa a repassar o valor cru como `variant`, como no
+`_estado_badge.html`. **Nenhuma cor muda em nenhum valor existente dos três
+enums.**
+
+#### O `aria_label` que tornaria o grito mudo
+
+`_badge_tipo_movimentacao.html` e `_estado_saida_badge.html` passam
+`aria_label="Estado: "|add:label` (e `"Tipo de movimentação: "|add:rotulo`), e o
+fallback do `badge.html` propaga `aria_label` literalmente — comportamento
+testado em `test_fallback_preserva_role_e_aria_label`.
+
+Consequência se nada mais mudasse: um badge visivelmente escrito "Indisponível"
+carregando `aria-label="Estado: Estornada"`. O nome acessível substitui o
+conteúdo, então quem usa leitor de tela ouviria o rótulo normal e **nunca**
+saberia que o componente falhou. Falha alta para quem enxerga, falha silenciosa
+para quem não enxerga — que é A-1 pela metade, e pior: discriminatória.
+
+Correção: no ramo do grito desses dois partials, **não** passar `aria_label`;
+passar `prefixo_sr` no lugar. O `badge.html` então compõe o nome acessível do
+jeito que o cabeçalho dele já promete — `sr-only` do prefixo + "Indisponível"
+visível + `sr-only` do rótulo real entre parênteses — e o leitor de tela ouve
+"Estado: Indisponível (Estornada)". Os ramos conhecidos seguem com o
+`aria_label` de hoje, intocados.
+
+O `role="status"` que esses dois partials passam **fica como está**, inclusive no
+ramo do grito. Ele contraria a orientação do cabeçalho do `badge.html` sobre
+badge de dado estático, mas isso é anterior a esta issue e mexer nele aqui seria
+trocar um achado por outro sem decisão que o cubra.
 
 ### `_estado_badge.html` — parar de anular o fallback
 
@@ -307,6 +370,28 @@ O teste usa um dublê leve com `.estado` e `.get_estado_display` em vez de tocar
 o banco: o partial só lê esses dois atributos, e `EstadoRequisicao` não aceita
 um nono valor para ser gravado de verdade.
 
+### Os três partials de estoque
+
+O mesmo quarteto de casos vale para cada um, com o dublê leve equivalente
+(`.tipo`/`rotulo`, `.estado`/`.get_estado_display`, `.status`/`.get_status_display`):
+
+| Caso | O que prova |
+|---|---|
+| Valor inexistente renderiza `Indisponível` visível | O partial parou de anular o fallback |
+| Valor inexistente emite `data-badge-variant` com o valor cru | O valor não some |
+| O rótulo real continua no HTML (em `sr-only`) | Nada de dado descartado |
+| Todos os valores canônicos de cada enum mantêm a variante de hoje | Nenhuma regressão de listagem |
+
+Mais três casos que só existem por causa do escopo ampliado:
+
+| Caso | O que prova |
+|---|---|
+| `estornada` em `_estado_saida_badge.html` continua `teal` | O ramo explícito novo cobriu o que o `{% else %}` cobria — sem ele, todo estorno viraria vermelho |
+| No grito, `_badge_tipo_movimentacao.html` e `_estado_saida_badge.html` **não** emitem `aria-label` | O nome acessível não substitui o sinal de falha |
+| No grito, o nome acessível resultante contém `Indisponível` **e** o rótulo real | A falha chega igual a quem usa leitor de tela |
+
+O penúltimo é o que impede A-1 de valer só para quem enxerga.
+
 ### Guard de cor crua
 
 | Caso | O que prova |
@@ -348,21 +433,12 @@ que é o jeito de o próprio teste virar o vazamento que ele deveria pegar.
 | Expandir a varredura para `apps/**/*.html` derruba a suíte por template não auditado | Varredura de confirmação já rodada: só `badge.html` e `modal.html` têm cor crua no repositório inteiro. A expansão nasce verde |
 | Regex mais largo passa a casar utility semântica com dígito (ex. `bg-primary-500`) | O projeto não tem token semântico com sufixo numérico, e o regex ancora na lista fechada de famílias do Tailwind, não em `[a-z]+`. O teste de varredura real na base atual é a prova |
 | `bg-danger` / `border-danger-hover` podem não estar compilados no `app.css` | O Tailwind v4 compila por scan de conteúdo; escrever a classe no template é o que a gera. `test_css_build_gera_tokens_e_utilities_novas` recebe as duas na lista de utilities esperadas |
+| `_estado_saida_badge.html` usa o `{% else %}` como ramo real (`estornada` passa por ele) — trocá-lo por grito pintaria todo estorno de vermelho | O ramo explícito `{% elif estado == 'estornada' %}` com o `teal` de hoje entra **antes**, e um teste dedicado cobra o `teal` desse estado. É o único dos quatro partials onde o `{% else %}` não é ramo morto |
+| O grito no estoque pode ficar mudo para leitor de tela, porque os dois partials passam `aria_label` e o fallback do `badge.html` o propaga literalmente | No ramo do grito, `aria_label` sai e `prefixo_sr` entra; teste cobra a ausência de `aria-label` e a presença de `Indisponível` + rótulo real no nome acessível |
 | Tornar `alert.html` mais barulhento pode mudar telas em produção | O grito só dispara para variante **fora** das quatro conhecidas. Varredura dos chamadores já feita: um único ponto dependia do `{% else %}` (`variant_token="primary"`), e ele vira correção de vocabulário, não exceção. Um teste passa a cobrar isso de todo chamador futuro |
 
-## Fora de escopo — achados vizinhos que esta issue não fecha
+## Fora de escopo
 
-Três partials de domínio têm o mesmo `{% else %}` silencioso que o
-`_estado_badge.html` tem hoje:
-
-- `apps/estoque/templates/estoque/partials/_badge_tipo_movimentacao.html:22` → `slate`
-- `apps/estoque/templates/estoque/partials/_estado_saida_badge.html:8-9` → `teal`
-- `apps/estoque/templates/estoque/historico_importacoes_scpi.html:36` → `slate`
-
-Eles **não** entram aqui: a Decisão A-1, como está escrita na issue, nomeia
-`alert.html` e `_estado_badge.html:25` como o conteúdo da opção, e os "três
-arquivos" do critério de aceite são `badge.html`, `alert.html` e
-`_estado_badge.html` — nenhum destes três de estoque. Ficam registrados aqui
-para virar issue própria — a política passa a existir nomeada no
-`docs/design-system.md`, então a migração deles ganha uma regra para citar em
-vez de depender de alguém lembrar desta conversa.
+Nada de dismiss, paridade `alert` × `_messages`, destrinchamento do `alert.html`
+ou a contradição do estorno no `DESIGN.md`. São as issues #119, #124, #127 e
+#128.
