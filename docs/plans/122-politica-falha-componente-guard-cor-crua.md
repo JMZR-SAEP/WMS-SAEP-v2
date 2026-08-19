@@ -22,9 +22,9 @@ pelo dono do produto antes de qualquer linha de código:
 2. **`apps/core/templates/components/alert.html`** deixa de mandar variante
    desconhecida para o azul de info. O `{% else %}` passa a ser o ramo do grito.
 3. **Os quatro partials de domínio que anulam o fallback** deixam de mapear
-   valor desconhecido para uma variante plausível. Cada um repassa o valor cru
-   como `variant`, deixando o fallback do `badge.html` fazer o trabalho que ele
-   já sabe fazer:
+   valor desconhecido para uma variante plausível. Cada um repassa o valor sob
+   o prefixo `desconhecida:`, que não pode colidir com variante do catálogo,
+   deixando o fallback do `badge.html` fazer o trabalho que ele já sabe fazer:
    `requisicoes/partials/_estado_badge.html` (`slate`),
    `estoque/partials/_badge_tipo_movimentacao.html` (`slate`),
    `estoque/partials/_estado_saida_badge.html` (`teal`) e
@@ -84,10 +84,10 @@ pelo dono do produto antes de qualquer linha de código:
 |---|---|
 | `docs/design-system.md` | Regra inviolável nova + contagem "Sete" → "Oito" |
 | `apps/core/templates/components/alert.html` | `{% else %}` vira ramo do grito; `info` ganha ramo explícito |
-| `apps/requisicoes/templates/requisicoes/partials/_estado_badge.html` | `{% else %}` repassa o estado cru como `variant` |
+| `apps/requisicoes/templates/requisicoes/partials/_estado_badge.html` | `{% else %}` repassa `"desconhecida:"|add:estado` como `variant` |
 | `apps/estoque/templates/estoque/partials/_badge_tipo_movimentacao.html` | Idem; `aria_label` sai do ramo do grito e vira `prefixo_sr` |
 | `apps/estoque/templates/estoque/partials/_estado_saida_badge.html` | Ramo explícito para `estornada` **antes** de o `{% else %}` gritar; mesma troca de `aria_label` |
-| `apps/estoque/templates/estoque/historico_importacoes_scpi.html` | `{% else %}` repassa `imp.status` cru como `variant` |
+| `apps/estoque/templates/estoque/historico_importacoes_scpi.html` | `{% else %}` repassa `"desconhecida:"|add:imp.status` como `variant` |
 | `apps/requisicoes/templates/requisicoes/partials/_confirmacao_acao.html` | `variant_token` "primary" → "info": alinhar ao vocabulário do `alert.html` (ver abaixo) |
 | `apps/requisicoes/templates/requisicoes/partials/_confirmacao_acao_corpo.html` | Mesma troca nas duas condicionais de cor |
 | `apps/requisicoes/templates/requisicoes/partials/_confirmacao_acao_banner_corpo.html` | Mesma troca na condicional de cor |
@@ -227,8 +227,9 @@ ramo `{% elif estado == 'estornada' %}` explícito com o `teal` de hoje, e só
 depois o `{% else %}` fica livre para gritar. Sem esse passo, a correção pintaria
 de vermelho todo estorno de saída excepcional em produção.
 
-Nos três, o `{% else %}` passa a repassar o valor cru como `variant`, como no
-`_estado_badge.html`. **Nenhuma cor muda em nenhum valor existente dos três
+Nos três, o `{% else %}` passa a repassar o valor sob o prefixo
+`desconhecida:`, como no `_estado_badge.html` — ver a justificativa do prefixo
+na seção desse partial. **Nenhuma cor muda em nenhum valor existente dos três
 enums.**
 
 #### O `aria_label` que tornaria o grito mudo
@@ -260,19 +261,50 @@ trocar um achado por outro sem decisão que o cubra.
 
 ```django
 {% else %}
-  {% include "components/badge.html" with variant=estado label=label prefixo_sr="Estado: " %}
+  {% include "components/badge.html" with variant="desconhecida:"|add:estado label=label prefixo_sr="Estado: " %}
 {% endif %}
 ```
 
-O partial repassa o estado cru como `variant`. Como nenhum valor de
-`EstadoRequisicao` fora dos oito mapeados existe no componente global, o
-`badge.html` cai no próprio fallback e rende "Estado: Indisponível (rótulo
-real)" com `data-badge-variant="<estado>"`. O `label` continua indo junto —
-o fallback do badge o preserva em `sr-only`, então nada de dado se perde.
+O `badge.html` cai no próprio fallback e rende "Estado: Indisponível (rótulo
+real)" com `data-badge-variant="desconhecida:<estado>"`. O `label` continua indo
+junto — o fallback do badge o preserva em `sr-only`, então nada de dado se perde.
 
 Os oito estados de `EstadoRequisicao` estão todos mapeados hoje, então este
 ramo é inalcançável em produção **agora**. Esse é o ponto: ele existe para o
 nono estado, e hoje ele está armado para mentir.
+
+#### Por que o prefixo `desconhecida:`, e não o valor cru
+
+A primeira versão deste plano repassava o valor cru direto. Isso deixa o
+fallback **dependendo de o domínio nunca bater com o catálogo visual**: um valor
+de enum que se chamasse `orange`, `teal` ou `slate` seria aceito pelo
+`badge.html` como variante legítima, pintaria a cor catalogada e o grito nunca
+aconteceria. Ou seja, a Decisão A-1 ficaria valendo por coincidência de
+vocabulário.
+
+Varredura feita: hoje a interseção é vazia nos quatro enums (`EstadoRequisicao`,
+`TipoMovimentacaoEstoque`, `EstadoSaidaExcepcional`, `StatusImportacaoSCPI` ×
+as 13 variantes do `badge.html`). Zero colisões — o achado é risco latente, não
+bug vivo. Mas "nenhum valor PT-BR do domínio vai se chamar `orange`" é uma regra
+sem mecanismo, que é exatamente a doença que esta issue trata.
+
+O prefixo resolve por construção: nenhuma das 13 variantes contém `:`, então
+`desconhecida:<valor>` não casa com ramo nenhum, sempre. Duas alternativas
+foram descartadas:
+
+- **Sentinela fixa** (`variant="__desconhecida__"`): mataria o
+  `data-badge-variant`, que passaria a mostrar sempre a mesma constante em vez
+  do valor que causou a falha — e o atributo de depuração é metade da razão de
+  o fallback existir. Precisaria de um parâmetro novo no `badge.html` só para
+  transportar o valor cru.
+- **Teste de interseção** (afirmar que os enums e as variantes são disjuntos):
+  é guarda, não correção. Continuaria dependendo de alguém rodar a suíte no dia
+  em que o valor colidente nascesse, em vez de tornar a colisão impossível.
+
+O prefixo custa uma linha por partial, não mexe na API do `badge.html` e usa o
+filtro `add` que o repositório já aplica em `aria_label="Estado: "|add:label`.
+Com ele, o caso de colisão vira teste que **passa**: `estado='orange'` renderiza
+"Indisponível", não um badge laranja.
 
 ### O guard de cor crua
 
@@ -362,7 +394,8 @@ Cada comportamento abaixo vira um ciclo RED → GREEN.
 | Caso | O que prova |
 |---|---|
 | Estado inexistente renderiza `Indisponível` visível | O partial parou de anular o fallback |
-| Estado inexistente emite `data-badge-variant` com o estado cru | O valor não some |
+| Estado inexistente emite `data-badge-variant="desconhecida:<estado>"` | O valor não some |
+| **Estado `orange`** renderiza `Indisponível`, não um badge laranja | Colisão com nome de variante do catálogo é impossível, não improvável |
 | O rótulo real continua no HTML (em `sr-only`) | Nada de dado descartado |
 | Os oito estados canônicos mantêm a variante de hoje | Nenhuma regressão de listagem |
 
@@ -378,7 +411,8 @@ O mesmo quarteto de casos vale para cada um, com o dublê leve equivalente
 | Caso | O que prova |
 |---|---|
 | Valor inexistente renderiza `Indisponível` visível | O partial parou de anular o fallback |
-| Valor inexistente emite `data-badge-variant` com o valor cru | O valor não some |
+| Valor inexistente emite `data-badge-variant="desconhecida:<valor>"` | O valor não some |
+| **Valor `orange`** renderiza `Indisponível`, não um badge laranja | Idem, nos três partials |
 | O rótulo real continua no HTML (em `sr-only`) | Nada de dado descartado |
 | Todos os valores canônicos de cada enum mantêm a variante de hoje | Nenhuma regressão de listagem |
 
@@ -414,8 +448,9 @@ que é o jeito de o próprio teste virar o vazamento que ele deveria pegar.
 
 - **Componente global não conhece enum de domínio.** O `_estado_badge.html`
   continua sendo quem traduz estado → variante; o `badge.html` continua sem
-  saber o que é uma requisição. Repassar o estado cru como `variant` não ensina
-  domínio ao componente: para ele é só uma string que não casa com nenhum ramo.
+  saber o que é uma requisição. Repassar `desconhecida:<estado>` como `variant`
+  não ensina domínio ao componente: para ele é só uma string que não casa com
+  nenhum ramo, e o prefixo garante que ela nunca case.
 - **Badge de dado estático não é live region.** Nada nesta mudança adiciona
   `role="status"`/`alert` ao `badge.html` — `test_estado_badge_nao_e_live_region`
   (`apps/requisicoes/tests/test_views.py:3842`) continua valendo.
@@ -434,6 +469,7 @@ que é o jeito de o próprio teste virar o vazamento que ele deveria pegar.
 | Regex mais largo passa a casar utility semântica com dígito (ex. `bg-primary-500`) | O projeto não tem token semântico com sufixo numérico, e o regex ancora na lista fechada de famílias do Tailwind, não em `[a-z]+`. O teste de varredura real na base atual é a prova |
 | `bg-danger` / `border-danger-hover` podem não estar compilados no `app.css` | O Tailwind v4 compila por scan de conteúdo; escrever a classe no template é o que a gera. `test_css_build_gera_tokens_e_utilities_novas` recebe as duas na lista de utilities esperadas |
 | `_estado_saida_badge.html` usa o `{% else %}` como ramo real (`estornada` passa por ele) — trocá-lo por grito pintaria todo estorno de vermelho | O ramo explícito `{% elif estado == 'estornada' %}` com o `teal` de hoje entra **antes**, e um teste dedicado cobra o `teal` desse estado. É o único dos quatro partials onde o `{% else %}` não é ramo morto |
+| Repassar o valor de domínio como `variant` faz o fallback depender de o domínio nunca bater com o catálogo visual — um enum com valor `orange`/`teal`/`slate` seria pintado como variante legítima e o grito não aconteceria | O valor vai prefixado por `desconhecida:`, e nenhuma das 13 variantes contém `:`. Colisão passa a ser impossível por construção, não improvável por vocabulário. Interseção hoje já é vazia nos quatro enums, e um teste por partial usa `orange` como entrada |
 | O grito no estoque pode ficar mudo para leitor de tela, porque os dois partials passam `aria_label` e o fallback do `badge.html` o propaga literalmente | No ramo do grito, `aria_label` sai e `prefixo_sr` entra; teste cobra a ausência de `aria-label` e a presença de `Indisponível` + rótulo real no nome acessível |
 | Tornar `alert.html` mais barulhento pode mudar telas em produção | O grito só dispara para variante **fora** das quatro conhecidas. Varredura dos chamadores já feita: um único ponto dependia do `{% else %}` (`variant_token="primary"`), e ele vira correção de vocabulário, não exceção. Um teste passa a cobrar isso de todo chamador futuro |
 
