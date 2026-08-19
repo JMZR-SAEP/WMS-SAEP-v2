@@ -28,6 +28,12 @@ O ramo passa a emitir, na ordem:
 O leitor de tela passa a ouvir "Estado: Indisponível (Aguardando autorização)": o alerta primeiro,
 o dado original em seguida. Nada some da tela e nada some da árvore de acessibilidade.
 
+**`role` e `aria_label` continuam propagados literalmente no ramo, sem mudança.** Eles já vinham
+sendo emitidos pelo `{% else %}` de hoje e continuam sendo — a reescrita do ramo é aditiva, não
+substitui a assinatura de abertura do `<span>`. Como o ramo inteiro é reescrito, essa preservação
+deixa de ser óbvia por leitura do diff, então ela ganha teste próprio
+(`test_fallback_preserva_role_e_aria_label`) em vez de ficar só declarada aqui.
+
 Além disso o ramo ganha `data-badge-variant="{{ variant }}"`. A issue diz, no diagnóstico do
 defeito 1, que "o valor cru que não foi mapeado não aparece em lugar nenhum" — e o valor que **não
 foi mapeado** é a `variant`, não o `label`. O `sr-only` resolve o lado do leitor de tela; o
@@ -138,13 +144,28 @@ Testes de comportamento, renderizando o template com `render_to_string` (o `dete
 Impeccable devolve `[]` para este arquivo porque 100% do estado visual vive dentro de `{% if %}`;
 a única medição válida é renderizar pelo engine do Django):
 
-- `test_fallback_emite_prefixo_sr` — variante desconhecida + `prefixo_sr="Estado: "` → o `sr-only`
-  com "Estado: " está no HTML;
-- `test_fallback_preserva_label` — variante desconhecida + `label="Aguardando autorização"` → o
-  rótulo está no HTML;
-- `test_fallback_mantem_o_sinal_indisponivel` — "Indisponível" continua no HTML (o `label` não
-  substitui o sinal);
-- `test_fallback_expoe_variant_crua_para_depuracao` — `data-badge-variant="estado-que-nao-existe"`;
+**Asserção por estrutura, não por substring.** `assert 'Estado: ' in html` passaria com o prefixo
+visível, fora do `sr-only`, ou na ordem errada — os três defeitos que estes testes existem para
+impedir. Os testes do fallback parseiam o HTML renderizado com
+`xml.etree.ElementTree.fromstring` (o badge é um único elemento bem-formado, sem dependência
+nova) e afirmam sobre a árvore: quais filhos existem, com que classe, e em que ordem o texto
+aparece.
+
+- `test_fallback_emite_prefixo_sr_dentro_de_sr_only` — variante desconhecida +
+  `prefixo_sr="Estado: "` → existe um `<span class="sr-only">` cujo texto é exatamente
+  `Estado: `, e ele é o **primeiro** filho do badge;
+- `test_fallback_mantem_indisponivel_como_texto_visivel` — a string "Indisponível" está no texto
+  **fora** de qualquer `sr-only`, ou seja, no conteúdo visível do badge;
+- `test_fallback_preserva_label_em_sr_only_depois_do_sinal` — o `label` recebido aparece dentro de
+  um `<span class="sr-only">`, entre parênteses, e a posição desse `sr-only` na árvore é
+  **posterior** à do texto visível "Indisponível";
+- `test_fallback_preserva_role_e_aria_label` — variante desconhecida + `role="status"` +
+  `aria_label="Estado: Indisponível"` → ambos os atributos no elemento raiz, com o valor recebido
+  (contrato que já existia e não pode se perder na reescrita do ramo);
+- `test_fallback_expoe_variant_crua_para_depuracao` — o elemento raiz tem
+  `data-badge-variant="estado-que-nao-existe"`;
+- `test_fallback_sem_label_nao_emite_parenteses_vazios` — sem `label`, não existe `sr-only` com
+  `()`;
 - `test_fallback_sem_prefixo_sr_nao_inventa_sr_only` — sem `prefixo_sr`, o único `sr-only` do
   fallback é o do `label`.
 
@@ -166,9 +187,17 @@ Duas camadas, porque só a de comportamento não enxergaria um ramo novo escrito
 
 - **Comportamento**: parametrizado nas 13 variantes conhecidas mais uma desconhecida (14 casos) —
   cada render contém `max-w-48` e `min-w-0 break-words`;
-- **Estrutura**: `test_guarda_de_rotulo_longo_em_todos_os_ramos_do_arquivo` lê `badge.html`, conta
-  os `<span>` raiz (a assinatura `<span{% if role %}` aparece uma vez por ramo) e exige que
-  **cada um** carregue `max-w-48`, e que o arquivo tenha tantos `min-w-0 break-words` quanto ramos.
+- **Estrutura**: `test_guarda_de_rotulo_longo_em_todos_os_ramos_do_arquivo` lê `badge.html` e
+  fatia o arquivo **por ramo**, não por contagem global. Cada ramo começa num `<span{% if role %}`
+  e termina no `</span>` de fecho da linha; o teste extrai esse bloco e afirma, **dentro dele**:
+  exatamente um `max-w-48` e exatamente um `min-w-0 break-words`.
+
+  Comparar totais (`arquivo.count('min-w-0 break-words') == n_ramos`) seria falso conforto: dois
+  no ramo `blue` compensariam zero no ramo `teal` e o teste passaria. Por isso a asserção é por
+  bloco, e o teste também exige que o número de blocos encontrados seja igual ao número de
+  `{% if %}`/`{% elif %}`/`{% else %}` do arquivo — assim um ramo que não renderize `<span>`
+  nenhum não escapa da contagem.
+
   Um 15º ramo escrito sem guarda quebra este teste, que é o ponto: a guarda vale para os ramos que
   ainda não existem.
 
@@ -184,7 +213,7 @@ sintético de 40+ caracteres, antes e depois.
 |---|---|
 | Caminho feliz | as 13 variantes conhecidas continuam produzindo as mesmas classes de cor, o mesmo `rounded-full` e o mesmo `label` visível — os testes existentes de `test_components_badge.py` seguem verdes sem edição |
 | Contrato do componente | `role` e `aria_label` continuam propagados literalmente e continuam ausentes por padrão (testes existentes); `prefixo_sr` agora vale nos 14 ramos, não em 13 |
-| Caso de borda | variante desconhecida: sinal preservado, `prefixo_sr` preservado, `label` preservado, `variant` crua exposta |
+| Caso de borda | variante desconhecida: sinal preservado, `prefixo_sr` preservado, `label` preservado, `role`/`aria_label` preservados, `variant` crua exposta |
 | Regressão de sistema | zero cor crua fora das 4 de catálogo; utility do token novo realmente compilada no `app.css` |
 | Regressão estrutural | guarda de rótulo longo presente em **todos** os ramos do arquivo, incluindo os que forem escritos depois |
 
@@ -224,6 +253,9 @@ Os invariantes de fato relevantes aqui são os do design system, e todos os cinc
 
 ## Ordem de execução
 
+0. **Confirmar a branch atual** com `git branch --show-current` antes de qualquer commit — o
+   `AGENTS.md` proíbe commitar direto na `main`, e a checagem vale para todos os commits desta
+   ordem, não só para o primeiro.
 1. Plano commitado e revisado (esta etapa).
 2. **RED**: testes do defeito 1 (fallback) — falham contra o template atual.
 3. **GREEN**: reescrever o ramo `{% else %}` de `badge.html`.
