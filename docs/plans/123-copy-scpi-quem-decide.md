@@ -196,7 +196,7 @@ necessária. `test_modal_de_confirmacao_recapitula_os_numeros_a_gravar` depende 
 Validação a executar **depois** da implementação — nada aqui é resultado já
 obtido:
 
-```
+```bash
 uv run pytest -q -ra --tb=short --strict-markers --disable-warnings -n logical
 uv run ruff check .
 uv run ruff format --check .
