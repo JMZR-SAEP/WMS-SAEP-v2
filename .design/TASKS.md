@@ -20,7 +20,7 @@ Data: 2026-05-21 | Última sincronização: 2026-06-23
 
 - [ ] **Componente `status_badge.html`**: implementar `<span>` compacto com parâmetros `variant` (slate/blue/amber/green/red/teal) e `label`. Sem semântica de domínio. _Novo componente._
 
-- [x] **Refatorar `_messages.html`**: aplicar tokens semânticos — `success`→verde, `error`→vermelho, `warning`→âmbar, `info`→slate. `role="alert"` para error/warning, `role="status"` para success/info. Auto-dismiss 8s para success/info via Alpine.js. _Modifica: `apps/core/templates/core/partials/_messages.html`._
+- [x] **Refatorar `_messages.html`**: aplicar tokens semânticos — `success`→verde, `error`→vermelho, `warning`→âmbar, `info`→slate. `role="alert"` para error/warning, `role="status"` para success/info. Auto-dismiss 8s para success/info via Alpine.js. _Modifica: `apps/core/templates/core/partials/_messages.html`._ _Os tokens e os roles saíram nesta tarefa; o auto-dismiss e o botão de fechar ficaram de fora e só chegaram na issue #119 — esta linha esteve marcada como concluída enquanto metade dela não existia._
 
 ---
 

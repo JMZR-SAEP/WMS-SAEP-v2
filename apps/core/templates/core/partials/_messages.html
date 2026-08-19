@@ -1,38 +1,48 @@
-{% if messages %}
+{% load core_tags %}
 {% comment %}
+Faixas de flash message do Django. Contrato em docs/CONVENTIONS.md, §Níveis e ARIA.
+
 Os wrappers não declaram aria-live: cada item já traz role="alert" (assertivo)
 ou role="status" (polite), que implicam a live region. Declarar nos dois níveis
 faz o leitor de tela anunciar a mesma mensagem duas vezes.
-Erros e avisos vêm primeiro na ordem do DOM, por serem assertivos.
+
+O role vive num nó que contém *só* o texto. Com o botão de fechar dentro dele, o
+anúncio viraria "Erro tal — Fechar mensagem, botão".
+
+A lista vem de `mensagens_visiveis` (apps/core/templatetags/core_tags.py), que
+descarta `debug` e ordena assertivo antes de polido. Iterar `messages` aqui seria
+errado por dois motivos: o wrapper renderizaria vazio num storage só com `debug`
+(que é verdadeiro), e a segunda passada dependeria de o BaseStorage ser
+re-iterável — detalhe de framework que este arquivo não tem por que conhecer.
+
+Auto-dismiss assimétrico, e o motivo é WCAG 2.2.1 (Timing Adjustable): a norma
+exige poder desligar, ajustar ou estender qualquer limite de tempo.
+- `success`/`info` somem em 8s porque a informação continua na tela depois disso
+  (o badge de estado, a linha na listagem, a tela de destino do redirect). A
+  faixa é a confirmação, não a fonte.
+- `warning`/`error` nunca somem sozinhos: neles a faixa *é* a fonte.
+- O timer pausa em hover e em focus-within, e retoma de onde parou.
+Fluxo novo que emitir success/info sem essa redundância deve usar warning.
+
+`auto` é passado explicitamente nos quatro níveis: assim a ausência de timer é
+declaração legível, e o teste que a protege é asserção positiva sobre
+`auto: false` — não asserção de ausência, que passa vacuamente quando o atributo
+muda de nome ou o item deixa de renderizar.
 {% endcomment %}
+{% with visiveis=messages|mensagens_visiveis %}
+{% if visiveis %}
 <div class="space-y-2">
-  {% for message in messages %}
+  {% for message in visiveis %}
     {% if message.level_tag == 'warning' %}
-      <div role="alert" class="mb-2 flex items-start gap-2 rounded-md border border-warning-border bg-warning-subtle px-3 py-2 text-sm text-warning-text-strong">
-        <svg aria-hidden="true" class="mt-0.5 h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.169 2.625-1.515 2.625H3.72c-1.346 0-2.188-1.458-1.515-2.625L8.485 2.495ZM10 6a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 6Zm0 7a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z" clip-rule="evenodd"/></svg>
-        <span>{{ message }}</span>
-      </div>
+      {% include "core/partials/_message_item.html" with variante="warning" auto="false" role="alert" caixa="border-warning-border bg-warning-subtle text-warning-text-strong" foco="focus-visible:ring-warning" %}
     {% elif message.level_tag == 'error' %}
-      <div role="alert" class="mb-2 flex items-start gap-2 rounded-md border border-danger-border bg-danger-subtle px-3 py-2 text-sm text-danger-text-emphasis">
-        <svg aria-hidden="true" class="mt-0.5 h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16Zm-.75-11.25a.75.75 0 0 1 1.5 0v4.5a.75.75 0 0 1-1.5 0v-4.5ZM10 14a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z" clip-rule="evenodd"/></svg>
-        <span>{{ message }}</span>
-      </div>
-    {% endif %}
-  {% endfor %}
-</div>
-<div class="space-y-2">
-  {% for message in messages %}
-    {% if message.level_tag == 'success' %}
-      <div role="status" class="mb-2 flex items-start gap-2 rounded-md border border-success-border bg-success-subtle px-3 py-2 text-sm text-success-text-emphasis">
-        <svg aria-hidden="true" class="mt-0.5 h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 5.29a1 1 0 0 1 .006 1.415l-7.5 7.55a1 1 0 0 1-1.42.004L3.29 9.79a1 1 0 1 1 1.42-1.41l3.79 3.812 6.79-6.836a1 1 0 0 1 1.414-.006Z" clip-rule="evenodd"/></svg>
-        <span>{{ message }}</span>
-      </div>
-    {% elif message.level_tag != 'error' and message.level_tag != 'warning' %}
-      <div role="status" class="mb-2 flex items-start gap-2 rounded-md border border-primary-border bg-primary-subtle px-3 py-2 text-sm text-primary-text-emphasis">
-        <svg aria-hidden="true" class="mt-0.5 h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16Zm.75-11.25a.75.75 0 0 0-1.5 0v.5a.75.75 0 0 0 1.5 0v-.5ZM9.25 9a.75.75 0 0 1 1.5 0v4.5a.75.75 0 0 1-1.5 0V9Z" clip-rule="evenodd"/></svg>
-        <span>{{ message }}</span>
-      </div>
+      {% include "core/partials/_message_item.html" with variante="error" auto="false" role="alert" caixa="border-danger-border bg-danger-subtle text-danger-text-emphasis" foco="focus-visible:ring-danger-accent" %}
+    {% elif message.level_tag == 'success' %}
+      {% include "core/partials/_message_item.html" with variante="success" auto="true" role="status" caixa="border-success-border bg-success-subtle text-success-text-emphasis" foco="focus-visible:ring-success" %}
+    {% else %}
+      {% include "core/partials/_message_item.html" with variante="info" auto="true" role="status" caixa="border-primary-border bg-primary-subtle text-primary-text-emphasis" foco="focus-visible:ring-border-focus" %}
     {% endif %}
   {% endfor %}
 </div>
 {% endif %}
+{% endwith %}

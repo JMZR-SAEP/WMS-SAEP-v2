@@ -6,7 +6,7 @@ import pytest
 from django.template.loader import render_to_string
 
 from apps.core.templatetags.core_tags import _VARIANTES_BOTAO
-from apps.core.tests.marcacao import TAGS_DJANGO, classes, elementos
+from apps.core.tests.marcacao import TAGS_DJANGO, atributo, classes, elementos
 
 
 def _render(**ctx):
@@ -712,3 +712,219 @@ def test_params_dinamicos_removidos_nao_voltam_por_engano():
     corpo = marcacao[marcacao.index('{% endcomment %}') :]
     for param in ('spinner_show', 'label_bind', 'x_disabled', 'x_aria_busy'):
         assert param not in corpo, f'`{param}` voltou ao corpo de button.html'
+
+
+class TestMessagesDismiss:
+    """O contrato de dismiss de docs/CONVENTIONS.md, §Níveis e ARIA.
+
+    O contrato foi decidido, documentado e nunca implementado — e dois
+    documentos passaram a afirmar que existia. Estes testes são o mecanismo que
+    faltava: `docs/design-system.md` avisa que regra sem mecanismo vira sugestão,
+    e neste conjunto de arquivos isso já aconteceu três vezes.
+    """
+
+    NIVEIS = ('error', 'warning', 'success', 'info')
+
+    def _render(self, *niveis, texto=None):
+        from django.contrib import messages as django_messages
+        from django.contrib.messages.storage.fallback import FallbackStorage
+        from django.template.loader import render_to_string
+        from django.test import RequestFactory
+
+        request = RequestFactory().get('/')
+        request.session = {}
+        request._messages = FallbackStorage(request)
+        for indice, nivel in enumerate(niveis):
+            getattr(django_messages, nivel)(
+                request, texto or f'Mensagem {nivel} {indice}'
+            )
+        return render_to_string('core/partials/_messages.html', request=request)
+
+    def _itens(self, html):
+        """Elementos que carregam `x-data` — um por mensagem renderizada."""
+        return [
+            (attrs, linha)
+            for _, attrs, linha in elementos(html, 'div')
+            if atributo(attrs, 'x-data')
+        ]
+
+    @pytest.mark.parametrize('nivel', NIVEIS)
+    def test_botao_de_fechar_presente_no_nivel(self, nivel):
+        html = self._render(nivel)
+        rotulos = [
+            atributo(attrs, 'aria-label') for _, attrs, _ in elementos(html, 'button')
+        ]
+        assert rotulos == ['Fechar mensagem']
+
+    @pytest.mark.parametrize('nivel', NIVEIS)
+    def test_botao_de_fechar_respeita_o_piso_de_44px(self, nivel):
+        html = self._render(nivel)
+        (attrs,) = [attrs for _, attrs, _ in elementos(html, 'button')]
+        assert {'min-h-11', 'min-w-11'} <= classes(attrs)
+
+    @pytest.mark.parametrize('nivel', NIVEIS)
+    def test_dismiss_e_um_button_nativo(self, nivel):
+        """`<div @click>` não é focável nem responde a Enter/Espaço.
+
+        O critério "dispensável só pelo teclado" é satisfeito pela escolha do
+        elemento, não por handler de teclado — então é o elemento que o teste
+        protege.
+        """
+        html = self._render(nivel)
+        (attrs,) = [attrs for _, attrs, _ in elementos(html, 'button')]
+        assert atributo(attrs, 'type') == 'button'
+
+    @pytest.mark.parametrize('nivel', NIVEIS)
+    def test_botao_fica_fora_do_no_que_carrega_o_role(self, nivel):
+        """Botão irmão do texto dentro do nó com role entra no anúncio.
+
+        O leitor de tela leria "Erro tal — Fechar mensagem, botão". O role vive
+        num wrapper que contém só o texto.
+        """
+        html = self._render(nivel)
+        for _, attrs, linha in elementos(html, 'div'):
+            if atributo(attrs, 'role') not in {'alert', 'status'}:
+                continue
+            fim = html.index('</div>', html.index(attrs) + len(attrs))
+            assert '<button' not in html[html.index(attrs) + len(attrs) : fim], (
+                f'botão dentro da live region na linha {linha}'
+            )
+
+    def test_contagem_de_role_permanece_uma_por_mensagem(self):
+        """Espelha apps/requisicoes/tests/test_views.py:2713, que não muda."""
+        html = self._render('error', 'success')
+        assert html.count('role="alert"') == 1
+        assert html.count('role="status"') == 1
+        assert 'aria-live=' not in html
+
+    @pytest.mark.parametrize('nivel', ('success', 'info'))
+    def test_success_e_info_pedem_auto_dismiss(self, nivel):
+        html = self._render(nivel)
+        ((attrs, _),) = self._itens(html)
+        assert 'auto: true' in atributo(attrs, 'x-data')
+
+    @pytest.mark.parametrize('nivel', ('warning', 'error'))
+    def test_warning_e_error_declaram_auto_false(self, nivel):
+        """Asserção positiva, não de ausência.
+
+        Procurar por "não tem auto" passaria vacuamente se o atributo mudasse de
+        nome, sumisse, ou o item deixasse de renderizar — o mesmo buraco de
+        `test_nenhum_controle_abaixo_do_piso_de_44px`, que procura `min-h-9` e
+        `min-h-10` e por isso não enxerga piso nenhum.
+        """
+        html = self._render(nivel)
+        ((attrs, _),) = self._itens(html)
+        assert 'auto: false' in atributo(attrs, 'x-data')
+
+    @pytest.mark.parametrize('nivel', ('warning', 'error'))
+    def test_warning_e_error_mantem_dismiss_manual(self, nivel):
+        """Não ter timer não pode virar não ter saída."""
+        html = self._render(nivel)
+        assert 'Fechar mensagem' in html
+
+    @pytest.mark.parametrize('nivel', ('success', 'info'))
+    def test_timer_pausa_em_hover_e_em_foco(self, nivel):
+        html = self._render(nivel)
+        ((attrs, _),) = self._itens(html)
+        for evento in ('@mouseenter', '@mouseleave', '@focusin', '@focusout'):
+            assert atributo(attrs, evento), f'{evento} ausente'
+
+    def test_motivo_da_assimetria_esta_registrado_no_template(self):
+        """WCAG 2.2.1 é a razão de warning/error não terem timer.
+
+        Sem o motivo no arquivo, a próxima pessoa "uniformiza" o comportamento.
+        """
+        from pathlib import Path
+
+        raiz = Path(__file__).resolve().parents[3]
+        texto = (raiz / 'apps/core/templates/core/partials/_messages.html').read_text()
+        assert '2.2.1' in texto
+
+    def test_debug_nao_chega_ao_usuario_final(self):
+        html = self._render('debug')
+        assert 'Mensagem debug' not in html
+        assert self._itens(html) == []
+
+    def test_sem_mensagens_visiveis_nao_sobra_wrapper(self):
+        """`{% if messages %}` seria verdadeiro com um storage só de debug."""
+        assert self._render('debug').strip() == ''
+
+    def test_um_mecanismo_de_espacamento_so(self):
+        """`space-y-2` no wrapper e `mb-2` nos filhos dobravam o respiro."""
+        from pathlib import Path
+
+        raiz = Path(__file__).resolve().parents[3]
+        texto = (raiz / 'apps/core/templates/core/partials/_messages.html').read_text()
+        assert not ('space-y-2' in texto and 'mb-2' in texto)
+
+    def test_assertivas_precedem_polidas_no_dom(self):
+        html = self._render('success', 'error')
+        assert html.index('Mensagem error') < html.index('Mensagem success')
+
+
+class TestMensagensNasTelasDeAuth:
+    """Depois do logout, "Sessão encerrada." precisa ser vista.
+
+    `login.html` incluía `_messages.html` antes do wrapper de 100vh: no celular
+    o usuário via só o card e nunca a confirmação. `login_bloqueado.html` não
+    incluía o partial, então qualquer mensagem enfileirada antes do 429 do axes
+    sumia sem rastro.
+    """
+
+    def _render(self, template, nivel='info', texto='Sessão encerrada.', **ctx):
+        from datetime import timedelta
+
+        from django.contrib import messages as django_messages
+        from django.contrib.messages.storage.fallback import FallbackStorage
+        from django.template.loader import render_to_string
+        from django.test import RequestFactory
+
+        # O axes sempre injeta este contexto na tela de bloqueio. Sem ele, o
+        # `minutos_totais` estoura antes de o teste chegar ao que interessa.
+        ctx.setdefault('cooloff_timedelta', timedelta(minutes=30))
+        request = RequestFactory().get('/')
+        request.session = {}
+        request._messages = FallbackStorage(request)
+        getattr(django_messages, nivel)(request, texto)
+        return render_to_string(template, ctx, request=request)
+
+    def test_login_renderiza_a_faixa_uma_vez(self):
+        html = self._render('accounts/login.html')
+        assert html.count('Sessão encerrada.') == 1
+
+    def test_login_renderiza_a_faixa_dentro_do_bloco_centralizado(self):
+        """Fora dele, a mensagem fica acima de uma dobra de 100vh."""
+        html = self._render('accounts/login.html')
+        assert html.index('min-h-screen') < html.index('Sessão encerrada.')
+
+    def test_login_bloqueado_renderiza_a_faixa_uma_vez(self):
+        html = self._render('accounts/login_bloqueado.html')
+        assert html.count('Sessão encerrada.') == 1
+
+    def test_login_bloqueado_conta_a_faixa_e_nao_o_alerta_fixo(self):
+        """O alerta de bloqueio é components/alert.html, não flash message.
+
+        Contá-lo mascararia justamente o caso de a faixa estar ausente.
+        """
+        html = self._render('accounts/login_bloqueado.html')
+        assert 'Tentativas de acesso demais' in html
+        assert 'Fechar mensagem' in html
+
+    @pytest.mark.parametrize(
+        'template',
+        ('base_auth.html', 'accounts/login.html', 'accounts/login_bloqueado.html'),
+    )
+    def test_ancora_de_foco_existe_nos_tres_layouts(self, template):
+        """Destino do foco depois do dismiss por teclado.
+
+        `login_bloqueado.html` não tem nenhum outro elemento focável no card —
+        é só texto —, então sem a âncora o foco cairia no body justamente na
+        tela que mais precisa dela.
+        """
+        html = self._render(template)
+        (attrs,) = [
+            attrs
+            for _, attrs, _ in elementos(html, 'main')
+            if atributo(attrs, 'id') == 'conteudo'
+        ]
+        assert atributo(attrs, 'tabindex') == '-1'

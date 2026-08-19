@@ -68,7 +68,9 @@ porque operam em camadas diferentes.
 linhas 172-181):** essa exigência é do contrato de flash messages do Django
 (`messages.error`/`messages.warning`/etc.), renderizado por
 `apps/core/templates/core/partials/_messages.html` — que tem markup e JS de
-dismiss próprios, **não usa `alert.html` hoje** e não é tocado por este plano
+dismiss próprios (implementados na issue #119; à época deste plano o contrato
+estava documentado mas não existia em código, e este parágrafo afirmava o
+contrário), **não usa `alert.html` hoje** e não é tocado por este plano
 (já listado em "Fora de escopo" da issue original: "Reestilizar `_messages.html`
 ... não nesta issue"). `alert.html` é um componente distinto, para banners de
 página/formulário estáticos — nunca o canal de flash messages — então a regra
