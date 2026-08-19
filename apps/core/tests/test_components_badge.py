@@ -290,6 +290,57 @@ def test_fallback_sem_prefixo_sr_tem_um_unico_sr_only_o_do_label():
     assert 'Autorizada' in ''.join(sr_only[0].itertext())
 
 
+# ─── Hardening: entradas extremas (issue #122, /impeccable harden) ────────
+
+
+def test_variant_vazia_cai_no_fallback_de_grito():
+    """`variant` é obrigatório e sem default — string vazia não casa com
+    nenhum ramo nomeado e precisa gritar como qualquer outra variante
+    desconhecida, não renderizar um pill quebrado.
+    """
+    html = _render(variant='')
+    assert 'Indisponível' in html
+    assert 'role="alert"' in html
+
+
+def test_label_extremamente_longo_nao_e_truncado():
+    label_longo = 'Aguardando autorização ' * 20  # 480+ caracteres
+    raiz = _arvore(variant='blue', label=label_longo)
+    assert label_longo in _texto_visivel(raiz)
+    assert 'max-w-48' in _classes(raiz)
+
+
+def test_label_extremamente_longo_no_fallback_nao_e_truncado():
+    label_longo = 'Estado corrompido pela integração legada ' * 15
+    raiz = _arvore(variant=VARIANTE_DESCONHECIDA, label=label_longo)
+    assert label_longo in ''.join(raiz.itertext())
+
+
+def test_label_com_emoji_e_acentuacao_renderiza_integralmente():
+    label = 'Requisição atrasada ⚠️ 🚨 — pátio nº 3 (São João)'
+    html = _render(variant='amber', label=label)
+    assert label in html
+
+
+def test_label_com_caracteres_html_e_escapado():
+    """Label vem de `get_estado_display()`/dado de domínio controlado, mas o
+    componente não deve confiar nisso: autoescape do Django precisa segurar
+    a barreira mesmo se um rótulo carregar marcação.
+    """
+    html = _render(variant='blue', label='<script>alert(1)</script>')
+    assert '<script>' not in html
+    assert '&lt;script&gt;' in html
+
+
+def test_variant_cru_e_escapado_no_atributo_data_badge_variant():
+    """`desconhecida:<valor>` carrega dado de domínio no atributo de depuração
+    — se o valor algum dia contiver aspas, não pode quebrar o atributo.
+    """
+    html = _render(variant='desconhecida:"><img src=x>')
+    assert '<img src=x>' not in html
+    assert 'data-badge-variant="desconhecida:&quot;&gt;&lt;img src=x&gt;"' in html
+
+
 # ─── Token no lugar da última cor crua (issue #121) ───────────────────────
 
 

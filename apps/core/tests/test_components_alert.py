@@ -92,6 +92,27 @@ def test_message_e_autoescapado():
     assert '&lt;script&gt;' in html
 
 
+# ─── Hardening: entradas extremas (issue #122, /impeccable harden) ────────
+
+
+def test_message_extremamente_longa_renderiza_integralmente():
+    mensagem_longa = 'A requisição foi bloqueada pela política de estoque. ' * 20
+    html = _render(message=mensagem_longa)
+    assert mensagem_longa in html
+
+
+def test_message_com_emoji_e_acentuacao_renderiza_integralmente():
+    mensagem = 'Ação necessária ⚠️ — saldo insuficiente no pátio nº 3 (São João)'
+    html = _render(message=mensagem)
+    assert mensagem in html
+
+
+def test_fallback_data_alert_variant_e_escapado_no_atributo():
+    html = _render(variant='desconhecida:"><img src=x>')
+    assert '<img src=x>' not in html
+    assert 'data-alert-variant="desconhecida:&quot;&gt;&lt;img src=x&gt;"' in html
+
+
 @com_fixture_body_template
 def test_body_template_inclui_conteudo_e_herda_contexto():
     html = render_to_string(
