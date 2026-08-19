@@ -84,10 +84,11 @@ pelo dono do produto antes de qualquer linha de código:
 |---|---|
 | `docs/design-system.md` | Regra inviolável nova + contagem "Sete" → "Oito" |
 | `apps/core/templates/components/alert.html` | `{% else %}` vira ramo do grito; `info` ganha ramo explícito |
-| `apps/requisicoes/templates/requisicoes/partials/_estado_badge.html` | `{% else %}` repassa `"desconhecida:"|add:estado` como `variant` |
+| `apps/core/templates/components/badge.html` | Só o cabeçalho: declara `:` como delimitador reservado no nome de variante |
+| `apps/requisicoes/templates/requisicoes/partials/_estado_badge.html` | `{% else %}` repassa `"desconhecida:"\|add:estado` como `variant` |
 | `apps/estoque/templates/estoque/partials/_badge_tipo_movimentacao.html` | Idem; `aria_label` sai do ramo do grito e vira `prefixo_sr` |
 | `apps/estoque/templates/estoque/partials/_estado_saida_badge.html` | Ramo explícito para `estornada` **antes** de o `{% else %}` gritar; mesma troca de `aria_label` |
-| `apps/estoque/templates/estoque/historico_importacoes_scpi.html` | `{% else %}` repassa `"desconhecida:"|add:imp.status` como `variant` |
+| `apps/estoque/templates/estoque/historico_importacoes_scpi.html` | `{% else %}` repassa `"desconhecida:"\|add:imp.status` como `variant` |
 | `apps/requisicoes/templates/requisicoes/partials/_confirmacao_acao.html` | `variant_token` "primary" → "info": alinhar ao vocabulário do `alert.html` (ver abaixo) |
 | `apps/requisicoes/templates/requisicoes/partials/_confirmacao_acao_corpo.html` | Mesma troca nas duas condicionais de cor |
 | `apps/requisicoes/templates/requisicoes/partials/_confirmacao_acao_banner_corpo.html` | Mesma troca na condicional de cor |
@@ -225,7 +226,7 @@ terceiro é diferente e mais grave: o `_estado_saida_badge.html` usa o `{% else 
 como **ramo de verdade** — `estornada` chega ali. Então esse arquivo ganha um
 ramo `{% elif estado == 'estornada' %}` explícito com o `teal` de hoje, e só
 depois o `{% else %}` fica livre para gritar. Sem esse passo, a correção pintaria
-de vermelho todo estorno de saída excepcional em produção.
+de vermelho toda saída excepcional em estado `estornada` em produção.
 
 Nos três, o `{% else %}` passa a repassar o valor sob o prefixo
 `desconhecida:`, como no `_estado_badge.html` — ver a justificativa do prefixo
@@ -306,6 +307,29 @@ filtro `add` que o repositório já aplica em `aria_label="Estado: "|add:label`.
 Com ele, o caso de colisão vira teste que **passa**: `estado='orange'` renderiza
 "Indisponível", não um badge laranja.
 
+#### O `:` vira delimitador reservado
+
+A garantia do prefixo tem uma premissa: **nenhuma variante do catálogo contém
+`:`**. Hoje é verdade nas 13, mas isso é acidente, não contrato — uma variante
+futura chamada `estado:especial` reabriria o buraco exatamente onde ele foi
+fechado, e ninguém teria como saber disso ao criá-la.
+
+Então o `:` passa a ser delimitador reservado do vocabulário de `variant`,
+declarado em dois lugares:
+
+- No cabeçalho `{% comment %}` do `badge.html`, junto da lista de parâmetros:
+  nome de variante não pode conter `:`, porque esse caractere marca o namespace
+  de valor não reconhecido vindo de partial de domínio.
+- Num teste que varre os literais `variant == '...'` do próprio `badge.html` e
+  falha se qualquer um contiver `:`. É o mecanismo que impede a regra de virar
+  sugestão — se ela morar só no comentário, a primeira variante com `:` nasce
+  sem nada quebrar.
+
+O teste lê os literais do arquivo em vez de uma lista escrita à mão em Python,
+pelo mesmo motivo do `test_guarda_de_rotulo_longo_em_todos_os_ramos_do_arquivo`:
+uma lista paralela protege só as variantes que alguém lembrou de copiar para
+ela.
+
 ### O guard de cor crua
 
 Três buracos, três correções:
@@ -378,7 +402,7 @@ Cada comportamento abaixo vira um ciclo RED → GREEN.
 | Variante desconhecida preserva `body_template` | Mesmo contrato para o corpo rico |
 | Variante desconhecida emite `data-alert-variant` com o valor cru | Depuração |
 | Variante desconhecida recebe `role="alert"` no `stack` | Nível semântico `error` da falha |
-| Variante desconhecida recebe `role="alert"` no `row` | A falha não tem layout onde é muda |
+| Variante desconhecida recebe `role="alert"` no `row` | Nenhum dos dois layouts deixa a falha sem o papel ARIA de falha |
 | Variante desconhecida **ignora** `role` explícito, nos dois layouts | O chamador não rebaixa uma falha a `group`/`note` |
 | `role` explícito continua vencendo nas quatro variantes conhecidas | Contrato do parâmetro preservado onde ele vale |
 | Ausência de `variant` continua `info`/`role="status"` | A normalização não engoliu o default |
@@ -396,6 +420,7 @@ Cada comportamento abaixo vira um ciclo RED → GREEN.
 | Estado inexistente renderiza `Indisponível` visível | O partial parou de anular o fallback |
 | Estado inexistente emite `data-badge-variant="desconhecida:<estado>"` | O valor não some |
 | **Estado `orange`** renderiza `Indisponível`, não um badge laranja | Colisão com nome de variante do catálogo é impossível, não improvável |
+| Nenhum literal `variant == '...'` do `badge.html` contém `:` | A premissa do prefixo vira contrato verificado, não acidente |
 | O rótulo real continua no HTML (em `sr-only`) | Nada de dado descartado |
 | Os oito estados canônicos mantêm a variante de hoje | Nenhuma regressão de listagem |
 
