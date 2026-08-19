@@ -142,3 +142,110 @@ def test_saida_estornada_continua_teal():
     html = _render_saida('estornada')
     assert 'bg-return-muted' in html
     assert 'Indisponível' not in html
+
+
+# ─── _alert_divergencias_corpo.html ────────────────────────────────────────
+
+
+def _render_divergencias(divergencias=3):
+    return render_to_string(
+        'estoque/partials/_alert_divergencias_corpo.html',
+        {'divergencias': divergencias},
+    )
+
+
+def test_alerta_de_divergencia_nomeia_quem_decide_e_a_proxima_acao():
+    """Um âmbar mudo parece erro do sistema para quem confia no papel.
+
+    O `DESIGN.md` define âmbar como "a decisão está com alguém"; a decisão do
+    dono do produto (issue #123) diz que esse alguém é o chefe de almoxarifado,
+    e que a ação é ajustar no SCPI. A copy antiga informava só o efeito técnico.
+    """
+    html = _render_divergencias()
+    assert 'chefe de almoxarifado' in html
+    assert 'ajustar no SCPI' in html
+
+
+def test_alerta_de_divergencia_enquadra_a_divergencia_como_esperada():
+    """`PRODUCT.md`: divergência entre WMS e SCPI é estado normal, não erro.
+
+    O fluxo é reexecutado por gente que confia mais no papel do que no
+    software. Sem dizer que é esperado, o âmbar lê como falha da importação.
+    """
+    html = _render_divergencias()
+    assert 'estado esperado da coexistência com o SCPI' in html
+    assert 'não é falha da importação' in html
+
+
+def test_alerta_de_divergencia_nomeia_os_dois_lados_sem_jargao():
+    """O WMS é a fonte do saldo; o SCPI informa uma quantidade em arquivo.
+
+    "registradas como alerta" descreve o que o sistema fez consigo mesmo, não o
+    que o usuário está vendo. `CONTEXT.md` define divergência como a diferença
+    entre a quantidade do arquivo SCPI e o saldo do WMS — é esse par que a copy
+    precisa nomear, preservando a garantia de que o saldo do WMS não muda.
+    """
+    html = _render_divergencias()
+    assert 'saldo do WMS' in html
+    assert 'quantidade informada no arquivo do SCPI' in html
+    assert 'saldo do WMS não será alterado' in html
+    assert 'registrada' not in html
+
+
+# ─── _alert_novos_materiais_corpo.html ─────────────────────────────────────
+
+
+def _render_novos(novos=2):
+    return render_to_string(
+        'estoque/partials/_alert_novos_materiais_corpo.html',
+        {'novos': novos},
+    )
+
+
+def test_alerta_de_materiais_novos_diz_quem_confere_o_catalogo():
+    """O material novo entra no catálogo com uma unidade que ninguém escolheu.
+
+    `confirmar_importacao_scpi` cria o material com `unidade=UNIDADE` fixa,
+    porque o CSV do SCPI não informa unidade, e com o nome vindo da denominação
+    do arquivo. Existe conferência humana pendente de fato — e ela é do mesmo
+    dono que decide sobre a divergência.
+    """
+    html = _render_novos()
+    assert 'unidade' in html
+    assert 'chefe de almoxarifado' in html
+    assert 'conferir' in html
+
+
+# ─── Regra dos 14px nos dois corpos ────────────────────────────────────────
+
+
+@pytest.mark.parametrize('render', [_render_divergencias, _render_novos])
+def test_corpo_de_alerta_do_preview_usa_14px(render):
+    """`DESIGN.md` reserva 12px a rótulo estrutural em caixa alta.
+
+    Aqui é conteúdo numérico que sustenta a decisão do chefe de almoxarifado,
+    renderizado no tamanho de metadado. "Se um texto precisa de mais presença,
+    mude o peso ou o tom, não o tamanho" vale nos dois sentidos.
+    """
+    html = render()
+    assert 'text-sm' in html
+    assert 'text-xs' not in html
+
+
+@pytest.mark.parametrize(
+    'render,quantidade,esperado,proibido',
+    [
+        (_render_divergencias, 1, 'divergência', 'divergências'),
+        (_render_divergencias, 2, 'divergências', None),
+        (_render_novos, 1, 'material novo será criado', 'serão criados'),
+        (_render_novos, 2, 'materiais novos serão criados', 'será criado'),
+    ],
+)
+def test_corpo_de_alerta_flexiona_singular_e_plural(
+    render, quantidade, esperado, proibido
+):
+    """A reescrita da copy não pode levar junto a flexão que já funcionava."""
+    html = render(quantidade)
+    assert esperado in html
+    if proibido is not None:
+        assert proibido not in html
