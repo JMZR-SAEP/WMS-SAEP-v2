@@ -320,10 +320,13 @@ declarado em dois lugares:
 - No cabeçalho `{% comment %}` do `badge.html`, junto da lista de parâmetros:
   nome de variante não pode conter `:`, porque esse caractere marca o namespace
   de valor não reconhecido vindo de partial de domínio.
-- Num teste que varre os literais `variant == '...'` do próprio `badge.html` e
-  falha se qualquer um contiver `:`. É o mecanismo que impede a regra de virar
-  sugestão — se ela morar só no comentário, a primeira variante com `:` nasce
-  sem nada quebrar.
+- Num teste que extrai o catálogo de variantes das comparações reais de
+  `variant` no próprio `badge.html` — reconhecendo `==`/`in` com aspas simples
+  ou duplas e espaçamento livre, não um padrão textual fixo como
+  `variant == '...'` — e falha se qualquer literal extraído contiver `:`. É o
+  mecanismo que impede a regra de virar sugestão — se ela morar só no
+  comentário, uma variante declarada com aspas diferentes escaparia da
+  varredura, e a primeira variante com `:` nasceria sem nada quebrar.
 
 O teste lê os literais do arquivo em vez de uma lista escrita à mão em Python,
 pelo mesmo motivo do `test_guarda_de_rotulo_longo_em_todos_os_ramos_do_arquivo`:
