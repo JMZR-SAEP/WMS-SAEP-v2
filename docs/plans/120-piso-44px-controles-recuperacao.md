@@ -13,6 +13,20 @@ estado) de `docs/plans/audit-frontend-restante.md`.
    - `apps/core/templates/components/empty_state.html` — o CTA secundário passa a ter alvo de 44px
      de altura.
 
+   **O que exatamente muda no desenho, já que "só o alvo" não é literalmente verdade.** Um alvo
+   não cresce de 20px para 44px sem consequência de layout; o critério da issue quer dizer que
+   cor, tipografia, sublinhado, alinhamento e espaçamento horizontal ficam iguais. As
+   consequências verticais que este PR aceita, declaradas para que não passem por descuido:
+
+   | Controle | Muda | Não muda |
+   |---|---|---|
+   | Âncora de erro | Caixa vira `block`: ocupa a largura do `<li>`, e com ela o anel de foco e o retângulo clicável. Altura vai a 44px via `py-2.5` + `min-h-11`, empurrando o próximo item para baixo | Texto, cor, sublinhado (segue o texto, não a caixa), `space-y-1` entre itens, posição horizontal |
+   | CTA secundário | Caixa vira `inline-flex items-center`: 44px de altura com o rótulo centralizado verticalmente, em vez de encostado no topo | Texto, cor, sublinhado, `mt-3`, **largura e posição horizontal** |
+
+   Por isso o `px-1` que a issue sugere para o CTA **não entra**: ele alarga o alvo em 8px
+   horizontais, que é a única dimensão em que o critério "desenho inalterado" é literal. A altura
+   é o que a regra pede; a largura, não.
+
 2. **Raio dentro da escala nas mesmas duas linhas**
    - `rounded` pelado (0.25rem no Tailwind v4) é degrau abaixo do menor da escala do design system
      (controle 0.375 → campo 0.5 → papel 0.75 → modal 1rem → pill). Vira `rounded-md` nos dois
@@ -63,7 +77,7 @@ estado) de `docs/plans/audit-frontend-restante.md`.
 | Arquivo | Mudança |
 |---|---|
 | `apps/core/templates/components/error_summary.html` | `<a>` do item de erro: `block min-h-11 py-2.5` e `rounded` → `rounded-md` |
-| `apps/core/templates/components/empty_state.html` | CTA secundário: `inline-block` → `inline-flex items-center min-h-11 px-1`, `rounded` → `rounded-md` |
+| `apps/core/templates/components/empty_state.html` | CTA secundário: `inline-block` → `inline-flex items-center min-h-11`, `rounded` → `rounded-md` |
 | `apps/core/static/core/css/input.css` | `.app-bar__brand` ganha `min-height: var(--size-touch-target)` |
 | `apps/notificacoes/templates/notificacoes/lista.html` | link "Requisição N": `inline-flex items-center min-h-11` |
 | `apps/core/tests/test_components.py` | `test_nenhum_controle_abaixo_do_piso_de_44px` reformulado |
@@ -81,7 +95,9 @@ da função de teste.
 ## Como o teste passa a provar o piso
 
 A regra que o teste passa a exigir: **todo `<a>` e `<button>` de `apps/**/*.html` tem piso
-comprovável**. "Comprovável" tem três formas, nesta ordem:
+comprovável**. Sem piso comprovável, o teste falha — não importa se o autor escreveu um número
+menor, um número nenhum, ou delegou a classe a um componente. "Comprovável" tem quatro formas,
+nesta ordem:
 
 1. **Literal no template** — `min-h-11` na lista de classes do próprio elemento.
 2. **Piso vindo do CSS** — o elemento carrega uma classe cujo bloco em
@@ -91,10 +107,30 @@ comprovável**. "Comprovável" tem três formas, nesta ordem:
    `.app-bar__action-icon`, `.app-bar__menu-item`, `.campo` — e o que vier depois, sem editar o
    teste. Uma lista fixa aqui seria a mesma classe de erro que a issue denuncia: mecanismo que só
    conhece o que existia no dia em que foi escrito.
-3. **Piso delegado ao componente** — a classe do elemento sai de `{% classes_botao %}`. É o caso
-   dos dois ramos de `components/button.html`, e só dele. O piso de `_FORMA_BOTAO`
-   (`core_tags.py:129`) e a exceção de `_FORMA_LINK` (linha 130) já têm teste próprio; repetir a
-   verificação aqui duplicaria a regra em dois lugares.
+3. **Piso delegado ao componente** — a classe do elemento sai de `{% classes_botao %}`. Vale para
+   os dois ramos de `components/button.html`, e só para eles: naquele arquivo `variant` é variável
+   de runtime, e nenhuma varredura de markup pode saber qual variante o chamador vai pedir. A
+   delegação, portanto, tira `button.html` da varredura — **não** dá quitação a quem o inclui.
+
+**A delegação não é cheque em branco: o chamador de `variant="link"` continua sob a regra.**
+`_FORMA_LINK` (`core_tags.py:130`) é a única forma sem piso, e o design system a isenta por um
+motivo estreito — texto inline no meio de prosa, que uma caixa de 44px quebraria (WCAG 2.5.8
+isenta link em sentença). A mesma linha do design system diz o resto: *"`link` usado como ação
+isolada recebe `class="min-h-11"` explícito"*. Tratar toda saída de `button.html` como piso
+delegado apagaria essa segunda metade e abriria, no mecanismo novo, um buraco do mesmo formato do
+que esta issue fecha.
+
+Então entra uma quarta forma de prova, no mesmo teste:
+
+4. **Chamada de `variant="link"`** — todo `{% include "components/button.html" %}` que passe
+   `variant="link"` precisa carregar `min-h-11` no `class`, salvo se o ponto de chamada estiver na
+   lista de exceções de prosa inline declarada no próprio teste, com o motivo escrito ao lado.
+
+   Hoje há exatamente uma chamada assim em `apps/` — `notificacoes/lista.html:17`, ação isolada ao
+   lado do título, que já passa `class="min-h-11"` à mão. A lista de exceções de prosa inline
+   nasce **vazia**: nenhum uso inline existe ainda, e uma exceção pré-aprovada para um caso
+   inexistente é exatamente o tipo de folga que vira esconderijo. O primeiro link inline de
+   verdade entra na lista junto com a frase que o justifica.
 
 Três cuidados de varredura, todos já resolvidos por `apps/core/tests/marcacao.py`:
 
@@ -126,7 +162,9 @@ Alinhada à ADR-0010. Nenhum teste novo precisa de banco.
 | Caminho feliz — CTA secundário | `empty_state.html` com `cta_secundario=True` produz `<a>` com `min-h-11` e `rounded-md` | idem |
 | Ausência de `rounded` pelado | `rounded` não aparece como classe isolada em nenhum dos dois arquivos | idem |
 | Regressão do mecanismo | O teste reformulado **falha** se um `<a>` sem piso for reintroduzido — provado por um caso sintético em memória, não por reverter o arquivo | idem |
-| Exceção legítima | `button.html` com `variant="link"` continua passando, e a razão está escrita no teste | idem |
+| Exceção legítima | `button.html` continua fora da varredura por delegar a `classes_botao`, e a razão está escrita no teste | idem |
+| `variant="link"` como ação isolada | Uma chamada sintética com `variant="link"` **sem** `min-h-11` é detectada; a chamada real de `notificacoes/lista.html:17`, que tem, passa | idem |
+| `variant="link"` inline em prosa | A lista de exceções nasce vazia; o teste prova que um ponto de chamada listado nela passa, para que a saída exista antes de ser precisa | idem |
 | `<a` com newline | Um `<a\n  class="...">` sintético sem piso é detectado | idem |
 | Piso derivado do CSS | Um elemento com `class="skip-link"` passa sem `min-h-11` literal | idem |
 | Guarda global | A varredura sobre `apps/**/*.html` real fica verde | `test_nenhum_controle_abaixo_do_piso_de_44px` |
@@ -171,8 +209,9 @@ De `docs/design-system.md`, "Regras invioláveis":
    listados na mensagem de falha.
 2. Corrigir `error_summary.html` e `empty_state.html` (alvo + raio) — 2 dos 4 saem.
 3. Corrigir `.app-bar__brand` em `input.css` e o link de `notificacoes/lista.html` — verde.
-4. Adicionar os testes sintéticos de detecção (`<a` com newline, ausência de piso, exceção
-   `variant="link"`, piso vindo do CSS) e os testes de renderização dos dois componentes.
+4. Adicionar os testes sintéticos de detecção (`<a` com newline, ausência de piso, piso vindo do
+   CSS, chamada de `variant="link"` sem `min-h-11`) e os testes de renderização dos dois
+   componentes.
 5. Atualizar a linha do "Piso de 44px" em `docs/design-system.md`.
 6. `uv run ruff format .`, `uv run ruff check .`, `uv run mypy apps`, suíte completa.
 
@@ -181,9 +220,12 @@ De `docs/design-system.md`, "Regras invioláveis":
 - [ ] Âncoras de `error_summary.html` com alvo ≥ 44px
 - [ ] CTA secundário de `empty_state.html` com alvo ≥ 44px
 - [ ] Nenhum `rounded` pelado nos dois arquivos
-- [ ] Desenho visual dos dois controles inalterado além do alvo
-- [ ] O teste detecta **ausência** de `min-h-11`, não só valores menores
+- [ ] Desenho visual dos dois controles inalterado além do alvo, nos termos da tabela do escopo
+      (cor, tipografia, sublinhado e dimensão horizontal intactos; a altura é o que muda)
+- [ ] O teste falha para **todo clicável sem piso comprovável** — seja piso literal, vindo do CSS,
+      delegado ao componente ou exigido do chamador de `variant="link"` —, e não apenas para
+      `min-h-9`/`min-h-10`
 - [ ] O teste falha se os dois infratores forem revertidos
-- [ ] Exceções legítimas continuam passando, declaradas no próprio teste
+- [ ] Exceções legítimas continuam passando, declaradas uma a uma no próprio teste, com motivo
 - [ ] O regex casa `<a` seguido de newline
 - [ ] `uv run pytest`, `ruff check`, `ruff format --check` e `mypy apps` verdes
