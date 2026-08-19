@@ -1,11 +1,21 @@
 {% comment %}
 Badge de estado da saída excepcional. Mapeia estado -> variant/label do componente global.
 Parâmetro: saida (instância com .estado e .get_estado_display).
+
+Estado não mapeado (ramo {% else %}): repassa o valor cru sob o prefixo
+`desconhecida:`, deixando o fallback vermelho do badge.html gritar (Decisão
+A-1, issue #122). `estornada` ganha ramo explícito próprio, porque hoje ela
+chegava pelo `{% else %}` — sem o ramo, o grito pintaria de vermelho todo
+estorno em produção. No grito, não passa `role`/`aria_label` — o próprio
+badge.html ignora os dois na variante desconhecida e força `role="alert"`.
+Passa `prefixo_sr` no lugar.
 {% endcomment %}
 {% with estado=saida.estado label=saida.get_estado_display %}
   {% if estado == 'registrada' %}
     {% include "components/badge.html" with variant="blue-strong" label=label role="status" aria_label="Estado: "|add:label %}
-  {% else %}
+  {% elif estado == 'estornada' %}
     {% include "components/badge.html" with variant="teal" label=label role="status" aria_label="Estado: "|add:label %}
+  {% else %}
+    {% include "components/badge.html" with variant="desconhecida:"|add:estado label=label prefixo_sr="Estado: " %}
   {% endif %}
 {% endwith %}

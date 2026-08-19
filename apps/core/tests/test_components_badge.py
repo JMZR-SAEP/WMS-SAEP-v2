@@ -3,6 +3,7 @@
 import pathlib
 import re
 import xml.etree.ElementTree as ET
+from collections import Counter
 
 import pytest
 from django.template.loader import render_to_string
@@ -12,13 +13,28 @@ BADGE_TEMPLATE = BASE_DIR / 'apps' / 'core' / 'templates' / 'components' / 'badg
 
 VARIANTE_DESCONHECIDA = 'estado-que-nao-existe'
 
-# Famílias de paleta crua que o design system declara como exceção viva para
-# este arquivo (`docs/design-system.md`, regra "Token, nunca shade"): as quatro
-# variantes de catálogo que ainda não têm token semântico. Qualquer outra
-# família crua aqui é regressão.
-FAMILIAS_DE_CATALOGO_PERMITIDAS = {'orange', 'indigo', 'violet', 'yellow'}
+# Classes de paleta crua que o design system declara como exceção viva para
+# este arquivo (`docs/design-system.md`, regra "Token, nunca shade"): as
+# quatro variantes de catálogo que ainda não têm token semântico. Allowlist
+# por classe exata com contagem, no mesmo rigor de
+# apps/core/tests/test_tokens_semanticos.py — reaproveitar uma classe isenta
+# num ramo novo, ou colar um shade novo da mesma família, quebra o teste.
+CLASSES_DE_CATALOGO_PERMITIDAS = {
+    'bg-orange-100': 1,
+    'text-orange-900': 1,
+    'ring-orange-200': 1,
+    'bg-indigo-100': 1,
+    'text-indigo-900': 1,
+    'ring-indigo-200': 1,
+    'bg-violet-100': 1,
+    'text-violet-900': 1,
+    'ring-violet-200': 1,
+    'bg-yellow-100': 1,
+    'text-yellow-900': 1,
+    'ring-yellow-200': 1,
+}
 
-CLASSE_DE_PALETA_RE = re.compile(r'(?:bg|text|border|ring|divide)-([a-z]+)-\d')
+CLASSE_DE_PALETA_RE = re.compile(r'(?:bg|text|border|ring|divide)-[a-z]+-\d+')
 
 # Só a cadeia de variantes abre ramo. As condicionais internas de `role`,
 # `aria_label`, `prefixo_sr` e `label` são `{% if %}` também, então contar tag
@@ -232,14 +248,29 @@ def test_fallback_preserva_label_em_sr_only_depois_do_sinal():
     )
 
 
-def test_fallback_preserva_role_e_aria_label():
+def test_fallback_forca_role_alert_ignorando_role_do_chamador():
+    """Falha alta é role="alert" (Decisão A-1, issue #122) — o fallback não
+    pode ser rebaixado a "status" por um chamador que não sabia que ia
+    gritar (ex. _badge_tipo_movimentacao.html passa role="status" nos ramos
+    conhecidos).
+    """
+    raiz = _arvore(variant=VARIANTE_DESCONHECIDA, role='status')
+    assert raiz.get('role') == 'alert'
+
+
+def test_fallback_ignora_aria_label_do_chamador():
+    """`aria_label` do fallback do badge.html propagado literalmente
+    substituiria o nome acessível "Indisponível (rótulo)" pelo texto que o
+    chamador escreveu para o ramo conhecido — calando o grito para quem usa
+    leitor de tela.
+    """
     raiz = _arvore(
         variant=VARIANTE_DESCONHECIDA,
-        role='status',
-        aria_label='Estado: Indisponível',
+        aria_label='Estado: Recusada',
+        label='Recusada',
     )
-    assert raiz.get('role') == 'status'
-    assert raiz.get('aria-label') == 'Estado: Indisponível'
+    assert raiz.get('aria-label') is None
+    assert 'Recusada' in ''.join(raiz.itertext())
 
 
 def test_fallback_expoe_variant_crua_para_depuracao():
@@ -259,6 +290,57 @@ def test_fallback_sem_prefixo_sr_tem_um_unico_sr_only_o_do_label():
     assert 'Autorizada' in ''.join(sr_only[0].itertext())
 
 
+# ─── Hardening: entradas extremas (issue #122, /impeccable harden) ────────
+
+
+def test_variant_vazia_cai_no_fallback_de_grito():
+    """`variant` é obrigatório e sem default — string vazia não casa com
+    nenhum ramo nomeado e precisa gritar como qualquer outra variante
+    desconhecida, não renderizar um pill quebrado.
+    """
+    html = _render(variant='')
+    assert 'Indisponível' in html
+    assert 'role="alert"' in html
+
+
+def test_label_extremamente_longo_nao_e_truncado():
+    label_longo = 'Aguardando autorização ' * 20  # 480+ caracteres
+    raiz = _arvore(variant='blue', label=label_longo)
+    assert label_longo in _texto_visivel(raiz)
+    assert 'max-w-48' in _classes(raiz)
+
+
+def test_label_extremamente_longo_no_fallback_nao_e_truncado():
+    label_longo = 'Estado corrompido pela integração legada ' * 15
+    raiz = _arvore(variant=VARIANTE_DESCONHECIDA, label=label_longo)
+    assert label_longo in ''.join(raiz.itertext())
+
+
+def test_label_com_emoji_e_acentuacao_renderiza_integralmente():
+    label = 'Requisição atrasada ⚠️ 🚨 — pátio nº 3 (São João)'
+    html = _render(variant='amber', label=label)
+    assert label in html
+
+
+def test_label_com_caracteres_html_e_escapado():
+    """Label vem de `get_estado_display()`/dado de domínio controlado, mas o
+    componente não deve confiar nisso: autoescape do Django precisa segurar
+    a barreira mesmo se um rótulo carregar marcação.
+    """
+    html = _render(variant='blue', label='<script>alert(1)</script>')
+    assert '<script>' not in html
+    assert '&lt;script&gt;' in html
+
+
+def test_variant_cru_e_escapado_no_atributo_data_badge_variant():
+    """`desconhecida:<valor>` carrega dado de domínio no atributo de depuração
+    — se o valor algum dia contiver aspas, não pode quebrar o atributo.
+    """
+    html = _render(variant='desconhecida:"><img src=x>')
+    assert '<img src=x>' not in html
+    assert 'data-badge-variant="desconhecida:&quot;&gt;&lt;img src=x&gt;"' in html
+
+
 # ─── Token no lugar da última cor crua (issue #121) ───────────────────────
 
 
@@ -271,12 +353,11 @@ def test_fallback_usa_token_semantico_e_nao_text_white():
 
 def test_badge_nao_tem_cor_crua_fora_das_quatro_variantes_de_catalogo():
     conteudo = BADGE_TEMPLATE.read_text(encoding='utf-8')
-    familias = set(CLASSE_DE_PALETA_RE.findall(conteudo))
-    assert familias == FAMILIAS_DE_CATALOGO_PERMITIDAS, (
-        'famílias de paleta crua fora da exceção declarada: '
-        f'{sorted(familias - FAMILIAS_DE_CATALOGO_PERMITIDAS)}; '
-        f'exceção que sumiu do arquivo: '
-        f'{sorted(FAMILIAS_DE_CATALOGO_PERMITIDAS - familias)}'
+    ocorrencias = dict(Counter(CLASSE_DE_PALETA_RE.findall(conteudo)))
+    assert ocorrencias == CLASSES_DE_CATALOGO_PERMITIDAS, (
+        'cor crua de badge.html não bate com a exceção declarada em '
+        f'CLASSES_DE_CATALOGO_PERMITIDAS. Encontrado={ocorrencias} '
+        f'Permitido={CLASSES_DE_CATALOGO_PERMITIDAS}'
     )
 
 
@@ -285,6 +366,24 @@ def test_badge_nao_usa_cor_crua_sem_shade():
     conteudo = BADGE_TEMPLATE.read_text(encoding='utf-8')
     assert 'text-white' not in conteudo
     assert 'bg-white' not in conteudo
+
+
+# ─── `:` é delimitador reservado do vocabulário de variant (issue #122) ───
+
+# Aspas simples ou duplas, com ou sem espaço em volta de `==`/`in` — não um
+# padrão textual fixo, senão uma variante declarada com aspas diferentes
+# escaparia da varredura.
+VARIANTE_LITERAL_RE = re.compile(r'variant\s*(?:==|in)\s*[\'\"]([^\'\"]+)[\'\"]')
+
+
+def test_nenhuma_variante_de_catalogo_contem_dois_pontos():
+    conteudo = BADGE_TEMPLATE.read_text(encoding='utf-8')
+    literais = VARIANTE_LITERAL_RE.findall(conteudo)
+    assert literais, 'a extração não achou nenhum literal — regex quebrou'
+    com_dois_pontos = [v for v in literais if ':' in v]
+    assert com_dois_pontos == [], (
+        f'variante(s) de catálogo contendo o delimitador reservado ":": {com_dois_pontos}'
+    )
 
 
 # ─── Guarda de rótulo longo nos 14 ramos (issue #121) ─────────────────────

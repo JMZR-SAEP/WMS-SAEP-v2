@@ -257,7 +257,7 @@
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
         {% if pode_autorizar %}
           {% url 'requisicoes:autorizar' requisicao.pk as autorizar_url %}
-          {% include "requisicoes/partials/_confirmacao_acao.html" with layout="card" variant_token="primary" modal_id="confirmar-autorizar" titulo="Autorização integral" conteudo="Aprove a requisição e reserve o saldo necessário para todos os itens." botao_label="Autorizar" botao_variant="primary" modal_titulo="Autorizar requisição?" modal_descricao="Reserva o saldo necessário para todos os itens sem alterar o saldo físico." action_url=autorizar_url confirm_label="Confirmar autorização" confirm_variant="primary" icon_variant="info" hidden_inputs=autorizar_hidden_inputs %}
+          {% include "requisicoes/partials/_confirmacao_acao.html" with layout="card" variant_token="info" modal_id="confirmar-autorizar" titulo="Autorização integral" conteudo="Aprove a requisição e reserve o saldo necessário para todos os itens." botao_label="Autorizar" botao_variant="primary" modal_titulo="Autorizar requisição?" modal_descricao="Reserva o saldo necessário para todos os itens sem alterar o saldo físico." action_url=autorizar_url confirm_label="Confirmar autorização" confirm_variant="primary" icon_variant="info" hidden_inputs=autorizar_hidden_inputs %}
         {% endif %}
 
         {% if pode_retornar %}

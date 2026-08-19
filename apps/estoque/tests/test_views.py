@@ -1245,6 +1245,64 @@ class TestHistoricoImportacoesScpiView:
         url_download = f'/estoque/importacao-scpi/{importacao.pk}/arquivo/'
         assert url_download.encode() not in resp.content
 
+    def test_status_nao_mapeado_grita_em_vez_de_cinza_plausivel(
+        self, client, superuser, estoque_principal
+    ):
+        """Decisão A-1 da issue #122: status fora do enum passava pelo
+        `{% else %}` antigo e virava um badge cinza plausível. O
+        `{% else %}` novo repassa o valor sob o prefixo `desconhecida:` e
+        deixa o fallback vermelho do badge.html gritar.
+        """
+        from apps.estoque.models import ImportacaoSCPI, StatusImportacaoSCPI
+
+        importacao = ImportacaoSCPI.objects.create(
+            arquivo_nome='status-invalido.csv',
+            arquivo_hash='d' * 64,
+            importado_por=superuser,
+            estoque=estoque_principal,
+            status=StatusImportacaoSCPI.CONCLUIDA,
+        )
+        ImportacaoSCPI.objects.filter(pk=importacao.pk).update(status='invalido')
+        client.force_login(superuser)
+        conteudo = client.get(self.URL).content.decode()
+        assert 'Indisponível' in conteudo
+        assert 'data-badge-variant="desconhecida:invalido"' in conteudo
+
+    def test_status_orange_colide_mas_gruda_no_fallback(
+        self, client, superuser, estoque_principal
+    ):
+        from apps.estoque.models import ImportacaoSCPI, StatusImportacaoSCPI
+
+        importacao = ImportacaoSCPI.objects.create(
+            arquivo_nome='status-orange.csv',
+            arquivo_hash='9' * 64,
+            importado_por=superuser,
+            estoque=estoque_principal,
+            status=StatusImportacaoSCPI.CONCLUIDA,
+        )
+        ImportacaoSCPI.objects.filter(pk=importacao.pk).update(status='orange')
+        client.force_login(superuser)
+        conteudo = client.get(self.URL).content.decode()
+        assert 'Indisponível' in conteudo
+        assert 'bg-orange-100' not in conteudo
+
+    def test_status_conhecido_mantem_variante_de_hoje(
+        self, client, superuser, estoque_principal
+    ):
+        from apps.estoque.models import ImportacaoSCPI, StatusImportacaoSCPI
+
+        ImportacaoSCPI.objects.create(
+            arquivo_nome='com-alertas.csv',
+            arquivo_hash='8' * 64,
+            importado_por=superuser,
+            estoque=estoque_principal,
+            status=StatusImportacaoSCPI.COM_ALERTAS,
+        )
+        client.force_login(superuser)
+        conteudo = client.get(self.URL).content.decode()
+        assert 'bg-yellow-100' in conteudo
+        assert 'Com alertas' in conteudo
+
 
 class TestBaixarArquivoImportacaoScpiView:
     """Contrato HTTP de baixar_arquivo_importacao_scpi_view."""

@@ -19,13 +19,16 @@ Parâmetros:
   icone          (opcional, boolean, default=True) — sem efeito em layout="row"
   role           (opcional) sobrescreve o role padrão (ex. "note"). Em
                  layout="row" não há default automático — só emite role se
-                 explicitamente passado.
+                 explicitamente passado. Variante fora do catálogo (info,
+                 success, warning, danger) ignora `role` nos dois layouts —
+                 ver "Variante desconhecida" abaixo.
   aria_live      (opcional) valor de aria-live — sem default automático
   id             (opcional) — necessário para cascas hidratadas por JS do
                  chamador via getElementById (ex. caixa de duplicidade)
   class          (opcional) passthrough para ajuste de layout do chamador
   bg_class       (opcional) sobrescreve a classe de fundo padrão da variant
-                 (ex. para opacidade customizada)
+                 (ex. para opacidade customizada). Ignorado se a variante for
+                 desconhecida — ver abaixo.
 
   layout          (opcional, default="stack") "stack": ícone (opcional) +
                  conteúdo empilhado, banner estático de mensagem. "row":
@@ -38,20 +41,27 @@ Parâmetros:
   heading_id     (opcional) id do heading dentro de body_template — usado
                  para aria-labelledby na section
 
-Uso:
-  {% include "components/alert.html" with variant="danger" message=erro_geral %}
-  {% include "components/alert.html" with variant="warning" body_template="requisicoes/partials/_alert_itens_inelegiveis_corpo.html" %}
-  {% include "components/alert.html" with layout="row" variant="danger" heading_id="estornar-titulo" body_template="requisicoes/partials/_confirmacao_acao_banner_corpo.html" action_template="requisicoes/partials/_confirmacao_acao_banner_botao.html" bg_class="bg-danger-subtle" class="mb-6" %}
+Variante desconhecida (ramo {% else %} de cada cadeia):
+  Espelha o fallback de badge.html — falha alta, não silenciosa (Decisão A-1
+  de docs/design-system.md). Fundo `bg-danger` preenchido (não `-subtle`),
+  linha "Aviso indisponível" antes do conteúdo, `message`/`body_template`
+  preservados abaixo dela, `data-alert-variant="{{ variant }}"` para
+  depuração. `role="alert"` nos dois layouts, sem exceção do parâmetro `role`
+  do chamador — o grito não pode ser rebaixado a `group`/`note`. No
+  `layout="row"`, `bg_class` também é ignorado: a escotilha de opacidade não
+  silencia o fallback.
 {% endcomment %}
+{% with variant=variant|default:'info' %}
 {% if layout == 'row' %}
 <section
   {% if id %}id="{{ id }}"{% endif %}
   {% if heading_id %}aria-labelledby="{{ heading_id }}"{% endif %}
-  {% if role %}role="{{ role }}"{% endif %}
+  {% if variant == 'info' or variant == 'success' or variant == 'warning' or variant == 'danger' %}{% if role %}role="{{ role }}"{% endif %}{% else %}role="alert" data-alert-variant="{{ variant }}"{% endif %}
   {% if aria_live %}aria-live="{{ aria_live }}"{% endif %}
-  class="flex flex-col gap-3 rounded-xl border p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6 {% if bg_class %}{{ bg_class }}{% elif variant == 'success' %}bg-success-subtle{% elif variant == 'warning' %}bg-warning-subtle{% elif variant == 'danger' %}bg-danger-subtle{% else %}bg-primary-subtle{% endif %} {% if variant == 'success' %}border-success-border{% elif variant == 'warning' %}border-warning-border{% elif variant == 'danger' %}border-danger-border{% else %}border-primary-border{% endif %}{% if class %} {{ class }}{% endif %}"
+  class="flex flex-col gap-3 rounded-xl border p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6 {% if variant == 'info' or variant == 'success' or variant == 'warning' or variant == 'danger' %}{% if bg_class %}{{ bg_class }}{% elif variant == 'success' %}bg-success-subtle{% elif variant == 'warning' %}bg-warning-subtle{% elif variant == 'danger' %}bg-danger-subtle{% else %}bg-primary-subtle{% endif %} {% if variant == 'success' %}border-success-border{% elif variant == 'warning' %}border-warning-border{% elif variant == 'danger' %}border-danger-border{% else %}border-primary-border{% endif %}{% else %}bg-danger border-danger-hover{% endif %}{% if class %} {{ class }}{% endif %}"
 >
   <div class="min-w-0">
+    {% if variant != 'info' and variant != 'success' and variant != 'warning' and variant != 'danger' %}<p class="font-semibold">Aviso indisponível</p>{% endif %}
     {% if body_template %}{% include body_template %}{% else %}{{ message }}{% endif %}
   </div>
   {% if action_template %}<div class="shrink-0">{% include action_template %}</div>{% endif %}
@@ -59,25 +69,27 @@ Uso:
 {% else %}
 <div
   {% if id %}id="{{ id }}"{% endif %}
-  {% if role %}role="{{ role }}"{% elif variant == 'warning' or variant == 'danger' %}role="alert"{% else %}role="status"{% endif %}
+  {% if variant == 'info' or variant == 'success' or variant == 'warning' or variant == 'danger' %}{% if role %}role="{{ role }}"{% elif variant == 'warning' or variant == 'danger' %}role="alert"{% else %}role="status"{% endif %}{% else %}role="alert" data-alert-variant="{{ variant }}"{% endif %}
   {% if aria_live %}aria-live="{{ aria_live }}"{% endif %}
-  class="flex items-start gap-2 rounded-lg border px-4 py-3 text-sm {% if variant == 'success' %}border-success-border bg-success-subtle text-success-text-emphasis{% elif variant == 'warning' %}border-warning-border bg-warning-subtle text-warning-text{% elif variant == 'danger' %}border-danger-border bg-danger-subtle text-danger-text-emphasis{% else %}border-primary-border bg-primary-subtle text-primary-text-emphasis{% endif %}{% if class %} {{ class }}{% endif %}"
+  class="flex items-start gap-2 rounded-lg border px-4 py-3 text-sm {% if variant == 'success' %}border-success-border bg-success-subtle text-success-text-emphasis{% elif variant == 'warning' %}border-warning-border bg-warning-subtle text-warning-text{% elif variant == 'danger' %}border-danger-border bg-danger-subtle text-danger-text-emphasis{% elif variant == 'info' %}border-primary-border bg-primary-subtle text-primary-text-emphasis{% else %}border-danger-hover bg-danger text-text-on-primary{% endif %}{% if class %} {{ class }}{% endif %}"
 >
   {% if icone != False %}
-    <svg aria-hidden="true" class="mt-0.5 h-4 w-4 shrink-0 {% if variant == 'success' %}text-success{% elif variant == 'warning' %}text-warning{% elif variant == 'danger' %}text-danger{% else %}text-primary{% endif %}" viewBox="0 0 20 20" fill="currentColor">
+    <svg aria-hidden="true" class="mt-0.5 h-4 w-4 shrink-0 {% if variant == 'success' %}text-success{% elif variant == 'warning' %}text-warning{% elif variant == 'danger' %}text-danger{% elif variant == 'info' %}text-primary{% else %}text-text-on-primary{% endif %}" viewBox="0 0 20 20" fill="currentColor">
       {% if variant == 'success' %}
         <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/>
       {% elif variant == 'warning' %}
         <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495ZM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5Zm0 9a1 1 0 100-2 1 1 0 000 2Z" clip-rule="evenodd"/>
-      {% elif variant == 'danger' %}
-        <path fill-rule="evenodd" d="M18 10A8 8 0 1 1 2 10a8 8 0 0 1 16 0Zm-7-4a1 1 0 1 0-2 0v4a1 1 0 1 0 2 0V6Zm-1 8a1.2 1.2 0 1 1 0-2.4 1.2 1.2 0 0 1 0 2.4Z" clip-rule="evenodd"/>
-      {% else %}
+      {% elif variant == 'info' %}
         <path fill-rule="evenodd" d="M18 10A8 8 0 1 1 2 10a8 8 0 0 1 16 0Zm-8.75-4.25a.75.75 0 011.5 0v.5a.75.75 0 01-1.5 0v-.5Zm.75 3a.75.75 0 00-.75.75v4a.75.75 0 001.5 0v-4a.75.75 0 00-.75-.75Z" clip-rule="evenodd"/>
+      {% else %}
+        <path fill-rule="evenodd" d="M18 10A8 8 0 1 1 2 10a8 8 0 0 1 16 0Zm-7-4a1 1 0 1 0-2 0v4a1 1 0 1 0 2 0V6Zm-1 8a1.2 1.2 0 1 1 0-2.4 1.2 1.2 0 0 1 0 2.4Z" clip-rule="evenodd"/>
       {% endif %}
     </svg>
   {% endif %}
   <div class="min-w-0 flex-1">
+    {% if variant != 'info' and variant != 'success' and variant != 'warning' and variant != 'danger' %}<p class="font-semibold">Aviso indisponível</p>{% endif %}
     {% if body_template %}{% include body_template %}{% else %}{{ message }}{% endif %}
   </div>
 </div>
 {% endif %}
+{% endwith %}

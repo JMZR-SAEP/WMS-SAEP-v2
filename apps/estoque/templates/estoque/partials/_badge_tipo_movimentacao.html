@@ -3,6 +3,13 @@ Badge semântico por TipoMovimentacaoEstoque. Recebe `tipo` (value) e `rotulo`
 (get_tipo_display). A cor comunica a identidade do tipo (não alarme); o rótulo
 textual é sempre o portador primário do significado (acessibilidade: cor nunca
 é o único portador). Mapeia para variant do componente global badge.html.
+
+Tipo não mapeado (ramo {% else %}): repassa o valor cru sob o prefixo
+`desconhecida:`, deixando o fallback vermelho do badge.html gritar (Decisão
+A-1, issue #122). Não passa `role`/`aria_label` — o próprio badge.html
+ignora os dois na variante desconhecida e força `role="alert"`. Passa
+`prefixo_sr` no lugar, e o badge compõe o nome acessível: "Tipo de
+movimentação: Indisponível (rótulo real)".
 {% endcomment %}
 {% if tipo == 'reserva' %}
   {% include "components/badge.html" with variant="blue" label=rotulo role="status" aria_label="Tipo de movimentação: "|add:rotulo %}
@@ -19,5 +26,5 @@ textual é sempre o portador primário do significado (acessibilidade: cor nunca
 {% elif tipo == 'estorno_requisicao' %}
   {% include "components/badge.html" with variant="violet" label=rotulo role="status" aria_label="Tipo de movimentação: "|add:rotulo %}
 {% else %}
-  {% include "components/badge.html" with variant="slate" label=rotulo role="status" aria_label="Tipo de movimentação: "|add:rotulo %}
+  {% include "components/badge.html" with variant="desconhecida:"|add:tipo label=rotulo prefixo_sr="Tipo de movimentação: " %}
 {% endif %}

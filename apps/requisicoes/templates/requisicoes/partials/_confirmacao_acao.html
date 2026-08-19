@@ -10,9 +10,9 @@ Parâmetros:
                    título+descrição à esquerda e botão à direita — usado por
                    cancelamento e estorno; renderizado pelo layout="row" de
                    components/alert.html)
-  variant_token   token de cor (primary | warning | danger) repassado como
-                   variant a components/alert.html — "primary" cai no ramo
-                   `{% else %}` do alert.html (mesmas classes de "info")
+  variant_token   token de cor (info | warning | danger) repassado como
+                   variant a components/alert.html — mesmo vocabulário do
+                   alert.html, sem tradução
   modal_id        id do modal (usado em x-data, data-modal-trigger e no id
                    do components/modal.html)
   abrir_ao_carregar_expr  (opcional) expressão já resolvida (ex.:
@@ -39,7 +39,7 @@ Parâmetros:
 
 Uso (card):
   {% include "requisicoes/partials/_confirmacao_acao.html" with
-     layout="card" variant_token="primary"
+     layout="card" variant_token="info"
      modal_id="confirmar-autorizar" titulo="Autorização integral"
      conteudo="Aprove a requisição e reserve o saldo necessário para todos os itens."
      botao_label="Autorizar" botao_variant="primary"

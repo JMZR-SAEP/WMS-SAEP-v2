@@ -3,6 +3,12 @@ Badge de estado da requisição. Mapeia EstadoRequisicao -> variant/label do com
 Parâmetro: requisicao (instância com .estado e .get_estado_display).
 `prefixo_sr` dá o contexto "Estado:" para leitor de tela sem transformar o
 badge em live region — o estado aqui é dado estático de listagem, não mensagem.
+
+Estado não mapeado (ramo {% else %}): repassa o valor cru sob o prefixo
+`desconhecida:`, que nunca colide com uma variante do catálogo (`:` é
+delimitador reservado — ver badge.html), deixando o fallback vermelho do
+componente global gritar em vez de ser anulado por uma cor plausível
+(Decisão A-1 de docs/design-system.md, issue #122).
 {% endcomment %}
 {% with estado=requisicao.estado label=requisicao.get_estado_display %}
   {% if estado == 'rascunho' %}
@@ -22,6 +28,6 @@ badge em live region — o estado aqui é dado estático de listagem, não mensa
   {% elif estado == 'estornada' %}
     {% include "components/badge.html" with variant="teal" label=label prefixo_sr="Estado: " %}
   {% else %}
-    {% include "components/badge.html" with variant="slate" label=label prefixo_sr="Estado: " %}
+    {% include "components/badge.html" with variant="desconhecida:"|add:estado label=label prefixo_sr="Estado: " %}
   {% endif %}
 {% endwith %}
