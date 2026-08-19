@@ -65,6 +65,7 @@ UTILITIES_ESPERADAS = [
     'text-warning-text-strong',
     'text-success-text-strong',
     'text-return-text-strong',
+    'text-text-on-primary',
     'text-success-text',
     'text-return-text',
     'border-danger-border-strong',

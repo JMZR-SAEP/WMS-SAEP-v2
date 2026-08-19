@@ -1,11 +1,24 @@
 """Testes diretos de components/badge.html (sem DB, sem view)."""
 
+import pathlib
+import re
 import xml.etree.ElementTree as ET
 
 import pytest
 from django.template.loader import render_to_string
 
+BASE_DIR = pathlib.Path(__file__).resolve().parents[3]
+BADGE_TEMPLATE = BASE_DIR / 'apps' / 'core' / 'templates' / 'components' / 'badge.html'
+
 VARIANTE_DESCONHECIDA = 'estado-que-nao-existe'
+
+# Famílias de paleta crua que o design system declara como exceção viva para
+# este arquivo (`docs/design-system.md`, regra "Token, nunca shade"): as quatro
+# variantes de catálogo que ainda não têm token semântico. Qualquer outra
+# família crua aqui é regressão.
+FAMILIAS_DE_CATALOGO_PERMITIDAS = {'orange', 'indigo', 'violet', 'yellow'}
+
+CLASSE_DE_PALETA_RE = re.compile(r'(?:bg|text|border|ring|divide)-([a-z]+)-\d')
 
 
 def _render(**ctx):
@@ -213,3 +226,31 @@ def test_fallback_sem_prefixo_sr_tem_um_unico_sr_only_o_do_label():
     sr_only = [filho for filho in raiz if _e_sr_only(filho)]
     assert len(sr_only) == 1
     assert 'Autorizada' in ''.join(sr_only[0].itertext())
+
+
+# ─── Token no lugar da última cor crua (issue #121) ───────────────────────
+
+
+def test_fallback_usa_token_semantico_e_nao_text_white():
+    raiz = _arvore(variant=VARIANTE_DESCONHECIDA)
+    classes = _classes(raiz)
+    assert 'text-text-on-primary' in classes
+    assert 'text-white' not in classes
+
+
+def test_badge_nao_tem_cor_crua_fora_das_quatro_variantes_de_catalogo():
+    conteudo = BADGE_TEMPLATE.read_text(encoding='utf-8')
+    familias = set(CLASSE_DE_PALETA_RE.findall(conteudo))
+    assert familias == FAMILIAS_DE_CATALOGO_PERMITIDAS, (
+        'famílias de paleta crua fora da exceção declarada: '
+        f'{sorted(familias - FAMILIAS_DE_CATALOGO_PERMITIDAS)}; '
+        f'exceção que sumiu do arquivo: '
+        f'{sorted(FAMILIAS_DE_CATALOGO_PERMITIDAS - familias)}'
+    )
+
+
+def test_badge_nao_usa_cor_crua_sem_shade():
+    """`text-white` não tem dígito e escapa do regex de família — cobre à parte."""
+    conteudo = BADGE_TEMPLATE.read_text(encoding='utf-8')
+    assert 'text-white' not in conteudo
+    assert 'bg-white' not in conteudo
