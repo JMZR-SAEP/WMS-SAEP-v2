@@ -1,6 +1,8 @@
 """Testes diretos de components/alert.html (sem DB, sem view)."""
 
 import copy
+import pathlib
+import re
 from pathlib import Path
 
 import pytest
@@ -9,6 +11,10 @@ from django.template.loader import render_to_string
 from django.test import override_settings
 
 FIXTURES_DIR = Path(__file__).resolve().parent / 'fixtures'
+BASE_DIR = pathlib.Path(__file__).resolve().parents[3]
+
+VARIANTE_DESCONHECIDA = 'estado-que-nao-existe'
+VARIANTES_CONHECIDAS = {'info', 'success', 'warning', 'danger'}
 
 
 def _templates_com_fixtures():
@@ -172,3 +178,130 @@ def test_message_vazia_sem_body_template_renderiza_casca_valida():
     assert 'id="aviso-duplicidade"' in html
     assert 'hidden' in html
     assert 'role="alert"' in html
+
+
+# ─── Variante "" explícita normaliza para info (issue #122) ───────────────
+
+
+def test_variant_vazia_explicita_normaliza_para_info():
+    html = _render(variant='')
+    assert 'role="status"' in html
+    assert 'bg-primary-subtle' in html
+
+
+# ─── Ramo de fallback: variante desconhecida grita (issue #122) ───────────
+
+
+def test_fallback_stack_usa_cor_preenchida_de_grito():
+    html = _render(variant=VARIANTE_DESCONHECIDA)
+    assert 'bg-danger' in html
+    assert 'text-text-on-primary' in html
+
+
+def test_fallback_emite_sinal_visivel_aviso_indisponivel():
+    html = _render(variant=VARIANTE_DESCONHECIDA)
+    assert 'Aviso indisponível' in html
+
+
+def test_fallback_preserva_message():
+    html = _render(variant=VARIANTE_DESCONHECIDA, message='Mensagem original')
+    assert 'Mensagem original' in html
+
+
+@com_fixture_body_template
+def test_fallback_preserva_body_template():
+    html = render_to_string(
+        'components/alert.html',
+        {
+            'variant': VARIANTE_DESCONHECIDA,
+            'body_template': '_fixture_teste_body_template.html',
+            'valor_herdado': 'valor-do-fallback',
+        },
+    )
+    assert 'data-fixture-heranca-contexto' in html
+    assert 'valor-do-fallback' in html
+
+
+def test_fallback_emite_data_alert_variant_com_valor_cru():
+    html = _render(variant=VARIANTE_DESCONHECIDA)
+    assert f'data-alert-variant="{VARIANTE_DESCONHECIDA}"' in html
+
+
+def test_fallback_stack_recebe_role_alert():
+    html = _render(variant=VARIANTE_DESCONHECIDA)
+    assert 'role="alert"' in html
+
+
+def test_fallback_row_recebe_role_alert():
+    html = render_to_string(
+        'components/alert.html',
+        {
+            'layout': 'row',
+            'variant': VARIANTE_DESCONHECIDA,
+            'body_template': None,
+            'message': 'Mensagem',
+        },
+    )
+    assert 'role="alert"' in html
+
+
+@pytest.mark.parametrize('layout', ['stack', 'row'])
+def test_fallback_ignora_role_explicito(layout):
+    html = _render(layout=layout, variant=VARIANTE_DESCONHECIDA, role='note')
+    assert 'role="alert"' in html
+    assert 'role="note"' not in html
+
+
+def test_fallback_row_ignora_bg_class():
+    html = render_to_string(
+        'components/alert.html',
+        {
+            'layout': 'row',
+            'variant': VARIANTE_DESCONHECIDA,
+            'bg_class': 'bg-danger-subtle',
+            'message': 'Mensagem',
+        },
+    )
+    assert 'bg-danger"' in html or 'bg-danger ' in html
+    assert 'bg-danger-subtle' not in html
+
+
+def test_row_variante_conhecida_sem_role_automatico():
+    html = render_to_string(
+        'components/alert.html',
+        {'layout': 'row', 'variant': 'danger', 'message': 'Mensagem'},
+    )
+    assert 'role=' not in html
+
+
+def test_row_bg_class_vence_com_variante_conhecida():
+    html = render_to_string(
+        'components/alert.html',
+        {
+            'layout': 'row',
+            'variant': 'danger',
+            'bg_class': 'bg-danger-subtle/60',
+            'message': 'Mensagem',
+        },
+    )
+    assert 'bg-danger-subtle/60' in html
+
+
+def test_nenhum_chamador_de_alert_passa_variante_fora_das_quatro_conhecidas():
+    padrao_include = re.compile(
+        r'include\s+"components/alert\.html"[^%]*?(?:with[^%]*?variant(?:_token)?=([^\s%]+))?'
+    )
+    ofensores = []
+    for arquivo in sorted((BASE_DIR / 'apps').rglob('*.html')):
+        conteudo = arquivo.read_text(encoding='utf-8')
+        for m in padrao_include.finditer(conteudo):
+            valor = m.group(1)
+            if valor is None:
+                continue
+            if valor.startswith('"') and valor.endswith('"'):
+                literal = valor.strip('"')
+                if literal not in VARIANTES_CONHECIDAS:
+                    ofensores.append(
+                        f'{arquivo.relative_to(BASE_DIR)}: variant={valor}'
+                    )
+    assert ofensores == [], f'chamador(es) fora do catálogo: {ofensores}'
