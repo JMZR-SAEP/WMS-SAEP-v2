@@ -478,7 +478,14 @@ _MINIMO_DE_CLICAVEIS_VARRIDOS = 25
 # O mecanismo de exceção é exercitado por fixture sintética
 # (`test_excecao_de_prosa_inline_isenta_o_ponto_de_chamada`), nunca por uma
 # entrada real posta aqui só para ter teste.
-EXCECOES_DE_PROSA_INLINE: dict[str, str] = {}
+#
+# A chave é `(caminho, linha)` e não só o caminho: um arquivo pode ter os dois
+# usos, e isentar o arquivo inteiro por causa de um link inline esconderia toda
+# ação isolada sem piso que aparecesse depois nele. O número de linha envelhece
+# — qualquer edição acima desloca o ponto de chamada e a exceção deixa de casar.
+# É o lado certo de falhar: o guarda volta a cobrar o piso e alguém reescreve a
+# exceção conferindo se ela ainda vale, em vez de ela seguir valendo sozinha.
+EXCECOES_DE_PROSA_INLINE: dict[tuple[str, int], str] = {}
 
 
 def _classes_com_piso_no_css(raiz: Path) -> frozenset[str]:
@@ -524,7 +531,7 @@ def _clicaveis_sem_piso(
     caminho: str,
     texto: str,
     piso_css: frozenset[str],
-    excecoes: Mapping[str, str],
+    excecoes: Mapping[tuple[str, int], str],
 ) -> tuple[list[str], int]:
     """Infratores e total de clicáveis de um template.
 
@@ -538,7 +545,10 @@ def _clicaveis_sem_piso(
        aparecer a tag: escrita à mão em outro template, ela viraria rota de fuga
        do piso;
     4. para quem *inclui* button.html com `variant="link"` (em aspas simples ou
-       duplas): `min-h-11` no `class`, salvo ponto de chamada em `excecoes`.
+       duplas): `min-h-11` no `class`, salvo o **ponto de chamada** — a dupla
+       `(caminho, linha)` — estar em `excecoes`. A chave é por chamada, e não
+       por arquivo, porque um arquivo pode ter link inline e ação isolada, e
+       isentar o arquivo inteiro esconderia a segunda.
 
     A forma 3 tira button.html da varredura; não dá quitação a quem o inclui. É
     a segunda metade da regra do design system — "`link` usado como ação isolada
@@ -564,9 +574,9 @@ def _clicaveis_sem_piso(
         argumentos = encontro.group(2)
         if not _VARIANTE_LINK.search(argumentos) or 'min-h-11' in argumentos:
             continue
-        if caminho in excecoes:
-            continue
         numero = limpo.count('\n', 0, encontro.start()) + 1
+        if (caminho, numero) in excecoes:
+            continue
         infratores.append(
             f'{caminho}:{numero} variant="link" como ação isolada, sem min-h-11'
         )
@@ -731,8 +741,24 @@ class TestMecanismoDoPisoDe44px:
         num desvio permanente da regra.
         """
         texto = '{% include "components/button.html" with variant="link" label="Ir" %}'
-        excecoes = {'sintetico.html': 'link inline no meio de uma frase'}
+        excecoes = {('sintetico.html', 1): 'link inline no meio de uma frase'}
         assert not self._infratores(texto, excecoes)
+
+    def test_excecao_isenta_uma_chamada_e_nao_o_arquivo_inteiro(self):
+        """Um arquivo pode ter link inline *e* ação isolada.
+
+        Com chave por caminho, a exceção do primeiro esconderia o segundo — e o
+        buraco reapareceria exatamente onde este guarda foi posto para fechar.
+        """
+        chamada = (
+            '{% include "components/button.html" with variant="link" label="Ir" %}'
+        )
+        texto = f'{chamada}\n{chamada}'
+        excecoes = {('sintetico.html', 1): 'link inline no meio de uma frase'}
+
+        assert self._infratores(texto, excecoes) == [
+            'sintetico.html:2 variant="link" como ação isolada, sem min-h-11'
+        ]
 
     def test_lista_real_de_excecoes_de_prosa_inline_esta_vazia(self):
         """Enquanto não houver link inline de verdade, ela não ganha entrada."""

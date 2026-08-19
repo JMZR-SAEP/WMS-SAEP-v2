@@ -138,6 +138,13 @@ Então entra uma quarta forma de prova, no mesmo teste:
    `variant="link"` precisa carregar `min-h-11` no `class`, salvo se o ponto de chamada estiver na
    lista de exceções de prosa inline declarada no próprio teste, com o motivo escrito ao lado.
 
+   A chave da lista é a dupla **`(caminho, linha)`**, e não o caminho: um arquivo pode ter link
+   inline e ação isolada ao mesmo tempo, e uma exceção por arquivo esconderia a segunda — o buraco
+   reapareceria no lugar exato que este guarda fecha. O número de linha envelhece, e isso é
+   intencional: qualquer edição acima desloca o ponto de chamada, a exceção deixa de casar e o
+   guarda volta a cobrar o piso. Falha para o lado seguro, e obriga a reconferir se a exceção ainda
+   vale em vez de deixá-la valendo sozinha.
+
    O reconhecimento aceita **aspas simples e duplas**, tanto no caminho do include quanto no valor
    de `variant`, com as aspas conferidas por retrovisor para que `"...'` não passe por par. O
    projeto usa as duas grafias — `fila_atendimento.html` inclui com aspas simples,
