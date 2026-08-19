@@ -119,7 +119,10 @@ nesta ordem:
 3. **Piso delegado ao componente** — a classe do elemento sai de `{% classes_botao %}`. Vale para
    os dois ramos de `components/button.html`, e só para eles: naquele arquivo `variant` é variável
    de runtime, e nenhuma varredura de markup pode saber qual variante o chamador vai pedir. A
-   delegação, portanto, tira `button.html` da varredura — **não** dá quitação a quem o inclui.
+   delegação, portanto, tira `button.html` da varredura — **não** dá quitação a quem o inclui. A
+   isenção é condicionada ao **caminho do arquivo**, e não à presença da tag: `{% classes_botao %}`
+   escrita à mão em outra tela seria rota de fuga do piso, e o design system já manda toda ação
+   passar pelo componente.
 
 **A delegação não é cheque em branco: o chamador de `variant="link"` continua sob a regra.**
 `_FORMA_LINK` (`core_tags.py:130`) é a única forma sem piso, e o design system a isenta por um
@@ -134,6 +137,12 @@ Então entra uma quarta forma de prova, no mesmo teste:
 4. **Chamada de `variant="link"`** — todo `{% include "components/button.html" %}` que passe
    `variant="link"` precisa carregar `min-h-11` no `class`, salvo se o ponto de chamada estiver na
    lista de exceções de prosa inline declarada no próprio teste, com o motivo escrito ao lado.
+
+   O reconhecimento aceita **aspas simples e duplas**, tanto no caminho do include quanto no valor
+   de `variant`, com as aspas conferidas por retrovisor para que `"...'` não passe por par. O
+   projeto usa as duas grafias — `fila_atendimento.html` inclui com aspas simples,
+   `notificacoes/lista.html` com duplas —, e um guarda contornável por escolha de estilo não é
+   mecanismo, é sugestão.
 
    Hoje há exatamente uma chamada assim em `apps/` — `notificacoes/lista.html:17`, ação isolada ao
    lado do título, que já passa `class="min-h-11"` à mão. A lista de exceções de prosa inline

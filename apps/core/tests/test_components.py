@@ -445,9 +445,21 @@ _NOME_DE_CLASSE_CSS = re.compile(r'\.(-?[A-Za-z_][\w-]*)')
 
 _COMENTARIO_DJANGO = re.compile(r'\{%\s*comment\s*%\}.*?\{%\s*endcomment\s*%\}', re.S)
 _CONDICIONAL_DJANGO = re.compile(r'\{%\s*if\b.*?\{%\s*endif\s*%\}', re.S)
+# O projeto escreve `{% include %}` com as duas aspas — `fila_atendimento.html`
+# usa simples, `notificacoes/lista.html` usa duplas —, e a mesma liberdade vale
+# para o valor de `variant`. Um guarda que só entende aspas duplas seria
+# contornável por uma escolha de estilo, que é a definição de guarda decorativo.
+# A aspa é capturada e conferida por retrovisor (`\1`), para que `"...'` não
+# passe por par.
 _INCLUDE_DE_BOTAO = re.compile(
-    r'\{%\s*include\s+"components/button\.html"(.*?)%\}', re.S
+    r'\{%\s*include\s+([\'"])components/button\.html\1(.*?)%\}', re.S
 )
+_VARIANTE_LINK = re.compile(r'variant=([\'"])link\1')
+
+# Único arquivo em que a classe pode sair de `{% classes_botao %}`: é lá que
+# `variant` é variável de runtime. Fora dele, chamar a tag à mão seria uma rota
+# de fuga do piso — e o design system já diz que toda ação passa pelo componente.
+_TEMPLATE_DE_BOTAO = 'apps/core/templates/components/button.html'
 
 # Piso confirmado por varredura, para que o guarda não possa passar por não ter
 # achado nada. Hoje são 30; o número é folgado de propósito, porque o custo de
@@ -520,11 +532,13 @@ def _clicaveis_sem_piso(
 
     1. `min-h-11` literal na própria lista de classes, fora de `{% if %}`;
     2. uma classe cujo bloco em input.css declara `--size-touch-target`;
-    3. classe vinda de `{% classes_botao %}` — vale só para os dois ramos de
-       components/button.html, onde `variant` é variável de runtime e nenhuma
-       varredura de markup pode saber o que o chamador vai pedir;
-    4. para quem *inclui* button.html com `variant="link"`: `min-h-11` no
-       `class`, salvo ponto de chamada em `excecoes`.
+    3. classe vinda de `{% classes_botao %}` **dentro de components/button.html**
+       — é lá que `variant` é variável de runtime e nenhuma varredura de markup
+       pode saber o que o chamador vai pedir. A isenção é por arquivo, e não por
+       aparecer a tag: escrita à mão em outro template, ela viraria rota de fuga
+       do piso;
+    4. para quem *inclui* button.html com `variant="link"` (em aspas simples ou
+       duplas): `min-h-11` no `class`, salvo ponto de chamada em `excecoes`.
 
     A forma 3 tira button.html da varredura; não dá quitação a quem o inclui. É
     a segunda metade da regra do design system — "`link` usado como ação isolada
@@ -537,7 +551,9 @@ def _clicaveis_sem_piso(
 
     for _, atributos, numero in elementos(limpo, 'a', 'button'):
         quantidade += 1
-        if 'classes_botao' in (atributo(atributos, 'class') or ''):
+        if caminho == _TEMPLATE_DE_BOTAO and 'classes_botao' in (
+            atributo(atributos, 'class') or ''
+        ):
             continue
         nomes = _classes_garantidas(atributos)
         if 'min-h-11' in nomes or nomes & piso_css:
@@ -545,8 +561,8 @@ def _clicaveis_sem_piso(
         infratores.append(f'{caminho}:{numero} clicável sem piso de 44px')
 
     for encontro in _INCLUDE_DE_BOTAO.finditer(limpo):
-        argumentos = encontro.group(1)
-        if 'variant="link"' not in argumentos or 'min-h-11' in argumentos:
+        argumentos = encontro.group(2)
+        if not _VARIANTE_LINK.search(argumentos) or 'min-h-11' in argumentos:
             continue
         if caminho in excecoes:
             continue
@@ -613,10 +629,8 @@ class TestMecanismoDoPisoDe44px:
 
     PISO_CSS = frozenset({'skip-link'})
 
-    def _infratores(self, texto, excecoes=None):
-        achados, _ = _clicaveis_sem_piso(
-            'sintetico.html', texto, self.PISO_CSS, excecoes or {}
-        )
+    def _infratores(self, texto, excecoes=None, caminho='sintetico.html'):
+        achados, _ = _clicaveis_sem_piso(caminho, texto, self.PISO_CSS, excecoes or {})
         return achados
 
     def _quantidade(self, texto):
@@ -660,7 +674,16 @@ class TestMecanismoDoPisoDe44px:
     def test_classes_botao_delega_o_piso_ao_componente(self):
         """Em button.html `variant` é runtime; nenhuma varredura o resolve."""
         texto = '<a href="#x" class="{% classes_botao variant=variant %}">Ir</a>'
-        assert not self._infratores(texto)
+        assert not self._infratores(texto, caminho=_TEMPLATE_DE_BOTAO)
+
+    def test_classes_botao_fora_de_button_html_nao_delega_nada(self):
+        """A isenção é do arquivo, não da tag.
+
+        Chamar `{% classes_botao %}` à mão numa tela seria rota de fuga do piso
+        — e o design system já manda toda ação passar pelo componente.
+        """
+        texto = '<a href="#x" class="{% classes_botao variant=variant %}">Ir</a>'
+        assert self._infratores(texto, caminho='requisicoes/tela.html')
 
     def test_include_de_variant_link_sem_min_h_11_e_detectado(self):
         """Delegar a classe ao componente não quita o chamador.
@@ -677,6 +700,20 @@ class TestMecanismoDoPisoDe44px:
             '{% include "components/button.html" with variant="link" '
             'label="Ir" class="min-h-11" %}'
         )
+        assert not self._infratores(texto)
+
+    def test_include_de_variant_link_com_aspas_simples_e_detectado(self):
+        """Aspas simples são o estilo majoritário de include neste projeto.
+
+        Um guarda que só entende aspas duplas é contornável por escolha de
+        estilo — e um guarda contornável não é mecanismo, é sugestão.
+        """
+        texto = "{% include 'components/button.html' with variant='link' label='Ir' %}"
+        assert self._infratores(texto)
+
+    def test_include_com_aspas_desbalanceadas_nao_casa(self):
+        """`"...'` não é par de aspas; o retrovisor `\\1` é o que garante isso."""
+        texto = '{% include "components/button.html\' with variant="link" %}'
         assert not self._infratores(texto)
 
     def test_include_de_outra_variante_nao_exige_min_h_11_do_chamador(self):
