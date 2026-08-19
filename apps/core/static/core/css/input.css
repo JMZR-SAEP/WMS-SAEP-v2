@@ -392,10 +392,17 @@
     flex: 1 1 0;
   }
 
+  /*
+    O piso de 44px vale aqui como em qualquer clicável: a marca é um link para a
+    tela inicial, e o conteúdo dela (logo de 1.75rem mais o nome) só chegava a
+    ~28px de alvo. Sem efeito visual — a barra já tem `--app-bar-height` (56px
+    mobile, 64px desktop) e centraliza os filhos, então os 44px cabem folgados.
+  */
   .app-bar__brand {
     display: flex;
     align-items: center;
     gap: 0.75rem;
+    min-height: var(--size-touch-target);
     text-decoration: none;
     color: inherit;
   }
