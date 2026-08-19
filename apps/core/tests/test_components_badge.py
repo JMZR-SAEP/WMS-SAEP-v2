@@ -20,6 +20,37 @@ FAMILIAS_DE_CATALOGO_PERMITIDAS = {'orange', 'indigo', 'violet', 'yellow'}
 
 CLASSE_DE_PALETA_RE = re.compile(r'(?:bg|text|border|ring|divide)-([a-z]+)-\d')
 
+# Só a cadeia de variantes abre ramo. As condicionais internas de `role`,
+# `aria_label`, `prefixo_sr` e `label` são `{% if %}` também, então contar tag
+# genérica daria muito mais que 14 — e o primeiro `</span>` fecha um filho
+# `sr-only`, não a raiz. Por isso a fatia é pelos marcadores da cadeia.
+MARCADOR_DE_RAMO_RE = re.compile(r'\{%\s*(?:if|elif)\s+variant\s*==|\{%\s*else\s*%\}')
+
+# O cabeçalho {% comment %} documenta o ramo `{% else %}` citando a tag por
+# extenso. Prosa não é ramo: o bloco sai do texto antes da fatia, senão a
+# documentação do componente derruba o teste que vigia o componente.
+BLOCO_DE_COMENTARIO_RE = re.compile(
+    r'\{%\s*comment\s*%\}.*?\{%\s*endcomment\s*%\}', re.S
+)
+
+TOTAL_DE_RAMOS = 14
+
+VARIANTES_CONHECIDAS = [
+    'slate',
+    'blue',
+    'blue-strong',
+    'amber',
+    'amber-strong',
+    'green',
+    'red',
+    'red-strong',
+    'orange',
+    'teal',
+    'indigo',
+    'violet',
+    'yellow',
+]
+
 
 def _render(**ctx):
     ctx.setdefault('variant', 'slate')
@@ -254,3 +285,64 @@ def test_badge_nao_usa_cor_crua_sem_shade():
     conteudo = BADGE_TEMPLATE.read_text(encoding='utf-8')
     assert 'text-white' not in conteudo
     assert 'bg-white' not in conteudo
+
+
+# ─── Guarda de rótulo longo nos 14 ramos (issue #121) ─────────────────────
+
+
+def _fatias_por_ramo(conteudo):
+    """Corta o template nos marcadores da cadeia de variantes."""
+    conteudo = BLOCO_DE_COMENTARIO_RE.sub('', conteudo)
+    inicios = [m.start() for m in MARCADOR_DE_RAMO_RE.finditer(conteudo)]
+    limites = inicios + [len(conteudo)]
+    return [conteudo[inicio:fim] for inicio, fim in zip(inicios, limites[1:])]
+
+
+@pytest.mark.parametrize('variant', [*VARIANTES_CONHECIDAS, VARIANTE_DESCONHECIDA])
+def test_todo_ramo_renderiza_a_guarda_de_rotulo_longo(variant):
+    raiz = _arvore(variant=variant, label='Aguardando autorização')
+
+    assert 'max-w-48' in _classes(raiz), (
+        f'variante {variant!r} sem largura máxima: rótulo comprido estoura o cartão'
+    )
+
+    guardas = [filho for filho in raiz if {'min-w-0', 'break-words'} <= _classes(filho)]
+    assert len(guardas) == 1, (
+        f'variante {variant!r} precisa de exatamente um invólucro de quebra '
+        f'em volta do texto visível, encontrado(s) {len(guardas)}'
+    )
+
+
+@pytest.mark.parametrize('variant', [*VARIANTES_CONHECIDAS, VARIANTE_DESCONHECIDA])
+def test_a_guarda_nao_engole_o_rotulo(variant):
+    """Largura máxima não pode virar o descarte de dado que a issue #121 fecha."""
+    raiz = _arvore(variant=variant, label='Aguardando autorização')
+    if variant == VARIANTE_DESCONHECIDA:
+        assert 'Aguardando autorização' in ''.join(raiz.itertext())
+    else:
+        assert 'Aguardando autorização' in _texto_visivel(raiz)
+
+
+def test_guarda_de_rotulo_longo_em_todos_os_ramos_do_arquivo():
+    """Vale também para o ramo que ainda não foi escrito.
+
+    A asserção é por fatia, não por total: dois `min-w-0` num ramo compensariam
+    zero em outro e um teste de contagem global passaria feliz.
+    """
+    fatias = _fatias_por_ramo(BADGE_TEMPLATE.read_text(encoding='utf-8'))
+
+    assert len(fatias) == TOTAL_DE_RAMOS, (
+        f'esperado {TOTAL_DE_RAMOS} ramos na cadeia de variantes, '
+        f'encontrado {len(fatias)}'
+    )
+
+    for indice, fatia in enumerate(fatias):
+        assert fatia.count('max-w-48') == 1, (
+            f'ramo {indice} sem largura máxima (ou com mais de uma)'
+        )
+        assert fatia.count('min-w-0') == 1, (
+            f'ramo {indice} sem invólucro de quebra (ou com mais de um)'
+        )
+        assert fatia.count('break-words') == 1, (
+            f'ramo {indice} sem quebra de palavra longa (ou com mais de uma)'
+        )
