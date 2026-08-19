@@ -248,14 +248,29 @@ def test_fallback_preserva_label_em_sr_only_depois_do_sinal():
     )
 
 
-def test_fallback_preserva_role_e_aria_label():
+def test_fallback_forca_role_alert_ignorando_role_do_chamador():
+    """Falha alta é role="alert" (Decisão A-1, issue #122) — o fallback não
+    pode ser rebaixado a "status" por um chamador que não sabia que ia
+    gritar (ex. _badge_tipo_movimentacao.html passa role="status" nos ramos
+    conhecidos).
+    """
+    raiz = _arvore(variant=VARIANTE_DESCONHECIDA, role='status')
+    assert raiz.get('role') == 'alert'
+
+
+def test_fallback_ignora_aria_label_do_chamador():
+    """`aria_label` do fallback do badge.html propagado literalmente
+    substituiria o nome acessível "Indisponível (rótulo)" pelo texto que o
+    chamador escreveu para o ramo conhecido — calando o grito para quem usa
+    leitor de tela.
+    """
     raiz = _arvore(
         variant=VARIANTE_DESCONHECIDA,
-        role='status',
-        aria_label='Estado: Indisponível',
+        aria_label='Estado: Recusada',
+        label='Recusada',
     )
-    assert raiz.get('role') == 'status'
-    assert raiz.get('aria-label') == 'Estado: Indisponível'
+    assert raiz.get('aria-label') is None
+    assert 'Recusada' in ''.join(raiz.itertext())
 
 
 def test_fallback_expoe_variant_crua_para_depuracao():

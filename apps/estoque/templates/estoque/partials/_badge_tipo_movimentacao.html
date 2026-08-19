@@ -6,8 +6,8 @@ textual é sempre o portador primário do significado (acessibilidade: cor nunca
 
 Tipo não mapeado (ramo {% else %}): repassa o valor cru sob o prefixo
 `desconhecida:`, deixando o fallback vermelho do badge.html gritar (Decisão
-A-1, issue #122). Não passa `aria_label` — o fallback do badge.html o
-propagaria literalmente, calando o grito para leitor de tela. Passa
+A-1, issue #122). Não passa `role`/`aria_label` — o próprio badge.html
+ignora os dois na variante desconhecida e força `role="alert"`. Passa
 `prefixo_sr` no lugar, e o badge compõe o nome acessível: "Tipo de
 movimentação: Indisponível (rótulo real)".
 {% endcomment %}
@@ -26,5 +26,5 @@ movimentação: Indisponível (rótulo real)".
 {% elif tipo == 'estorno_requisicao' %}
   {% include "components/badge.html" with variant="violet" label=rotulo role="status" aria_label="Tipo de movimentação: "|add:rotulo %}
 {% else %}
-  {% include "components/badge.html" with variant="desconhecida:"|add:tipo label=rotulo role="status" prefixo_sr="Tipo de movimentação: " %}
+  {% include "components/badge.html" with variant="desconhecida:"|add:tipo label=rotulo prefixo_sr="Tipo de movimentação: " %}
 {% endif %}
