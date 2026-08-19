@@ -1,11 +1,16 @@
-"""Testes de regressão para #86 — tokens semânticos dentro dos componentes.
+"""Testes de regressão para #86 e #122 — tokens semânticos dentro dos templates.
 
-Garante duas coisas que o critério de aceite da issue pede como "busca
+Garante o que os critérios de aceite das duas issues pedem como "busca
 automatizável":
 
-1. Nenhuma classe de cor de paleta crua (blue/red/amber/green/teal) volta a
-   aparecer dentro de apps/core/templates/components/ ou
-   apps/core/templates/core/partials/_messages.html.
+1. Nenhuma classe de cor de paleta crua do Tailwind (qualquer uma das 22
+   famílias padrão) aparece em `apps/**/*.html`, exceto nas duas exceções
+   declaradas em `docs/design-system.md` ("Token, nunca shade"): as quatro
+   variantes de catálogo de `components/badge.html` e o backdrop de
+   `components/modal.html`. A exceção é por **classe exata com contagem**
+   (Decisão B da issue #122) — não por família nem por arquivo inteiro, para
+   que reaproveitar uma classe já isenta num ramo novo, ou colar um shade
+   novo da mesma família, quebre o teste.
 2. Os tokens novos do @theme realmente compilam pra CSS utilizável — roda
    `npm run css:build` e confere que as custom properties e as utilities
    usadas pelos templates existem no app.css gerado.
@@ -15,21 +20,84 @@ import pathlib
 import re
 import shutil
 import subprocess
+from collections import Counter
 
 import pytest
 
 BASE_DIR = pathlib.Path(__file__).resolve().parents[3]
 TAILWIND_CLI = BASE_DIR / 'node_modules' / '.bin' / 'tailwindcss'
-COMPONENTS_DIR = BASE_DIR / 'apps' / 'core' / 'templates' / 'components'
-MESSAGES_TEMPLATE = (
-    BASE_DIR / 'apps' / 'core' / 'templates' / 'core' / 'partials' / '_messages.html'
-)
+APPS_DIR = BASE_DIR / 'apps'
 INPUT_CSS = BASE_DIR / 'apps' / 'core' / 'static' / 'core' / 'css' / 'input.css'
 APP_CSS = BASE_DIR / 'apps' / 'core' / 'static' / 'core' / 'css' / 'app.css'
 
+# As 22 famílias de paleta padrão do Tailwind v4 — não só as que já apareceram
+# no repositório hoje, porque a Decisão B da issue #122 pede que uma família
+# nova coladas amanhã (ex. `bg-lime-100`) quebre o teste, não só as que já
+# existem.
+FAMILIAS_TAILWIND = [
+    'slate',
+    'gray',
+    'zinc',
+    'neutral',
+    'stone',
+    'red',
+    'orange',
+    'amber',
+    'yellow',
+    'lime',
+    'green',
+    'emerald',
+    'teal',
+    'cyan',
+    'sky',
+    'blue',
+    'indigo',
+    'violet',
+    'purple',
+    'fuchsia',
+    'pink',
+    'rose',
+]
+
 CLASSE_CRUA_RE = re.compile(
-    r'(?:bg|text|border|ring|divide)-(?:blue|red|amber|green|teal)-\d'
+    r'(?:bg|text|border|ring|divide)-(?:'
+    + '|'.join(FAMILIAS_TAILWIND)
+    + r')-\d+(?:/\d+)?'
 )
+
+
+def _classe_sem_opacidade(classe):
+    """`bg-slate-900/50` -> `bg-slate-900`: a isenção é da cor, não da opacidade."""
+    return classe.split('/')[0]
+
+
+# Allowlist por (caminho relativo a apps/) -> {classe exata: nº de ocorrências}.
+# Comparação é de igualdade entre dicionários (ver test_allowlist_bate_exatamente
+# abaixo), não de continência: reaproveitar uma classe isenta em ramo novo, um
+# shade novo da mesma família, ou uma classe sumir do arquivo — tudo quebra.
+ALLOWLIST_COR_CRUA = {
+    'core/templates/components/badge.html': {
+        # As quatro variantes de catálogo do design system — cor de marca sem
+        # token semântico, uma ocorrência de cada classe por variante.
+        'bg-orange-100': 1,
+        'text-orange-900': 1,
+        'ring-orange-200': 1,
+        'bg-indigo-100': 1,
+        'text-indigo-900': 1,
+        'ring-indigo-200': 1,
+        'bg-violet-100': 1,
+        'text-violet-900': 1,
+        'ring-violet-200': 1,
+        'bg-yellow-100': 1,
+        'text-yellow-900': 1,
+        'ring-yellow-200': 1,
+    },
+    'core/templates/components/modal.html': {
+        # O backdrop do modal — segunda exceção declarada na mesma linha do
+        # design system.
+        'bg-slate-900': 1,
+    },
+}
 
 TOKENS_NOVOS = [
     '--color-primary-muted-strong',
@@ -87,18 +155,91 @@ UTILITIES_DORMANTES = [
 
 
 def _arquivos_alvo():
-    arquivos = sorted(COMPONENTS_DIR.rglob('*.html'))
-    arquivos.append(MESSAGES_TEMPLATE)
-    return arquivos
+    return sorted(APPS_DIR.rglob('*.html'))
 
 
-@pytest.mark.parametrize('arquivo', _arquivos_alvo(), ids=lambda p: p.name)
-def test_zero_cor_crua_de_marca_no_arquivo(arquivo):
-    conteudo = arquivo.read_text(encoding='utf-8')
-    ocorrencias = CLASSE_CRUA_RE.findall(conteudo)
-    assert ocorrencias == [], (
-        f'{arquivo.relative_to(BASE_DIR)} ainda usa cor crua de marca: {ocorrencias}'
+def _chave_relativa(arquivo):
+    return str(arquivo.relative_to(APPS_DIR))
+
+
+def _ocorrencias_de_cor_crua(conteudo):
+    return dict(
+        Counter(
+            _classe_sem_opacidade(classe) for classe in CLASSE_CRUA_RE.findall(conteudo)
+        )
     )
+
+
+def _bate_com_allowlist(chave, conteudo):
+    """Função pura de checagem — testável com conteúdo sintético, sem tocar disco."""
+    return _ocorrencias_de_cor_crua(conteudo) == ALLOWLIST_COR_CRUA.get(chave, {})
+
+
+@pytest.mark.parametrize(
+    'arquivo', _arquivos_alvo(), ids=lambda p: str(p.relative_to(APPS_DIR))
+)
+def test_cor_crua_de_marca_bate_exatamente_com_a_allowlist(arquivo):
+    conteudo = arquivo.read_text(encoding='utf-8')
+    chave = _chave_relativa(arquivo)
+    ocorrencias = _ocorrencias_de_cor_crua(conteudo)
+    permitidas = ALLOWLIST_COR_CRUA.get(chave, {})
+    assert ocorrencias == permitidas, (
+        f'{chave}: cor crua não bate com a exceção declarada em '
+        f'ALLOWLIST_COR_CRUA. Encontrado={ocorrencias} Permitido={permitidas}'
+    )
+
+
+# ─── Mecanismo exercitado por entrada sintética, não por sujeira real ─────
+# (issue #122) — nunca escrever cor crua num template de verdade só para
+# provar que o guard morde: o próprio teste viraria o vazamento que deveria
+# pegar.
+
+CHAVE_BADGE = 'core/templates/components/badge.html'
+CHAVE_MODAL = 'core/templates/components/modal.html'
+
+
+def _conteudo_real(chave):
+    return (APPS_DIR / chave).read_text(encoding='utf-8')
+
+
+def test_entrada_sintetica_familia_nova_em_arquivo_nao_isento_e_reprovada():
+    assert not _bate_com_allowlist(
+        'requisicoes/templates/requisicoes/exemplo_sintetico.html',
+        '<span class="bg-violet-100"></span>',
+    )
+
+
+def test_entrada_sintetica_familia_nova_dentro_do_badge_e_reprovada():
+    conteudo = _conteudo_real(CHAVE_BADGE) + '<span class="bg-lime-100"></span>'
+    assert not _bate_com_allowlist(CHAVE_BADGE, conteudo)
+
+
+def test_entrada_sintetica_classe_isenta_reusada_no_badge_e_reprovada():
+    conteudo = _conteudo_real(CHAVE_BADGE) + '<span class="bg-orange-100"></span>'
+    assert not _bate_com_allowlist(CHAVE_BADGE, conteudo)
+
+
+def test_entrada_sintetica_shade_novo_de_familia_isenta_no_badge_e_reprovada():
+    conteudo = _conteudo_real(CHAVE_BADGE) + '<span class="bg-orange-50"></span>'
+    assert not _bate_com_allowlist(CHAVE_BADGE, conteudo)
+
+
+def test_entrada_sintetica_classe_errada_no_modal_e_reprovada():
+    conteudo = _conteudo_real(CHAVE_MODAL) + '<span class="bg-slate-800"></span>'
+    assert not _bate_com_allowlist(CHAVE_MODAL, conteudo)
+
+
+def test_entrada_sintetica_classe_faltante_no_badge_e_reprovada():
+    conteudo = _conteudo_real(CHAVE_BADGE).replace('bg-orange-100', '', 1)
+    assert not _bate_com_allowlist(CHAVE_BADGE, conteudo)
+
+
+def test_todo_arquivo_da_allowlist_ainda_existe():
+    """Exceção que sobrevive ao arquivo é como a regra vira sugestão de novo."""
+    for chave in ALLOWLIST_COR_CRUA:
+        assert (APPS_DIR / chave).exists(), (
+            f'{chave} não existe mais — remova da allowlist'
+        )
 
 
 def test_tokens_novos_documentados_existem_no_input_css():
