@@ -14,18 +14,27 @@ estado) de `docs/plans/audit-frontend-restante.md`.
      de altura.
 
    **O que exatamente muda no desenho, já que "só o alvo" não é literalmente verdade.** Um alvo
-   não cresce de 20px para 44px sem consequência de layout; o critério da issue quer dizer que
-   cor, tipografia, sublinhado, alinhamento e espaçamento horizontal ficam iguais. As
-   consequências verticais que este PR aceita, declaradas para que não passem por descuido:
+   não cresce de 20px para 44px sem consequência de layout. Três dimensões diferentes andavam
+   juntas na frase "só o alvo" e precisam ser verificadas separadamente, porque este PR trata cada
+   uma de um jeito:
 
-   | Controle | Muda | Não muda |
-   |---|---|---|
-   | Âncora de erro | Caixa vira `block`: ocupa a largura do `<li>`, e com ela o anel de foco e o retângulo clicável. Altura vai a 44px via `py-2.5` + `min-h-11`, empurrando o próximo item para baixo | Texto, cor, sublinhado (segue o texto, não a caixa), `space-y-1` entre itens, posição horizontal |
-   | CTA secundário | Caixa vira `inline-flex items-center`: 44px de altura com o rótulo centralizado verticalmente, em vez de encostado no topo | Texto, cor, sublinhado, `mt-3`, **largura e posição horizontal** |
+   - **posição horizontal do texto** — onde o rótulo começa e termina na linha. Intacta nos dois
+     controles, sem exceção;
+   - **largura da caixa** — a área clicável e o anel de foco. Muda na âncora de erro, por
+     necessidade; intacta no CTA;
+   - **alinhamento vertical do texto dentro da caixa** — muda no CTA, por necessidade; intacto na
+     âncora.
 
-   Por isso o `px-1` que a issue sugere para o CTA **não entra**: ele alarga o alvo em 8px
-   horizontais, que é a única dimensão em que o critério "desenho inalterado" é literal. A altura
-   é o que a regra pede; a largura, não.
+   | Controle | Posição horizontal do texto | Largura da caixa | Alinhamento vertical | Altura |
+   |---|---|---|---|---|
+   | Âncora de erro | inalterada | **muda**: `block` faz a caixa ocupar a largura do `<li>`, e com ela o anel de foco e o retângulo clicável | inalterado: o texto continua no topo do seu próprio `py-2.5` | 44px via `py-2.5` + `min-h-11`, empurrando o próximo item para baixo |
+   | CTA secundário | inalterada | inalterada: `inline-flex` continua encolhendo até o conteúdo, e sem `px-1` não há folga horizontal nova | **muda**: `items-center` centraliza o rótulo nos 44px, em vez de deixá-lo encostado no topo | 44px via `min-h-11` |
+
+   Cor, tipografia, sublinhado (que segue o texto, não a caixa), `space-y-1` entre itens de erro e
+   `mt-3` do CTA ficam iguais nos dois.
+
+   Por isso o `px-1` que a issue sugere para o CTA **não entra**: ele alargaria a caixa em 8px
+   horizontais sem que a regra de 44px peça um único deles. A regra é de altura.
 
 2. **Raio dentro da escala nas mesmas duas linhas**
    - `rounded` pelado (0.25rem no Tailwind v4) é degrau abaixo do menor da escala do design system
@@ -132,6 +141,12 @@ Então entra uma quarta forma de prova, no mesmo teste:
    inexistente é exatamente o tipo de folga que vira esconderijo. O primeiro link inline de
    verdade entra na lista junto com a frase que o justifica.
 
+   Para que "lista vazia" e "o mecanismo de exceção funciona" possam ser as duas verdadeiras, a
+   varredura recebe a lista de exceções como parâmetro, com a lista real (vazia) por default. O
+   guarda sobre `apps/` roda com o default; o teste do mecanismo roda com uma lista sintética
+   apontando para um caminho que não existe na árvore. A lista real nunca ganha entrada só para
+   ter teste.
+
 Três cuidados de varredura, todos já resolvidos por `apps/core/tests/marcacao.py`:
 
 - **`<a` seguido de newline casa.** O helper `elementos()` usa `<(a|button)(?=[\s/>])`, e `\s`
@@ -164,7 +179,7 @@ Alinhada à ADR-0010. Nenhum teste novo precisa de banco.
 | Regressão do mecanismo | O teste reformulado **falha** se um `<a>` sem piso for reintroduzido — provado por um caso sintético em memória, não por reverter o arquivo | idem |
 | Exceção legítima | `button.html` continua fora da varredura por delegar a `classes_botao`, e a razão está escrita no teste | idem |
 | `variant="link"` como ação isolada | Uma chamada sintética com `variant="link"` **sem** `min-h-11` é detectada; a chamada real de `notificacoes/lista.html:17`, que tem, passa | idem |
-| `variant="link"` inline em prosa | A lista de exceções nasce vazia; o teste prova que um ponto de chamada listado nela passa, para que a saída exista antes de ser precisa | idem |
+| `variant="link"` inline em prosa | O mecanismo de exceção é exercitado por **fixture sintética local** — uma lista de exceções montada dentro do teste, com um caminho que não existe em `apps/`. A lista real permanece vazia até haver chamador inline justificado, então a exceção não vira desvio permanente | idem |
 | `<a` com newline | Um `<a\n  class="...">` sintético sem piso é detectado | idem |
 | Piso derivado do CSS | Um elemento com `class="skip-link"` passa sem `min-h-11` literal | idem |
 | Guarda global | A varredura sobre `apps/**/*.html` real fica verde | `test_nenhum_controle_abaixo_do_piso_de_44px` |
@@ -220,8 +235,11 @@ De `docs/design-system.md`, "Regras invioláveis":
 - [ ] Âncoras de `error_summary.html` com alvo ≥ 44px
 - [ ] CTA secundário de `empty_state.html` com alvo ≥ 44px
 - [ ] Nenhum `rounded` pelado nos dois arquivos
-- [ ] Desenho visual dos dois controles inalterado além do alvo, nos termos da tabela do escopo
-      (cor, tipografia, sublinhado e dimensão horizontal intactos; a altura é o que muda)
+- [ ] Desenho visual dos dois controles inalterado além do alvo, verificável por dimensão
+      separada, nos termos da tabela do escopo: posição horizontal do texto intacta nos dois; cor,
+      tipografia e sublinhado intactos nos dois; a altura vai a 44px nos dois; a largura da caixa
+      muda **só** na âncora de erro (`block`); o alinhamento vertical muda **só** no CTA
+      (`items-center`)
 - [ ] O teste falha para **todo clicável sem piso comprovável** — seja piso literal, vindo do CSS,
       delegado ao componente ou exigido do chamador de `variant="link"` —, e não apenas para
       `min-h-9`/`min-h-10`
