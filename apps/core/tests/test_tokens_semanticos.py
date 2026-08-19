@@ -59,8 +59,33 @@ FAMILIAS_TAILWIND = [
     'rose',
 ]
 
+# Prefixos de utility de cor do Tailwind — inclui as variantes direcionais de
+# border (border-t/-r/-b/-l) e as de gradiente/SVG/decoração, que têm prefixo
+# composto e escapavam do regex mesmo com a família presente (CodeRabbit).
+PREFIXOS_DE_COR = [
+    'bg',
+    'text',
+    'border',
+    'border-t',
+    'border-r',
+    'border-b',
+    'border-l',
+    'ring',
+    'divide',
+    'outline',
+    'fill',
+    'stroke',
+    'decoration',
+    'accent',
+    'from',
+    'via',
+    'to',
+]
+
 CLASSE_CRUA_RE = re.compile(
-    r'(?:bg|text|border|ring|divide)-(?:'
+    r'(?:'
+    + '|'.join(PREFIXOS_DE_COR)
+    + r')-(?:'
     + '|'.join(FAMILIAS_TAILWIND)
     + r')-\d+(?:/\d+)?'
 )
@@ -232,6 +257,33 @@ def test_entrada_sintetica_classe_errada_no_modal_e_reprovada():
 def test_entrada_sintetica_classe_faltante_no_badge_e_reprovada():
     conteudo = _conteudo_real(CHAVE_BADGE).replace('bg-orange-100', '', 1)
     assert not _bate_com_allowlist(CHAVE_BADGE, conteudo)
+
+
+@pytest.mark.parametrize(
+    'classe',
+    [
+        'border-t-red-500',
+        'border-r-red-500',
+        'border-b-red-500',
+        'border-l-red-500',
+        'outline-red-500',
+        'fill-red-500',
+        'stroke-red-500',
+        'from-red-500',
+        'via-red-500',
+        'to-red-500',
+        'decoration-red-500',
+        'accent-red-500',
+    ],
+)
+def test_entrada_sintetica_prefixo_direcional_ou_de_gradiente_e_reprovada(classe):
+    """CodeRabbit: border-t/outline/fill/stroke/from (e primos) escapavam do
+    regex por terem prefixo composto — a família batia, mas o prefixo não.
+    """
+    assert not _bate_com_allowlist(
+        'requisicoes/templates/requisicoes/exemplo_sintetico.html',
+        f'<span class="{classe}"></span>',
+    )
 
 
 def test_todo_arquivo_da_allowlist_ainda_existe():
