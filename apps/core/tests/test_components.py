@@ -1,6 +1,8 @@
 """Testes diretos de components/button.html (sem DB, sem view)."""
 
 import re
+from collections.abc import Mapping
+from pathlib import Path
 
 import pytest
 from django.template.loader import render_to_string
@@ -323,7 +325,6 @@ def test_nenhum_template_usa_comentario_de_linha_em_varias_linhas():
     presença de marcação pega isso porque o HTML continua válido. Comentário de
     mais de uma linha usa `{% comment %}`.
     """
-    from pathlib import Path
 
     raiz = Path(__file__).resolve().parents[3]
     infratores: list[str] = []
@@ -405,7 +406,6 @@ def test_nenhum_template_escreve_campo_na_mao():
     Agora a varredura é por elemento, com as tags de template removidas antes da
     comparação, para que uma classe condicional não sirva de esconderijo.
     """
-    from pathlib import Path
 
     raiz = Path(__file__).resolve().parents[3]
     infratores: list[str] = []
@@ -431,25 +431,418 @@ def test_nenhum_template_escreve_campo_na_mao():
     )
 
 
-def test_nenhum_controle_abaixo_do_piso_de_44px():
-    """`min-h-9`/`min-h-10` em controle clicável.
+_INPUT_CSS = 'apps/core/static/core/css/input.css'
 
-    Não são omissões: são alguém escolhendo conscientemente um número menor que
-    o piso de `--size-touch-target`. A mesma tela é operada com o dedo, em pé no
-    galpão, e com teclado no escritório.
+_COMENTARIO_CSS = re.compile(r'/\*.*?\*/', re.S)
+# Os blocos são casados de dentro para fora: `[^{}]*` nunca atravessa uma chave,
+# então uma regra dentro de `@media` sai com o at-rule grudado no seletor. Não
+# atrapalha — o que se extrai do seletor é nome de classe, e `@media` não tem.
+_BLOCO_CSS = re.compile(r'([^{}]*)\{([^{}]*)\}', re.S)
+_ALTURA_DE_PISO = re.compile(r'(?<![-\w])(?:min-)?height:\s*var\(--size-touch-target\)')
+# Nome de classe começa por letra, `_` ou `-`. Sem essa âncora, o `.5rem` de um
+# `padding: 0.5rem` viraria uma classe chamada `5rem`.
+_NOME_DE_CLASSE_CSS = re.compile(r'\.(-?[A-Za-z_][\w-]*)')
+
+_COMENTARIO_DJANGO = re.compile(r'\{%\s*comment\s*%\}.*?\{%\s*endcomment\s*%\}', re.S)
+_CONDICIONAL_DJANGO = re.compile(r'\{%\s*if\b.*?\{%\s*endif\s*%\}', re.S)
+# O projeto escreve `{% include %}` com as duas aspas — `fila_atendimento.html`
+# usa simples, `notificacoes/lista.html` usa duplas —, e a mesma liberdade vale
+# para o valor de `variant`. Um guarda que só entende aspas duplas seria
+# contornável por uma escolha de estilo, que é a definição de guarda decorativo.
+# A aspa é capturada e conferida por retrovisor (`\1`), para que `"...'` não
+# passe por par.
+_INCLUDE_DE_BOTAO = re.compile(
+    r'\{%\s*include\s+([\'"])components/button\.html\1(.*?)%\}', re.S
+)
+_VARIANTE_LINK = re.compile(r'variant=([\'"])link\1')
+
+# Único arquivo em que a classe pode sair de `{% classes_botao %}`: é lá que
+# `variant` é variável de runtime. Fora dele, chamar a tag à mão seria uma rota
+# de fuga do piso — e o design system já diz que toda ação passa pelo componente.
+_TEMPLATE_DE_BOTAO = 'apps/core/templates/components/button.html'
+
+# Piso confirmado por varredura, para que o guarda não possa passar por não ter
+# achado nada. Hoje são 30; o número é folgado de propósito, porque o custo de
+# um falso vermelho aqui é alto e o de um teto baixo é zero.
+_MINIMO_DE_CLICAVEIS_VARRIDOS = 25
+
+# Exceção declarada em docs/design-system.md: a variante `link` de button.html é
+# texto inline no meio de prosa, e uma caixa de 44px quebraria a linha (WCAG
+# 2.5.8 isenta link em sentença).
+#
+# Nasce vazia de propósito. Não existe uso inline ainda, e exceção pré-aprovada
+# para caso que não existe é a folga que vira esconderijo — foi assim que os dois
+# controles de recuperação ficaram sem piso sem quebrar teste nenhum. O primeiro
+# link inline de verdade entra aqui junto com a frase que o justifica.
+#
+# O mecanismo de exceção é exercitado por fixture sintética
+# (`test_excecao_de_prosa_inline_isenta_o_ponto_de_chamada`), nunca por uma
+# entrada real posta aqui só para ter teste.
+#
+# A chave é `(caminho, linha)` e não só o caminho: um arquivo pode ter os dois
+# usos, e isentar o arquivo inteiro por causa de um link inline esconderia toda
+# ação isolada sem piso que aparecesse depois nele. O número de linha envelhece
+# — qualquer edição acima desloca o ponto de chamada e a exceção deixa de casar.
+# É o lado certo de falhar: o guarda volta a cobrar o piso e alguém reescreve a
+# exceção conferindo se ela ainda vale, em vez de ela seguir valendo sozinha.
+EXCECOES_DE_PROSA_INLINE: dict[tuple[str, int], str] = {}
+
+
+def _classes_com_piso_no_css(raiz: Path) -> frozenset[str]:
+    """Classes cujo bloco em input.css declara altura de `--size-touch-target`.
+
+    Derivada do CSS a cada execução, e não escrita à mão, porque uma lista fixa
+    só conheceria o que existia no dia em que foi escrita — que é exatamente o
+    defeito que este guarda existe para não repetir.
     """
-    from pathlib import Path
+    css = _COMENTARIO_CSS.sub(' ', (raiz / _INPUT_CSS).read_text())
+    nomes: set[str] = set()
+    for seletor, corpo in _BLOCO_CSS.findall(css):
+        if _ALTURA_DE_PISO.search(corpo):
+            nomes.update(_NOME_DE_CLASSE_CSS.findall(seletor))
+    return frozenset(nomes)
 
-    raiz = Path(__file__).resolve().parents[3]
+
+def _classes_garantidas(atributos: str) -> set[str]:
+    """Classes que valem em *qualquer* ramo do template.
+
+    Difere de `classes()` de propósito. Aquele helper troca a tag Django por
+    espaço e mantém o texto de dentro, porque os guardas dele perguntam "esta
+    string aparece em algum ramo?". Aqui a pergunta é o contrário: piso que só
+    existe quando a condição é verdadeira não é piso — do outro lado do `{% if %}`
+    o alvo volta a ter 21px, e nenhuma varredura por presença notaria.
+    """
+    valor = atributo(atributos, 'class') or ''
+    return set(TAGS_DJANGO.sub(' ', _CONDICIONAL_DJANGO.sub(' ', valor)).split())
+
+
+def _sem_comentarios(texto: str) -> str:
+    """Remove blocos `{% comment %}` preservando a numeração de linha.
+
+    Markup dentro de comentário não é markup: os blocos de documentação de
+    button.html, modal.html e pagination.html trazem exemplos de uso com
+    `<button ...>` e `<a ...>` que nunca renderizam. Sem removê-los o guarda
+    acusaria quatro falsos positivos, e a correção óbvia seria afrouxá-lo.
+    """
+    return _COMENTARIO_DJANGO.sub(lambda m: '\n' * m.group(0).count('\n'), texto)
+
+
+def _clicaveis_sem_piso(
+    caminho: str,
+    texto: str,
+    piso_css: frozenset[str],
+    excecoes: Mapping[tuple[str, int], str],
+) -> tuple[list[str], int]:
+    """Infratores e total de clicáveis de um template.
+
+    Um clicável tem piso comprovável de quatro formas:
+
+    1. `min-h-11` literal na própria lista de classes, fora de `{% if %}`;
+    2. uma classe cujo bloco em input.css declara `--size-touch-target`;
+    3. classe vinda de `{% classes_botao %}` **dentro de components/button.html**
+       — é lá que `variant` é variável de runtime e nenhuma varredura de markup
+       pode saber o que o chamador vai pedir. A isenção é por arquivo, e não por
+       aparecer a tag: escrita à mão em outro template, ela viraria rota de fuga
+       do piso;
+    4. para quem *inclui* button.html com `variant="link"` (em aspas simples ou
+       duplas): `min-h-11` no `class`, salvo o **ponto de chamada** — a dupla
+       `(caminho, linha)` — estar em `excecoes`. A chave é por chamada, e não
+       por arquivo, porque um arquivo pode ter link inline e ação isolada, e
+       isentar o arquivo inteiro esconderia a segunda.
+
+    A forma 3 tira button.html da varredura; não dá quitação a quem o inclui. É
+    a segunda metade da regra do design system — "`link` usado como ação isolada
+    recebe `class="min-h-11"` explícito" — e apagá-la abriria, no mecanismo
+    novo, um buraco do mesmo formato do que ele fecha.
+    """
+    limpo = _sem_comentarios(texto)
     infratores: list[str] = []
-    for caminho in (raiz / 'apps').rglob('*.html'):
-        for numero, linha in enumerate(caminho.read_text().splitlines(), 1):
-            if 'min-h-9' in linha or 'min-h-10' in linha:
-                infratores.append(f'{caminho.relative_to(raiz)}:{numero}')
+    quantidade = 0
 
+    for _, atributos, numero in elementos(limpo, 'a', 'button'):
+        quantidade += 1
+        if caminho == _TEMPLATE_DE_BOTAO and 'classes_botao' in (
+            atributo(atributos, 'class') or ''
+        ):
+            continue
+        nomes = _classes_garantidas(atributos)
+        if 'min-h-11' in nomes or nomes & piso_css:
+            continue
+        infratores.append(f'{caminho}:{numero} clicável sem piso de 44px')
+
+    for encontro in _INCLUDE_DE_BOTAO.finditer(limpo):
+        argumentos = encontro.group(2)
+        if not _VARIANTE_LINK.search(argumentos) or 'min-h-11' in argumentos:
+            continue
+        numero = limpo.count('\n', 0, encontro.start()) + 1
+        if (caminho, numero) in excecoes:
+            continue
+        infratores.append(
+            f'{caminho}:{numero} variant="link" como ação isolada, sem min-h-11'
+        )
+
+    return infratores, quantidade
+
+
+def test_nenhum_controle_abaixo_do_piso_de_44px():
+    """Todo clicável de apps/**/*.html tem piso de 44px comprovável.
+
+    A versão anterior deste guarda procurava os literais `min-h-9`/`min-h-10`
+    linha a linha. Ela pega quem escolheu conscientemente um número menor que
+    `--size-touch-target` e é **cega para quem não escreveu piso nenhum** — que
+    era o caso das âncoras de error_summary.html e do CTA secundário de
+    empty_state.html, os dois exatamente na superfície de recuperação de erro,
+    os dois passando em silêncio.
+
+    As duas varreduras convivem porque cobrem coisas diferentes: a por linha
+    alcança o número menor escrito em qualquer elemento, inclusive nos que não
+    são `<a>` nem `<button>`; a por elemento alcança a ausência.
+
+    A mesma tela é operada com o dedo, em pé no galpão, e com teclado no
+    escritório.
+    """
+    raiz = Path(__file__).resolve().parents[3]
+    piso_css = _classes_com_piso_no_css(raiz)
+    infratores: list[str] = []
+    clicaveis = 0
+
+    for caminho in sorted((raiz / 'apps').rglob('*.html')):
+        relativo = str(caminho.relative_to(raiz))
+        texto = caminho.read_text()
+        for numero, linha in enumerate(texto.splitlines(), 1):
+            if 'min-h-9' in linha or 'min-h-10' in linha:
+                infratores.append(f'{relativo}:{numero} número menor que o piso')
+        achados, quantidade = _clicaveis_sem_piso(
+            relativo, texto, piso_css, EXCECOES_DE_PROSA_INLINE
+        )
+        infratores.extend(achados)
+        clicaveis += quantidade
+
+    assert clicaveis >= _MINIMO_DE_CLICAVEIS_VARRIDOS, (
+        f'A varredura achou só {clicaveis} clicáveis em apps/**/*.html — o '
+        'guarda está passando por não enxergar, não por estar tudo certo'
+    )
     assert not infratores, (
         f'Controle abaixo do piso de 44px; use min-h-11: {infratores}'
     )
+
+
+class TestMecanismoDoPisoDe44px:
+    """O guarda precisa provar que *detecta*, não que hoje não há infrator.
+
+    Um guarda exercitado só pela árvore real é indistinguível de um guarda
+    quebrado enquanto a árvore estiver limpa — e foi assim que a versão anterior
+    passou verde por cima de dois controles sem piso. Cada forma de prova e cada
+    cegueira conhecida tem aqui um caso sintético que deve falhar (ou passar) por
+    conta própria.
+    """
+
+    PISO_CSS = frozenset({'skip-link'})
+
+    def _infratores(self, texto, excecoes=None, caminho='sintetico.html'):
+        achados, _ = _clicaveis_sem_piso(caminho, texto, self.PISO_CSS, excecoes or {})
+        return achados
+
+    def _quantidade(self, texto):
+        _, quantidade = _clicaveis_sem_piso('sintetico.html', texto, self.PISO_CSS, {})
+        return quantidade
+
+    def test_ausencia_de_piso_e_detectada(self):
+        """O caso que a versão anterior não via: nenhum piso escrito."""
+        assert self._infratores('<a href="#x" class="underline">Erro</a>')
+
+    def test_min_h_11_literal_passa(self):
+        assert not self._infratores('<a href="#x" class="min-h-11">Erro</a>')
+
+    def test_a_seguido_de_newline_e_detectado(self):
+        """`<(a|button)[ >]` não casaria — e os dois infratores eram assim.
+
+        As âncoras de error_summary.html e o CTA de empty_state.html quebram
+        linha logo depois do nome da tag. Um guarda cego para essa grafia
+        nasceria sem enxergar exatamente o que veio corrigir.
+        """
+        texto = '<a\n  href="#x"\n  class="underline"\n>Erro</a>'
+        assert self._infratores(texto)
+
+    def test_classe_condicional_nao_serve_de_esconderijo(self):
+        """`min-h-11` dentro de `{% if %}` não conta como piso escrito."""
+        texto = '<a href="#x" class="{% if x %}min-h-11{% endif %}">Erro</a>'
+        assert self._infratores(texto)
+
+    def test_piso_vindo_do_css_dispensa_min_h_11(self):
+        assert not self._infratores('<a href="#x" class="skip-link">Pular</a>')
+
+    def test_markup_dentro_de_comment_nao_e_markup(self):
+        texto = '{% comment %}\n<a href="#x" class="underline">Exemplo</a>\n{% endcomment %}'
+        assert not self._infratores(texto)
+        assert self._quantidade(texto) == 0
+
+    def test_comment_removido_preserva_a_numeracao_de_linha(self):
+        texto = '{% comment %}\nexemplo\n{% endcomment %}\n<a href="#x" class="u">E</a>'
+        assert self._infratores(texto) == ['sintetico.html:4 clicável sem piso de 44px']
+
+    def test_classes_botao_delega_o_piso_ao_componente(self):
+        """Em button.html `variant` é runtime; nenhuma varredura o resolve."""
+        texto = '<a href="#x" class="{% classes_botao variant=variant %}">Ir</a>'
+        assert not self._infratores(texto, caminho=_TEMPLATE_DE_BOTAO)
+
+    def test_classes_botao_fora_de_button_html_nao_delega_nada(self):
+        """A isenção é do arquivo, não da tag.
+
+        Chamar `{% classes_botao %}` à mão numa tela seria rota de fuga do piso
+        — e o design system já manda toda ação passar pelo componente.
+        """
+        texto = '<a href="#x" class="{% classes_botao variant=variant %}">Ir</a>'
+        assert self._infratores(texto, caminho='requisicoes/tela.html')
+
+    def test_include_de_variant_link_sem_min_h_11_e_detectado(self):
+        """Delegar a classe ao componente não quita o chamador.
+
+        `_FORMA_LINK` é a única forma sem piso, e o design system a isenta só
+        para texto inline em prosa. Ação isolada com `variant="link"` carrega
+        `class="min-h-11"` explícito.
+        """
+        texto = '{% include "components/button.html" with variant="link" label="Ir" %}'
+        assert self._infratores(texto)
+
+    def test_include_de_variant_link_com_min_h_11_passa(self):
+        texto = (
+            '{% include "components/button.html" with variant="link" '
+            'label="Ir" class="min-h-11" %}'
+        )
+        assert not self._infratores(texto)
+
+    def test_include_de_variant_link_com_aspas_simples_e_detectado(self):
+        """Aspas simples são o estilo majoritário de include neste projeto.
+
+        Um guarda que só entende aspas duplas é contornável por escolha de
+        estilo — e um guarda contornável não é mecanismo, é sugestão.
+        """
+        texto = "{% include 'components/button.html' with variant='link' label='Ir' %}"
+        assert self._infratores(texto)
+
+    def test_include_com_aspas_desbalanceadas_nao_casa(self):
+        """`"...'` não é par de aspas; o retrovisor `\\1` é o que garante isso."""
+        texto = '{% include "components/button.html\' with variant="link" %}'
+        assert not self._infratores(texto)
+
+    def test_include_de_outra_variante_nao_exige_min_h_11_do_chamador(self):
+        """`primary` já vem com piso de `_FORMA_BOTAO` — cobrar de novo seria ruído."""
+        texto = (
+            '{% include "components/button.html" with variant="primary" label="Ir" %}'
+        )
+        assert not self._infratores(texto)
+
+    def test_excecao_de_prosa_inline_isenta_o_ponto_de_chamada(self):
+        """Fixture sintética: o mecanismo existe antes de haver caso real.
+
+        A lista real (`EXCECOES_DE_PROSA_INLINE`) continua vazia — ver o teste
+        seguinte. Pôr uma entrada nela só para ter teste transformaria a exceção
+        num desvio permanente da regra.
+        """
+        texto = '{% include "components/button.html" with variant="link" label="Ir" %}'
+        excecoes = {('sintetico.html', 1): 'link inline no meio de uma frase'}
+        assert not self._infratores(texto, excecoes)
+
+    def test_excecao_isenta_uma_chamada_e_nao_o_arquivo_inteiro(self):
+        """Um arquivo pode ter link inline *e* ação isolada.
+
+        Com chave por caminho, a exceção do primeiro esconderia o segundo — e o
+        buraco reapareceria exatamente onde este guarda foi posto para fechar.
+        """
+        chamada = (
+            '{% include "components/button.html" with variant="link" label="Ir" %}'
+        )
+        texto = f'{chamada}\n{chamada}'
+        excecoes = {('sintetico.html', 1): 'link inline no meio de uma frase'}
+
+        assert self._infratores(texto, excecoes) == [
+            'sintetico.html:2 variant="link" como ação isolada, sem min-h-11'
+        ]
+
+    def test_lista_real_de_excecoes_de_prosa_inline_esta_vazia(self):
+        """Enquanto não houver link inline de verdade, ela não ganha entrada."""
+        assert EXCECOES_DE_PROSA_INLINE == {}
+
+    def test_classes_com_piso_saem_do_css_e_nao_de_lista_escrita_a_mao(self):
+        raiz = Path(__file__).resolve().parents[3]
+        derivadas = _classes_com_piso_no_css(raiz)
+
+        assert {'campo', 'skip-link', 'app-bar__menu-item'} <= derivadas
+        assert not any(nome[0].isdigit() for nome in derivadas), (
+            f'`.5rem` de um padding virou nome de classe: {sorted(derivadas)}'
+        )
+
+
+class TestPisoDosControlesDeRecuperacao:
+    """error_summary e empty_state: a superfície onde o usuário já falhou uma vez.
+
+    São os dois controles que a issue #120 encontrou sem piso — e os dois estão
+    justamente na recuperação de erro e na saída de estado vazio, operados com
+    luva, no galpão, depois de a tela já ter dito não.
+    """
+
+    def _ancora_de_erro(self):
+        html = render_to_string(
+            'components/error_summary.html',
+            {
+                'erros': [
+                    {'id': 'id_setor', 'rotulo': 'Setor', 'mensagem': 'Obrigatório.'}
+                ]
+            },
+        )
+        ((_, atributos, _),) = elementos(html, 'a')
+        return classes(atributos)
+
+    def _cta_secundario(self):
+        html = render_to_string(
+            'components/empty_state.html',
+            {
+                'titulo': 'Nenhum material',
+                'cta_url': '/estoque/materiais/',
+                'cta_label': 'Limpar busca',
+                'cta_secundario': True,
+            },
+        )
+        ((_, atributos, _),) = elementos(html, 'a')
+        return classes(atributos)
+
+    def test_ancora_de_erro_tem_alvo_de_44px(self):
+        """`block` porque `min-height` não tem efeito em elemento inline.
+
+        Num sumário de 4 erros, no celular, um alvo de ~21px leva o solicitante
+        ao campo errado — no exato momento em que ele já errou uma vez.
+        """
+        assert {'block', 'min-h-11', 'py-2.5'} <= self._ancora_de_erro()
+
+    def test_cta_secundario_tem_alvo_de_44px(self):
+        """Única saída do estado vazio de busca de material."""
+        assert {'inline-flex', 'items-center', 'min-h-11'} <= self._cta_secundario()
+
+    def test_cta_secundario_nao_ganha_folga_horizontal(self):
+        """A regra é de altura. `px-*` alargaria o alvo sem que nada peça."""
+        assert not {c for c in self._cta_secundario() if c.startswith('px-')}
+
+    @pytest.mark.parametrize(
+        'template',
+        (
+            'components/error_summary.html',
+            'components/empty_state.html',
+        ),
+    )
+    def test_nenhum_raio_fora_da_escala(self, template):
+        """`rounded` pelado é 0.25rem — degrau abaixo do menor da escala.
+
+        A escala é controle 0.375 → campo 0.5 → papel 0.75 → modal 1rem → pill.
+        Um raio intermediário inventado quebra a leitura de hierarquia por
+        geometria.
+        """
+        raiz = Path(__file__).resolve().parents[3]
+        texto = (raiz / 'apps/core/templates' / template).read_text()
+        for _, atributos, numero in elementos(texto, 'a', 'button', 'div', 'ul', 'li'):
+            assert 'rounded' not in classes(atributos), (
+                f'{template}:{numero} usa `rounded` pelado; use a escala'
+            )
 
 
 class TestPaginationHref:
@@ -530,7 +923,6 @@ def test_todo_icon_template_de_button_honra_a_classe():
     o botão, e nada quebra: sem erro, sem log, sem teste vermelho.
     """
     import re
-    from pathlib import Path
 
     raiz = Path(__file__).resolve().parents[3]
     usados = set()
@@ -623,7 +1015,6 @@ def test_nenhum_rotulo_de_campo_escrito_a_mao():
     Só `<label>` é varrido: a mesma tipografia é usada legitimamente em `<dt>`
     de lista de dados, que é termo de definição e não rótulo de controle.
     """
-    from pathlib import Path
 
     raiz = Path(__file__).resolve().parents[3]
     tipografia_de_rotulo = {'text-xs', 'font-medium', 'uppercase'}
@@ -647,7 +1038,6 @@ def test_nenhum_widget_carrega_margem_de_rotulo():
     `campo mt-2` na classe do widget — espaçamento de layout decidido na camada
     que valida, e divergente dos 4px que o resto do sistema usava.
     """
-    from pathlib import Path
 
     raiz = Path(__file__).resolve().parents[3]
     # A chave e o valor aceitam qualquer uma das duas aspas, e o valor pode
@@ -705,7 +1095,6 @@ def test_params_dinamicos_removidos_nao_voltam_por_engano():
     precise, isto quebra — a alternativa é ele voltar a ser documentado, testado
     e não usado, que foi exatamente como ele viveu até aqui.
     """
-    from pathlib import Path
 
     raiz = Path(__file__).resolve().parents[3]
     marcacao = (raiz / 'apps/core/templates/components/button.html').read_text()
@@ -834,7 +1223,6 @@ class TestMessagesDismiss:
 
         Sem o motivo no arquivo, a próxima pessoa "uniformiza" o comportamento.
         """
-        from pathlib import Path
 
         raiz = Path(__file__).resolve().parents[3]
         texto = (raiz / 'apps/core/templates/core/partials/_messages.html').read_text()
@@ -851,7 +1239,6 @@ class TestMessagesDismiss:
 
     def test_um_mecanismo_de_espacamento_so(self):
         """`space-y-2` no wrapper e `mb-2` nos filhos dobravam o respiro."""
-        from pathlib import Path
 
         raiz = Path(__file__).resolve().parents[3]
         texto = (raiz / 'apps/core/templates/core/partials/_messages.html').read_text()

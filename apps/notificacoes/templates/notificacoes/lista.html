@@ -28,9 +28,16 @@
           <div class="flex-1 min-w-0">
             <p class="text-sm font-medium text-text-primary">{{ notificacao.get_tipo_display }}</p>
             {% if notificacao.requisicao_id %}
+              {% comment %}
+                `inline-flex items-center min-h-11`: este link é a única
+                navegação do cartão, ou seja, ação isolada — e ação isolada segue
+                o piso de 44px, pelo mesmo motivo do `min-h-11` do botão lá em
+                cima. `min-height` não tem efeito em elemento inline, daí o
+                `inline-flex`.
+              {% endcomment %}
               <a
                 href="{% url 'requisicoes:detalhe' pk=notificacao.requisicao_id %}"
-                class="text-xs text-text-tertiary hover:underline"
+                class="inline-flex items-center min-h-11 text-xs text-text-tertiary hover:underline"
               >
                 Requisição {{ notificacao.numero_publico_exibicao }}
               </a>
