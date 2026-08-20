@@ -166,30 +166,60 @@ def _texto(atributos):
     return _uma_classe(atributos, r'text-(?!sm$|xs$|base$|lg$)\S+')
 
 
-def _icone_de_nivel(html):
-    """O `<svg>` que sinaliza a severidade — o primeiro dos dois caminhos.
+def _subarvore_do_icone(html):
+    """Do `<svg>` de nível até o `</svg>` que o fecha.
 
     Na faixa há um segundo `<svg>`, o "×" do botão de fechar; ele não sinaliza
-    nível e fica de fora da paridade.
+    nível e fica de fora da paridade. Nenhum dos dois ícones aninha `<svg>`.
     """
-    _, atributos, _ = next(elementos(html, 'svg'))
-    return _fill_herdado(atributos)
+    inicio = html.index('<svg')
+    fim = html.index('</svg>', inicio) + len('</svg>')
+    return html[inicio:fim]
 
 
-def _fill_herdado(atributos):
-    """`currentColor` só se nada dentro do próprio `<svg>` fixar a cor.
+def _elementos_quaisquer(trecho):
+    """Todo elemento do trecho, sem lista fixa de tags.
 
-    `fill="currentColor"` sozinho não prova herança: uma classe `text-*` no
-    elemento redefine `color` e o preenchimento passa a ser aquele token, não o
-    da caixa. Um `style` inline também sequestra a cor. As três condições
-    juntas é que significam "herda de quem me contém".
+    `elementos` exige os nomes de tag; aqui os nomes são descobertos primeiro,
+    para que um `<circle>` ou `<use>` colado amanhã também caia na varredura em
+    vez de passar por baixo dela.
     """
-    if atributo(atributos, 'style'):
-        return 'style inline'
-    cores = sorted(c for c in classes(atributos) if re.fullmatch(r'(text|fill)-\S+', c))
-    if cores:
-        return ' '.join(cores)
-    return atributo(atributos, 'fill') or 'sem fill'
+    nomes = {
+        encontro.group(1)
+        for encontro in re.finditer(r'<([a-zA-Z][\w-]*)(?=[\s/>])', trecho)
+    }
+    for nome in sorted(nomes):
+        yield from elementos(trecho, nome)
+
+
+def _icone_de_nivel(html):
+    """A cor efetiva do ícone de nível — `currentColor` se nada a fixar.
+
+    `fill="currentColor"` no `<svg>` sozinho não prova herança, e olhar só o
+    `<svg>` também não basta: `color` pode ser redefinido por uma classe
+    `text-*` nele, e o preenchimento pode ser sequestrado mais abaixo, por um
+    `fill` cru, um `style` inline ou uma classe de cor num `<path>`. A varredura
+    cobre o `<svg>` e todos os seus descendentes, e devolve o primeiro
+    responsável por fixar a cor — ou o `fill` do `<svg>`, quando ninguém fixa.
+
+    `fill-rule` não é confundido com `fill`: a busca de atributo casa o nome
+    inteiro.
+    """
+    subarvore = _subarvore_do_icone(html)
+    _, raiz, _ = next(elementos(subarvore, 'svg'))
+    for _, atributos, _ in _elementos_quaisquer(subarvore):
+        if atributo(atributos, 'style'):
+            return 'style inline'
+        cores = sorted(
+            c for c in classes(atributos) if re.fullmatch(r'(text|fill|stroke)-\S+', c)
+        )
+        if cores:
+            return ' '.join(cores)
+        for pintura in ('fill', 'stroke'):
+            valor = atributo(atributos, pintura)
+            if valor not in (None, 'currentColor', 'none'):
+                return f'{pintura}="{valor}"'
+    return atributo(raiz, 'fill') or 'sem fill'
 
 
 def _role_do_banner(html):

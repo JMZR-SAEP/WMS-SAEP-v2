@@ -62,12 +62,19 @@ o que é operacional.
 | `-border` | 200 | borda de alerta, ring de badge |
 | `-border-strong` | 300 | ring de badge forte, borda de botão outline |
 | `-text-subtle` | 700 | aviso inline menos enfático (só `warning`) |
-| `-text` | 700 | texto colorido de corpo |
-| `-text-emphasis` | 800 | texto de banner de alerta |
+| `-text` | 700 — **800 em `warning`** | texto colorido de corpo |
+| `-text-emphasis` | 800 — não existe em `warning` | texto de banner de alerta |
 | `-text-strong` | 900 | texto de badge e de caixa de erro |
 | `-accent` | 500 | foco de botão destrutivo, asterisco de obrigatório (só `danger`) |
 | `-border-input` | 400 | borda de campo inválido (só `danger`) |
 | `-hover` / `-active` | 700 / 800 | pressão em botão (`primary` e `danger`) |
+
+**`warning` é a exceção da escala de texto.** Ela é a única família com
+`-text-subtle`, e por isso sua escada anda um degrau: `-text-subtle` 700,
+`-text` **800**, `-text-strong` 900 — sem `-text-emphasis`. Nas outras famílias,
+`-text` é 700 e o 800 se chama `-text-emphasis`. Consequência prática: o
+equivalente de `-text-emphasis` em âmbar é `text-warning-text`, e é por isso que
+a tabela de paridade abaixo usa nomes diferentes para o mesmo degrau.
 
 ### As três bordas
 
@@ -322,9 +329,10 @@ Três coisas que a tabela decide e que valem a pena dizer em voz alta:
   ficava em 2.07:1 sobre o próprio fundo e falhava a WCAG 1.4.11 (3:1 para
   componente gráfico) — justo no único sinal não-cromático de nível. Herdando,
   vai a 6.88:1, e quatro ramos condicionais deixam de existir.
-- **Um degrau de texto só.** Os quatro níveis usam o degrau 800. Em âmbar esse
-  degrau se chama `text-warning-text`, porque a escala de âmbar não tem
-  `-emphasis`.
+- **Um degrau de texto só.** Os quatro níveis usam o shade 800. O nome do token
+  muda porque `warning` é a exceção da escala de sufixos acima: nas outras três
+  famílias o 800 se chama `-text-emphasis`; em âmbar, que tem `-text-subtle` e
+  não tem `-text-emphasis`, o 800 se chama `-text`. Mesmo degrau, dois nomes.
 
 O `layout="row"` do `alert.html` fica **fora** desta tabela e mantém
 `rounded-xl`: ele tem `shadow-sm` e padding de seção, e sombra só existe em
