@@ -163,6 +163,11 @@ UTILITIES_ESPERADAS = [
     'text-return-text',
     'border-danger-border-strong',
     'focus-visible:ring-danger-accent',
+    # A caixa do error_summary.html é a exceção declarada da regra do anel:
+    # foco programático não casa `:focus-visible`, então lá a utility é `focus:`.
+    # As âncoras do mesmo componente seguem em `focus-visible:` — as duas
+    # precisam existir no build, e é por isso que as duas estão nesta lista.
+    'focus:ring-danger-accent',
     'bg-warning-subtle',
 ]
 

@@ -212,6 +212,22 @@ focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus 
 `.campo` já traz o seu. Em ação destrutiva o anel é `danger-accent`. Remover
 `outline` só é aceitável porque o anel o substitui.
 
+**Exceção: alvo de foco programático não é controle.** Um elemento que só recebe
+foco por `tabindex="-1"` mais `focus()` — sumário de erros, barra de resumo
+depois de um upload — usa `focus:`, não `focus-visible:`. Depois de um POST
+disparado por clique ou toque, a última interação não foi teclado e
+`:focus-visible` não casa: o anel simplesmente não pinta, e quem navega por
+teclado recebe o foco sem saber onde ele foi parar. A regra do `focus-visible`
+continua valendo para tudo que o usuário aciona — botão, link, campo, âncora de
+item dentro do próprio sumário.
+
+Hoje a exceção tem dois consumidores: a caixa de
+`components/error_summary.html` e a barra de estatísticas de
+`estoque/preview_importacao_scpi.html`. As duas declaram o motivo no
+`{% comment %}` logo acima, e `apps/core/tests/test_components.py` trava os dois
+lados no sumário — caixa em `focus:`, âncora em `focus-visible:` — para que
+"consertar" o elemento errado quebre um teste em vez de passar despercebido.
+
 ### Erro em campo
 
 Vem sempre do Form, nunca hardcoded no componente. `form_field.html` costura

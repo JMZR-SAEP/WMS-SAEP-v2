@@ -11,10 +11,33 @@ funciona de verdade após um POST — conteúdo já presente no carregamento nã
 dispara live region; é a mudança que dispara. `role="alert"` cobre o caso de o
 sumário aparecer via swap HTMX, em que há mudança.
 
+Dois mecanismos de foco, e nenhum é redundante. `autofocus` é atributo global de
+HTML e vale em elemento focável por `tabindex`: é ele que leva o foco quando o
+Alpine não carregou — rede institucional, celular antigo, `defer` que falhou.
+`x-init` continua sendo o que funciona no swap HTMX, onde `autofocus` não é
+reprocessado. Sem o par, a falha que este arquivo diz prevenir volta pela porta
+dos fundos: a tela retorna "aparentemente intacta".
+
+O anel usa `focus:`, não `focus-visible:`, e é exceção declarada no
+`docs/design-system.md`: o foco aqui é programático, e `:focus-visible` não casa
+depois de um POST disparado por clique ou toque. As **âncoras** dos itens seguem
+em `focus-visible:` — elas recebem foco por teclado, que é o caso que a
+pseudo-classe existe para cobrir.
+
+Fora do contrato de dismiss de `docs/CONVENTIONS.md` (§Níveis e ARIA): aquela
+tabela governa as flash messages do Django, renderizadas por
+`core/partials/_messages.html`. Aqui fechar a caixa seria dano — os erros
+continuam no formulário e o usuário perderia a única navegação até eles. Sem
+botão de fechar e sem timer, por decisão.
+
 Parâmetros:
   erros  (obrigatório) lista de {id, rotulo, mensagem}, montada por
-         {% coletar_erros form formset ... as erros %} (core_tags). Vazia ou
-         ausente não renderiza nada.
+         {% coletar_erros form formset ... as erros %} (core_tags), um item por
+         campo. Vazia ou ausente não renderiza nada.
+  acao   (opcional, default "salvar") verbo da frase-líder, para a tela cuja
+         ação não é salvar: acao="registrar o atendimento" produz
+         "Não foi possível registrar o atendimento: 2 problemas encontrados."
+         A pluralização fica aqui, não na tela.
   id     (opcional, default "sumario-erros") útil se houver dois formulários
          na mesma tela.
 
@@ -27,24 +50,25 @@ Uso:
     id="{{ id|default:'sumario-erros' }}"
     role="alert"
     tabindex="-1"
+    autofocus
     x-data
     x-init="$el.focus()"
-    class="mb-6 rounded-lg border border-danger-border-strong bg-danger-subtle p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-accent focus-visible:ring-offset-1"
+    class="mb-6 rounded-lg border border-danger-border-strong bg-danger-subtle p-4 focus:outline-none focus:ring-2 focus:ring-danger-accent focus:ring-offset-1"
   >
-    <p class="text-sm font-semibold text-danger-text-strong">
+    <h2 class="text-sm font-semibold text-danger-text-strong">
       {% if erros|length == 1 %}
-        Não foi possível salvar: 1 problema encontrado.
+        Não foi possível {{ acao|default:'salvar' }}: 1 problema encontrado.
       {% else %}
-        Não foi possível salvar: {{ erros|length }} problemas encontrados.
+        Não foi possível {{ acao|default:'salvar' }}: {{ erros|length }} problemas encontrados.
       {% endif %}
-    </p>
+    </h2>
     <ul class="mt-2 space-y-1 text-sm text-danger-text">
       {% for erro in erros %}
         <li>
           {% if erro.id %}
             <a
               href="#{{ erro.id }}"
-              class="block min-h-11 py-2.5 rounded-md underline hover:text-danger-text-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-accent focus-visible:ring-offset-1"
+              class="block min-h-11 py-2.5 rounded-md underline break-words hover:text-danger-text-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-accent focus-visible:ring-offset-1"
             >{% if erro.rotulo %}{{ erro.rotulo }}: {% endif %}{{ erro.mensagem }}</a>
           {% else %}
             {{ erro.mensagem }}

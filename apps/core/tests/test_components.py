@@ -8,7 +8,13 @@ import pytest
 from django.template.loader import render_to_string
 
 from apps.core.templatetags.core_tags import _VARIANTES_BOTAO
-from apps.core.tests.marcacao import TAGS_DJANGO, atributo, classes, elementos
+from apps.core.tests.marcacao import (
+    TAGS_DJANGO,
+    atributo,
+    classes,
+    elementos,
+    pares,
+)
 
 
 def _render(**ctx):
@@ -1315,3 +1321,139 @@ class TestMensagensNasTelasDeAuth:
             if atributo(attrs, 'id') == 'conteudo'
         ]
         assert atributo(attrs, 'tabindex') == '-1'
+
+
+class TestSumarioDeErros:
+    """`error_summary.html` fora do caminho feliz — a issue #125.
+
+    O componente promete três coisas: anunciar que falhou, dizer quantos
+    problemas e levar ao campo por link. Cinco dos seis defeitos que a #125
+    encontrou eram ele falhando fora do caminho feliz — anel que não pinta,
+    foco que depende inteiramente do Alpine, contagem que mente.
+    """
+
+    ERROS = [
+        {'id': 'id_setor', 'rotulo': 'Setor', 'mensagem': 'Obrigatório.'},
+        {'id': 'id_motivo', 'rotulo': 'Motivo', 'mensagem': 'Obrigatório.'},
+    ]
+
+    def _render(self, **ctx):
+        ctx.setdefault('erros', self.ERROS)
+        return render_to_string('components/error_summary.html', ctx)
+
+    def _caixa(self, html):
+        ((_, attrs, _),) = [
+            (tag, attrs, linha)
+            for tag, attrs, linha in elementos(html, 'div')
+            if atributo(attrs, 'role') == 'alert'
+        ]
+        return attrs
+
+    def test_anel_de_foco_usa_focus_e_nao_focus_visible(self):
+        """O foco aqui é programático, e `:focus-visible` não casa nele.
+
+        Depois de um POST full-page a última interação do usuário foi o clique
+        ou o toque no botão de enviar. O foco vai para a caixa por
+        `tabindex="-1"`, e um anel declarado em `focus-visible:` simplesmente
+        não pinta — o usuário de teclado recebe o foco sem nenhuma indicação
+        de onde ele está.
+        """
+        caixa = classes(self._caixa(self._render()))
+        assert {'focus:ring-2', 'focus:outline-none'} <= caixa
+        assert not {c for c in caixa if c.startswith('focus-visible:')}
+
+    def test_ancora_do_item_mantem_focus_visible(self):
+        """A âncora é o caso contrário, e o guarda existe para não confundi-los.
+
+        Ela recebe foco por teclado, que é exatamente o que `:focus-visible`
+        casa. Trocar as duas de lugar "consertaria" o elemento errado.
+        """
+        html = self._render()
+        ((_, attrs, _), *_) = elementos(html, 'a')
+        anel = classes(attrs)
+        assert 'focus-visible:ring-2' in anel
+        assert 'focus:ring-2' not in anel
+
+    def test_foco_nao_depende_do_alpine(self):
+        """`autofocus` é o caminho que sobra quando o Alpine não carregou.
+
+        Rede institucional, celular antigo, `defer` que falhou: sem fallback a
+        tela volta "aparentemente intacta", que é a falha descrita no cabeçalho
+        do próprio componente. `autofocus` é atributo global de HTML e vale em
+        elemento focável por `tabindex`.
+        """
+        attrs = self._caixa(self._render())
+        assert atributo(attrs, 'tabindex') == '-1'
+        assert 'autofocus' in {chave.lower() for chave, _ in pares(attrs)}
+
+    def test_contagem_conta_alvos(self):
+        """Dois alvos, dois problemas — e o plural acompanha."""
+        html = self._render()
+        assert '2 problemas encontrados' in html
+
+    def test_contagem_singular(self):
+        html = self._render(erros=self.ERROS[:1])
+        assert '1 problema encontrado' in html
+        assert 'problemas' not in html
+
+    def test_frase_lider_default_fala_em_salvar(self):
+        assert 'Não foi possível salvar:' in self._render()
+
+    def test_frase_lider_e_parametrizavel(self):
+        """A tela que não salva não pode dizer que não salvou.
+
+        `atender_retirada.html` registra uma retirada; "não foi possível
+        salvar" descreve uma ação que aquela tela não tem.
+        """
+        html = self._render(acao='registrar o atendimento')
+        assert 'Não foi possível registrar o atendimento:' in html
+        assert 'salvar' not in html
+
+    def test_acao_vazia_cai_no_default(self):
+        """Tela que passa string vazia não pode produzir "Não foi possível :"."""
+        assert 'Não foi possível salvar:' in self._render(acao='')
+
+    def test_titulo_e_cabecalho(self):
+        """`<p>` não entra no outline nem na navegação por cabeçalhos.
+
+        Procurar "onde está o erro" saltando de cabeçalho em cabeçalho é como
+        um usuário de leitor de tela navega. O padrão GOV.UK, que o componente
+        diz seguir, usa `<h2>`.
+        """
+        tags = {tag for tag, _, _ in elementos(self._render(), 'h2', 'p')}
+        assert tags == {'h2'}
+
+    def test_mensagem_longa_quebra_dentro_da_ancora(self):
+        """Mensagens agregadas ficam longas, e o alvo é celular de 375px.
+
+        Com a agregação por alvo, um campo com três erros vira uma âncora com
+        três frases. Sem quebra, um rótulo comprido empurra a caixa para fora
+        da viewport e a rolagem horizontal come a tela inteira.
+        """
+        html = self._render()
+        ((_, attrs, _), *_) = elementos(html, 'a')
+        assert 'break-words' in classes(attrs)
+
+    def test_sem_erros_nao_renderiza_nada(self):
+        assert self._render(erros=[]).strip() == ''
+
+    def test_nao_tem_dismiss_nem_auto_ocultacao(self):
+        """O contrato de dismiss é o das flash messages, não o do sumário.
+
+        `docs/CONVENTIONS.md` §Níveis e ARIA governa `_messages.html`. Aqui
+        fechar a caixa seria dano: os erros continuam no formulário e o usuário
+        perderia a única navegação até eles. A asserção é sobre o conjunto de
+        mecanismos, não sobre uma grafia — checar só `mensagemFlash` deixaria
+        passar um timer escrito de outro jeito.
+        """
+        html = self._render()
+        assert not list(elementos(html, 'button'))
+        for mecanismo in (
+            'mensagemFlash',
+            'setTimeout',
+            'x-show',
+            'x-if',
+            'x-transition',
+            'hidden',
+        ):
+            assert mecanismo not in html
