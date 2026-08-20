@@ -190,10 +190,14 @@
       {# Management form do formset — obrigatório #}
       {{ formset.management_form }}
 
-      {# Erros gerais do formset #}
-      {% if formset.non_form_errors %}
-        {% include "components/alert.html" with variant="danger" icone=False body_template="requisicoes/partials/_alert_erros_formset.html" class="mb-3" %}
-      {% endif %}
+      {% comment %}
+        Erro geral do formset não se repete aqui: `coletar_erros` já o leva ao
+        sumário do topo. As duas caixas exibiam a mesma string a 150 linhas de
+        distância — várias roladas num viewport de 375px — sem nada dizendo que
+        eram o mesmo erro. Quem lia "3 problemas", corrigia e reencontrava um
+        deles achava que era o quarto. A borda da seção continua marcando *onde*
+        o erro está, e isso não é repetição da mensagem.
+      {% endcomment %}
 
       {% comment %}
         O escopo Alpine envolve as linhas E o botão de adicionar: o índice da

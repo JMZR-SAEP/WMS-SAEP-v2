@@ -307,32 +307,72 @@ def step_por_unidade(unidade: str) -> str:
 
 @register.simple_tag
 def coletar_erros(*fontes: Any) -> list[dict[str, str]]:
-    """Achata Forms e FormSets numa lista para `components/error_summary.html`.
+    """Reúne Forms e FormSets numa lista para `components/error_summary.html`.
 
-    Cada item é `{'id', 'rotulo', 'mensagem'}`; `id` é o `id_for_label` do campo,
-    para o sumário poder linkar direto ao controle inválido. Erros que não
-    pertencem a um campo (`__all__`, `non_form_errors`) entram sem `id` e o
-    sumário os renderiza como texto.
+    Cada item é `{'id', 'rotulo', 'mensagem'}` e representa **um alvo**, não uma
+    mensagem: `id` é o `id_for_label` do campo, para o sumário poder linkar
+    direto ao controle inválido, e `mensagem` traz todas as mensagens daquele
+    campo. Um campo com dois erros é um lugar a visitar, não dois — antes ele
+    virava duas âncoras para o mesmo `#id`, e a segunda não movia a tela.
+
+    Erros que não pertencem a um campo (`__all__`, `non_form_errors`) entram sem
+    `id`, um por mensagem: sem alvo não há chave para agrupar, e agrupá-los pela
+    chave vazia colaria erros de origens diferentes numa linha só. Duas exceções,
+    ambas contra o sumário repetir a si mesmo: mensagem sem alvo idêntica a outra
+    já coletada não entra de novo, e mensagem sem alvo que também chega como erro
+    de campo cede o lugar à versão com âncora, que leva ao controle. É o caso de
+    um formset que faz `add_error(campo, msg)` **e** `raise ValidationError(msg)`
+    — `BaseItemAtendimentoFormSet` faz —, em que a mesma frase chegaria por dois
+    caminhos.
+
+    A ordem é a de **primeira aparição** do alvo, e na colisão de `id` entre
+    fontes o **primeiro rótulo** é o que fica — o item consolidado é o alvo que
+    apareceu antes, e seu rótulo não pode mudar debaixo dele conforme fontes
+    posteriores são lidas.
 
     Apresentação pura: não conhece domínio nem decide o que é erro — só lê o que
     o Form já validou.
     """
     coletados: list[dict[str, str]] = []
+    por_alvo: dict[str, dict[str, str]] = {}
+    sem_alvo: dict[str, dict[str, str]] = {}
+    com_alvo: set[str] = set()
+
+    def _registrar(id_alvo: str, rotulo: str, mensagem: str) -> None:
+        if not id_alvo:
+            # Perde para a versão com âncora, tenha ela chegado antes ou depois.
+            if mensagem in sem_alvo or mensagem in com_alvo:
+                return
+            item = {'id': '', 'rotulo': '', 'mensagem': mensagem}
+            sem_alvo[mensagem] = item
+            coletados.append(item)
+            return
+
+        com_alvo.add(mensagem)
+        gemeo = sem_alvo.pop(mensagem, None)
+        if gemeo is not None:
+            coletados.remove(gemeo)
+
+        alvo = por_alvo.get(id_alvo)
+        if alvo is None:
+            alvo = {'id': id_alvo, 'rotulo': rotulo, 'mensagem': mensagem}
+            por_alvo[id_alvo] = alvo
+            coletados.append(alvo)
+            return
+        alvo['mensagem'] = f'{alvo["mensagem"]} {mensagem}'.strip()
 
     def _do_form(form: Any) -> None:
         for campo, mensagens in form.errors.items():
             if campo == NON_FIELD_ERRORS:
                 for mensagem in mensagens:
-                    coletados.append({'id': '', 'rotulo': '', 'mensagem': mensagem})
+                    _registrar('', '', mensagem)
                 continue
             bound = form[campo]
             for mensagem in mensagens:
-                coletados.append(
-                    {
-                        'id': bound.id_for_label or '',
-                        'rotulo': str(bound.label or campo),
-                        'mensagem': mensagem,
-                    }
+                _registrar(
+                    bound.id_for_label or '',
+                    str(bound.label or campo),
+                    mensagem,
                 )
 
     for fonte in fontes:
@@ -340,7 +380,7 @@ def coletar_erros(*fontes: Any) -> list[dict[str, str]]:
             continue
         if hasattr(fonte, 'non_form_errors'):
             for mensagem in fonte.non_form_errors():
-                coletados.append({'id': '', 'rotulo': '', 'mensagem': mensagem})
+                _registrar('', '', mensagem)
             for form in fonte.forms:
                 _do_form(form)
         elif hasattr(fonte, 'errors'):
