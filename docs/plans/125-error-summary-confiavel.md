@@ -111,8 +111,10 @@ Regras da agregação:
 - as mensagens do mesmo campo são unidas por `' '` — nenhuma mensagem é
   descartada. É a mesma regra da #121: fallback preserva o dado;
 - `id` igual vindo de **fontes distintas** também colapsa, e isso é correto:
-  duas fontes que produzem o mesmo `id_for_label` gerariam dois `id` iguais no
-  DOM, onde só um elemento pode existir — duas âncoras levariam ao mesmo lugar;
+  duas fontes que produzem o mesmo `id_for_label` gerariam `id` repetido no DOM,
+  violando a unicidade que o HTML espera e tornando a âncora ambígua — o
+  navegador salta para o primeiro elemento com aquele `id`, então as duas âncoras
+  levariam ao mesmo lugar de qualquer forma;
 - quando as fontes colidem com **rótulos diferentes**, vence o **primeiro**, pela
   mesma razão que fixa a ordem: o item consolidado é o alvo que apareceu antes, e
   seu rótulo não pode mudar debaixo dele conforme fontes posteriores são lidas.
@@ -181,7 +183,9 @@ ADR-0010, em três camadas — e as três são obrigatórias, não alternativas:
 | `id` repetido entre fontes | duas fontes com o mesmo `id_for_label` → 1 item | idem |
 | Rótulo na colisão | fontes com o mesmo `id` e rótulos diferentes → o item consolidado mantém o **primeiro** rótulo, e as duas mensagens | idem |
 | Cabeçalho | o título é `<h2>`, não `<p>` | `apps/core/tests/test_components.py` |
-| Nível de falha preservado | o sumário mantém `role="alert"` e **não** ganha timer nem botão de dismiss (asserção positiva de ausência de `mensagemFlash`/botão de fechar) | idem |
+| Nível de falha preservado | o sumário mantém `role="alert"` | idem |
+| Sem qualquer auto-ocultação | o HTML renderizado não contém **nenhum** mecanismo capaz de esconder o sumário sozinho: nem `mensagemFlash`, nem `setTimeout`/`x-init` que chame `remove`/`hidden`/`display:none`, nem `x-show`/`x-if` sobre estado temporizado. Asserção sobre o conjunto de mecanismos, não sobre uma grafia — checar só `mensagemFlash` deixaria passar um timer escrito de outro jeito | idem |
+| Sem dismiss manual | o sumário não renderiza `<button>` algum — fechar a caixa apagaria a única navegação até os campos inválidos | idem |
 | Frase parametrizável | default diz "salvar"; `acao="registrar o atendimento"` aparece na frase | idem |
 | Adoção nas três telas | as 3 telas contêm `{% coletar_erros %}` + `components/error_summary.html` | guard de arquivo, parametrizado |
 | Sem duplicata | nenhuma das 3 telas cita `non_form_errors` fora do `{% if %}` de borda de seção | guard de arquivo |
@@ -206,11 +210,22 @@ teste de navegador (não há Playwright, Selenium nem Cypress em `package.json` 
 
 O que fica no lugar, explicitamente:
 
-- **Validação em navegador, manual e registrada no PR**: subir o servidor de
-  desenvolvimento, submeter as três telas com dados inválidos e ler
-  `document.activeElement` no console — uma vez com o Alpine carregado, uma vez
-  com o Alpine bloqueado (para exercitar o `autofocus` sozinho) — e uma vez no
-  caminho de swap HTMX. É o mesmo tipo de validação que
+- **Validação em navegador, manual e registrada no PR.** Subir o servidor de
+  desenvolvimento e submeter as três telas com dados inválidos, em três
+  caminhos: Alpine carregado, Alpine bloqueado (para exercitar o `autofocus`
+  sozinho) e swap HTMX.
+
+  **Critério de aprovação, igual nos três**, porque "ler `document.activeElement`"
+  não é critério — passaria com o foco em qualquer lugar:
+
+  ```js
+  document.activeElement?.id === 'sumario-erros'   // → true
+  ```
+
+  `sumario-erros` é o `id` default do contêiner; numa tela que passe `id=`
+  próprio, o valor esperado é o que a tela passou. Os três resultados vão no
+  corpo do PR, cada um dizendo caminho, tela e o booleano observado — não
+  "validado". É o mesmo tipo de validação que
   `docs/plans/62-browser-validation-ia-doc.md` já usa neste repositório.
 - **Fora de escopo, e dito como tal**: a matriz navegador × leitor de tela
   (NVDA/JAWS/VoiceOver). Exige AT real e uma pessoa ouvindo; nenhum agente
@@ -255,7 +270,15 @@ diff não sai da camada de apresentação.
 
 ## Registrado, não adotado
 
-### Dismiss manual e proibição de auto-dismiss — não se aplicam aqui
+### Dismiss manual — não se adota. Ausência de auto-dismiss — já vale, e ganha teste
+
+As duas metades da regra citada têm destinos opostos, e juntá-las num título só
+era convite a implementar um timer. Separadas:
+
+- **ausência de auto-dismiss**: vale aqui, e passa a ser verificada. O sumário
+  nunca teve timer e não ganha nenhum;
+- **botão de dismiss manual**: não se adota, pelo motivo abaixo.
+
 
 `docs/CONVENTIONS.md` §Níveis e ARIA (linhas 172-181) fixa, para o nível `error`,
 `role="alert"` + sem auto-dismiss, e fecha com *"Todas as mensagens têm botão de
@@ -300,9 +323,9 @@ no vocabulário de variante dos componentes, como
 8. `npm run css:build` + `focus:ring-danger-accent` em `UTILITIES_ESPERADAS`.
 9. `docs/design-system.md`: exceção do anel em alvo de foco programático.
 10. `ruff format .`, `ruff check .`, `mypy apps`, suíte completa.
-11. Validação em navegador (`document.activeElement` nos três caminhos:
-    full-page com Alpine, full-page sem Alpine, swap HTMX), com o resultado
-    colado no corpo do PR.
+11. Validação em navegador: `document.activeElement?.id === 'sumario-erros'`
+    nos três caminhos (full-page com Alpine, full-page sem Alpine, swap HTMX),
+    com os três booleanos colados no corpo do PR.
 
 ## Critérios de aceite (espelho da issue)
 
@@ -317,5 +340,5 @@ no vocabulário de variante dos componentes, como
 - [ ] Nenhuma tela exibe o mesmo erro em dois lugares
 - [ ] Testes: contagem por campo, presença nas três telas, ausência de duplicata
 - [ ] Testes de contrato HTTP de POST inválido nas três telas
-- [ ] Validação em navegador do foco, registrada no PR
+- [ ] Validação em navegador: `document.activeElement?.id === 'sumario-erros'` verdadeiro nos três caminhos (Alpine, sem Alpine, swap HTMX), com os três resultados no corpo do PR
 - [ ] `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .` e `uv run mypy apps` verdes
