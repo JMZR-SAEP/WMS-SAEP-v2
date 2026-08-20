@@ -7,7 +7,7 @@ Issue: [#125](https://github.com/JMZR-SAEP/WMS-SAEP-v2/issues/125) — Etapa 2 d
 
 Comando recomendado pela issue, executado na fase de implementação:
 
-```
+```bash
 /impeccable harden apps/core/templates/components/error_summary.html apps/estoque/templates/estoque/nova_saida_excepcional.html apps/requisicoes/templates/requisicoes/rascunho_form.html apps/requisicoes/templates/requisicoes/atender_retirada.html
 ```
 
@@ -42,7 +42,7 @@ Comando recomendado pela issue, executado na fase de implementação:
   se toca no `block min-h-11 py-2.5 rounded-md` que a #120 fixou.
 - O `role="alert"` + `tabindex="-1"` do contêiner: o padrão GOV.UK fica.
 - A **borda** `border-danger-border-strong` das seções em erro fica. Ela é
-  marcador de localização, não repetição da mensagem — não é a duplicata que a
+  um marcador de localização, não repetição da mensagem — não é a duplicata que a
   issue pede para remover.
 - O alerta de `erro_geral` no topo de `nova_saida_excepcional.html` fica: é erro
   de view (falha de serviço), não `non_form_errors` do formset.
@@ -63,7 +63,8 @@ Comando recomendado pela issue, executado na fase de implementação:
 | `apps/requisicoes/templates/requisicoes/partials/_alert_erros_formset.html` | removido (sem consumidor) |
 | `apps/core/tests/test_components.py` | testes do componente + guard de duplicata nas três telas |
 | `apps/core/tests/test_tokens_semanticos.py` | `focus:ring-danger-accent` entra em `UTILITIES_ESPERADAS` |
-| `apps/requisicoes/tests/test_views.py` | teste de `coletar_erros` ganha o caso de campo com 2 mensagens |
+| `apps/requisicoes/tests/test_views.py` | agregação de `coletar_erros` (2 mensagens, ordem, `id` repetido) + POST inválido em `rascunho_form` e `atender_retirada` |
+| `apps/estoque/tests/test_views.py` | POST inválido em `nova_saida_excepcional` |
 | `apps/core/static/core/css/app.css` | regerado por `npm run css:build` (utility `focus:ring-danger-accent` é nova) |
 | `docs/design-system.md` | exceção do anel de foco em alvo programático |
 
@@ -108,12 +109,27 @@ Regras da agregação:
   vazia juntaria erros de origens diferentes numa linha só;
 - a ordem de primeira aparição é preservada;
 - as mensagens do mesmo campo são unidas por `' '` — nenhuma mensagem é
-  descartada. É a mesma regra da #121: fallback preserva o dado.
+  descartada. É a mesma regra da #121: fallback preserva o dado;
+- `id` igual vindo de **fontes distintas** também colapsa, e isso é correto:
+  duas fontes que produzem o mesmo `id_for_label` gerariam dois `id` iguais no
+  DOM, onde só um elemento pode existir — duas âncoras levariam ao mesmo lugar.
 
-O formato do item continua `{'id', 'rotulo', 'mensagem'}`, então o contrato com o
-template não muda e o teste de forma existente
-(`test_coletar_erros_achata_form_e_formset`, em
-`apps/requisicoes/tests/test_views.py`) continua valendo.
+**A mudança de contrato precisa ser dita com precisão**, porque só metade dele
+fica igual:
+
+| Aspecto do contrato | Antes | Depois |
+|---|---|---|
+| Chaves do item | `{'id', 'rotulo', 'mensagem'}` | iguais |
+| Cardinalidade | uma entrada por **mensagem** | uma entrada por **alvo**; entradas sem `id` seguem uma por mensagem |
+| Conteúdo de `mensagem` | uma mensagem | todas as mensagens daquele alvo, unidas por `' '` |
+| Ordem | ordem de iteração do `form.errors` | ordem de **primeira aparição** do alvo |
+
+`test_coletar_erros_achata_form_e_formset`
+(`apps/requisicoes/tests/test_views.py`) afirma só forma e presença de `id`, então
+sobrevive sem edição — mas isso é consequência, não licença: a mudança de
+cardinalidade ganha testes próprios (ordem de primeira aparição, `id` repetido
+entre fontes, mensagem agregada), e o docstring de `coletar_erros` passa a dizer
+"um item por alvo" no lugar de "achata".
 
 ### Por que `acao` e não a frase inteira como parâmetro
 
@@ -133,9 +149,17 @@ e saem junto.
 
 ## Estratégia de testes
 
-ADR-0010. Tudo aqui é camada de template/templatetag: `render_to_string` para o
-componente, leitura do arquivo para os guards de tela, `pytest.mark.django_db` só
-onde a view for exercida.
+ADR-0010, em três camadas — e as três são obrigatórias, não alternativas:
+
+1. **Unidade / renderização** — `render_to_string` no componente e chamada direta
+   de `coletar_erros`.
+2. **Contrato HTTP** — POST inválido em **cada uma das três telas**, via `client`,
+   conferindo o HTML que a view devolve de verdade. É o que as *path
+   instructions* do repo exigem para mudança de template, e é a única camada que
+   prova que a view monta o contexto que o sumário precisa (`form`, `formset`,
+   `cabecalho`). Guard de arquivo não vê isso.
+3. **Guard de arquivo** — o que precisa continuar ausente (duplicata, include
+   órfão), porque ausência não se prova renderizando.
 
 | Caso | O que prova | Onde |
 |---|---|---|
@@ -145,17 +169,47 @@ onde a view for exercida.
 | Contagem por campo | campo com 2 mensagens → 1 item, 1 âncora, texto "1 problema encontrado" | idem |
 | Nenhuma mensagem perdida | as 2 mensagens do campo aparecem no HTML final | idem |
 | Erro não-de-campo não agrega | 2 `non_form_errors` → 2 itens | `apps/requisicoes/tests/test_views.py` |
+| Ordem de primeira aparição | alvo que erra primeiro aparece primeiro, mesmo recebendo mensagem de fonte posterior | idem |
+| `id` repetido entre fontes | duas fontes com o mesmo `id_for_label` → 1 item | idem |
 | Cabeçalho | o título é `<h2>`, não `<p>` | `apps/core/tests/test_components.py` |
 | Frase parametrizável | default diz "salvar"; `acao="registrar o atendimento"` aparece na frase | idem |
 | Adoção nas três telas | as 3 telas contêm `{% coletar_erros %}` + `components/error_summary.html` | guard de arquivo, parametrizado |
 | Sem duplicata | nenhuma das 3 telas cita `non_form_errors` fora do `{% if %}` de borda de seção | guard de arquivo |
-| Partial órfão | `_alert_erros_formset.html` não existe mais em nenhum dos dois apps | guard de arquivo |
+| Partial órfão | `_alert_erros_formset.html` não existe **e** nenhum arquivo de `apps/` ainda o cita | guard de arquivo (as duas metades) |
+| **POST inválido — `nova_saida_excepcional`** | resposta 200 traz o sumário, com `autofocus`, nomeando o campo em erro; e **não** traz o alerta de `non_form_errors` duas vezes | `apps/estoque/tests/test_views.py` |
+| **POST inválido — `rascunho_form`** | idem, e a `non_form_errors` do formset aparece exatamente 1 vez no corpo | `apps/requisicoes/tests/test_views.py` |
+| **POST inválido — `atender_retirada`** | idem, e a frase-líder diz "registrar o atendimento", não "salvar" | idem |
 | Utility compilada | `focus:ring-danger-accent` presente no `app.css` | `apps/core/tests/test_tokens_semanticos.py` |
 | `atender_retirada` na prática | POST inválido re-renderiza com o sumário e com a frase da tela | `apps/requisicoes/tests/test_views.py` |
 
 O guard de duplicata é o que fecha a issue de verdade: `docs/design-system.md`
 avisa que *"regra sem mecanismo vira sugestão"*, e este conjunto já perdeu essa
 aposta três vezes.
+
+### O que essas três camadas NÃO provam
+
+Todas elas leem HTML. Nenhuma delas prova **comportamento de navegador**:
+`document.activeElement` depois do POST, o `x-init` rodando depois de um swap
+HTMX, ou o que um leitor de tela de fato fala. O repositório não tem infra de
+teste de navegador (não há Playwright, Selenium nem Cypress em `package.json` ou
+`pyproject.toml`), e montar uma é escopo muito maior que esta issue.
+
+O que fica no lugar, explicitamente:
+
+- **Validação em navegador, manual e registrada no PR**: subir o servidor de
+  desenvolvimento, submeter as três telas com dados inválidos e ler
+  `document.activeElement` no console — uma vez com o Alpine carregado, uma vez
+  com o Alpine bloqueado (para exercitar o `autofocus` sozinho) — e uma vez no
+  caminho de swap HTMX. É o mesmo tipo de validação que
+  `docs/plans/62-browser-validation-ia-doc.md` já usa neste repositório.
+- **Fora de escopo, e dito como tal**: a matriz navegador × leitor de tela
+  (NVDA/JAWS/VoiceOver). Exige AT real e uma pessoa ouvindo; nenhum agente
+  fecha isso. Se a validação manual mostrar anúncio duplicado ou interrompido,
+  isso vira issue própria da Etapa 2 em vez de ser resolvido às cegas aqui.
+
+Onde o plano antes afirmava que os dois caminhos de anúncio são "mutuamente
+exclusivos por construção", agora ele afirma menos: **é o que o mecanismo prevê,
+e a validação em navegador é o que confirma.**
 
 ## Invariantes
 
@@ -179,11 +233,11 @@ aposta três vezes.
 |---|---|
 | `autofocus` numa `<div>` ser ignorado por algum navegador | O `x-init` continua lá; o `autofocus` é **rede**, não substituição. Teste garante a presença do atributo, não o comportamento do navegador |
 | `autofocus` roubar o foco em tela que carrega sem erro | O sumário inteiro está dentro de `{% if erros %}` — sem erro, não existe elemento |
-| `autofocus` + `role="alert"` no mesmo nó anunciarem duas vezes | O `role="alert"` só dispara com **mudança** (swap HTMX); no POST full-page o conteúdo já está no DOM e quem anuncia é o foco. Os dois caminhos são mutuamente exclusivos por construção, não por sorte — é o mesmo fato que o `{% comment %}` do topo do arquivo já documenta |
+| `autofocus` + `role="alert"` no mesmo nó anunciarem duas vezes, ou o foco interromper o anúncio | Pelo mecanismo, os caminhos não se cruzam: `role="alert"` dispara com **mudança** (swap HTMX), e no POST full-page o conteúdo já está no DOM, então quem anuncia é o foco. Mas isso é previsão, não observação — a validação manual em navegador (seção acima) é o que confirma, e a matriz com leitor de tela real fica declarada fora de escopo |
 | `focus:` ser revertido por quem lê a regra do design system e não a exceção | A exceção entra no doc **e** o teste trava as duas metades (contêiner `focus:`, âncora `focus-visible:`) |
 | Agregação juntar erros de forms diferentes do formset | Ids de formset são únicos por form (`id_itens-0-quantidade`); só agrega quem tem `id` |
 | `app.css` desatualizado no commit | `npm run css:build` (`make css-build`) antes de commitar; `test_css_build_gera_tokens_e_utilities_novas` cobre |
-| Remover o alerta inline esconder erro numa tela não auditada | Só as duas telas com o sumário perdem o alerta; nenhuma outra tela usa `_alert_erros_formset.html` |
+| Remover o alerta inline esconder erro numa tela não auditada | Os dois únicos consumidores são `nova_saida_excepcional.html` e `rascunho_form.html`, e **os includes saem antes dos arquivos** (passos 4-5). O guard tem duas metades: arquivo ausente **e** nenhuma referência residual em `apps/` — só a primeira deixaria passar um include sobrevivente, que viraria `TemplateDoesNotExist` em produção |
 | Contagem por campo mudar número em teste existente | `test_coletar_erros_achata_form_e_formset` só afirma forma e presença de `id` — sobrevive; revalidar na execução |
 
 Sem risco de concorrência, de mutação de estoque ou de máquina de estados: o
@@ -197,10 +251,14 @@ diff não sai da camada de apresentação.
 3. `atender_retirada.html` passa `acao`.
 4. `nova_saida_excepcional.html` adota o sumário e perde o alerta inline.
 5. `rascunho_form.html` perde o alerta inline; os dois partials órfãos saem.
-6. Guards de adoção e de não-duplicata nas três telas.
-7. `npm run css:build` + `focus:ring-danger-accent` em `UTILITIES_ESPERADAS`.
-8. `docs/design-system.md`: exceção do anel em alvo de foco programático.
-9. `ruff format .`, `ruff check .`, `mypy apps`, suíte completa.
+6. Guards de adoção, de não-duplicata e de referência residual ao partial.
+7. Testes de contrato HTTP: POST inválido nas três telas.
+8. `npm run css:build` + `focus:ring-danger-accent` em `UTILITIES_ESPERADAS`.
+9. `docs/design-system.md`: exceção do anel em alvo de foco programático.
+10. `ruff format .`, `ruff check .`, `mypy apps`, suíte completa.
+11. Validação em navegador (`document.activeElement` nos três caminhos:
+    full-page com Alpine, full-page sem Alpine, swap HTMX), com o resultado
+    colado no corpo do PR.
 
 ## Critérios de aceite (espelho da issue)
 
@@ -214,4 +272,6 @@ diff não sai da camada de apresentação.
 - [ ] Alerta de `non_form_errors` removido de `rascunho_form.html`
 - [ ] Nenhuma tela exibe o mesmo erro em dois lugares
 - [ ] Testes: contagem por campo, presença nas três telas, ausência de duplicata
+- [ ] Testes de contrato HTTP de POST inválido nas três telas
+- [ ] Validação em navegador do foco, registrada no PR
 - [ ] `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .` e `uv run mypy apps` verdes
