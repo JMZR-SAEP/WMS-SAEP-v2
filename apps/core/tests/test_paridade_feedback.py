@@ -196,8 +196,36 @@ def _elementos_quaisquer(trecho):
 PINTURA_HERDADA = frozenset({'currentcolor', 'inherit', 'unset', 'revert', 'none'})
 
 #: Propriedades CSS que decidem a cor do ícone. `fill-opacity` e `stroke-width`
-#: ficam de fora de propósito: mudam a pintura, não a cor herdada.
-PROPRIEDADES_DE_COR = frozenset({'color', 'fill', 'stroke'})
+#: ficam de fora de propósito: mudam a pintura, não a cor herdada. Tupla, e não
+#: conjunto, para que a propriedade acusada seja sempre a mesma.
+PROPRIEDADES_DE_COR = ('color', 'fill', 'stroke')
+
+
+def _vencedoras_do_style(valor):
+    """A declaração vencedora de cada propriedade de cor, pela cascata real.
+
+    Dentro de um mesmo bloco, `!important` ganha de quem não é, independente da
+    ordem; entre declarações de mesma importância, ganha a última. Ignorar isso
+    faria `fill:red;fill:currentColor` ser lido como cor fixada, quando o que
+    vale ali é o `currentColor`.
+    """
+    vencedoras = {}
+    for declaracao in valor.split(';'):
+        propriedade, separador, conteudo = declaracao.partition(':')
+        propriedade = propriedade.strip().lower()
+        if not separador or propriedade not in PROPRIEDADES_DE_COR:
+            continue
+
+        conteudo = conteudo.strip()
+        sem_bang = re.sub(r'!\s*important\s*$', '', conteudo, flags=re.I).strip()
+        importante = sem_bang != conteudo
+        if not sem_bang:
+            continue
+
+        anterior = vencedoras.get(propriedade)
+        if anterior is None or importante >= anterior[0]:
+            vencedoras[propriedade] = (importante, sem_bang)
+    return {propriedade: par[1] for propriedade, par in vencedoras.items()}
 
 
 def _cor_fixada_por_style(valor):
@@ -210,15 +238,10 @@ def _cor_fixada_por_style(valor):
     """
     if not valor:
         return None
-    for declaracao in valor.split(';'):
-        propriedade, separador, conteudo = declaracao.partition(':')
-        if not separador:
-            continue
-        propriedade = propriedade.strip().lower()
-        conteudo = conteudo.strip()
-        if propriedade in PROPRIEDADES_DE_COR and conteudo.lower() not in (
-            PINTURA_HERDADA
-        ):
+    vencedoras = _vencedoras_do_style(valor)
+    for propriedade in PROPRIEDADES_DE_COR:
+        conteudo = vencedoras.get(propriedade)
+        if conteudo is not None and conteudo.lower() not in PINTURA_HERDADA:
             return f'style {propriedade}:{conteudo}'
     return None
 
@@ -451,6 +474,16 @@ def test_layout_row_mantem_raio_de_papel_e_a_razao_esta_no_arquivo():
         ('fill:#b45309', 'style fill:#b45309'),
         ('opacity:.5;stroke:red', 'style stroke:red'),
         ('COLOR: Red', 'style color:Red'),
+        # Cascata dentro do mesmo bloco: a última de mesma importância vence.
+        ('fill:red;fill:currentColor', None),
+        ('fill:currentColor;fill:red', 'style fill:red'),
+        # `!important` vence quem não é, independente da ordem.
+        ('fill:currentColor !important', None),
+        ('fill:red !important;fill:currentColor', 'style fill:red'),
+        ('fill:currentColor !important;fill:red', None),
+        # Declaração truncada não decide nada e não apaga a anterior.
+        ('fill:red;fill:', 'style fill:red'),
+        ('fill', None),
     ],
 )
 def test_cor_fixada_por_style_so_acusa_declaracao_de_cor(style, esperado):
