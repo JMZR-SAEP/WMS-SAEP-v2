@@ -42,7 +42,7 @@ Arquivos auditados:
 | 121 | `badge.html`: fallback preserva dado, `text-white`→token, guarda de rótulo longo | AFK | — | `/impeccable harden` |
 | 122 | Política de falha de componente + fechar o guard de cor crua | **HITL** | — | `/impeccable harden` |
 | 123 | Copy da importação SCPI: nomear quem decide | AFK | — | `/impeccable clarify` |
-| 124 | Paridade `alert.html` × `_messages.html` (alinhar + documentar + testar) | AFK | 119 | `/impeccable polish` |
+| 124 | ✅ **feita** (PR #15) — paridade alinhada, documentada e testada | AFK | 119 | `/impeccable polish` |
 | 125 | `error_summary` confiável + adotado nas 3 telas de formset longo | AFK | 120 | `/impeccable harden` |
 | 126 | `empty_state`: uma implementação só, anúncio no swap HTMX, copy uniforme | AFK | 120 | `/impeccable onboard` |
 | 127 | Destrinchar `alert.html`: extrair painel de decisão | **HITL** | 124 | `/impeccable shape` → `distill` |
@@ -80,6 +80,31 @@ decisão que as bloqueia.
   `_messages.html`. Qualquer mudança de marcação lá precisa preservar essa contagem.
 - `docs/design-system.md` avisa: *"regra sem mecanismo vira sugestão"*. Já aconteceu 3 vezes neste
   conjunto. Toda issue desta etapa fecha com teste, não só com correção.
+
+## O que a #124 fixou (não reabrir)
+
+- **`warning` é a exceção da escala de sufixos.** É a única família com
+  `-text-subtle`, então sua escada anda um degrau: 700/**800**/900 em
+  `-text-subtle`/`-text`/`-text-strong`, e **não existe `-text-emphasis` em
+  âmbar**. Nas outras três, `-text` é 700 e o 800 se chama `-text-emphasis`.
+  A tabela de sufixos de `docs/design-system.md` dizia só "700" e mentia para
+  âmbar; agora marca a exceção. Consequência: `text-warning-text` é o
+  equivalente de `-text-emphasis`, não um degrau abaixo.
+- **A #119 moveu a marcação da faixa para `_message_item.html`.** Qualquer issue
+  desta etapa escrita antes de 2026-08-19 que cite `_messages.html:<linha>` está
+  apontando para o arquivo errado — hoje ele só resolve a variante.
+- **Superfície de banner e de faixa são a mesma**: `rounded-lg`, `px-4 py-3`,
+  degrau 800 de texto, ícone em `currentColor`. Tabela em
+  `docs/design-system.md` §Paridade entre o banner e a faixa de flash, verificada
+  por `apps/core/tests/test_paridade_feedback.py`. O `layout="row"` do
+  `alert.html` fica fora: tem `shadow-sm`, é papel, leva `rounded-xl`.
+- **Margem negativa do botão de fechar acompanha o padding da caixa.** Com
+  `py-3` e `-my-2`, o alvo de 44px empurra a faixa para 52px contra os 45px do
+  banner — as classes batem na tabela e a altura real diverge. `-mr-3` (e não
+  `-mr-4`) preserva os 4px que o anel de foco precisa.
+- **Teste de paridade tem três lados**, e é de propósito: constante no módulo de
+  teste, tabela do design system, HTML renderizado. Comparar só os dois
+  templates entre si passa se alguém mudar os dois para o mesmo valor errado.
 
 ## Armadilhas técnicas que já custaram tempo
 
