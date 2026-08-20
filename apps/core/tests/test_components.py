@@ -1643,3 +1643,84 @@ class TestSuperficieUnicaDeErroDeFormulario:
         assert 'field_error.html' not in texto
         assert 'username-error' not in texto
         assert 'password-error' not in texto
+
+
+class TestAncoraDosErrosSemCampo:
+    """ "A saída precisa ter ao menos um item." precisa levar a algum lugar.
+
+    O sumário promete três coisas — anunciar, contar e levar. A terceira valia
+    só para erro de campo: o que vem de `non_form_errors` não tinha `id`, virava
+    texto morto no meio de uma lista de links, e quem clicava em volta não
+    entendia por que aquele não respondia. `ancora_geral` dá a esses itens o
+    alvo que falta, e o alvo precisa ser real e focável — âncora para `id` que
+    não existe rola para lugar nenhum, e sem `tabindex="-1"` o foco não pousa.
+    """
+
+    TELAS = (
+        'apps/estoque/templates/estoque/nova_saida_excepcional.html',
+        'apps/requisicoes/templates/requisicoes/rascunho_form.html',
+        'apps/requisicoes/templates/requisicoes/atender_retirada.html',
+    )
+
+    def _raiz(self):
+        return Path(__file__).resolve().parents[3]
+
+    @pytest.mark.parametrize('tela', TELAS)
+    def test_ancora_geral_existe_e_e_focavel(self, tela):
+        texto = (self._raiz() / tela).read_text()
+        (alvo,) = re.findall(r'ancora_geral="([\w-]+)"', texto)
+
+        assert f'id="{alvo}"' in texto, (
+            f'{tela}: ancora_geral="{alvo}" não tem elemento correspondente — '
+            f'a âncora rola para lugar nenhum'
+        )
+        elemento = texto[texto.index(f'id="{alvo}"') :]
+        elemento = elemento[: elemento.index('>')]
+        assert 'tabindex="-1"' in elemento, (
+            f'{tela}: alvo "{alvo}" não é focável — o teclado chega ao destino '
+            f'com o foco ainda no sumário'
+        )
+
+    def test_erro_sem_campo_vira_link_quando_ha_ancora(self):
+        from apps.core.templatetags.core_tags import coletar_erros
+
+        (item,) = coletar_erros(
+            'A saída precisa ter ao menos um item.',
+            ancora_geral='sec-materiais',
+        )
+
+        assert item == {
+            'id': 'sec-materiais',
+            'rotulo': '',
+            'mensagem': 'A saída precisa ter ao menos um item.',
+        }
+
+    def test_ancora_geral_nao_vira_chave_de_agrupamento(self):
+        """Duas falhas na mesma seção continuam sendo duas linhas.
+
+        `ancora_geral` é destino, não identidade. Se ele entrasse pelo caminho
+        de agrupamento por alvo, duas mensagens de formset colariam numa frase
+        só — o oposto do que o sumário existe para fazer.
+        """
+        from apps.core.templatetags.core_tags import coletar_erros
+
+        erros = coletar_erros(
+            'Item inválido para esta requisição.',
+            'Item duplicado no atendimento.',
+            ancora_geral='sec-itens',
+        )
+
+        assert [e['mensagem'] for e in erros] == [
+            'Item inválido para esta requisição.',
+            'Item duplicado no atendimento.',
+        ]
+        assert {e['id'] for e in erros} == {'sec-itens'}
+
+    def test_sem_ancora_geral_o_item_segue_sem_link(self):
+        """O default não inventa destino — tela que não declarou alvo não ganha
+        âncora quebrada de brinde."""
+        from apps.core.templatetags.core_tags import coletar_erros
+
+        (item,) = coletar_erros('Falha genérica.')
+
+        assert item['id'] == ''

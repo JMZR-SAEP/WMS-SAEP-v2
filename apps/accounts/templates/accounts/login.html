@@ -34,7 +34,7 @@
           `acao="entrar"`: a frase-líder default ("Não foi possível salvar")
           descreve uma ação que não existe aqui.
         {% endcomment %}
-        {% erros_do_formulario form acao="entrar" id="login-error" %}
+        {% erros_do_formulario form acao="entrar" id="login-error" ancora_geral="id_username" %}
 
         <div class="space-y-5">
           {% include "components/form_field.html" with field=form.username label_class="rotulo-campo" %}

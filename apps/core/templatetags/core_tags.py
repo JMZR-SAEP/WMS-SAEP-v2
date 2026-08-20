@@ -306,7 +306,7 @@ def step_por_unidade(unidade: str) -> str:
     return quantidades.step(unidade)
 
 
-def coletar_erros(*fontes: Any) -> list[dict[str, str]]:
+def coletar_erros(*fontes: Any, ancora_geral: str = '') -> list[dict[str, str]]:
     """Reúne Forms, FormSets e mensagens soltas numa lista de itens de erro.
 
     Não é tag de template de propósito: a única porta do template para esta
@@ -336,6 +336,14 @@ def coletar_erros(*fontes: Any) -> list[dict[str, str]]:
     e portanto herda as mesmas duas proteções contra repetição: uma frase que o
     Form também produziu não aparece duas vezes.
 
+    `ancora_geral` é o destino dessas mensagens sem campo. Sem ele o sumário
+    promete o que não cumpre: "A saída precisa ter ao menos um item." fica como
+    texto morto no meio de uma lista de links, e quem clica em volta não entende
+    por que aquele não leva a lugar nenhum. Ele **não** é chave de agrupamento —
+    as mensagens sem campo continuam sendo um item cada, como sempre foram; só
+    passam a apontar para o mesmo lugar. Duas âncoras para o mesmo elemento é
+    HTML válido e honesto: são dois problemas resolvidos na mesma seção.
+
     A ordem é a de **primeira aparição** do alvo, e na colisão de `id` entre
     fontes o **primeiro rótulo** é o que fica — o item consolidado é o alvo que
     apareceu antes, e seu rótulo não pode mudar debaixo dele conforme fontes
@@ -354,7 +362,7 @@ def coletar_erros(*fontes: Any) -> list[dict[str, str]]:
             # Perde para a versão com âncora, tenha ela chegado antes ou depois.
             if mensagem in sem_alvo or mensagem in com_alvo:
                 return
-            item = {'id': '', 'rotulo': '', 'mensagem': mensagem}
+            item = {'id': ancora_geral, 'rotulo': '', 'mensagem': mensagem}
             sem_alvo[mensagem] = item
             coletados.append(item)
             return
@@ -410,6 +418,7 @@ def erros_do_formulario(
     acao: str = 'salvar',
     id: str = 'sumario-erros',
     focar: bool = True,
+    ancora_geral: str = '',
 ) -> dict[str, Any]:
     """Superfície canônica de erro de um formulário. Uma linha por tela.
 
@@ -445,14 +454,22 @@ def erros_do_formulario(
       focar    (default True) desliga o foco programático onde outro componente
                já governa o foco — hoje só o modal, cujo `modal.js` foca o campo
                inválido. Dois donos do foco brigam; um deles tem de ceder.
+      ancora_geral
+               id para onde apontam as mensagens que não pertencem a campo
+               nenhum (`__all__`, `non_form_errors`, string da view). Sem ele
+               esses itens ficam sem link, e o sumário deixa de cumprir a
+               terceira coisa que promete: levar até o problema. O alvo certo é
+               de cada tela — a seção que contém a falha, ou o campo por onde se
+               começa a corrigi-la — e precisa ser focável (`tabindex="-1"`)
+               para o foco realmente pousar, não só a rolagem.
 
     Uso:
-      {% erros_do_formulario form formset %}
+      {% erros_do_formulario form formset ancora_geral="sec-materiais" %}
       {% erros_do_formulario cabecalho formset acao="registrar o atendimento" %}
       {% erros_do_formulario form erro_do_servico acao="entrar" id="login-error" %}
     """
     return {
-        'erros': coletar_erros(*fontes),
+        'erros': coletar_erros(*fontes, ancora_geral=ancora_geral),
         'acao': acao,
         'id': id,
         'focar': focar,

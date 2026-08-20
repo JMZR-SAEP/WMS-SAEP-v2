@@ -30,7 +30,7 @@
       sumário a tela voltava aparentemente intacta — numa baixa administrativa
       direta, sem reversão fácil.
     {% endcomment %}
-    {% erros_do_formulario form formset acao="registrar a saída" %}
+    {% erros_do_formulario form formset acao="registrar a saída" ancora_geral="sec-materiais" %}
 
     {# --- Seção 1: Dados da saída --- #}
     <section
@@ -54,9 +54,23 @@
     </section>
 
     {# --- Seção 2: Materiais --- #}
+    {% comment %}
+      `id` + `tabindex="-1"`: destino das mensagens do sumário que não pertencem
+      a campo nenhum ("precisa ter ao menos um item", "material duplicado"). Sem
+      um alvo, esses itens ficavam sem link no meio de uma lista de links — o
+      sumário anunciava e contava, mas não levava.
+
+      `tabindex="-1"` porque `href="#id"` sozinho rola até o elemento e não põe
+      o foco nele: quem navega por teclado chegaria com o foco ainda no sumário,
+      e o próximo Tab voltaria ao começo da página. O anel usa `focus:` e não
+      `focus-visible:` pela mesma razão declarada em error_summary.html — o foco
+      aqui chega por clique ou toque, e `:focus-visible` não casa.
+    {% endcomment %}
     <section
+      id="sec-materiais"
+      tabindex="-1"
       aria-labelledby="sec-materiais-titulo"
-      class="mb-6 rounded-xl border bg-surface {% if formset.non_form_errors %}border-danger-border-strong{% else %}border-border{% endif %} p-5 shadow-sm"
+      class="mb-6 rounded-xl border bg-surface {% if formset.non_form_errors %}border-danger-border-strong{% else %}border-border{% endif %} p-5 shadow-sm focus:outline-none focus:ring-2 focus:ring-danger-accent focus:ring-offset-1"
     >
       <h2 id="sec-materiais-titulo" class="mb-1 text-lg font-semibold text-text-primary">
         <span class="mr-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-bg-subtle text-xs font-semibold text-text-tertiary" aria-hidden="true">2</span>

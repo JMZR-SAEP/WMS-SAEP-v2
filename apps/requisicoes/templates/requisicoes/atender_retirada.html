@@ -61,10 +61,24 @@
     uma ação que não existe aqui. A pluralização segue no componente — passar a
     frase inteira faria a tela reescrever o plural, e uma das telas erraria.
   {% endcomment %}
-  {% erros_do_formulario cabecalho formset acao="registrar o atendimento" %}
+  {% erros_do_formulario cabecalho formset acao="registrar o atendimento" ancora_geral="sec-itens" %}
 
+    {% comment %}
+    `id` + `tabindex="-1"`: destino das mensagens do sumário que não pertencem
+    a campo nenhum ("precisa ter ao menos um item", "material duplicado"). Sem
+    um alvo, esses itens ficavam sem link no meio de uma lista de links — o
+    sumário anunciava e contava, mas não levava.
+
+    `tabindex="-1"` porque `href="#id"` sozinho rola até o elemento e não põe
+    o foco nele: quem navega por teclado chegaria com o foco ainda no sumário,
+    e o próximo Tab voltaria ao começo da página. O anel usa `focus:` e não
+    `focus-visible:` pela mesma razão declarada em error_summary.html — o foco
+    aqui chega por clique ou toque, e `:focus-visible` não casa.
+  {% endcomment %}
   <section
-    class="rounded-xl border border-border bg-surface p-4 shadow-sm sm:p-6"
+    id="sec-itens"
+    tabindex="-1"
+    class="rounded-xl border border-border bg-surface p-4 shadow-sm sm:p-6 focus:outline-none focus:ring-2 focus:ring-danger-accent focus:ring-offset-1"
     aria-labelledby="itens-titulo"
   >
     {% comment %}

@@ -236,8 +236,8 @@ logo depois do `{% csrf_token %}`, e nenhum outro lugar decide como um erro de
 formulário aparece.
 
 ```django
-{% erros_do_formulario form formset %}
-{% erros_do_formulario cabecalho formset acao="registrar o atendimento" %}
+{% erros_do_formulario form formset ancora_geral="sec-materiais" %}
+{% erros_do_formulario cabecalho formset acao="registrar o atendimento" ancora_geral="sec-itens" %}
 {% erros_do_formulario erro acao="recusar" id="confirmar-recusar-erro" focar=False %}
 ```
 
@@ -248,6 +248,20 @@ exceção de domínio); `None` é ignorado, então contexto opcional não precis
 nomeia a caixa quando algo aponta para ela por `aria-describedby`. `focar=False`
 só onde outro componente já governa o foco da região (hoje o modal, cujo
 `modal.js` leva ao campo inválido).
+
+**`ancora_geral` é obrigatório na prática.** Mensagem que não pertence a campo
+nenhum — `non_form_errors`, `__all__`, string da view — não tem `id` de onde
+derivar âncora, e sem alvo declarado sai do sumário como texto solto no meio de
+uma lista de links: a caixa anuncia e conta, mas não leva. O alvo é de cada
+tela (a seção que contém a falha, ou o campo por onde se começa a corrigi-la) e
+precisa existir e ser focável — `href="#id"` sozinho rola até o elemento sem pôr
+o foco nele, e o teclado chegaria ao destino com o foco ainda no sumário. Logo:
+`id` + `tabindex="-1"` no alvo, com anel em `focus:` pela mesma exceção do
+sumário. `ancora_geral` é destino, não identidade: duas mensagens sem campo
+continuam sendo duas linhas apontando para o mesmo lugar.
+
+Exceção: o corpo de modal não declara alvo. Ali `modal.js` já leva o foco ao
+campo inválido, e a caixa fica a centímetros dele — não há para onde navegar.
 
 A tag decide as três coisas que antes cada tela decidia sozinha:
 

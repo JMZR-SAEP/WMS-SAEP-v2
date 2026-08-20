@@ -150,6 +150,24 @@ def test_login_costura_o_erro_inline_pelo_componente(client, usuario):
     assert 'id="id_username-erro"' in conteudo
 
 
+@pytest.mark.django_db
+def test_login_erro_de_credencial_leva_ao_campo_matricula(client, usuario):
+    """Credencial recusada não pertence a campo nenhum — mas tem por onde começar.
+
+    Sem `ancora_geral` a frase ficaria como texto solto no sumário: a caixa
+    anunciava a falha e não oferecia nenhum caminho de volta ao formulário. O
+    alvo é a matrícula porque é o primeiro campo a reconferir.
+    """
+    resposta = client.post(
+        reverse('accounts:login'),
+        {'username': 'OP-001', 'password': 'errada'},
+    )
+    conteudo = resposta.content.decode()
+
+    assert 'href="#id_username"' in conteudo
+    assert 'id="id_username"' in conteudo
+
+
 def test_login_usuario_inativo(client, usuario):
     usuario.is_active = False
     usuario.save()
