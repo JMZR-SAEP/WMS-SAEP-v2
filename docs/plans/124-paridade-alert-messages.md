@@ -256,14 +256,18 @@ A issue recomenda um comando, e ele entra no passe de implementação — depois
 RED do teste de paridade e antes do commit final:
 
 ```bash
-/impeccable polish apps/core/templates/components/alert.html apps/core/templates/core/partials/_messages.html docs/design-system.md
+/impeccable polish apps/core/templates/components/alert.html apps/core/templates/core/partials/_messages.html apps/core/templates/core/partials/_message_item.html docs/design-system.md
 ```
+
+O comando da issue tem três alvos; aqui ele tem quatro. `_message_item.html`
+entrou porque foi para lá que a #119 moveu a marcação da faixa — deixá-lo de
+fora apontaria o passe para um arquivo que hoje só resolve variante, e as
+classes de raio e padding a corrigir não estariam no alvo.
 
 `polish` é o passe de qualidade final: consistência entre superfícies que
 deveriam falar a mesma língua. Aqui ele carrega as três metades juntas —
 alinhar os valores divergentes, escrever a seção de paridade e manter o teste
-que a torna verdadeira. `_message_item.html` entra no alvo junto com
-`_messages.html`, porque foi para lá que a #119 moveu a marcação.
+que a torna verdadeira.
 
 Verificação final, conforme `AGENTS.md`:
 
