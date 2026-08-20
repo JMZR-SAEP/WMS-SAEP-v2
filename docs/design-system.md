@@ -62,12 +62,19 @@ o que é operacional.
 | `-border` | 200 | borda de alerta, ring de badge |
 | `-border-strong` | 300 | ring de badge forte, borda de botão outline |
 | `-text-subtle` | 700 | aviso inline menos enfático (só `warning`) |
-| `-text` | 700 | texto colorido de corpo |
-| `-text-emphasis` | 800 | texto de banner de alerta |
+| `-text` | 700 — **800 em `warning`** | texto colorido de corpo |
+| `-text-emphasis` | 800 — não existe em `warning` | texto de banner de alerta |
 | `-text-strong` | 900 | texto de badge e de caixa de erro |
 | `-accent` | 500 | foco de botão destrutivo, asterisco de obrigatório (só `danger`) |
 | `-border-input` | 400 | borda de campo inválido (só `danger`) |
 | `-hover` / `-active` | 700 / 800 | pressão em botão (`primary` e `danger`) |
+
+**`warning` é a exceção da escala de texto.** Ela é a única família com
+`-text-subtle`, e por isso sua escada anda um degrau: `-text-subtle` 700,
+`-text` **800**, `-text-strong` 900 — sem `-text-emphasis`. Nas outras famílias,
+`-text` é 700 e o 800 se chama `-text-emphasis`. Consequência prática: o
+equivalente de `-text-emphasis` em âmbar é `text-warning-text`, e é por isso que
+a tabela de paridade abaixo usa nomes diferentes para o mesmo degrau.
 
 ### As três bordas
 
@@ -293,6 +300,60 @@ Família `filter_*`, montada por composição explícita na tela chamadora.
 
 Fora de `components/`: `core/partials/_messages.html` (flash messages do Django) e
 `core/partials/_side_nav.html` (navegação lateral em `lg:`).
+
+### Paridade entre o banner e a faixa de flash
+
+`components/alert.html` em `layout="stack"` e a faixa de flash message
+(`core/partials/_messages.html`, que delega a marcação a
+`core/partials/_message_item.html`) desenham os mesmos quatro níveis de
+severidade. **São dois arquivos de propósito, e continuam sendo.** O que eles
+não podem é divergir na superfície.
+
+| Nível | Raio | Padding | Fundo | Borda | Texto | Ícone | role |
+|---|---|---|---|---|---|---|---|
+| `info` | `rounded-lg` | `px-4 py-3` | `bg-primary-subtle` | `border-primary-border` | `text-primary-text-emphasis` | `currentColor` | `status` |
+| `success` | `rounded-lg` | `px-4 py-3` | `bg-success-subtle` | `border-success-border` | `text-success-text-emphasis` | `currentColor` | `status` |
+| `warning` | `rounded-lg` | `px-4 py-3` | `bg-warning-subtle` | `border-warning-border` | `text-warning-text` | `currentColor` | `alert` |
+| `danger` | `rounded-lg` | `px-4 py-3` | `bg-danger-subtle` | `border-danger-border` | `text-danger-text-emphasis` | `currentColor` | `alert` |
+
+`danger` e `error` são o mesmo nível com dois nomes: o componente segue o
+vocabulário de variante de `button.html`, a faixa recebe o que o Django emite.
+
+Três coisas que a tabela decide e que valem a pena dizer em voz alta:
+
+- **`rounded-lg` porque alerta é campo, não controle.** Pela Regra do Raio
+  Crescente, 0.375rem é raio de controle e nenhuma das duas superfícies é
+  acionável como unidade. A faixa usava raio de controle e saiu dele.
+- **O ícone herda a cor da caixa.** Sem classe de cor, `fill="currentColor"`
+  pega o token de texto do nível. Com cor fixa da variante, o ícone de `warning`
+  ficava em 2.07:1 sobre o próprio fundo e falhava a WCAG 1.4.11 (3:1 para
+  componente gráfico) — justo no único sinal não-cromático de nível. Herdando,
+  vai a 6.88:1, e quatro ramos condicionais deixam de existir.
+- **Um degrau de texto só.** Os quatro níveis usam o shade 800. O nome do token
+  muda porque `warning` é a exceção da escala de sufixos acima: nas outras três
+  famílias o 800 se chama `-text-emphasis`; em âmbar, que tem `-text-subtle` e
+  não tem `-text-emphasis`, o 800 se chama `-text`. Mesmo degrau, dois nomes.
+
+O `layout="row"` do `alert.html` fica **fora** desta tabela e mantém
+`rounded-xl`: ele tem `shadow-sm` e padding de seção, e sombra só existe em
+papel neste sistema — papel leva raio de papel.
+
+#### Por que não há um partial compartilhado
+
+Os contratos ARIA são incompatíveis. O banner é estático: é anunciado uma vez,
+no lugar onde está, e não desaparece. A faixa é uma fila com `role` no nó que
+contém só o texto, ordenação por assertividade, dismiss por teclado, e timer de
+8s em `success`/`info` e nunca em `warning`/`error` (WCAG 2.2.1). Fundir os dois
+obrigaria o parâmetro a descrever comportamento em vez de aparência — o sinal,
+pelo contrato de componente logo abaixo, de que a abstração está errada.
+
+O que **não** é compartilhado, e não deve passar a ser: o dismiss e seu timer, a
+ordenação por assertividade, `body_template`/`action_template`, `bg_class`, o
+ramo de fallback de variante desconhecida e o `layout="row"`.
+
+`apps/core/tests/test_paridade_feedback.py` lê esta tabela e compara com os dois
+templates renderizados **e** com a expectativa aprovada no próprio teste. As
+três pontas precisam concordar: mudar tabela e templates juntos não passa.
 
 ## Contrato de componente novo
 
