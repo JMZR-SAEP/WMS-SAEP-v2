@@ -34,7 +34,7 @@ muda de nome ou o item deixa de renderizar.
 <div class="space-y-2">
   {% for message in visiveis %}
     {% if message.level_tag == 'warning' %}
-      {% include "core/partials/_message_item.html" with variante="warning" auto="false" role="alert" caixa="border-warning-border bg-warning-subtle text-warning-text-strong" foco="focus-visible:ring-warning" %}
+      {% include "core/partials/_message_item.html" with variante="warning" auto="false" role="alert" caixa="border-warning-border bg-warning-subtle text-warning-text" foco="focus-visible:ring-warning" %}
     {% elif message.level_tag == 'error' %}
       {% include "core/partials/_message_item.html" with variante="error" auto="false" role="alert" caixa="border-danger-border bg-danger-subtle text-danger-text-emphasis" foco="focus-visible:ring-danger-accent" %}
     {% elif message.level_tag == 'success' %}

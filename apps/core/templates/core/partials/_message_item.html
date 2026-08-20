@@ -11,6 +11,18 @@ Parâmetros (todos obrigatórios, todos vindos do chamador):
 
 O botão fica fora do nó com `role` de propósito: dentro dele, entraria no texto
 anunciado pelo leitor de tela.
+
+A caixa usa o mesmo vocabulário de superfície do `components/alert.html` em
+layout `stack` — raio de campo, `px-4 py-3`, token de texto por nível. A tabela
+de paridade e a razão de os dois arquivos seguirem separados estão em
+`docs/design-system.md`, §Paridade entre o banner e a faixa de flash, e
+`apps/core/tests/test_paridade_feedback.py` falha se um dos dois sair da linha.
+
+As margens negativas do botão acompanham o padding da caixa. `-my-3` cancela o
+`py-3`: sem isso o alvo de 44px empurraria a faixa para 52px de altura, e a
+paridade de classe esconderia uma divergência de altura real. `-mr-3` mantém os
+4px de folga que o botão tinha antes — rente à borda, o anel de foco
+(`ring-2 ring-offset-1`) seria desenhado por cima dela.
 {% endcomment %}
 <div
   x-data="mensagemFlash({ auto: {{ auto }} })"
@@ -20,7 +32,7 @@ anunciado pelo leitor de tela.
   @mouseleave="retomar('hover')"
   @focusin="pausar('foco')"
   @focusout="retomar('foco')"
-  class="flex items-start gap-2 rounded-md border px-3 py-2 text-sm {{ caixa }}"
+  class="flex items-start gap-2 rounded-lg border px-4 py-3 text-sm {{ caixa }}"
 >
   <svg aria-hidden="true" class="mt-0.5 h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="currentColor">
     {% if variante == 'warning' %}
@@ -38,7 +50,7 @@ anunciado pelo leitor de tela.
     type="button"
     @click="fechar()"
     aria-label="Fechar mensagem"
-    class="-my-2 -mr-2 inline-flex min-h-11 min-w-11 shrink-0 cursor-pointer items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 {{ foco }}"
+    class="-my-3 -mr-3 inline-flex min-h-11 min-w-11 shrink-0 cursor-pointer items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 {{ foco }}"
   >
     <svg aria-hidden="true" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
       <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z"/>

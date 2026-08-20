@@ -8,6 +8,23 @@ Fora do contrato de dismiss de docs/CONVENTIONS.md (§Níveis e ARIA) — essa r
 governa o contrato de flash messages Django, renderizado por
 core/partials/_messages.html, que não usa este componente.
 
+Os dois seguem separados de propósito (contratos ARIA incompatíveis), mas o
+vocabulário de superfície do layout "stack" é o mesmo da faixa de flash: raio,
+padding e token de texto por nível. A tabela está em docs/design-system.md,
+§Paridade entre o banner e a faixa de flash, e
+apps/core/tests/test_paridade_feedback.py falha se um dos dois sair da linha.
+
+O ícone não recebe classe de cor: herda o token de texto da própria caixa via
+currentColor. Com cor fixa da variante, o ícone de warning ficava em 2.07:1
+sobre o fundo -subtle e falhava a WCAG 1.4.11 (3:1 para componente gráfico) —
+justo no único sinal não-cromático de nível. Herdando, vai a 6.88:1.
+
+Raio: "stack" usa rounded-lg (0.5rem, campo) e "row" usa rounded-xl (0.75rem,
+papel). Não é divergência a corrigir — a Regra do Raio Crescente segue a
+pergunta "sou controle, campo, papel ou overlay?", e o "row" tem shadow-sm e
+padding de seção, que é a definição de papel no design system. O "stack" é um
+banner embutido no fluxo, sem sombra: campo.
+
 Parâmetros:
   variant        (opcional, default=info) info, success, warning, danger
   message        (obrigatório, exceto se body_template ou casca JS-hidratada) texto
@@ -74,7 +91,7 @@ Variante desconhecida (ramo {% else %} de cada cadeia):
   class="flex items-start gap-2 rounded-lg border px-4 py-3 text-sm {% if variant == 'success' %}border-success-border bg-success-subtle text-success-text-emphasis{% elif variant == 'warning' %}border-warning-border bg-warning-subtle text-warning-text{% elif variant == 'danger' %}border-danger-border bg-danger-subtle text-danger-text-emphasis{% elif variant == 'info' %}border-primary-border bg-primary-subtle text-primary-text-emphasis{% else %}border-danger-hover bg-danger text-text-on-primary{% endif %}{% if class %} {{ class }}{% endif %}"
 >
   {% if icone != False %}
-    <svg aria-hidden="true" class="mt-0.5 h-4 w-4 shrink-0 {% if variant == 'success' %}text-success{% elif variant == 'warning' %}text-warning{% elif variant == 'danger' %}text-danger{% elif variant == 'info' %}text-primary{% else %}text-text-on-primary{% endif %}" viewBox="0 0 20 20" fill="currentColor">
+    <svg aria-hidden="true" class="mt-0.5 h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="currentColor">
       {% if variant == 'success' %}
         <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/>
       {% elif variant == 'warning' %}
