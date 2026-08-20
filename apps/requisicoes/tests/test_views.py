@@ -4794,3 +4794,90 @@ def test_atender_rotula_os_campos_da_linha(
     assert 'Entregue' in rotulo.group(1)
     assert 'lg:sr-only' in rotulo.group()
     assert 'class="sr-only"' not in rotulo.group()
+
+
+# ---------------------------------------------------------------------------
+# Sumário de erros nas telas de formset longo (#125)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_rascunho_post_invalido_traz_o_sumario(client, solicitante):
+    """O guarda de arquivo vê o include; só o POST vê a view montar o contexto."""
+    _login(client, solicitante)
+    resp = client.post(
+        reverse('requisicoes:nova_requisicao'),
+        data={
+            'observacao_geral': '',
+            'itens-TOTAL_FORMS': '1',
+            'itens-INITIAL_FORMS': '0',
+            'itens-MIN_NUM_FORMS': '0',
+            'itens-MAX_NUM_FORMS': '1000',
+            'itens-0-material_id': '',
+            'itens-0-material_label': '',
+            'itens-0-quantidade_solicitada': '',
+        },
+    )
+    html = resp.content.decode()
+    assert 'id="sumario-erros"' in html
+    assert 'autofocus' in html
+    assert 'Não foi possível salvar:' in html
+
+
+@pytest.mark.django_db
+def test_rascunho_erro_de_formset_aparece_uma_vez_so(client, solicitante):
+    """A duplicata que a #125 removeu.
+
+    O sumário no topo e o alerta de formset 150 linhas abaixo exibiam a mesma
+    string, sem marcador de que era a mesma. Num viewport de 375px o usuário lê
+    o total no topo, corrige, e reencontra um deles achando que é mais um.
+    """
+    _login(client, solicitante)
+    resp = client.post(
+        reverse('requisicoes:nova_requisicao'),
+        data={
+            'observacao_geral': '',
+            'itens-TOTAL_FORMS': '1',
+            'itens-INITIAL_FORMS': '0',
+            'itens-MIN_NUM_FORMS': '0',
+            'itens-MAX_NUM_FORMS': '1000',
+            'itens-0-material_id': '',
+            'itens-0-material_label': '',
+            'itens-0-quantidade_solicitada': '',
+        },
+    )
+    html = resp.content.decode()
+    assert html.count('A requisição precisa ter ao menos um item.') == 1
+
+
+@pytest.mark.django_db
+def test_atender_post_invalido_usa_a_frase_da_tela(
+    client, aux_almoxarifado, req_pronta_view_com_itens
+):
+    """A tela não salva nada: ela registra uma retirada.
+
+    "Não foi possível salvar" descreve uma ação que esta tela não tem. A
+    frase-líder é parametrizada pela tela; a pluralização segue no componente.
+    """
+    _login(client, aux_almoxarifado)
+    item = req_pronta_view_com_itens.itens.first()
+    resp = client.post(
+        reverse(
+            'requisicoes:registrar_atendimento',
+            kwargs={'pk': req_pronta_view_com_itens.pk},
+        ),
+        data={
+            'itens-TOTAL_FORMS': '1',
+            'itens-INITIAL_FORMS': '1',
+            'itens-MIN_NUM_FORMS': '0',
+            'itens-MAX_NUM_FORMS': '1000',
+            'itens-0-item_id': str(item.id),
+            'itens-0-quantidade_entregue': '2',
+            'itens-0-justificativa': '',
+            'retirante_nome': '',
+        },
+    )
+    html = resp.content.decode()
+    assert 'id="sumario-erros"' in html
+    assert 'Não foi possível registrar o atendimento:' in html
+    assert 'Não foi possível salvar:' not in html

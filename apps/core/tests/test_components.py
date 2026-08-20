@@ -1457,3 +1457,71 @@ class TestSumarioDeErros:
             'hidden',
         ):
             assert mecanismo not in html
+
+
+class TestAdocaoDoSumarioNasTelasDeFormsetLongo:
+    """As três telas longas de formset tratadas do mesmo jeito — a #125.
+
+    Antes: `atender_retirada` e `rascunho_form` tinham o sumário,
+    `nova_saida_excepcional` não tinha nenhum, e `rascunho_form` tinha o erro de
+    formset duas vezes. Três telas com o mesmo problema e três tratamentos
+    diferentes.
+    """
+
+    TELAS = (
+        'apps/estoque/templates/estoque/nova_saida_excepcional.html',
+        'apps/requisicoes/templates/requisicoes/rascunho_form.html',
+        'apps/requisicoes/templates/requisicoes/atender_retirada.html',
+    )
+
+    PARTIAIS_REMOVIDOS = (
+        'apps/estoque/templates/estoque/partials/_alert_erros_formset.html',
+        'apps/requisicoes/templates/requisicoes/partials/_alert_erros_formset.html',
+    )
+
+    def _raiz(self):
+        return Path(__file__).resolve().parents[3]
+
+    @pytest.mark.parametrize('tela', TELAS)
+    def test_tela_monta_e_inclui_o_sumario(self, tela):
+        texto = (self._raiz() / tela).read_text()
+        assert '{% coletar_erros' in texto
+        assert 'components/error_summary.html' in texto
+
+    @pytest.mark.parametrize('tela', TELAS)
+    def test_tela_nao_repete_a_mensagem_de_non_form_errors(self, tela):
+        """A borda pode ler `non_form_errors`; uma segunda caixa de texto, não.
+
+        O sumário já coleta `formset.non_form_errors()`. O que sobra na tela é
+        marcador de *onde* — a borda da seção —, não a mensagem repetida a
+        várias roladas de distância.
+        """
+        texto = (self._raiz() / tela).read_text()
+        assert 'body_template' not in texto or '_alert_erros_formset' not in texto
+
+    def test_partiais_orfaos_sairam(self):
+        for caminho in self.PARTIAIS_REMOVIDOS:
+            assert not (self._raiz() / caminho).exists(), (
+                f'{caminho} continua no repositório sem consumidor'
+            )
+
+    def test_nenhuma_referencia_residual_ao_partial_removido(self):
+        """Arquivo ausente não é guarda suficiente.
+
+        Um `{% include %}` sobrevivente vira `TemplateDoesNotExist` em produção,
+        na tela de erro, para o chefe de almoxarifado. O guarda que só olha o
+        arquivo passaria feliz.
+        """
+        # Este arquivo cita o nome do partial para poder procurá-lo, então é o
+        # único excluído da varredura. Qualquer outro arquivo — template, view
+        # ou outro módulo de teste — continua sendo pego.
+        eu = Path(__file__).resolve()
+        residuais = [
+            str(arquivo.relative_to(self._raiz()))
+            for arquivo in (self._raiz() / 'apps').rglob('*')
+            if arquivo.is_file()
+            and arquivo.suffix in {'.html', '.py'}
+            and arquivo.resolve() != eu
+            and '_alert_erros_formset' in arquivo.read_text(errors='ignore')
+        ]
+        assert residuais == [], f'referência a partial removido: {residuais}'

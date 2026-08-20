@@ -2259,3 +2259,59 @@ class TestNovaSaidaExcepcionalAvisoDivergencia:
 
         mensagens = list(response.wsgi_request._messages)
         assert [m.level_tag for m in mensagens] == ['success']
+
+
+class TestSumarioDeErrosNaSaidaExcepcional:
+    """A tela onde falhar em silêncio custa mais — a issue #125.
+
+    Baixa administrativa direta, restrita ao chefe de almoxarifado, com formset
+    de itens e autocomplete, sem reversão fácil. Era a única tela longa de
+    formset **sem** o sumário que o projeto construiu para exatamente isso.
+    """
+
+    DADOS_INVALIDOS = {
+        'motivo': 'avaria',
+        'observacao': '',
+        'itens-TOTAL_FORMS': '1',
+        'itens-INITIAL_FORMS': '0',
+        'itens-MIN_NUM_FORMS': '0',
+        'itens-MAX_NUM_FORMS': '1000',
+        'itens-0-material_id': '',
+        'itens-0-quantidade': '',
+    }
+
+    def _post_invalido(self, client, chefe_almoxarifado):
+        client.force_login(chefe_almoxarifado)
+        return client.post(URL_NOVA, data=self.DADOS_INVALIDOS)
+
+    def test_post_invalido_traz_o_sumario(
+        self, client, chefe_almoxarifado, estoque_principal
+    ):
+        """O guarda de arquivo vê o include; só o POST vê a view montar o contexto.
+
+        `{% coletar_erros form formset %}` depende de a view devolver os dois
+        nomes no contexto de erro. Um include correto sobre um contexto vazio
+        renderiza silêncio — que é exatamente a falha que a tela tinha.
+        """
+        html = self._post_invalido(client, chefe_almoxarifado).content.decode()
+        assert 'id="sumario-erros"' in html
+        assert 'autofocus' in html
+        assert 'problema' in html
+
+    def test_post_invalido_nomeia_o_campo_com_erro(
+        self, client, chefe_almoxarifado, estoque_principal
+    ):
+        html = self._post_invalido(client, chefe_almoxarifado).content.decode()
+        assert 'href="#id_observacao"' in html
+
+    def test_erro_de_formset_aparece_uma_vez_so(
+        self, client, chefe_almoxarifado, estoque_principal
+    ):
+        """A duplicata que a #125 removeu: sumário no topo e alerta lá embaixo.
+
+        Num viewport de 375px os dois pontos ficam a várias roladas de
+        distância, sem marcador de que são o mesmo erro. O usuário lê o total
+        no topo, corrige, e reencontra um deles achando que é mais um.
+        """
+        html = self._post_invalido(client, chefe_almoxarifado).content.decode()
+        assert html.count('A saída precisa ter ao menos um item.') == 1

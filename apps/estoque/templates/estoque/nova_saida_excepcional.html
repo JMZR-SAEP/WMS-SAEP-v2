@@ -24,6 +24,15 @@
   <form method="post" novalidate data-prevent-double-submit>
     {% csrf_token %}
 
+    {% comment %}
+      Sumário no topo é a superfície canônica de erro desta tela. Formset longo
+      com autocomplete: o campo inválido pode estar três roladas abaixo, e sem o
+      sumário a tela voltava aparentemente intacta — numa baixa administrativa
+      direta, sem reversão fácil.
+    {% endcomment %}
+    {% coletar_erros form formset as erros_formulario %}
+    {% include "components/error_summary.html" with erros=erros_formulario %}
+
     {# --- Seção 1: Dados da saída --- #}
     <section
       aria-labelledby="sec-dados-titulo"
@@ -60,10 +69,12 @@
       {# Management form do formset — obrigatório #}
       {{ formset.management_form }}
 
-      {# Erros gerais do formset #}
-      {% if formset.non_form_errors %}
-        {% include "components/alert.html" with variant="danger" icone=False body_template="estoque/partials/_alert_erros_formset.html" class="mb-3" %}
-      {% endif %}
+      {% comment %}
+        Erro geral do formset não se repete aqui: `coletar_erros` já o leva ao
+        sumário do topo. Repetir a mesma frase a várias roladas de distância,
+        sem marcador de que é a mesma, faz o usuário achar que apareceu mais um.
+        A borda da seção continua marcando *onde* — isso não é repetição.
+      {% endcomment %}
 
       {% comment %}
         Aviso de material duplicado — veto client-side otimista (fonte de verdade é o
