@@ -55,9 +55,9 @@ distingue matiz não tem outra pista.
    níveis no mesmo degrau (800).
 4. **`docs/design-system.md`** — seção nova de paridade: tabela dos 4 níveis × 7
    propriedades, razão da separação e o que **não** é compartilhado de propósito.
-5. **`apps/core/tests/test_paridade_feedback.py`** (novo) — o mecanismo: lê a
-   tabela do design system e verifica cada célula contra o HTML renderizado dos
-   dois caminhos.
+5. **`apps/core/tests/test_paridade_feedback.py`** (novo) — o mecanismo: uma
+   expectativa aprovada no próprio teste, conferida contra a tabela do design
+   system **e** contra o HTML renderizado dos dois caminhos (ver D-4).
 6. **`apps/core/static/core/css/app.css`** — rebuild, porque as classes de ícone
    removidas deixam de ser geradas e `rounded-lg`/`px-4 py-3` passam a existir no
    caminho da faixa.
@@ -112,13 +112,38 @@ padding de seção é papel e leva raio de papel; um banner sem sombra, embutido
 fluxo do formulário, é campo. A divergência fica, com a razão escrita no
 `{% comment %}` do arquivo — que é onde a próxima pessoa vai procurar.
 
-### D-4 — A tabela do design system é a fonte, e o teste a lê
+### D-4 — Três lados, não dois: constante do teste, tabela e templates
 
 O critério de aceite pede um teste que falhe "quando os dois templates divergem
-em qualquer célula da tabela". Literal: o teste **parseia** a tabela de paridade
-de `docs/design-system.md` e confere cada célula contra o HTML renderizado dos
-dois caminhos. Assim a tabela não pode virar ficção — mentir nela quebra o teste
-tanto quanto mentir no template.
+em qualquer célula da tabela". Ler a tabela e comparar os dois templates com ela
+atende à letra e deixa um buraco: mudar a tabela **e** os dois templates para o
+mesmo valor errado passa. Isso detecta divergência, não valor aprovado — e
+"todo mundo concorda" é exatamente como o piso de 44px saiu do ar em silêncio.
+
+Então o teste tem três lados, e cada par é conferido:
+
+1. **`PARIDADE_ESPERADA`**, dicionário literal no próprio módulo de teste, com os
+   4 níveis × 7 propriedades já resolvidos (`rounded-lg`, `px-4`, `py-3`,
+   `bg-warning-subtle`, `border-warning-border`, `text-warning-text`,
+   `currentColor`, `alert`). É a expectativa aprovada, e vive fora do alcance de
+   quem edita template ou doc.
+2. **A tabela de `docs/design-system.md`**, parseada e comparada com a constante.
+   Doc que mente quebra o teste.
+3. **O HTML renderizado** dos dois caminhos, comparado com a constante — o que
+   também garante, por transitividade, que os dois caminhos concordam entre si.
+
+Mudar template e tabela juntos não salva ninguém: o lado 1 não se move sozinho.
+Mudar o valor aprovado exige editar a constante, e aí a mudança fica explícita
+no diff, revisável — que é o ponto.
+
+Além da comparação célula a célula, duas invariantes de regra, derivadas do
+design system e não da tabela, que continuam valendo mesmo se alguém reescrever
+as três pontas:
+
+- nenhuma das duas superfícies usa raio de **controle** (`rounded-md`, 0.375rem);
+- o `<svg>` de nível dos dois caminhos declara `fill="currentColor"` **e** não
+  carrega classe `text-*` de cor. Ausência de classe sozinha não prova herança —
+  o preenchimento poderia vir de `fill` fixo, `style` inline ou outra utility.
 
 O parser falha alto se a tabela não for encontrada, tiver número de colunas
 diferente do esperado ou não cobrir os quatro níveis. Tabela sumida tem que
@@ -161,10 +186,11 @@ Helpers já existentes: `apps/core/tests/marcacao.py` (`elementos`, `atributo`,
 
 | Caso | O que verifica |
 |---|---|
-| Paridade célula a célula (parametrizado por nível × propriedade) | raio, padding, fundo, borda e token de texto iguais nos dois caminhos e iguais ao que a tabela declara |
+| Renderização × `PARIDADE_ESPERADA` (parametrizado por nível × propriedade) | raio, padding, fundo, borda e token de texto dos dois caminhos batem com a expectativa aprovada — e, por transitividade, entre si |
+| Tabela do design system × `PARIDADE_ESPERADA` | a doc declara exatamente o que o teste aprova; doc que mente quebra |
 | Nenhum dos dois usa raio de controle | `rounded-md` ausente na caixa do banner e na da faixa |
-| Ícone do banner herda `currentColor` | o `<svg>` do stack não tem classe `text-*` de cor |
-| Ícone da faixa continua sem classe de cor | o lado que já estava certo não regride |
+| Ícone do banner herda a cor da caixa | o `<svg>` do stack declara `fill="currentColor"` **e** não tem classe `text-*` de cor |
+| Ícone da faixa continua herdando | mesma asserção positiva no lado que já estava certo — não basta "não regrediu" |
 | `role` por nível | warning/danger→`alert`, success/info→`status`, nos dois caminhos |
 | Tabela do design system existe e é bem formada | 4 níveis × 7 propriedades; parser falha alto se a seção sumir |
 | Razão da separação está escrita | a seção nomeia os contratos ARIA incompatíveis e o que não é compartilhado |
@@ -174,8 +200,9 @@ Helpers já existentes: `apps/core/tests/marcacao.py` (`elementos`, `atributo`,
 inferência. O repositório não tem ferramenta de contraste, e escrever uma
 conversão OKLCH→sRGB dentro da suíte seria carregar matemática de cor num
 projeto que não a usa em mais nenhum lugar. Então a divisão é: o **mecanismo
-durável** é o teste estrutural (o `<svg>` do stack não pode ter classe de cor —
-se alguém recolar uma, quebra), e o **número** vem de uma medição pontual sobre
+durável** é o teste estrutural (`fill="currentColor"` presente e nenhuma classe
+de cor no `<svg>` do stack — recolar uma quebra), e o **número** vem de uma
+medição pontual sobre
 o `app.css` compilado, com o par por variante e o antes/depois, registrada no
 corpo do PR. O script fica no scratchpad; não entra no repositório, porque
 ferramenta sem segundo uso vira manutenção órfã.
@@ -228,7 +255,7 @@ Regressões que não podem quebrar:
 A issue recomenda um comando, e ele entra no passe de implementação — depois do
 RED do teste de paridade e antes do commit final:
 
-```
+```bash
 /impeccable polish apps/core/templates/components/alert.html apps/core/templates/core/partials/_messages.html docs/design-system.md
 ```
 
@@ -240,7 +267,7 @@ que a torna verdadeira. `_message_item.html` entra no alvo junto com
 
 Verificação final, conforme `AGENTS.md`:
 
-```
+```bash
 uv run ruff format --check .
 uv run ruff check .
 uv run mypy apps
