@@ -1489,15 +1489,32 @@ class TestAdocaoDoSumarioNasTelasDeFormsetLongo:
         assert 'components/error_summary.html' in texto
 
     @pytest.mark.parametrize('tela', TELAS)
-    def test_tela_nao_repete_a_mensagem_de_non_form_errors(self, tela):
+    def test_nenhum_include_e_alimentado_por_erro_de_formset(self, tela):
         """A borda pode ler `non_form_errors`; uma segunda caixa de texto, não.
 
-        O sumário já coleta `formset.non_form_errors()`. O que sobra na tela é
-        marcador de *onde* — a borda da seção —, não a mensagem repetida a
-        várias roladas de distância.
+        O sumário já coleta `formset.non_form_errors()`. O que pode sobrar na
+        tela é marcador de *onde* — a borda da seção —, nunca a mensagem
+        repetida a várias roladas de distância.
+
+        A asserção varre as tags `{% include %}` e exige que nenhuma seja
+        alimentada por erro de formset. Proibir `body_template` em bloco seria
+        errado: `rascunho_form.html` tem um legítimo, o de itens inelegíveis.
+        E uma asserção sobre a ausência do partial removido seria **vácua** —
+        ele já não existe, então passaria sem olhar nada. É o buraco do guarda
+        de 44px (#120) reproduzido: teste que não pode falhar não é guarda.
         """
         texto = (self._raiz() / tela).read_text()
-        assert 'body_template' not in texto or '_alert_erros_formset' not in texto
+        includes = re.findall(r'\{%\s*include\s.*?%\}', texto, re.S)
+        assert includes, f'{tela}: nenhum include encontrado — regex quebrou?'
+        alimentados = [
+            include
+            for include in includes
+            if 'non_form_errors' in include or 'erros_formset' in include
+        ]
+        assert alimentados == [], (
+            f'{tela}: include alimentado por erro de formset — o sumário já '
+            f'mostra essa mensagem: {alimentados}'
+        )
 
     def test_partiais_orfaos_sairam(self):
         for caminho in self.PARTIAIS_REMOVIDOS:
