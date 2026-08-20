@@ -192,6 +192,37 @@ def _elementos_quaisquer(trecho):
         yield from elementos(trecho, nome)
 
 
+#: Valores de pintura que não fixam cor — deixam a herança de pé.
+PINTURA_HERDADA = frozenset({'currentcolor', 'inherit', 'unset', 'revert', 'none'})
+
+#: Propriedades CSS que decidem a cor do ícone. `fill-opacity` e `stroke-width`
+#: ficam de fora de propósito: mudam a pintura, não a cor herdada.
+PROPRIEDADES_DE_COR = frozenset({'color', 'fill', 'stroke'})
+
+
+def _cor_fixada_por_style(valor):
+    """A declaração do `style` que sequestra a cor, ou `None` se nenhuma.
+
+    Um `style` qualquer não basta para condenar o elemento: `opacity` ou
+    `transform` inline não têm nada a ver com herança de cor, e tratá-los como
+    violação faria o guarda falhar por engano — o que manda a próxima pessoa
+    consertar o teste em vez do código.
+    """
+    if not valor:
+        return None
+    for declaracao in valor.split(';'):
+        propriedade, separador, conteudo = declaracao.partition(':')
+        if not separador:
+            continue
+        propriedade = propriedade.strip().lower()
+        conteudo = conteudo.strip()
+        if propriedade in PROPRIEDADES_DE_COR and conteudo.lower() not in (
+            PINTURA_HERDADA
+        ):
+            return f'style {propriedade}:{conteudo}'
+    return None
+
+
 def _icone_de_nivel(html):
     """A cor efetiva do ícone de nível — `currentColor` se nada a fixar.
 
@@ -203,13 +234,14 @@ def _icone_de_nivel(html):
     responsável por fixar a cor — ou o `fill` do `<svg>`, quando ninguém fixa.
 
     `fill-rule` não é confundido com `fill`: a busca de atributo casa o nome
-    inteiro.
+    inteiro, e no `style` a propriedade é comparada depois do `partition(':')`.
     """
     subarvore = _subarvore_do_icone(html)
     _, raiz, _ = next(elementos(subarvore, 'svg'))
     for _, atributos, _ in _elementos_quaisquer(subarvore):
-        if atributo(atributos, 'style'):
-            return 'style inline'
+        pelo_style = _cor_fixada_por_style(atributo(atributos, 'style'))
+        if pelo_style:
+            return pelo_style
         cores = sorted(
             c for c in classes(atributos) if re.fullmatch(r'(text|fill|stroke)-\S+', c)
         )
@@ -217,7 +249,7 @@ def _icone_de_nivel(html):
             return ' '.join(cores)
         for pintura in ('fill', 'stroke'):
             valor = atributo(atributos, pintura)
-            if valor not in (None, 'currentColor', 'none'):
+            if valor is not None and valor.lower() not in PINTURA_HERDADA:
                 return f'{pintura}="{valor}"'
     return atributo(raiz, 'fill') or 'sem fill'
 
@@ -398,3 +430,34 @@ def test_layout_row_mantem_raio_de_papel_e_a_razao_esta_no_arquivo():
 
     alert = BASE_DIR / 'apps/core/templates/components/alert.html'
     assert 'Regra do Raio Crescente' in alert.read_text(encoding='utf-8')
+
+
+@pytest.mark.parametrize(
+    'style,esperado',
+    [
+        (None, None),
+        ('', None),
+        # Não têm nada a ver com herança de cor.
+        ('opacity:.5', None),
+        ('transform:rotate(90deg)', None),
+        # Parecidas com as de cor, mas não são: mudam a pintura, não a cor.
+        ('fill-opacity:.5', None),
+        ('stroke-width:2', None),
+        # Fixam a propriedade, mas no valor que mantém a herança.
+        ('fill:currentColor', None),
+        ('color:inherit', None),
+        ('fill:none', None),
+        # Sequestram de fato.
+        ('fill:#b45309', 'style fill:#b45309'),
+        ('opacity:.5;stroke:red', 'style stroke:red'),
+        ('COLOR: Red', 'style color:Red'),
+    ],
+)
+def test_cor_fixada_por_style_so_acusa_declaracao_de_cor(style, esperado):
+    """O guarda do ícone precisa acusar cor fixada — e só isso.
+
+    Tratar qualquer `style` como violação faria o guarda falhar por engano, e
+    guarda que falha por engano manda a próxima pessoa consertar o teste em vez
+    do código.
+    """
+    assert _cor_fixada_por_style(style) == esperado
