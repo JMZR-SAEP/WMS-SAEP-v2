@@ -124,16 +124,45 @@ def test_login_marca_os_dois_campos_quando_a_falha_e_do_par(rf):
     `aria-describedby` dos campos de propósito: ele se anuncia por
     `role="alert"`, e apontar cada campo para a caixa inteira faria o leitor de
     tela reler a lista de problemas a cada campo focado.
+
+    Os dois campos vão preenchidos de propósito. Com eles vazios o teste era
+    vácuo: o `BoundField` do Django já emite `aria-invalid` sozinho quando o
+    campo tem `errors`, então a asserção passava mesmo que o Form não marcasse
+    nada. Preenchidos, os campos validam, `errors` fica vazio, e o único que
+    pode ter escrito o atributo é o `full_clean()` daqui.
     """
     form = FormularioComErroDeCampoEGlobal(
         request=rf.post(reverse('accounts:login')),
-        data={'username': '', 'password': ''},
+        data={'username': 'OP-001', 'password': 'qualquer-senha'},
     )
 
     form.is_valid()
 
+    assert not form['username'].errors
+    assert not form['password'].errors
+    assert form.non_field_errors()
+
     assert 'aria-invalid="true"' in str(form['username'])
     assert 'aria-invalid="true"' in str(form['password'])
+
+
+def test_login_form_nao_valida_ao_ser_construido(rf):
+    """Instanciar o formulário não pode disparar `authenticate()`.
+
+    A marcação de suspeita vivia no `__init__`, e ler `non_field_errors()` ali
+    chama `full_clean()` antes da hora. No `AuthenticationForm` isso significa
+    consulta ao banco, hash de senha e o sinal `user_login_failed` que o
+    django-axes conta — por construir o objeto, sem ninguém ter pedido validação.
+    """
+    form = MatriculaAuthenticationForm(
+        request=rf.post(reverse('accounts:login')),
+        data={'username': 'OP-001', 'password': 'errada'},
+    )
+
+    assert form._errors is None, (
+        'o formulário validou dentro do __init__ — `authenticate()` roda por '
+        'instanciação, e o axes conta a tentativa'
+    )
 
 
 @pytest.mark.django_db
