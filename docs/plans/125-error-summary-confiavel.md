@@ -172,6 +172,7 @@ ADR-0010, em três camadas — e as três são obrigatórias, não alternativas:
 | Ordem de primeira aparição | alvo que erra primeiro aparece primeiro, mesmo recebendo mensagem de fonte posterior | idem |
 | `id` repetido entre fontes | duas fontes com o mesmo `id_for_label` → 1 item | idem |
 | Cabeçalho | o título é `<h2>`, não `<p>` | `apps/core/tests/test_components.py` |
+| Nível de falha preservado | o sumário mantém `role="alert"` e **não** ganha timer nem botão de dismiss (asserção positiva de ausência de `mensagemFlash`/botão de fechar) | idem |
 | Frase parametrizável | default diz "salvar"; `acao="registrar o atendimento"` aparece na frase | idem |
 | Adoção nas três telas | as 3 telas contêm `{% coletar_erros %}` + `components/error_summary.html` | guard de arquivo, parametrizado |
 | Sem duplicata | nenhuma das 3 telas cita `non_form_errors` fora do `{% if %}` de borda de seção | guard de arquivo |
@@ -242,6 +243,40 @@ e a validação em navegador é o que confirma.**
 
 Sem risco de concorrência, de mutação de estoque ou de máquina de estados: o
 diff não sai da camada de apresentação.
+
+## Registrado, não adotado
+
+### Dismiss manual e proibição de auto-dismiss — não se aplicam aqui
+
+`docs/CONVENTIONS.md` §Níveis e ARIA (linhas 172-181) fixa, para o nível `error`,
+`role="alert"` + sem auto-dismiss, e fecha com *"Todas as mensagens têm botão de
+dismiss manual."* Essa tabela vive dentro de `## Mensagens ao usuário` e governa
+o contrato de **flash messages do Django** (`messages.error`,
+`messages.warning`, …), renderizado por `core/partials/_messages.html` — o mesmo
+contrato cujos 8s de auto-dismiss e cujo mapeamento `EstadoInvalido →
+messages.warning` estão na mesma seção. O dismiss é a issue #119; a paridade
+entre a faixa e o banner é a #124.
+
+`error_summary.html` não é flash message: é componente de formulário, montado a
+partir de `form.errors` no corpo do `<form>`, não da fila de `django.contrib.messages`.
+A mesma distinção já foi registrada duas vezes neste repositório —
+`docs/plans/122-politica-falha-componente-guard-cor-crua.md` (§"Conflito
+registrado, não resolvido aqui") e
+`docs/plans/123-copy-scpi-quem-decide.md` (§`role="alert"` no alerta de
+divergência — recusado) — e o cabeçalho de `components/alert.html` a declara
+literalmente.
+
+Além de fora do contrato, **dismiss num sumário de erros seria dano**: os erros
+continuam no formulário depois de fechar a caixa. O usuário perderia o único
+dispositivo de navegação até os campos inválidos e ficaria com a tela
+"aparentemente intacta" — exatamente a falha que o `{% comment %}` do topo do
+componente diz existir para prevenir.
+
+O que **é** adotado desta regra, e já estava no plano: o sumário é nível de
+falha, mantém `role="alert"` e não some sozinho — não há timer nenhum no
+componente, antes ou depois desta mudança. `danger-*` é o nome visual de `error`
+no vocabulário de variante dos componentes, como
+`docs/plans/122-politica-falha-componente-guard-cor-crua.md` já registrou.
 
 ## Ordem de execução
 
