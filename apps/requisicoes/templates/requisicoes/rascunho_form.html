@@ -39,8 +39,7 @@
   <form method="post" novalidate data-prevent-double-submit>
     {% csrf_token %}
 
-    {% coletar_erros form formset as erros_formulario %}
-    {% include "components/error_summary.html" with erros=erros_formulario %}
+    {% erros_do_formulario form formset %}
 
     {% comment %}
       Seção em erro marca a borda, não o fundo. O fundo `danger-subtle` empurrava
@@ -95,7 +94,7 @@
             distinção mais sutil do domínio.
 
             Pelo mesmo motivo, cada radio leva `id` explícito: sem ele o sumário
-            de erros linka para `#id_modo_criacao_0` — o que `coletar_erros`
+            de erros linka para `#id_modo_criacao_0` — o que `{% erros_do_formulario %}`
             deriva de `id_for_label` — e a âncora não encontra nada.
 
             O `aria-describedby` do erro fica em cada `<input>`, não no
@@ -191,7 +190,7 @@
       {{ formset.management_form }}
 
       {% comment %}
-        Erro geral do formset não se repete aqui: `coletar_erros` já o leva ao
+        Erro geral do formset não se repete aqui: `{% erros_do_formulario %}` já o leva ao
         sumário do topo. As duas caixas exibiam a mesma string a 150 linhas de
         distância — várias roladas num viewport de 375px — sem nada dizendo que
         eram o mesmo erro. Quem lia "3 problemas", corrigia e reencontrava um

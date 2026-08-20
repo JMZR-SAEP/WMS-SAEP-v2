@@ -30,29 +30,29 @@ tabela governa as flash messages do Django, renderizadas por
 continuam no formulário e o usuário perderia a única navegação até eles. Sem
 botão de fechar e sem timer, por decisão.
 
-Parâmetros:
-  erros  (obrigatório) lista de {id, rotulo, mensagem}, montada por
-         {% coletar_erros form formset ... as erros %} (core_tags), um item por
-         campo. Vazia ou ausente não renderiza nada.
-  acao   (opcional, default "salvar") verbo da frase-líder, para a tela cuja
-         ação não é salvar: acao="registrar o atendimento" produz
-         "Não foi possível registrar o atendimento: 2 problemas encontrados."
-         A pluralização fica aqui, não na tela.
-  id     (opcional, default "sumario-erros") útil se houver dois formulários
-         na mesma tela.
+Não é incluído diretamente por tela nenhuma: quem o monta é
+{% templatetag openblock %} erros_do_formulario {% templatetag closeblock %}
+(core_tags), que também coleta as fontes. Este arquivo desenha; a tag decide.
+Incluí-lo à mão devolveria a cada tela a escolha de o quê coletar e onde pôr —
+que é a divergência que a tag existe para fechar. Um guard em
+apps/core/tests/test_components.py falha se um template voltar a incluí-lo.
 
-Uso:
-  {% coletar_erros form formset as erros_formulario %}
-  {% include "components/error_summary.html" with erros=erros_formulario %}
+Parâmetros (todos vindos da tag):
+  erros  lista de {id, rotulo, mensagem}, um item por alvo. Vazia não renderiza.
+  acao   verbo da frase-líder ("salvar", "registrar o atendimento"). A
+         pluralização fica aqui, não na tela.
+  id     id da caixa — âncora de `aria-describedby` quando algo aponta para cá.
+  focar  bool. False remove o foco programático (e só ele) para o caso em que
+         outro componente já governa o foco da região — hoje o modal. O
+         `role="alert"` continua, então o anúncio não se perde junto.
 {% endcomment %}
 {% if erros %}
   <div
     id="{{ id|default:'sumario-erros' }}"
+    data-error-summary
     role="alert"
     tabindex="-1"
-    autofocus
-    x-data
-    x-init="$el.focus()"
+    {% if focar != False %}autofocus x-data x-init="$el.focus()"{% endif %}
     class="mb-6 rounded-lg border border-danger-border-strong bg-danger-subtle p-4 focus:outline-none focus:ring-2 focus:ring-danger-accent focus:ring-offset-1"
   >
     <h2 class="text-sm font-semibold text-danger-text-strong">

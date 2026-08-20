@@ -6,6 +6,7 @@ from django.core.exceptions import NON_FIELD_ERRORS, ImproperlyConfigured
 from django import template
 from django.forms import BoundField
 from django.template.loader import render_to_string
+from django.utils.functional import Promise
 from django.utils.safestring import SafeString, mark_safe
 
 from apps.core import quantidades
@@ -305,9 +306,13 @@ def step_por_unidade(unidade: str) -> str:
     return quantidades.step(unidade)
 
 
-@register.simple_tag
 def coletar_erros(*fontes: Any) -> list[dict[str, str]]:
-    """Reúne Forms e FormSets numa lista para `components/error_summary.html`.
+    """Reúne Forms, FormSets e mensagens soltas numa lista de itens de erro.
+
+    Não é tag de template de propósito: a única porta do template para esta
+    função é `{% erros_do_formulario %}`. Enquanto ela era `{% coletar_erros %}`,
+    cada tela decidia sozinha o que coletar, em que ordem e onde incluir o
+    componente — e três telas já divergiam. Aqui ela é peça interna.
 
     Cada item é `{'id', 'rotulo', 'mensagem'}` e representa **um alvo**, não uma
     mensagem: `id` é o `id_for_label` do campo, para o sumário poder linkar
@@ -324,6 +329,12 @@ def coletar_erros(*fontes: Any) -> list[dict[str, str]]:
     um formset que faz `add_error(campo, msg)` **e** `raise ValidationError(msg)`
     — `BaseItemAtendimentoFormSet` faz —, em que a mesma frase chegaria por dois
     caminhos.
+
+    Uma fonte também pode ser uma **string** — a falha que a view já traduziu de
+    uma exceção de domínio e que não pertence a campo nenhum, como o erro que os
+    modais devolvem no 422. Ela entra pelo mesmo caminho das mensagens sem alvo,
+    e portanto herda as mesmas duas proteções contra repetição: uma frase que o
+    Form também produziu não aparece duas vezes.
 
     A ordem é a de **primeira aparição** do alvo, e na colisão de `id` entre
     fontes o **primeiro rótulo** é o que fica — o item consolidado é o alvo que
@@ -378,7 +389,11 @@ def coletar_erros(*fontes: Any) -> list[dict[str, str]]:
     for fonte in fontes:
         if fonte is None:
             continue
-        if hasattr(fonte, 'non_form_errors'):
+        if isinstance(fonte, (str, Promise)):
+            texto = str(fonte).strip()
+            if texto:
+                _registrar('', '', texto)
+        elif hasattr(fonte, 'non_form_errors'):
             for mensagem in fonte.non_form_errors():
                 _registrar('', '', mensagem)
             for form in fonte.forms:
@@ -387,6 +402,61 @@ def coletar_erros(*fontes: Any) -> list[dict[str, str]]:
             _do_form(fonte)
 
     return coletados
+
+
+@register.inclusion_tag('components/error_summary.html')
+def erros_do_formulario(
+    *fontes: Any,
+    acao: str = 'salvar',
+    id: str = 'sumario-erros',
+    focar: bool = True,
+) -> dict[str, Any]:
+    """Superfície canônica de erro de um formulário. Uma linha por tela.
+
+    É a única porta do template para a exibição de erro de formulário. Antes
+    eram duas chamadas acopladas (`{% coletar_erros %}` guardando numa variável,
+    `{% include %}` desenhando), o que fazia de cada tela um lugar onde a
+    decisão podia sair diferente — e saía: o login montava a própria caixa de
+    `non_field_errors` com `alert.html` e escrevia label, campo e erro à mão; as
+    três telas de formset usavam o sumário; os modais desenhavam uma terceira
+    caixa dentro de `_modal_body.html`. Três grafias para "o formulário falhou".
+
+    O que a tag decide, e a tela não decide mais:
+      - **o quê** entra — todo erro de todas as fontes, achatado por
+        `coletar_erros`, sem repetição (ver o docstring dela);
+      - **onde** aparece — sumário no topo do `<form>`, com âncora por campo, e
+        `components/field_error.html` no campo, via `components/form_field.html`.
+        As duas pontas não são redundância: o sumário anuncia e navega, o erro
+        inline fica ao lado do controle enquanto a pessoa corrige. Quem escolhe
+        é este par de componentes, não a tela;
+      - **como é anunciado** — `role="alert"` e foco programático no mount.
+
+    A tela só informa o que é seu: quais fontes, e o verbo da frase-líder.
+
+    Parâmetros:
+      *fontes  Forms, FormSets e/ou strings (falha que a view já traduziu de uma
+               exceção de domínio). `None` é ignorado, o que permite passar um
+               contexto opcional sem `{% if %}` na tela.
+      acao     (default "salvar") verbo da frase-líder: acao="registrar o
+               atendimento" produz "Não foi possível registrar o atendimento:
+               2 problemas encontrados." A pluralização fica no componente.
+      id       (default "sumario-erros") útil com dois formulários na mesma tela,
+               ou quando algo aponta para a caixa via `aria-describedby`.
+      focar    (default True) desliga o foco programático onde outro componente
+               já governa o foco — hoje só o modal, cujo `modal.js` foca o campo
+               inválido. Dois donos do foco brigam; um deles tem de ceder.
+
+    Uso:
+      {% erros_do_formulario form formset %}
+      {% erros_do_formulario cabecalho formset acao="registrar o atendimento" %}
+      {% erros_do_formulario form erro_do_servico acao="entrar" id="login-error" %}
+    """
+    return {
+        'erros': coletar_erros(*fontes),
+        'acao': acao,
+        'id': id,
+        'focar': focar,
+    }
 
 
 NAVEGACAO: list[dict[str, Any]] = [

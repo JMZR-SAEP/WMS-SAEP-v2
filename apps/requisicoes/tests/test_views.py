@@ -4426,6 +4426,59 @@ def test_coletar_erros_id_repetido_entre_fontes_mantem_o_primeiro_rotulo():
     assert erros[0]['mensagem'] == 'Obrigatório. Acima do saldo.'
 
 
+def test_coletar_erros_aceita_mensagem_solta_da_view():
+    """A falha que a view já traduziu entra pela mesma porta.
+
+    É o erro dos modais: a view captura a exceção de domínio e passa a string.
+    Antes ela ia para uma caixa própria, com markup próprio, e o formulário
+    passava a ter duas superfícies de erro que não sabiam uma da outra.
+    """
+    from apps.core.templatetags.core_tags import coletar_erros
+
+    erros = coletar_erros('Justificativa é obrigatória.', None, '   ')
+
+    assert erros == [
+        {'id': '', 'rotulo': '', 'mensagem': 'Justificativa é obrigatória.'}
+    ]
+
+
+def test_coletar_erros_mensagem_solta_cede_lugar_a_versao_com_ancora():
+    """Mesma frase vinda da view e do Form é uma falha, não duas.
+
+    A proteção já existia para `non_form_errors`; a string da view herda a
+    mesma regra por entrar pelo mesmo caminho. Sem isso, uma view que
+    reapresenta o erro do serviço junto do form bound duplicaria o item.
+    """
+    from apps.core.templatetags.core_tags import coletar_erros
+
+    form = _form_invalido(
+        campos={'justificativa': 'Justificativa'},
+        erros={'justificativa': ['Justificativa é obrigatória.']},
+    )
+
+    erros = coletar_erros('Justificativa é obrigatória.', form)
+
+    assert len(erros) == 1
+    assert erros[0]['id'] == 'id_justificativa'
+
+
+def test_erros_do_formulario_devolve_contexto_do_componente():
+    """A tag é a única porta: ela coleta e devolve o contexto já montado."""
+    from apps.core.templatetags.core_tags import erros_do_formulario
+
+    form = _form_invalido(
+        campos={'motivo': 'Motivo'},
+        erros={'motivo': ['Obrigatório.']},
+    )
+
+    contexto = erros_do_formulario(form, acao='recusar', id='modal-erro', focar=False)
+
+    assert contexto['acao'] == 'recusar'
+    assert contexto['id'] == 'modal-erro'
+    assert contexto['focar'] is False
+    assert [e['id'] for e in contexto['erros']] == ['id_motivo']
+
+
 # ---------------------------------------------------------------------------
 # Auditoria do detalhe e da confirmação de cópia
 # ---------------------------------------------------------------------------

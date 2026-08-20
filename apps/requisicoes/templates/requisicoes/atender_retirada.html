@@ -61,8 +61,7 @@
     uma ação que não existe aqui. A pluralização segue no componente — passar a
     frase inteira faria a tela reescrever o plural, e uma das telas erraria.
   {% endcomment %}
-  {% coletar_erros cabecalho formset as erros_formulario %}
-  {% include "components/error_summary.html" with erros=erros_formulario acao="registrar o atendimento" %}
+  {% erros_do_formulario cabecalho formset acao="registrar o atendimento" %}
 
   <section
     class="rounded-xl border border-border bg-surface p-4 shadow-sm sm:p-6"

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load core_tags %}
 
 {% block title %}Entrar — WMS-SAEP{% endblock %}
 
@@ -18,32 +19,26 @@
 
       <p class="mb-6 text-sm text-text-secondary">Acesse com sua matrícula e senha.</p>
 
-      {% if form.non_field_errors %}
-        {% include "components/alert.html" with variant="danger" id="login-error" body_template="accounts/partials/_alert_login_erro_corpo.html" class="mb-5" %}
-      {% endif %}
-
       <form method="post" data-prevent-double-submit>
         {% csrf_token %}
-        <div class="space-y-5">
-          <div>
-            <label for="{{ form.username.id_for_label }}" class="rotulo-campo">
-              {{ form.username.label }}{% if form.username.field.required %}<span class="ml-0.5 text-danger-accent" aria-hidden="true">*</span>{% endif %}
-            </label>
-            {{ form.username }}
-            {% if form.username.errors %}
-              {% include "components/field_error.html" with id="username-error" erros=form.username.errors %}
-            {% endif %}
-          </div>
 
-          <div>
-            <label for="{{ form.password.id_for_label }}" class="rotulo-campo">
-              {{ form.password.label }}{% if form.password.field.required %}<span class="ml-0.5 text-danger-accent" aria-hidden="true">*</span>{% endif %}
-            </label>
-            {{ form.password }}
-            {% if form.password.errors %}
-              {% include "components/field_error.html" with id="password-error" erros=form.password.errors %}
-            {% endif %}
-          </div>
+        {% comment %}
+          Mesma superfície de erro das telas de formulário do sistema, e pela
+          mesma razão: a caixa de `non_field_errors` desenhada aqui à mão vivia
+          fora do <form>, com id próprio, e os campos eram escritos campo a
+          campo com rótulo, widget e erro soltos. Eram três grafias de erro numa
+          tela só — a caixa, o erro inline e a fiação ARIA montada no
+          `accounts/forms.py`. O `id` continua "login-error" porque é o nome que
+          esta tela já tinha; a caixa em si é a mesma de todas as outras.
+
+          `acao="entrar"`: a frase-líder default ("Não foi possível salvar")
+          descreve uma ação que não existe aqui.
+        {% endcomment %}
+        {% erros_do_formulario form acao="entrar" id="login-error" %}
+
+        <div class="space-y-5">
+          {% include "components/form_field.html" with field=form.username label_class="rotulo-campo" %}
+          {% include "components/form_field.html" with field=form.password label_class="rotulo-campo" %}
         </div>
 
         <input type="hidden" name="next" value="{{ next }}">

@@ -120,9 +120,12 @@
         if (!dialog) {
           return;
         }
-        const invalido = dialog.querySelector(
-          '[aria-invalid="true"], [data-modal-erro] textarea, [data-modal-erro] input'
-        );
+        // Só `[aria-invalid="true"]`: as duas outras pernas que viviam aqui
+        // (`[data-modal-erro] textarea|input`) procuravam controle dentro da
+        // caixa de erro, e nunca houve nenhum — a caixa só tem texto. Casavam
+        // com nada e escondiam que quem realmente marca o campo em erro é o
+        // `aria-invalid` do próprio campo.
+        const invalido = dialog.querySelector('[aria-invalid="true"]');
         if (invalido) {
           invalido.focus();
           return;

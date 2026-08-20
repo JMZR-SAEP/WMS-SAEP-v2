@@ -30,8 +30,7 @@
       sumário a tela voltava aparentemente intacta — numa baixa administrativa
       direta, sem reversão fácil.
     {% endcomment %}
-    {% coletar_erros form formset as erros_formulario %}
-    {% include "components/error_summary.html" with erros=erros_formulario %}
+    {% erros_do_formulario form formset acao="registrar a saída" %}
 
     {# --- Seção 1: Dados da saída --- #}
     <section
@@ -70,7 +69,7 @@
       {{ formset.management_form }}
 
       {% comment %}
-        Erro geral do formset não se repete aqui: `coletar_erros` já o leva ao
+        Erro geral do formset não se repete aqui: `{% erros_do_formulario %}` já o leva ao
         sumário do topo. Repetir a mesma frase a várias roladas de distância,
         sem marcador de que é a mesma, faz o usuário achar que apareceu mais um.
         A borda da seção continua marcando *onde* — isso não é repetição.

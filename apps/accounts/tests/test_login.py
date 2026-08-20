@@ -110,18 +110,44 @@ class FormularioComErroDeCampoEGlobal(MatriculaAuthenticationForm):
         raise ValidationError('Erro global de autenticação.')
 
 
-def test_login_preserva_ids_de_erros_aria(rf):
+def test_login_marca_os_dois_campos_quando_a_falha_e_do_par(rf):
+    """Credencial recusada não diz qual das duas errou — os dois são suspeitos.
+
+    É a única marcação de erro que continua sendo do Form depois da unificação:
+    nenhum dos dois campos tem `errors` (por decisão de segurança), então o
+    components/form_field.html, que só olha o campo, não marcaria nenhum.
+
+    A fiação de `aria-describedby` que este teste guardava saiu daqui: os ids
+    de erro inline são emitidos por components/field_error.html e costurados
+    por components/form_field.html — mantê-los também no Form era a mesma
+    decisão em dois arquivos. O sumário (`login-error`) deixou de entrar no
+    `aria-describedby` dos campos de propósito: ele se anuncia por
+    `role="alert"`, e apontar cada campo para a caixa inteira faria o leitor de
+    tela reler a lista de problemas a cada campo focado.
+    """
     form = FormularioComErroDeCampoEGlobal(
         request=rf.post(reverse('accounts:login')),
         data={'username': '', 'password': ''},
     )
 
     form.is_valid()
-    username = str(form['username'])
-    password = str(form['password'])
 
-    assert 'aria-describedby="username-error login-error"' in username
-    assert 'aria-describedby="password-error login-error"' in password
+    assert 'aria-invalid="true"' in str(form['username'])
+    assert 'aria-invalid="true"' in str(form['password'])
+
+
+@pytest.mark.django_db
+def test_login_costura_o_erro_inline_pelo_componente(client, usuario):
+    """O `aria-describedby` do campo aponta para o erro que o componente emitiu.
+
+    Campo vazio é erro *de campo* — este é o caminho em que o
+    components/form_field.html assume a fiação inteira.
+    """
+    resposta = client.post(reverse('accounts:login'), {'username': '', 'password': ''})
+    conteudo = resposta.content.decode()
+
+    assert 'aria-describedby="id_username-erro"' in conteudo
+    assert 'id="id_username-erro"' in conteudo
 
 
 def test_login_usuario_inativo(client, usuario):

@@ -2289,8 +2289,8 @@ class TestSumarioDeErrosNaSaidaExcepcional:
     ):
         """O guarda de arquivo vê o include; só o POST vê a view montar o contexto.
 
-        `{% coletar_erros form formset %}` depende de a view devolver os dois
-        nomes no contexto de erro. Um include correto sobre um contexto vazio
+        `{% erros_do_formulario form formset %}` depende de a view devolver os
+        dois nomes no contexto de erro. Uma tag correta sobre um contexto vazio
         renderiza silêncio — que é exatamente a falha que a tela tinha.
         """
         html = self._post_invalido(client, chefe_almoxarifado).content.decode()

@@ -3,13 +3,6 @@
 from django.contrib.auth.forms import AuthenticationForm
 
 
-def _adicionar_aria_describedby(field, id_erro):
-    ids_atuais = field.widget.attrs.get('aria-describedby', '').split()
-    if id_erro not in ids_atuais:
-        ids_atuais.append(id_erro)
-    field.widget.attrs['aria-describedby'] = ' '.join(ids_atuais)
-
-
 class MatriculaAuthenticationForm(AuthenticationForm):
     """Autenticação por matrícula e senha.
 
@@ -33,27 +26,13 @@ class MatriculaAuthenticationForm(AuthenticationForm):
                 'class': 'campo',
             }
         )
-        if self.is_bound:
-            if self['username'].errors:
-                self.fields['username'].widget.attrs['aria-invalid'] = 'true'
-                _adicionar_aria_describedby(
-                    self.fields['username'],
-                    'username-error',
-                )
-            if self['password'].errors:
-                self.fields['password'].widget.attrs['aria-invalid'] = 'true'
-                _adicionar_aria_describedby(
-                    self.fields['password'],
-                    'password-error',
-                )
-            if self.non_field_errors():
-                self.fields['username'].widget.attrs['aria-invalid'] = 'true'
-                _adicionar_aria_describedby(
-                    self.fields['username'],
-                    'login-error',
-                )
-                self.fields['password'].widget.attrs['aria-invalid'] = 'true'
-                _adicionar_aria_describedby(
-                    self.fields['password'],
-                    'login-error',
-                )
+        # Credencial recusada não acusa qual das duas está errada — por decisão
+        # de segurança —, então nenhum dos dois campos tem `errors` e nenhum
+        # seria marcado pelo components/form_field.html, que só olha o campo. A
+        # marcação de suspeita é do Form: é ele que sabe que a falha é do par.
+        # A fiação de `aria-describedby` que vivia aqui saiu: os ids de erro
+        # inline são emitidos pelo próprio componente, e mantê-los também aqui
+        # era a mesma decisão em dois lugares, com o Form perdendo em silêncio.
+        if self.is_bound and self.non_field_errors():
+            self.fields['username'].widget.attrs['aria-invalid'] = 'true'
+            self.fields['password'].widget.attrs['aria-invalid'] = 'true'
