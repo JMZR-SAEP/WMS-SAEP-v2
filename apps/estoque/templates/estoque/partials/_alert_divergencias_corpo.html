@@ -1,4 +1,6 @@
 {% comment %}Corpo do alerta de divergências no CTA de preview_importacao_scpi.html.{% endcomment %}
-<p class="text-xs">
-  <strong>{{ divergencias }}</strong> divergênc{{ divergencias|pluralize:"ia,ias" }} registrada{{ divergencias|pluralize:",s" }} como alerta — saldo do WMS não será alterado.
+<p class="text-sm">
+  <strong>{{ divergencias }}</strong> divergênc{{ divergencias|pluralize:"ia,ias" }} entre o saldo do WMS e a quantidade informada no arquivo do SCPI. O saldo do WMS não será alterado.
+  Divergência é estado esperado da coexistência com o SCPI, não é falha da importação.
+  Cabe ao chefe de almoxarifado conferir e ajustar no SCPI.
 </p>
