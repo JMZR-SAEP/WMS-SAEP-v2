@@ -203,29 +203,47 @@ aposta três vezes.
 ### O que essas três camadas NÃO provam
 
 Todas elas leem HTML. Nenhuma delas prova **comportamento de navegador**:
-`document.activeElement` depois do POST, o `x-init` rodando depois de um swap
-HTMX, ou o que um leitor de tela de fato fala. O repositório não tem infra de
+`document.activeElement` depois do POST, o `autofocus` atuando sem Alpine, ou o
+que um leitor de tela de fato fala. O repositório não tem infra de
 teste de navegador (não há Playwright, Selenium nem Cypress em `package.json` ou
 `pyproject.toml`), e montar uma é escopo muito maior que esta issue.
 
 O que fica no lugar, explicitamente:
 
 - **Validação em navegador, manual e registrada no PR.** Subir o servidor de
-  desenvolvimento e submeter as três telas com dados inválidos, em três
-  caminhos: Alpine carregado, Alpine bloqueado (para exercitar o `autofocus`
-  sozinho) e swap HTMX.
+  desenvolvimento e submeter cada uma das três telas com dados inválidos.
 
-  **Critério de aprovação, igual nos três**, porque "ler `document.activeElement`"
-  não é critério — passaria com o foco em qualquer lugar:
+  **Critério de aprovação**, porque "ler `document.activeElement`" não é
+  critério — passaria com o foco em qualquer lugar:
 
   ```js
-  document.activeElement?.id === 'sumario-erros'   // → true
+  document.activeElement?.id === '<id do sumário naquela tela>'   // → true
   ```
 
-  `sumario-erros` é o `id` default do contêiner; numa tela que passe `id=`
-  próprio, o valor esperado é o que a tela passou. Os três resultados vão no
-  corpo do PR, cada um dizendo caminho, tela e o booleano observado — não
-  "validado". É o mesmo tipo de validação que
+  Hoje as três telas incluem o componente **sem** passar `id=`, então o valor
+  esperado nas três é o default `sumario-erros`. O critério é escrito pelo `id`
+  que a tela renderiza, não pela string fixa, para não quebrar em silêncio se
+  uma tela ganhar dois formulários e precisar de `id` próprio.
+
+  **Matriz: 3 telas × 2 caminhos = 6 resultados**, cada um dizendo tela, caminho
+  e o booleano observado — não a palavra "validado":
+
+  | Caminho | `nova_saida_excepcional` | `rascunho_form` | `atender_retirada` |
+  |---|---|---|---|
+  | POST full-page, Alpine carregado | ☐ | ☐ | ☐ |
+  | POST full-page, Alpine bloqueado (exercita o `autofocus` sozinho) | ☐ | ☐ | ☐ |
+
+  **O terceiro caminho não entra, e o motivo importa:** nenhuma das três telas
+  renderiza o sumário por swap HTMX. O único HTMX nelas é `hx-get` de nova linha
+  de formset com `hx-target="#itens-container"`
+  (`rascunho_form.html`, `nova_saida_excepcional.html`), e `atender_retirada.html`
+  não tem HTMX nenhum — o submit é full-page, com modal de confirmação. O
+  `role="alert"` do componente segue sendo a preparação correta para quando
+  existir uma tela que faça esse swap; validar um caminho que nenhuma tela
+  exercita seria encenação. Se alguma tela passar a trazer o sumário por swap,
+  a linha entra na matriz junto com ela.
+
+  É o mesmo tipo de validação que
   `docs/plans/62-browser-validation-ia-doc.md` já usa neste repositório.
 - **Fora de escopo, e dito como tal**: a matriz navegador × leitor de tela
   (NVDA/JAWS/VoiceOver). Exige AT real e uma pessoa ouvindo; nenhum agente
@@ -258,7 +276,7 @@ e a validação em navegador é o que confirma.**
 |---|---|
 | `autofocus` numa `<div>` ser ignorado por algum navegador | O `x-init` continua lá; o `autofocus` é **rede**, não substituição. Teste garante a presença do atributo, não o comportamento do navegador |
 | `autofocus` roubar o foco em tela que carrega sem erro | O sumário inteiro está dentro de `{% if erros %}` — sem erro, não existe elemento |
-| `autofocus` + `role="alert"` no mesmo nó anunciarem duas vezes, ou o foco interromper o anúncio | Pelo mecanismo, os caminhos não se cruzam: `role="alert"` dispara com **mudança** (swap HTMX), e no POST full-page o conteúdo já está no DOM, então quem anuncia é o foco. Mas isso é previsão, não observação — a validação manual em navegador (seção acima) é o que confirma, e a matriz com leitor de tela real fica declarada fora de escopo |
+| `autofocus` + `role="alert"` no mesmo nó anunciarem duas vezes, ou o foco interromper o anúncio | Nas três telas desta issue o risco nem se materializa: nenhuma renderiza o sumário por swap, então não há **mudança** para o `role="alert"` disparar — quem anuncia é sempre o foco. O `role` fica como preparação para uma tela futura que faça esse swap; quando ela existir, é ela que precisa medir o anúncio duplo. A matriz com leitor de tela real segue fora de escopo |
 | `focus:` ser revertido por quem lê a regra do design system e não a exceção | A exceção entra no doc **e** o teste trava as duas metades (contêiner `focus:`, âncora `focus-visible:`) |
 | Agregação juntar erros de forms diferentes do formset | Ids de formset são únicos por form (`id_itens-0-quantidade`); só agrega quem tem `id` |
 | `app.css` desatualizado no commit | `npm run css:build` (`make css-build`) antes de commitar; `test_css_build_gera_tokens_e_utilities_novas` cobre |
@@ -323,9 +341,9 @@ no vocabulário de variante dos componentes, como
 8. `npm run css:build` + `focus:ring-danger-accent` em `UTILITIES_ESPERADAS`.
 9. `docs/design-system.md`: exceção do anel em alvo de foco programático.
 10. `ruff format .`, `ruff check .`, `mypy apps`, suíte completa.
-11. Validação em navegador: `document.activeElement?.id === 'sumario-erros'`
-    nos três caminhos (full-page com Alpine, full-page sem Alpine, swap HTMX),
-    com os três booleanos colados no corpo do PR.
+11. Validação em navegador: `document.activeElement?.id` igual ao `id` do sumário
+    daquela tela, nos 6 pares tela × caminho (3 telas × full-page com Alpine e
+    full-page sem Alpine), com os 6 booleanos colados no corpo do PR.
 
 ## Critérios de aceite (espelho da issue)
 
@@ -340,5 +358,5 @@ no vocabulário de variante dos componentes, como
 - [ ] Nenhuma tela exibe o mesmo erro em dois lugares
 - [ ] Testes: contagem por campo, presença nas três telas, ausência de duplicata
 - [ ] Testes de contrato HTTP de POST inválido nas três telas
-- [ ] Validação em navegador: `document.activeElement?.id === 'sumario-erros'` verdadeiro nos três caminhos (Alpine, sem Alpine, swap HTMX), com os três resultados no corpo do PR
+- [ ] Validação em navegador: `document.activeElement?.id` igual ao `id` do sumário daquela tela (hoje o default `sumario-erros` nas três) nos 6 pares tela × caminho, com os 6 booleanos no corpo do PR
 - [ ] `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .` e `uv run mypy apps` verdes
