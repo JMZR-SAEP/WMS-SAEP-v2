@@ -112,7 +112,14 @@ Regras da agregação:
   descartada. É a mesma regra da #121: fallback preserva o dado;
 - `id` igual vindo de **fontes distintas** também colapsa, e isso é correto:
   duas fontes que produzem o mesmo `id_for_label` gerariam dois `id` iguais no
-  DOM, onde só um elemento pode existir — duas âncoras levariam ao mesmo lugar.
+  DOM, onde só um elemento pode existir — duas âncoras levariam ao mesmo lugar;
+- quando as fontes colidem com **rótulos diferentes**, vence o **primeiro**, pela
+  mesma razão que fixa a ordem: o item consolidado é o alvo que apareceu antes, e
+  seu rótulo não pode mudar debaixo dele conforme fontes posteriores são lidas.
+  Alternativas foram descartadas — concatenar rótulos produziria
+  `"Quantidade / Qtd.: …"` para um único campo, e deixar o último vencer tornaria
+  o texto dependente da ordem dos argumentos de `{% coletar_erros %}`, que é
+  detalhe da tela. Regra escrita como asserção, não como acidente do `dict`.
 
 **A mudança de contrato precisa ser dita com precisão**, porque só metade dele
 fica igual:
@@ -123,6 +130,7 @@ fica igual:
 | Cardinalidade | uma entrada por **mensagem** | uma entrada por **alvo**; entradas sem `id` seguem uma por mensagem |
 | Conteúdo de `mensagem` | uma mensagem | todas as mensagens daquele alvo, unidas por `' '` |
 | Ordem | ordem de iteração do `form.errors` | ordem de **primeira aparição** do alvo |
+| `rotulo` na colisão de `id` | não existia colisão: um item por mensagem | o **primeiro** rótulo vence |
 
 `test_coletar_erros_achata_form_e_formset`
 (`apps/requisicoes/tests/test_views.py`) afirma só forma e presença de `id`, então
@@ -171,6 +179,7 @@ ADR-0010, em três camadas — e as três são obrigatórias, não alternativas:
 | Erro não-de-campo não agrega | 2 `non_form_errors` → 2 itens | `apps/requisicoes/tests/test_views.py` |
 | Ordem de primeira aparição | alvo que erra primeiro aparece primeiro, mesmo recebendo mensagem de fonte posterior | idem |
 | `id` repetido entre fontes | duas fontes com o mesmo `id_for_label` → 1 item | idem |
+| Rótulo na colisão | fontes com o mesmo `id` e rótulos diferentes → o item consolidado mantém o **primeiro** rótulo, e as duas mensagens | idem |
 | Cabeçalho | o título é `<h2>`, não `<p>` | `apps/core/tests/test_components.py` |
 | Nível de falha preservado | o sumário mantém `role="alert"` e **não** ganha timer nem botão de dismiss (asserção positiva de ausência de `mensagemFlash`/botão de fechar) | idem |
 | Frase parametrizável | default diz "salvar"; `acao="registrar o atendimento"` aparece na frase | idem |
