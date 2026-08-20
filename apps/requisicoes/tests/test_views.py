@@ -4247,6 +4247,123 @@ def test_coletar_erros_achata_form_e_formset():
     assert all({'id', 'rotulo', 'mensagem'} == set(e) for e in erros)
 
 
+def _form_invalido(*, campos, erros, prefixo=None):
+    """Form já validado e sujo, montado no teste em vez de puxado do domínio.
+
+    `coletar_erros` é apresentação pura: o que ela precisa é de um `Form` com
+    `errors`, não de uma regra de requisição. Montar aqui deixa o caso de teste
+    ler o que está sendo exercido — dois erros no mesmo campo, `id` repetido
+    entre fontes — em vez de escondê-lo atrás de um form de domínio que por
+    acaso falha daquele jeito.
+    """
+    from django import forms
+
+    class _Form(forms.Form):
+        pass
+
+    for nome, rotulo in campos.items():
+        _Form.base_fields[nome] = forms.CharField(label=rotulo, required=False)
+
+    form = _Form(data={}, prefix=prefixo)
+    assert form.is_valid()
+    for campo, mensagens in erros.items():
+        for mensagem in mensagens:
+            form.add_error(campo or None, mensagem)
+    return form
+
+
+def test_coletar_erros_agrega_mensagens_do_mesmo_campo():
+    """Duas mensagens num campo são um problema, não dois.
+
+    Antes, cada mensagem virava uma âncora — duas âncoras para o mesmo `#id`,
+    e a segunda não movia a tela. O contador dizia "2 problemas" para um único
+    lugar a visitar, que é justamente o número que o sumário existe para dar.
+    """
+    from apps.core.templatetags.core_tags import coletar_erros
+
+    form = _form_invalido(
+        campos={'quantidade': 'Quantidade'},
+        erros={'quantidade': ['Obrigatório.', 'Deve ser maior que zero.']},
+    )
+
+    erros = coletar_erros(form)
+
+    assert len(erros) == 1
+    assert erros[0]['id'] == 'id_quantidade'
+    assert erros[0]['rotulo'] == 'Quantidade'
+    assert erros[0]['mensagem'] == 'Obrigatório. Deve ser maior que zero.'
+
+
+def test_coletar_erros_nao_agrega_erro_sem_campo():
+    """Erro sem alvo não tem chave para agrupar — juntá-los somaria origens.
+
+    `__all__` e `non_form_errors` não apontam para controle nenhum. Agrupá-los
+    pela chave vazia colaria erros de fontes diferentes numa linha só.
+    """
+    from apps.core.templatetags.core_tags import coletar_erros
+
+    form = _form_invalido(
+        campos={'quantidade': 'Quantidade'},
+        erros={'': ['Combinação inválida.', 'Período fechado.']},
+    )
+
+    erros = coletar_erros(form)
+
+    assert [e['mensagem'] for e in erros] == [
+        'Combinação inválida.',
+        'Período fechado.',
+    ]
+
+
+def test_coletar_erros_preserva_ordem_de_primeira_aparicao():
+    """O alvo que errou primeiro fica em primeiro, mesmo recebendo mensagem depois.
+
+    Sem isso a ordem da lista dependeria de qual fonte falou por último, e o
+    sumário mudaria de ordem entre dois POSTs com os mesmos erros.
+    """
+    from apps.core.templatetags.core_tags import coletar_erros
+
+    primeiro = _form_invalido(
+        campos={'material': 'Material', 'quantidade': 'Quantidade'},
+        erros={'material': ['Obrigatório.'], 'quantidade': ['Obrigatório.']},
+    )
+    segundo = _form_invalido(
+        campos={'material': 'Material'},
+        erros={'material': ['Material inativo.']},
+    )
+
+    erros = coletar_erros(primeiro, segundo)
+
+    assert [e['id'] for e in erros] == ['id_material', 'id_quantidade']
+    assert erros[0]['mensagem'] == 'Obrigatório. Material inativo.'
+
+
+def test_coletar_erros_id_repetido_entre_fontes_mantem_o_primeiro_rotulo():
+    """Colisão de `id` consolida, e o rótulo do primeiro é o que fica.
+
+    `id` repetido no DOM viola a unicidade que o HTML espera: o navegador salta
+    para o primeiro elemento com aquele `id`, então duas âncoras levariam ao
+    mesmo lugar. Consolidar é o comportamento honesto — e o rótulo não pode
+    mudar debaixo do item conforme fontes posteriores são lidas.
+    """
+    from apps.core.templatetags.core_tags import coletar_erros
+
+    primeiro = _form_invalido(
+        campos={'quantidade': 'Quantidade'},
+        erros={'quantidade': ['Obrigatório.']},
+    )
+    segundo = _form_invalido(
+        campos={'quantidade': 'Qtd.'},
+        erros={'quantidade': ['Acima do saldo.']},
+    )
+
+    erros = coletar_erros(primeiro, segundo)
+
+    assert len(erros) == 1
+    assert erros[0]['rotulo'] == 'Quantidade'
+    assert erros[0]['mensagem'] == 'Obrigatório. Acima do saldo.'
+
+
 # ---------------------------------------------------------------------------
 # Auditoria do detalhe e da confirmação de cópia
 # ---------------------------------------------------------------------------
