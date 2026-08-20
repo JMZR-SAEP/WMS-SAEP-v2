@@ -317,7 +317,13 @@ def coletar_erros(*fontes: Any) -> list[dict[str, str]]:
 
     Erros que não pertencem a um campo (`__all__`, `non_form_errors`) entram sem
     `id`, um por mensagem: sem alvo não há chave para agrupar, e agrupá-los pela
-    chave vazia colaria erros de origens diferentes numa linha só.
+    chave vazia colaria erros de origens diferentes numa linha só. Duas exceções,
+    ambas contra o sumário repetir a si mesmo: mensagem sem alvo idêntica a outra
+    já coletada não entra de novo, e mensagem sem alvo que também chega como erro
+    de campo cede o lugar à versão com âncora, que leva ao controle. É o caso de
+    um formset que faz `add_error(campo, msg)` **e** `raise ValidationError(msg)`
+    — `BaseItemAtendimentoFormSet` faz —, em que a mesma frase chegaria por dois
+    caminhos.
 
     A ordem é a de **primeira aparição** do alvo, e na colisão de `id` entre
     fontes o **primeiro rótulo** é o que fica — o item consolidado é o alvo que
@@ -329,11 +335,24 @@ def coletar_erros(*fontes: Any) -> list[dict[str, str]]:
     """
     coletados: list[dict[str, str]] = []
     por_alvo: dict[str, dict[str, str]] = {}
+    sem_alvo: dict[str, dict[str, str]] = {}
+    com_alvo: set[str] = set()
 
     def _registrar(id_alvo: str, rotulo: str, mensagem: str) -> None:
         if not id_alvo:
-            coletados.append({'id': '', 'rotulo': '', 'mensagem': mensagem})
+            # Perde para a versão com âncora, tenha ela chegado antes ou depois.
+            if mensagem in sem_alvo or mensagem in com_alvo:
+                return
+            item = {'id': '', 'rotulo': '', 'mensagem': mensagem}
+            sem_alvo[mensagem] = item
+            coletados.append(item)
             return
+
+        com_alvo.add(mensagem)
+        gemeo = sem_alvo.pop(mensagem, None)
+        if gemeo is not None:
+            coletados.remove(gemeo)
+
         alvo = por_alvo.get(id_alvo)
         if alvo is None:
             alvo = {'id': id_alvo, 'rotulo': rotulo, 'mensagem': mensagem}

@@ -4338,6 +4338,68 @@ def test_coletar_erros_preserva_ordem_de_primeira_aparicao():
     assert erros[0]['mensagem'] == 'Obrigatório. Material inativo.'
 
 
+def test_coletar_erros_nao_repete_mensagem_que_ja_tem_ancora():
+    """Formset que faz `add_error` **e** `raise` emite a mesma frase duas vezes.
+
+    `BaseItemAtendimentoFormSet.clean()` marca o campo e levanta a mesma
+    mensagem: uma vira erro de campo, outra vira `non_form_error`. Sem
+    tratamento o sumário lista as duas — "Item id: Item duplicado" e "Item
+    duplicado" — e o dispositivo que existe para acabar com erro repetido passa
+    a produzir um.
+
+    Fica a versão com âncora, que leva ao controle; a solta é ruído.
+    """
+    from apps.core.templatetags.core_tags import coletar_erros
+
+    form = _form_invalido(
+        campos={'item_id': 'Item id'},
+        erros={
+            'item_id': ['Item duplicado no atendimento.'],
+            '': ['Item duplicado no atendimento.'],
+        },
+    )
+
+    erros = coletar_erros(form)
+
+    assert len(erros) == 1
+    assert erros[0]['id'] == 'id_item_id'
+    assert erros[0]['mensagem'] == 'Item duplicado no atendimento.'
+
+
+def test_coletar_erros_mantem_mensagem_sem_alvo_que_nao_tem_par():
+    """Desduplicar não pode virar engolir: sem par de campo, a mensagem fica."""
+    from apps.core.templatetags.core_tags import coletar_erros
+
+    form = _form_invalido(
+        campos={'item_id': 'Item id'},
+        erros={
+            'item_id': ['Obrigatório.'],
+            '': ['A requisição precisa ter ao menos um item.'],
+        },
+    )
+
+    erros = coletar_erros(form)
+
+    assert [e['mensagem'] for e in erros] == [
+        'Obrigatório.',
+        'A requisição precisa ter ao menos um item.',
+    ]
+
+
+def test_coletar_erros_mesma_mensagem_em_campos_diferentes_nao_colapsa():
+    """ "Obrigatório." em dois campos são dois lugares a visitar, não um."""
+    from apps.core.templatetags.core_tags import coletar_erros
+
+    form = _form_invalido(
+        campos={'setor': 'Setor', 'motivo': 'Motivo'},
+        erros={'setor': ['Obrigatório.'], 'motivo': ['Obrigatório.']},
+    )
+
+    erros = coletar_erros(form)
+
+    assert [e['id'] for e in erros] == ['id_setor', 'id_motivo']
+
+
 def test_coletar_erros_id_repetido_entre_fontes_mantem_o_primeiro_rotulo():
     """Colisão de `id` consolida, e o rótulo do primeiro é o que fica.
 
@@ -4881,3 +4943,41 @@ def test_atender_post_invalido_usa_a_frase_da_tela(
     assert 'id="sumario-erros"' in html
     assert 'Não foi possível registrar o atendimento:' in html
     assert 'Não foi possível salvar:' not in html
+
+
+@pytest.mark.django_db
+def test_atender_erro_de_formset_aparece_uma_vez_so(
+    client, aux_almoxarifado, req_pronta_view_com_itens
+):
+    """Fecha a terceira tela do guarda de duplicata.
+
+    As outras duas já contavam `non_form_errors` no corpo da resposta; esta não
+    tinha nenhuma contagem, e é a única cujo formset levanta o erro de conjunto
+    (item duplicado) em vez do erro de "ao menos um item".
+    """
+    _login(client, aux_almoxarifado)
+    item = req_pronta_view_com_itens.itens.first()
+    resp = client.post(
+        reverse(
+            'requisicoes:registrar_atendimento',
+            kwargs={'pk': req_pronta_view_com_itens.pk},
+        ),
+        data={
+            'itens-TOTAL_FORMS': '2',
+            'itens-INITIAL_FORMS': '2',
+            'itens-MIN_NUM_FORMS': '0',
+            'itens-MAX_NUM_FORMS': '1000',
+            'itens-0-item_id': str(item.id),
+            'itens-0-quantidade_entregue': '1',
+            'itens-0-justificativa': '',
+            'itens-1-item_id': str(item.id),
+            'itens-1-quantidade_entregue': '1',
+            'itens-1-justificativa': '',
+            'retirante_nome': 'Carlos',
+        },
+    )
+    html = resp.content.decode()
+    assert 'id="sumario-erros"' in html
+    sumario = re.search(r'<div\s+id="sumario-erros".*?</div>', html, re.S).group(0)
+    assert sumario.count('Item duplicado no atendimento.') == 1
+    assert html.count('Item duplicado no atendimento.') == 1
