@@ -133,13 +133,18 @@ class BaseItemSaidaExcepcionalFormSet(BaseFormSet):
             material_id = form.cleaned_data['material_id']
 
             if material_id in material_ids:
-                form.add_error(
-                    'material_label',
-                    'Este material já foi adicionado em outra linha.',
-                )
-                raise forms.ValidationError(
-                    'Não é permitido adicionar o mesmo material mais de uma vez.'
-                )
+                # A mesma frase nas duas pontas, e não duas redações do mesmo
+                # problema. O `add_error` é o que leva à linha; o `raise` é o
+                # que interrompe a validação do formset. Com textos diferentes,
+                # o sumário do topo listava "Não é permitido adicionar o mesmo
+                # material mais de uma vez." e "Material: Este material já foi
+                # adicionado em outra linha." — dois itens, uma falha, e a
+                # contagem dizia "2 problemas encontrados". Idênticas, a versão
+                # sem âncora cede o lugar à que leva ao campo (ver
+                # `coletar_erros`), e sobra exatamente um item.
+                duplicado = 'Este material já foi adicionado em outra linha.'
+                form.add_error('material_label', duplicado)
+                raise forms.ValidationError(duplicado)
             material_ids.append(material_id)
 
         if linhas_validas == 0:
