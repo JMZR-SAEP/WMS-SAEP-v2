@@ -1272,9 +1272,16 @@ class TestMensagensNasTelasDeAuth:
         from django.template.loader import render_to_string
         from django.test import RequestFactory
 
+        from apps.accounts.forms import MatriculaAuthenticationForm
+
         # O axes sempre injeta este contexto na tela de bloqueio. Sem ele, o
         # `minutos_totais` estoura antes de o teste chegar ao que interessa.
         ctx.setdefault('cooloff_timedelta', timedelta(minutes=30))
+        # Pelo mesmo motivo, o `form`: desde que o login passou a desenhar os
+        # campos pelo components/form_field.html, um contexto sem form derruba
+        # o template em `field.help_text` antes de chegar à faixa de mensagem.
+        # A view sempre entrega um — o teste não pode ser mais pobre que ela.
+        ctx.setdefault('form', MatriculaAuthenticationForm())
         request = RequestFactory().get('/')
         request.session = {}
         request._messages = FallbackStorage(request)
@@ -1485,8 +1492,7 @@ class TestAdocaoDoSumarioNasTelasDeFormsetLongo:
     @pytest.mark.parametrize('tela', TELAS)
     def test_tela_monta_e_inclui_o_sumario(self, tela):
         texto = (self._raiz() / tela).read_text()
-        assert '{% coletar_erros' in texto
-        assert 'components/error_summary.html' in texto
+        assert '{% erros_do_formulario' in texto
 
     @pytest.mark.parametrize('tela', TELAS)
     def test_nenhum_include_e_alimentado_por_erro_de_formset(self, tela):
@@ -1542,3 +1548,135 @@ class TestAdocaoDoSumarioNasTelasDeFormsetLongo:
             and '_alert_erros_formset' in arquivo.read_text(errors='ignore')
         ]
         assert residuais == [], f'referência a partial removido: {residuais}'
+
+
+class TestSuperficieUnicaDeErroDeFormulario:
+    """Uma porta só para erro de formulário: `{% erros_do_formulario %}`.
+
+    O sumário existia desde a #125, mas cada tela ainda decidia sozinha o quê
+    coletar, em que ordem e onde incluir o componente — e três superfícies
+    conviviam: o sumário nas telas de formset, uma caixa de `non_field_errors`
+    montada com `alert.html` no login, e uma terceira caixa desenhada à mão
+    dentro de `_modal_body.html`. Guardar só o comportamento do componente não
+    impede a quarta grafia: o que este bloco guarda é a *porta*.
+    """
+
+    TELAS_DE_FORMULARIO = (
+        'apps/estoque/templates/estoque/nova_saida_excepcional.html',
+        'apps/requisicoes/templates/requisicoes/rascunho_form.html',
+        'apps/requisicoes/templates/requisicoes/atender_retirada.html',
+        'apps/accounts/templates/accounts/login.html',
+        'apps/core/templates/components/_modal_body.html',
+    )
+
+    def _raiz(self):
+        return Path(__file__).resolve().parents[3]
+
+    def _templates(self):
+        return [
+            arquivo
+            for arquivo in (self._raiz() / 'apps').rglob('*.html')
+            if arquivo.is_file()
+        ]
+
+    @pytest.mark.parametrize('tela', TELAS_DE_FORMULARIO)
+    def test_toda_tela_com_formulario_usa_a_tag(self, tela):
+        texto = (self._raiz() / tela).read_text()
+        assert '{% erros_do_formulario' in texto, (
+            f'{tela}: formulário sem a superfície canônica de erro'
+        )
+
+    def test_nenhum_template_inclui_o_sumario_direto(self):
+        """`{% include "components/error_summary.html" %}` é a porta dos fundos.
+
+        Incluir o componente à mão devolve à tela a escolha de o quê coletar —
+        exatamente a decisão que a tag centraliza. O componente continua
+        renderizável em teste (é o que este arquivo faz acima); o que não pode
+        é um *template* chamá-lo sem passar pela tag.
+        """
+        eu = Path(__file__).resolve()
+        infratores = [
+            str(arquivo.relative_to(self._raiz()))
+            for arquivo in self._templates()
+            if arquivo.resolve() != eu
+            and re.search(
+                r'\{%\s*include\s+["\']components/error_summary\.html',
+                arquivo.read_text(errors='ignore'),
+            )
+        ]
+        assert infratores == [], (
+            f'include direto do sumário; use {{% erros_do_formulario %}}: {infratores}'
+        )
+
+    def test_coletar_erros_nao_e_mais_tag_de_template(self):
+        """A coleta é peça interna da tag, não uma segunda porta.
+
+        Enquanto `{% coletar_erros %}` existia, a tela montava a lista numa
+        variável e depois decidia se — e onde — desenhá-la. São duas decisões
+        onde deve haver zero.
+        """
+        from apps.core.templatetags.core_tags import register
+
+        assert 'coletar_erros' not in register.tags
+        assert 'erros_do_formulario' in register.tags
+
+        infratores = [
+            str(arquivo.relative_to(self._raiz()))
+            for arquivo in self._templates()
+            if '{% coletar_erros' in arquivo.read_text(errors='ignore')
+        ]
+        assert infratores == [], f'{{% coletar_erros %}} não existe mais: {infratores}'
+
+    def test_erro_de_campo_a_mao_nao_volta_pelo_login(self):
+        """O login escrevia rótulo, widget e erro campo a campo.
+
+        Três blocos de markup para o que `components/form_field.html` já faz,
+        com ids de erro próprios (`username-error`) que só existiam ali — e que
+        o `accounts/forms.py` tinha de conhecer para montar o `aria-describedby`
+        na mão. A mesma decisão em dois arquivos, com o Form perdendo calado
+        quando o componente mudasse.
+        """
+        texto = (
+            self._raiz() / 'apps/accounts/templates/accounts/login.html'
+        ).read_text()
+        assert 'components/form_field.html' in texto
+        assert 'field_error.html' not in texto
+        assert 'username-error' not in texto
+        assert 'password-error' not in texto
+
+
+class TestAncoraDosErrosSemCampo:
+    """ "A saída precisa ter ao menos um item." precisa levar a algum lugar.
+
+    O sumário promete três coisas — anunciar, contar e levar. A terceira valia
+    só para erro de campo: o que vem de `non_form_errors` não tinha `id`, virava
+    texto morto no meio de uma lista de links, e quem clicava em volta não
+    entendia por que aquele não respondia. `ancora_geral` dá a esses itens o
+    alvo que falta, e o alvo precisa ser real e focável — âncora para `id` que
+    não existe rola para lugar nenhum, e sem `tabindex="-1"` o foco não pousa.
+    """
+
+    TELAS = (
+        'apps/estoque/templates/estoque/nova_saida_excepcional.html',
+        'apps/requisicoes/templates/requisicoes/rascunho_form.html',
+        'apps/requisicoes/templates/requisicoes/atender_retirada.html',
+    )
+
+    def _raiz(self):
+        return Path(__file__).resolve().parents[3]
+
+    @pytest.mark.parametrize('tela', TELAS)
+    def test_ancora_geral_existe_e_e_focavel(self, tela):
+        texto = (self._raiz() / tela).read_text()
+        (alvo,) = re.findall(r'ancora_geral="([\w-]+)"', texto)
+
+        assert f'id="{alvo}"' in texto, (
+            f'{tela}: ancora_geral="{alvo}" não tem elemento correspondente — '
+            f'a âncora rola para lugar nenhum'
+        )
+        elemento = texto[texto.index(f'id="{alvo}"') :]
+        elemento = elemento[: elemento.index('>')]
+        assert 'tabindex="-1"' in elemento, (
+            f'{tela}: alvo "{alvo}" não é focável — o teclado chega ao destino '
+            f'com o foco ainda no sumário'
+        )

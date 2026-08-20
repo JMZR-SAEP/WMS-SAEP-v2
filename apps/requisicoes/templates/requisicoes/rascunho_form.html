@@ -39,8 +39,7 @@
   <form method="post" novalidate data-prevent-double-submit>
     {% csrf_token %}
 
-    {% coletar_erros form formset as erros_formulario %}
-    {% include "components/error_summary.html" with erros=erros_formulario %}
+    {% erros_do_formulario form formset ancora_geral="sec-itens" %}
 
     {% comment %}
       Seção em erro marca a borda, não o fundo. O fundo `danger-subtle` empurrava
@@ -95,7 +94,7 @@
             distinção mais sutil do domínio.
 
             Pelo mesmo motivo, cada radio leva `id` explícito: sem ele o sumário
-            de erros linka para `#id_modo_criacao_0` — o que `coletar_erros`
+            de erros linka para `#id_modo_criacao_0` — o que `{% erros_do_formulario %}`
             deriva de `id_for_label` — e a âncora não encontra nada.
 
             O `aria-describedby` do erro fica em cada `<input>`, não no
@@ -168,7 +167,23 @@
     </section>
 
     {# --- Seção 2: Itens --- #}
-    <section class="mb-6 rounded-xl border bg-surface {% if formset.non_form_errors or formset.total_error_count %}border-danger-border-strong{% else %}border-border{% endif %} p-6 shadow-sm">
+    {% comment %}
+      `id` + `tabindex="-1"`: destino das mensagens do sumário que não pertencem
+      a campo nenhum ("precisa ter ao menos um item", "material duplicado"). Sem
+      um alvo, esses itens ficavam sem link no meio de uma lista de links — o
+      sumário anunciava e contava, mas não levava.
+
+      `tabindex="-1"` porque `href="#id"` sozinho rola até o elemento e não põe
+      o foco nele: quem navega por teclado chegaria com o foco ainda no sumário,
+      e o próximo Tab voltaria ao começo da página. O anel usa `focus:` e não
+      `focus-visible:` pela mesma razão declarada em error_summary.html — o foco
+      aqui chega por clique ou toque, e `:focus-visible` não casa.
+    {% endcomment %}
+    <section
+      id="sec-itens"
+      tabindex="-1"
+      class="mb-6 rounded-xl border bg-surface {% if formset.non_form_errors or formset.total_error_count %}border-danger-border-strong{% else %}border-border{% endif %} p-6 shadow-sm focus:outline-none focus:ring-2 focus:ring-danger-accent focus:ring-offset-1"
+    >
       <h2 class="text-lg font-semibold text-text-primary mb-1">
         <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-bg-subtle text-text-tertiary text-xs font-semibold mr-1.5" aria-hidden="true">2</span>
         <span class="sr-only">Etapa 2 de 3: </span>
@@ -191,7 +206,7 @@
       {{ formset.management_form }}
 
       {% comment %}
-        Erro geral do formset não se repete aqui: `coletar_erros` já o leva ao
+        Erro geral do formset não se repete aqui: `{% erros_do_formulario %}` já o leva ao
         sumário do topo. As duas caixas exibiam a mesma string a 150 linhas de
         distância — várias roladas num viewport de 375px — sem nada dizendo que
         eram o mesmo erro. Quem lia "3 problemas", corrigia e reencontrava um

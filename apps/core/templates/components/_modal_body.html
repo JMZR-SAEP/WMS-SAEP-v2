@@ -5,8 +5,14 @@
 
   Params: id, titulo, descricao, erro, form_body_template, icon_variant,
   cancel_label, confirm_label, confirm_variant, submit_form_id (modo
-  "confirmação de form externo" — ver components/modal.html).
+  "confirmação de form externo" — ver components/modal.html), acao_erro.
+
+  `acao_erro` (opcional, default "concluir") é o verbo da frase-líder da caixa
+  de erro: acao_erro="recusar a requisição" produz "Não foi possível recusar a
+  requisição: 1 problema encontrado.". O padrão serve porque o título do modal
+  logo acima já nomeia a ação.
 {% endcomment %}
+{% load core_tags %}
 
 <div data-modal-body="{{ id }}" class="flex min-h-0 flex-1 flex-col">
   <header class="border-b border-border px-6 py-5">
@@ -29,12 +35,25 @@
 
   {% if form_body_template or erro %}
     <div class="flex-1 overflow-y-auto px-6 py-5">
+      {% comment %}
+        A caixa de erro do modal é a mesma dos formulários da aplicação. Aqui
+        vivia uma terceira grafia — desenhada à mão, com ícone e tokens próprios
+        —, e era ela que fazia o mesmo erro parecer coisa diferente conforme a
+        tela. `erro` é uma string que a view já traduziu de uma exceção de
+        domínio; a tag aceita string como fonte justamente para este caso.
+
+        `focar=False` porque quem governa o foco dentro do <dialog> é o
+        `modal.js`, que leva ao campo inválido. Dois donos do mesmo foco brigam,
+        e a briga é resolvida pela ordem em que Alpine e o diálogo inicializam —
+        ou seja, não é resolvida. O `role="alert"` da caixa continua lá, então o
+        anúncio não depende do foco.
+
+        O `<div data-modal-erro>` sobrevive como gancho: é por ele que o
+        `modal.js` e os testes reconhecem "este modal voltou com erro".
+      {% endcomment %}
       {% if erro %}
-        <div data-modal-erro role="alert" aria-live="polite" class="mb-4 flex items-start gap-2 rounded-lg border border-danger-border bg-danger-subtle px-3 py-2.5 text-sm text-danger-text-strong">
-          <svg aria-hidden="true" class="mt-0.5 h-4 w-4 shrink-0 text-danger-text" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M18 10A8 8 0 1 1 2 10a8 8 0 0 1 16 0Zm-7-4a1 1 0 1 0-2 0v4a1 1 0 1 0 2 0V6Zm-1 8a1.2 1.2 0 1 1 0-2.4 1.2 1.2 0 0 1 0 2.4Z" clip-rule="evenodd"/>
-          </svg>
-          <span id="{{ id }}-erro">{{ erro }}</span>
+        <div data-modal-erro>
+          {% erros_do_formulario erro acao=acao_erro|default:"concluir" id=id|add:"-erro" focar=False %}
         </div>
       {% endif %}
       {% if form_body_template %}

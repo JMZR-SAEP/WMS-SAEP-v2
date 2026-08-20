@@ -228,12 +228,59 @@ Hoje a exceção tem dois consumidores: a caixa de
 lados no sumário — caixa em `focus:`, âncora em `focus-visible:` — para que
 "consertar" o elemento errado quebre um teste em vez de passar despercebido.
 
-### Erro em campo
+### Erro de formulário
 
-Vem sempre do Form, nunca hardcoded no componente. `form_field.html` costura
-`aria-invalid` + `aria-describedby`, e `.campo[aria-invalid="true"]` pinta a
-borda em `danger-border-input`. Formulário longo ganha também
-`error_summary.html` no topo.
+Uma superfície, uma porta: **`{% erros_do_formulario %}`** (`core_tags`). Todo
+formulário do sistema — login, formset longo, corpo de modal — abre com ela
+logo depois do `{% csrf_token %}`, e nenhum outro lugar decide como um erro de
+formulário aparece.
+
+```django
+{% erros_do_formulario form formset ancora_geral="sec-materiais" %}
+{% erros_do_formulario cabecalho formset acao="registrar o atendimento" ancora_geral="sec-itens" %}
+{% erros_do_formulario erro acao="recusar" id="confirmar-recusar-erro" focar=False %}
+```
+
+Fontes são Forms, FormSets e strings (a falha que a view já traduziu de uma
+exceção de domínio); `None` é ignorado, então contexto opcional não precisa de
+`{% if %}` na tela. `acao` é o verbo da frase-líder — "Não foi possível
+{acao}: N problemas encontrados." — e a pluralização fica no componente. `id`
+nomeia a caixa quando algo aponta para ela por `aria-describedby`. `focar=False`
+só onde outro componente já governa o foco da região (hoje o modal, cujo
+`modal.js` leva ao campo inválido).
+
+**`ancora_geral` é obrigatório na prática.** Mensagem que não pertence a campo
+nenhum — `non_form_errors`, `__all__`, string da view — não tem `id` de onde
+derivar âncora, e sem alvo declarado sai do sumário como texto solto no meio de
+uma lista de links: a caixa anuncia e conta, mas não leva. O alvo é de cada
+tela (a seção que contém a falha, ou o campo por onde se começa a corrigi-la) e
+precisa existir e ser focável — `href="#id"` sozinho rola até o elemento sem pôr
+o foco nele, e o teclado chegaria ao destino com o foco ainda no sumário. Logo:
+`id` + `tabindex="-1"` no alvo, com anel em `focus:` pela mesma exceção do
+sumário. `ancora_geral` é destino, não identidade: duas mensagens sem campo
+continuam sendo duas linhas apontando para o mesmo lugar.
+
+Exceção: o corpo de modal não declara alvo. Ali `modal.js` já leva o foco ao
+campo inválido, e a caixa fica a centímetros dele — não há para onde navegar.
+
+A tag decide as três coisas que antes cada tela decidia sozinha:
+
+- **o quê** entra — todos os erros de todas as fontes, achatados por
+  `coletar_erros`, um item por alvo e sem repetição;
+- **onde** aparece — sumário no topo do `<form>` com âncora por campo, e o erro
+  inline no campo via `form_field.html` → `field_error.html`. Não é redundância:
+  o sumário anuncia, conta e navega; o inline fica ao lado do controle enquanto
+  a pessoa corrige;
+- **como é anunciado** — `role="alert"` e foco programático no mount.
+
+O texto vem sempre do Form, nunca hardcoded no componente.
+`.campo[aria-invalid="true"]` pinta a borda em `danger-border-input`.
+
+**Regra para quem escreve `clean()`**: um formset que anexa o erro ao campo
+(`add_error`) **e** levanta `ValidationError` para abortar a validação precisa
+usar **a mesma frase** nas duas pontas. `coletar_erros` casa mensagens
+idênticas e deixa só a versão com âncora; com duas redações do mesmo problema,
+o sumário lista dois itens e a contagem mente.
 
 ## Onde uma coisa mora
 
@@ -285,7 +332,7 @@ esta tabela diz o que existe e para quê, não como se chama cada parâmetro.
 | Componente | Para quê |
 |---|---|
 | `form_field.html` | Campo com label vinculada, ajuda, erro e fiação ARIA completa |
-| `error_summary.html` | Sumário de erros no topo do formulário (padrão GOV.UK, foco no mount) |
+| `error_summary.html` | Sumário de erros no topo do formulário (padrão GOV.UK, foco no mount). Montado só por `{% erros_do_formulario %}` — nunca incluído direto |
 | `item_form_row.html` | Linha de formset de item, compartilhada entre requisição e saída excepcional |
 | `autocomplete.html` | Combobox ARIA de busca de material |
 

@@ -2289,8 +2289,8 @@ class TestSumarioDeErrosNaSaidaExcepcional:
     ):
         """O guarda de arquivo vê o include; só o POST vê a view montar o contexto.
 
-        `{% coletar_erros form formset %}` depende de a view devolver os dois
-        nomes no contexto de erro. Um include correto sobre um contexto vazio
+        `{% erros_do_formulario form formset %}` depende de a view devolver os
+        dois nomes no contexto de erro. Uma tag correta sobre um contexto vazio
         renderiza silêncio — que é exatamente a falha que a tela tinha.
         """
         html = self._post_invalido(client, chefe_almoxarifado).content.decode()
@@ -2315,3 +2315,68 @@ class TestSumarioDeErrosNaSaidaExcepcional:
         """
         html = self._post_invalido(client, chefe_almoxarifado).content.decode()
         assert html.count('A saída precisa ter ao menos um item.') == 1
+
+    def test_item_duplicado_conta_um_problema_e_nao_dois(
+        self, client, chefe_almoxarifado, estoque_principal, material_disponivel
+    ):
+        """A duplicata que sobrou depois da #125: duas redações, uma falha.
+
+        `BaseItemSaidaExcepcionalFormSet.clean()` anexava o erro à linha ("Este
+        material já foi adicionado em outra linha.") e levantava outra frase no
+        formset ("Não é permitido adicionar o mesmo material mais de uma vez.").
+        A proteção de `coletar_erros` casa mensagens **idênticas**, então as
+        duas passavam: o sumário abria com "2 problemas encontrados" para um
+        material repetido, e o segundo item não tinha âncora para lugar nenhum.
+        """
+        client.force_login(chefe_almoxarifado)
+        response = client.post(
+            URL_NOVA,
+            data={
+                'motivo': 'avaria',
+                'observacao': 'obs válida',
+                'itens-TOTAL_FORMS': '2',
+                'itens-INITIAL_FORMS': '0',
+                'itens-MIN_NUM_FORMS': '0',
+                'itens-MAX_NUM_FORMS': '1000',
+                'itens-0-material_id': str(material_disponivel.pk),
+                'itens-0-material_label': material_disponivel.nome,
+                'itens-0-quantidade': '1',
+                'itens-1-material_id': str(material_disponivel.pk),
+                'itens-1-material_label': material_disponivel.nome,
+                'itens-1-quantidade': '2',
+            },
+        )
+
+        html = response.content.decode()
+        assert response.status_code == 200
+        assert '1 problema encontrado' in html
+        assert 'problemas encontrados' not in html
+        assert 'mais de uma vez' not in html
+
+    def test_erro_de_formset_leva_a_secao_de_materiais(
+        self, client, chefe_almoxarifado, estoque_principal
+    ):
+        """O item sem campo do sumário precisa ser link, e o alvo precisa existir.
+
+        "A saída precisa ter ao menos um item." não pertence a campo nenhum, e
+        por isso saía do sumário como texto solto no meio de uma lista de links.
+        O sumário anunciava e contava, mas não levava — a terceira coisa que ele
+        promete valia só para erro de campo.
+        """
+        client.force_login(chefe_almoxarifado)
+        response = client.post(
+            URL_NOVA,
+            data={
+                'motivo': 'avaria',
+                'observacao': 'obs válida',
+                'itens-TOTAL_FORMS': '0',
+                'itens-INITIAL_FORMS': '0',
+                'itens-MIN_NUM_FORMS': '0',
+                'itens-MAX_NUM_FORMS': '1000',
+            },
+        )
+
+        html = response.content.decode()
+        assert 'href="#sec-materiais"' in html
+        assert 'id="sec-materiais"' in html
+        assert 'tabindex="-1"' in html

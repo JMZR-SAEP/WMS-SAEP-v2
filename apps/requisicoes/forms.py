@@ -170,13 +170,12 @@ class BaseItemRequisicaoFormSet(BaseFormSet):
             material_id = form.cleaned_data['material_id']
 
             if material_id in material_ids:
-                form.add_error(
-                    'material_label',
-                    'Este material já foi adicionado em outra linha.',
-                )
-                raise forms.ValidationError(
-                    'Não é permitido adicionar o mesmo material mais de uma vez.'
-                )
+                # Mesma frase nas duas pontas — ver o comentário gêmeo em
+                # apps/estoque/forms.py. Redações diferentes para a mesma falha
+                # viram dois itens no sumário do topo, e a contagem mente.
+                duplicado = 'Este material já foi adicionado em outra linha.'
+                form.add_error('material_label', duplicado)
+                raise forms.ValidationError(duplicado)
             material_ids.append(material_id)
 
         if linhas_validas == 0:
