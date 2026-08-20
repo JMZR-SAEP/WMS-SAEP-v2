@@ -213,25 +213,37 @@ O que fica no lugar, explicitamente:
 - **Validação em navegador, manual e registrada no PR.** Subir o servidor de
   desenvolvimento e submeter cada uma das três telas com dados inválidos.
 
-  **Critério de aprovação**, porque "ler `document.activeElement`" não é
-  critério — passaria com o foco em qualquer lugar:
+  **Critério de aprovação — dois booleanos por célula**, porque "ler
+  `document.activeElement`" não é critério (passaria com o foco em qualquer
+  lugar) e porque **o foco certo com anel invisível é exatamente o defeito nº 1
+  da issue**: medir só o foco aprovaria a tela que a issue veio consertar.
 
   ```js
-  document.activeElement?.id === '<id do sumário naquela tela>'   // → true
+  const alvo = document.activeElement;
+  [
+    alvo?.id === '<id do sumário naquela tela>',        // A — o foco foi para o sumário
+    getComputedStyle(alvo).boxShadow !== 'none',        // B — o anel está pintado
+  ]
   ```
 
-  Hoje as três telas incluem o componente **sem** passar `id=`, então o valor
-  esperado nas três é o default `sumario-erros`. O critério é escrito pelo `id`
-  que a tela renderiza, não pela string fixa, para não quebrar em silêncio se
-  uma tela ganhar dois formulários e precisar de `id` próprio.
+  **B mede `box-shadow` e não `outline` de propósito**: o componente traz
+  `focus:outline-none` e o anel do Tailwind (`ring-2`) compila para
+  `box-shadow`. Se a variante errada continuasse no arquivo, `:focus-visible`
+  não casaria neste caminho e `boxShadow` voltaria `'none'` — que é o defeito nº 1
+  reproduzido em número, não em opinião.
 
-  **Matriz: 3 telas × 2 caminhos = 6 resultados**, cada um dizendo tela, caminho
-  e o booleano observado — não a palavra "validado":
+  Sobre o `id` esperado: hoje as três telas incluem o componente **sem** passar
+  `id=`, então o valor nas três é o default `sumario-erros`. O critério é escrito
+  pelo `id` que a tela renderiza, não pela string fixa, para não quebrar em
+  silêncio se uma tela ganhar dois formulários e precisar de `id` próprio.
+
+  **Matriz: 3 telas × 2 caminhos = 6 células, 12 booleanos**, cada célula
+  registrando tela, caminho e o par `A/B` observado — não a palavra "validado":
 
   | Caminho | `nova_saida_excepcional` | `rascunho_form` | `atender_retirada` |
   |---|---|---|---|
-  | POST full-page, Alpine carregado | ☐ | ☐ | ☐ |
-  | POST full-page, Alpine bloqueado (exercita o `autofocus` sozinho) | ☐ | ☐ | ☐ |
+  | POST full-page, Alpine carregado | A ☐ B ☐ | A ☐ B ☐ | A ☐ B ☐ |
+  | POST full-page, Alpine bloqueado (exercita o `autofocus` sozinho) | A ☐ B ☐ | A ☐ B ☐ | A ☐ B ☐ |
 
   **O terceiro caminho não entra, e o motivo importa:** nenhuma das três telas
   renderiza o sumário por swap HTMX. O único HTMX nelas é `hx-get` de nova linha
@@ -341,9 +353,10 @@ no vocabulário de variante dos componentes, como
 8. `npm run css:build` + `focus:ring-danger-accent` em `UTILITIES_ESPERADAS`.
 9. `docs/design-system.md`: exceção do anel em alvo de foco programático.
 10. `ruff format .`, `ruff check .`, `mypy apps`, suíte completa.
-11. Validação em navegador: `document.activeElement?.id` igual ao `id` do sumário
-    daquela tela, nos 6 pares tela × caminho (3 telas × full-page com Alpine e
-    full-page sem Alpine), com os 6 booleanos colados no corpo do PR.
+11. Validação em navegador nos 6 pares tela × caminho (3 telas × full-page com
+    Alpine e full-page sem Alpine), medindo os dois booleanos por célula — `id`
+    do elemento focado e `boxShadow !== 'none'` —, com os 12 resultados colados
+    no corpo do PR.
 
 ## Critérios de aceite (espelho da issue)
 
@@ -358,5 +371,5 @@ no vocabulário de variante dos componentes, como
 - [ ] Nenhuma tela exibe o mesmo erro em dois lugares
 - [ ] Testes: contagem por campo, presença nas três telas, ausência de duplicata
 - [ ] Testes de contrato HTTP de POST inválido nas três telas
-- [ ] Validação em navegador: `document.activeElement?.id` igual ao `id` do sumário daquela tela (hoje o default `sumario-erros` nas três) nos 6 pares tela × caminho, com os 6 booleanos no corpo do PR
+- [ ] Validação em navegador, nos 6 pares tela × caminho: (A) `document.activeElement?.id` igual ao `id` do sumário daquela tela — hoje o default `sumario-erros` nas três — e (B) `getComputedStyle(document.activeElement).boxShadow !== 'none'`, provando que o anel está pintado. Os 12 booleanos no corpo do PR
 - [ ] `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .` e `uv run mypy apps` verdes
