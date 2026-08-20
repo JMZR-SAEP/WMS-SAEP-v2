@@ -612,7 +612,7 @@ def test_ancora_geral_nao_vira_chave_de_agrupamento():
 
 
 def test_sem_ancora_geral_o_item_segue_sem_link():
-    """O default não inventa destino — tela que não declarou alvo não ganha
+    """O padrão não inventa destino — tela que não declarou alvo não ganha
     âncora quebrada de brinde."""
     from apps.core.templatetags.core_tags import coletar_erros
 
