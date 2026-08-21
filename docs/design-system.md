@@ -359,7 +359,7 @@ Família `filter_*`, montada por composição explícita na tela chamadora.
 | `_modal_icon.html` | Ícone semântico do header de modal |
 | `alert.html` | Banner de aviso estático, layout `stack` ou `row` |
 | `badge.html` | Pill de estado. 13 variantes visuais, zero conhecimento de domínio |
-| `empty_state.html` | Estado vazio com causa distinguida e CTA opcional |
+| `empty_state.html` | Estado vazio com causa distinguida, nível de cabeçalho parametrizável (`nivel_titulo`, default 2) e CTA opcional |
 
 Fora de `components/`: `core/partials/_messages.html` (flash messages do Django) e
 `core/partials/_side_nav.html` (navegação lateral em `lg:`).
@@ -446,6 +446,8 @@ estrutura, a abstração está errada. Parar e registrar, não generalizar.
 [ ] Modal e dropdown operáveis por teclado (Tab, Escape, Enter/Espaço)
 [ ] Ação bloqueada tem motivo textual amarrado por aria-describedby
 [ ] Atualização HTMX crítica tem aria-live ou feedback visível
+[ ] Listagem filtrada por HTMX anuncia a CONTAGEM numa live region fora da
+    lista — nunca a lista inteira (ver §Anúncio de listagem filtrada por HTMX)
 [ ] Live region NÃO é o mecanismo depois de um POST full-page — conteúdo já
     presente no carregamento não é anunciado; o que funciona é foco programático
     (tabindex="-1" + foco no mount), com anel `focus:` e não `focus-visible:`
@@ -511,7 +513,7 @@ Listagem em cartões, com o fragmento de resultado pronto para swap HTMX:
     {% endfor %}
   </div>
 {% else %}
-  {% include "components/empty_state.html" with titulo="Nada por aqui" %}
+  {% include "components/empty_state.html" with icone="components/icons/_caixa_entrada.html" titulo="Nada por aqui" descricao="Os itens aparecem aqui assim que existirem." %}
 {% endif %}
 {% endpartialdef %}
 {% partial resultados %}
@@ -520,6 +522,63 @@ Listagem em cartões, com o fragmento de resultado pronto para swap HTMX:
 O fragmento é sempre **GET-only**. Transição de estado de domínio continua
 retornando `204` com `HX-Redirect` (`docs/CONVENTIONS.md`); este fragmento nunca
 é alvo delas.
+
+### Anúncio de listagem filtrada por HTMX
+
+Uma listagem filtrada por HTMX troca de conteúdo sem navegação: sem anúncio,
+quem filtrou não sabe se filtrou demais ou se a requisição travou. O que **não**
+resolve é marcar o wrapper de resultados como live region — a cada ajuste de
+filtro o leitor de tela releria as 25 linhas do começo, e uma região substituída
+inteira não anuncia de forma confiável.
+
+O padrão é anunciar o **tamanho** do resultado, não o resultado:
+
+```django
+{% comment %}
+  Vazia no carregamento inicial: nada mudou ainda.
+{% endcomment %}
+<p id="resumo-listagem" class="sr-only" role="status"></p>
+
+<div id="resultados-listagem">
+  {% partialdef resultados %}
+  ...
+  {% if is_htmx %}
+    <span hx-swap-oob="innerHTML:#resumo-listagem">{% if page_obj.paginator.count %}{{ page_obj.paginator.count }} it{{ page_obj.paginator.count|pluralize:"em,ens" }} encontrad{{ page_obj.paginator.count|pluralize:"o,os" }}.{% else %}Nenhum item encontrado.{% endif %}</span>
+  {% endif %}
+  {% endpartialdef %}
+  {% partial resultados %}
+</div>
+```
+
+Três coisas não são negociáveis aqui:
+
+- **A região fica FORA do wrapper de swap.** Dentro dela seria substituída
+  junto e perderia o `role`.
+- **O swap é `innerHTML:`**, não out-of-band pelado. Sem o prefixo o elemento
+  inteiro é trocado e a live region vai junto — o anúncio morre em silêncio,
+  sem quebrar nada visível.
+- **A contagem é `page_obj.paginator.count`**, o total do recorte filtrado.
+  `object_list|length` anunciaria o tamanho da página: "25 encontrados" para um
+  filtro que casou 300.
+
+**O filtro corta a palavra onde a flexão começa.** `pluralize` acrescenta o
+sufixo ao que vem antes dele, então o exemplo acima escreve `it` + `em`/`ens`, e
+não `item` + algum sufixo — `item{{ n|pluralize:"ns" }}` produziria `itemns`. Em
+PT-BR isso quase sempre significa cortar no meio da palavra, e a concordância
+costuma exigir mais de um filtro na mesma frase: o substantivo troca a sílaba
+tônica e o particípio concorda com ele.
+
+```django
+{{ n }} requisiç{{ n|pluralize:"ão,ões" }} encontrad{{ n|pluralize:"a,as" }}.
+{{ n }} movimenta{{ n|pluralize:"ção,ções" }} encontrada{{ n|pluralize }}.
+```
+
+Cada listagem cobre **0, 1 e 2** em teste, casando a frase inteira e não só o
+número. O caso 1 é o que impede "1 movimentações"; o caso 2 é o que impede "2
+requisição encontrada". Uma asserção por substring de número passaria por cima
+dos dois.
+
+Implementado em `historico_requisicoes.html` e `historico_movimentacoes.html`.
 
 Confirmação de ação irreversível:
 

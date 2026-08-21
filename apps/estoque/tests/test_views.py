@@ -855,6 +855,68 @@ class TestPreviewImportacaoScpiView:
         arquivo = SimpleUploadedFile('teste.csv', csv_bytes, content_type='text/csv')
         return client.post(self.URL, {'arquivo': arquivo}).content.decode()
 
+    def _preview_de_arquivo_so_com_cabecalho(self, client, superuser):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        client.force_login(superuser)
+        arquivo = SimpleUploadedFile(
+            'vazio.csv', b'CADPRO;DENOMINACAO;QUAN3\n', content_type='text/csv'
+        )
+        return client.post(self.URL, {'arquivo': arquivo}).content.decode()
+
+    def test_arquivo_so_com_cabecalho_nao_volta_em_silencio(
+        self, client, superuser, estoque_principal
+    ):
+        """Enviar um CSV sem linhas de dados não pode parecer não ter feito nada.
+
+        O template tinha um estado vazio para este caso, mas ele era inalcançável:
+        o ramo de preview só é atingido com `linhas` truthy, então o `{% else %}`
+        de dentro dele nunca renderizava. Na prática o POST caía de volta no
+        formulário de upload, idêntico ao que a pessoa já estava vendo — sem
+        alerta, sem foco, sem pista de que o arquivo foi lido e estava vazio.
+
+        Num ritual recorrente feito por quem confia mais no papel que no
+        software, uma tela que não reage é indistinguível de uma tela travada.
+        """
+        conteudo = self._preview_de_arquivo_so_com_cabecalho(client, superuser)
+
+        assert 'linhas de dados' in conteudo
+        assert 'Carregar arquivo CSV do SCPI' not in conteudo, (
+            'voltou ao formulário de upload como se nada tivesse acontecido'
+        )
+
+    def test_arquivo_so_com_cabecalho_amarra_o_erro_ao_campo_de_retry(
+        self, client, superuser, estoque_principal
+    ):
+        """Depois de um POST full-page o que anuncia é o foco, não live region.
+
+        O caminho de erro do arquivo já tem o mecanismo montado — `autofocus`,
+        `aria-invalid` e `aria-describedby` amarrando o texto ao campo. Reusá-lo
+        é mais barato e mais acessível que inventar um quarto estado de tela.
+        """
+        conteudo = self._preview_de_arquivo_so_com_cabecalho(client, superuser)
+
+        assert 'id="erro-arquivo-alerta"' in conteudo
+        assert 'aria-describedby="erro-arquivo-alerta"' in conteudo
+        assert 'autofocus' in conteudo
+
+    def test_preview_nao_carrega_estado_vazio_inalcancavel(
+        self, client, superuser, estoque_principal, material_scpi
+    ):
+        """A caixa clonada à mão sai do arquivo, não vira include.
+
+        Ela replicava as classes do `empty_state.html` sem usá-lo e carregava
+        `text-text-disabled` (slate-400, 2.63:1 sobre branco, abaixo dos 4.5:1
+        da WCAG 1.4.3). Trocá-la pelo componente manteria marcação que nunca
+        renderiza; o certo é apagar e tratar o caso vazio onde ele de fato
+        acontece.
+        """
+        conteudo = self._preview_com_novos_e_divergencias(
+            client, superuser, material_scpi
+        )
+
+        assert 'border-dashed border-border-strong' not in conteudo
+
     def test_alerta_de_divergencia_mantem_variante_warning_e_role_status(
         self, client, superuser, estoque_principal, material_scpi
     ):
@@ -1579,7 +1641,34 @@ class TestListaMateriaisView:
         html = response.content.decode()
         assert 'border-dashed border-border-strong' in html
         assert 'border-slate-200 bg-white p-8' not in html
-        assert 'Nenhum material cadastrado no estoque.' in html
+        assert 'Nenhum material no cat' in html
+
+    def test_catalogo_vazio_diz_por_onde_o_material_entra(
+        self, client, chefe_almoxarifado
+    ):
+        """Estado vazio de primeiro uso sem próxima ação é beco sem saída.
+
+        Não existe cadastro manual de material: o catálogo é alimentado pela
+        importação do SCPI. Dizer só "nenhum material" deixa quem abriu a tela
+        sem saber se falta dado, falta permissão ou falta um passo — e o passo
+        existe. A frase nomeia a rota sem virar link, porque importar é
+        privilégio do chefe de almoxarifado e o componente não decide permissão.
+        """
+        client.force_login(chefe_almoxarifado)
+        html = client.get(URL_MATERIAIS).content.decode()
+        # A navegação lateral também cita a importação SCPI: recortar a caixa do
+        # estado vazio é o que separa "a tela diz" de "a tela tem um link no menu".
+        inicio = html.index('border-dashed border-border-strong')
+        caixa = html[inicio : html.index('</div>', inicio)]
+        assert 'importa' in caixa and 'SCPI' in caixa
+
+    def test_busca_sem_resultado_diz_o_que_tentar_alem_do_cta(
+        self, client, chefe_almoxarifado
+    ):
+        """O CTA leva de volta; a descrição diz como acertar da próxima vez."""
+        client.force_login(chefe_almoxarifado)
+        html = client.get(URL_MATERIAIS, {'busca': 'inexistente-xyz'}).content.decode()
+        assert 'Confira o c' in html
 
     def test_busca_sem_resultado_exibe_cta_secundario_link(
         self, client, chefe_almoxarifado
@@ -2087,16 +2176,159 @@ class TestHistoricoMovimentacoesResponsivo:
         assert pos_details != -1, '<details não encontrado'
         assert pos_chip < pos_details, 'chip deve aparecer antes do <details>'
 
-    def test_aria_live_polite_no_conteiner_de_resultados(
+    def _consumos_isolados(
+        self,
+        n,
+        superuser,
+        requisicao_autorizada,
+        material_disponivel,
+        estoque_principal,
+    ):
+        """Cria `n` consumos e devolve o filtro que isola só eles.
+
+        Duas coisas precisam ser verdade ao mesmo tempo: a contagem anunciada
+        tem de ser exatamente `n`, e o ledger não pode ficar incoerente só para
+        o teste caber.
+
+        O isolamento é pelo **tipo**, não por um material inventado. As fixtures
+        deixam uma `reserva` no ledger, então filtrar por `consumo` já separa o
+        que este teste criou — sem material órfão, fora da requisição e sem
+        `SaldoEstoque`. O material continua sendo o da própria requisição.
+
+        A escrita direta no ledger é a mesma dos testes vizinhos desta classe:
+        aqui o assunto é a frase anunciada, não a aritmética de saldo, que tem
+        cobertura própria nos testes de service.
+        """
+        from decimal import Decimal
+
+        from apps.estoque.models import MovimentacaoEstoque, TipoMovimentacaoEstoque
+
+        req, _ = requisicao_autorizada
+        for _ in range(n):
+            MovimentacaoEstoque.objects.create(
+                tipo=TipoMovimentacaoEstoque.CONSUMO,
+                material=material_disponivel,
+                estoque=estoque_principal,
+                delta_fisico=Decimal('-1'),
+                delta_reservado=Decimal('-1'),
+                requisicao=req,
+                ator=superuser,
+            )
+        return {'tipos': TipoMovimentacaoEstoque.CONSUMO.value}
+
+    def test_lista_de_resultados_nao_e_live_region(self, client, chefe_almoxarifado):
+        """Marcar a listagem inteira como live region faz o leitor reler tudo.
+
+        O wrapper carregava `aria-live="polite" aria-atomic="true"`: a cada
+        ajuste de filtro, as 25 linhas eram relidas do começo. O anúncio útil é
+        o tamanho do resultado, não o resultado — e ele vive fora da lista, no
+        mesmo padrão que o histórico de requisições já usa.
+        """
+        client.force_login(chefe_almoxarifado)
+        html = client.get(URL_MOVIMENTACOES).content.decode()
+
+        inicio = html.index('id="resultados-movimentacoes"')
+        wrapper = html[html.rindex('<div', 0, inicio) : html.index('>', inicio) + 1]
+
+        assert 'aria-live' not in wrapper
+        assert 'aria-atomic' not in wrapper
+
+    def test_regiao_de_resumo_e_live_region_de_verdade(
         self, client, chefe_almoxarifado
     ):
-        # O wrapper #resultados-movimentacoes deve ter aria-live="polite" e
-        # aria-atomic="true" para anunciar swaps HTMX a tecnologias assistivas.
+        """Um `<p>` sem `role` troca de texto sem anunciar nada.
+
+        Ele passaria em todos os testes de mensagem e não anunciaria uma única
+        vez. O `role` é o contrato; o texto é só a carga.
+        """
         client.force_login(chefe_almoxarifado)
-        response = client.get(URL_MOVIMENTACOES)
-        assert response.status_code == 200
-        assert b'aria-live="polite"' in response.content
-        assert b'aria-atomic="true"' in response.content
+        html = client.get(URL_MOVIMENTACOES).content.decode()
+
+        inicio = html.index('id="resumo-movimentacoes"')
+        tag = html[html.rindex('<', 0, inicio) : html.index('>', inicio) + 1]
+
+        assert 'role="status"' in tag
+        assert 'sr-only' in tag
+        assert html[html.index('>', inicio) + 1 :].lstrip().startswith('<'), (
+            'a região nasce vazia: no carregamento inicial nada mudou ainda'
+        )
+
+    def test_swap_oob_preserva_o_elemento_da_live_region(
+        self, client, chefe_almoxarifado
+    ):
+        """`innerHTML:` troca o conteúdo; um oob sem prefixo levaria o `role` junto.
+
+        A resposta HTMX não carrega o `<p>` — carrega só o conteúdo dele. Exigir
+        `role="status"` aqui seria exigir o oposto do que o modo de swap faz. O
+        que dá para provar numa resposta Django é o modo, e a ausência de um
+        segundo `id` que reintroduziria a região por cima.
+        """
+        client.force_login(chefe_almoxarifado)
+        html = client.get(URL_MOVIMENTACOES, HTTP_HX_REQUEST='true').content.decode()
+
+        assert 'hx-swap-oob="innerHTML:#resumo-movimentacoes"' in html
+        assert 'id="resumo-movimentacoes"' not in html
+
+    def test_filtro_sem_resultado_anuncia_zero_movimentacoes(
+        self, client, chefe_almoxarifado
+    ):
+        """O caso que a issue nomeia: a lista some e nada é dito.
+
+        Sem anúncio, quem filtrou não sabe se filtrou demais ou se a requisição
+        travou.
+        """
+        client.force_login(chefe_almoxarifado)
+        html = client.get(
+            URL_MOVIMENTACOES, {'material': 'inexistente-xyz'}, HTTP_HX_REQUEST='true'
+        ).content.decode()
+
+        assert 'Nenhuma movimentação encontrada.' in html
+
+    def test_anuncio_no_singular_com_uma_movimentacao(
+        self,
+        client,
+        superuser,
+        requisicao_autorizada,
+        material_disponivel,
+        estoque_principal,
+    ):
+        """ "1 movimentações" é o erro que um teste só do zero deixa passar."""
+        filtro = self._consumos_isolados(
+            1,
+            superuser,
+            requisicao_autorizada,
+            material_disponivel,
+            estoque_principal,
+        )
+        client.force_login(superuser)
+        html = client.get(
+            URL_MOVIMENTACOES, filtro, HTTP_HX_REQUEST='true'
+        ).content.decode()
+
+        assert '1 movimentação encontrada.' in html
+
+    def test_anuncio_no_plural_com_duas_movimentacoes(
+        self,
+        client,
+        superuser,
+        requisicao_autorizada,
+        material_disponivel,
+        estoque_principal,
+    ):
+        """Os dois `pluralize` flexionando juntos, casados na frase inteira."""
+        filtro = self._consumos_isolados(
+            2,
+            superuser,
+            requisicao_autorizada,
+            material_disponivel,
+            estoque_principal,
+        )
+        client.force_login(superuser)
+        html = client.get(
+            URL_MOVIMENTACOES, filtro, HTTP_HX_REQUEST='true'
+        ).content.decode()
+
+        assert '2 movimentações encontradas.' in html
 
 
 class TestHistoricoMovimentacoesFiltrosResponsivo:

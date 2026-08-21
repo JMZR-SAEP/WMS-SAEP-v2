@@ -851,6 +851,368 @@ class TestPisoDosControlesDeRecuperacao:
             )
 
 
+_TEMPLATE_DO_ESTADO_VAZIO = 'components/empty_state.html'
+_ASSINATURA_DO_ESTADO_VAZIO = frozenset({'border-dashed', 'border-border-strong'})
+_INCLUDE_DO_ESTADO_VAZIO = re.compile(
+    r'\{%\s*include\s+(["\'])components/empty_state\.html\1(?P<args>.*?)%\}', re.S
+)
+_MINIMO_DE_CHAMADORES_DO_ESTADO_VAZIO = 11
+
+
+def _clones_do_estado_vazio(caminho: str, texto: str) -> list[str]:
+    """Elementos que replicam a assinatura visual do estado vazio à mão.
+
+    A busca é por conjunto de tokens, não por substring: procurar a sequência
+    literal `border-dashed border-border-strong` é guarda contornável por
+    formatação — trocar a ordem das classes, quebrar a linha entre elas ou
+    intercalar uma terceira já escaparia, e nenhuma das três muda um pixel do
+    render.
+
+    O dropzone da importação SCPI (`border-2 border-dashed border-border`, sem
+    `-strong`) não casa, e é isso que separa "tracejado" de "estado vazio".
+
+    A varredura cobre todo contêiner de bloco do sistema, não só `<div>`: um
+    clone escrito em `<article>` ou `<aside>` renderiza exatamente igual, e uma
+    guarda que depende da tag escolhida é contornável sem querer.
+    """
+    if caminho.endswith(_TEMPLATE_DO_ESTADO_VAZIO):
+        return []
+    infratores = []
+    for _, atributos, numero in elementos(
+        _sem_comentarios(texto), 'div', 'section', 'article', 'aside', 'p'
+    ):
+        if _ASSINATURA_DO_ESTADO_VAZIO <= classes(atributos):
+            infratores.append(f'{caminho}:{numero} replica o estado vazio à mão')
+    return infratores
+
+
+def _chamadas_do_estado_vazio(texto: str):
+    """Devolve (linha, argumentos) de cada `{% include %}` do componente."""
+    limpo = _sem_comentarios(texto)
+    for encontro in _INCLUDE_DO_ESTADO_VAZIO.finditer(limpo):
+        numero = limpo.count('\n', 0, encontro.start()) + 1
+        yield numero, encontro.group('args')
+
+
+_ARGUMENTO_DE_INCLUDE = re.compile(
+    r'(?P<nome>[\w-]+)=(?P<valor>"[^"]*"|\'[^\']*\'|[^\s]+)'
+)
+
+
+def _argumentos_do_include(argumentos: str) -> dict[str, str]:
+    """Argumentos `nome=valor` com as aspas **preservadas**.
+
+    `pares()` devolve o valor já sem aspas, e é isso que ele deve fazer para
+    atributo HTML. Aqui a informação decisiva é justamente a que ele descarta:
+    `titulo='Nada aqui'` é literal e `titulo=titulo_busca` é variável, e sem as
+    aspas os dois chegam idênticos. Uma guarda que não distingue os dois ou não
+    verifica nada, ou acusa toda variável de ter ponto final.
+    """
+    return {
+        encontro.group('nome'): encontro.group('valor')
+        for encontro in _ARGUMENTO_DE_INCLUDE.finditer(argumentos)
+    }
+
+
+def _e_literal(valor: str) -> bool:
+    return len(valor) >= 2 and valor[0] == valor[-1] and valor[0] in '"\''
+
+
+def _sem_aspas(valor: str) -> str:
+    return valor[1:-1] if _e_literal(valor) else valor
+
+
+def _titulos_de_with(texto: str) -> dict[str, str]:
+    """Literais atribuídos por `{% with nome=... %}` no próprio arquivo.
+
+    `titulo=titulo_busca` não pode ser lido no ponto de chamada, mas a variável
+    é montada no mesmo template. Resolver o `{% with %}` antes de desistir é o
+    que impede que "título dinâmico" vire rota de fuga da regra de copy.
+    """
+    resolvidos: dict[str, str] = {}
+    for encontro in re.finditer(r'\{%\s*with\s+(?P<args>.*?)%\}', texto, re.S):
+        resolvidos.update(_argumentos_do_include(encontro.group('args')))
+    return resolvidos
+
+
+def _desvios_de_copy_do_estado_vazio(caminho: str, texto: str):
+    """Chamadas que fogem do padrão de copy, e as que não dá para verificar.
+
+    Regra: título sem ponto final, ícone presente e descrição presente — os
+    três com valor não vazio, porque chave presente não é contrato cumprido.
+    """
+    desvios, nao_verificaveis, quantidade = [], [], 0
+    com_with = _titulos_de_with(_sem_comentarios(texto))
+
+    for numero, argumentos in _chamadas_do_estado_vazio(texto):
+        quantidade += 1
+        local = f'{caminho}:{numero}'
+        args = _argumentos_do_include(argumentos)
+
+        for nome in ('icone', 'descricao'):
+            if not _sem_aspas(args.get(nome, '')).strip():
+                desvios.append(f'{local} sem `{nome}` com valor')
+
+        titulo = args.get('titulo')
+        if titulo is None:
+            desvios.append(f'{local} sem `titulo`')
+            continue
+
+        if not _e_literal(titulo):
+            titulo = com_with.get(titulo, '')
+        if not _e_literal(titulo):
+            nao_verificaveis.append(local)
+        elif _sem_aspas(titulo).strip().endswith('.'):
+            desvios.append(f'{local} título com ponto final')
+
+    return desvios, nao_verificaveis, quantidade
+
+
+def test_nenhum_template_replica_a_marcacao_do_estado_vazio():
+    """Uma implementação só de estado vazio, e o mecanismo que a mantém única.
+
+    O clone que existia (importação SCPI) não recebia nenhuma correção do
+    componente: ficou sem cabeçalho, sem ícone e com `text-text-disabled` num
+    texto real (2.63:1 sobre branco, abaixo dos 4.5:1 da WCAG 1.4.3). Copiar
+    classes é barato; o custo aparece na próxima correção, que passa longe da
+    cópia.
+    """
+    raiz = Path(__file__).resolve().parents[3]
+    infratores = []
+    for caminho in sorted((raiz / 'apps').rglob('*.html')):
+        relativo = str(caminho.relative_to(raiz))
+        infratores.extend(_clones_do_estado_vazio(relativo, caminho.read_text()))
+
+    assert not infratores, (
+        f'Use components/empty_state.html em vez de replicar a caixa: {infratores}'
+    )
+
+
+def test_todo_chamador_do_estado_vazio_segue_a_copy():
+    """Onze chamadores, um padrão de copy.
+
+    Título sem ponto final, ícone e descrição sempre presentes. As exceções que
+    existiam estavam no catálogo de materiais — a única tela em que o estado
+    vazio era só um título, sem dizer o que aconteceu nem o que fazer.
+    """
+    raiz = Path(__file__).resolve().parents[3]
+    desvios, nao_verificaveis, quantidade = [], [], 0
+    for caminho in sorted((raiz / 'apps').rglob('*.html')):
+        relativo = str(caminho.relative_to(raiz))
+        achados, opacos, n = _desvios_de_copy_do_estado_vazio(
+            relativo, caminho.read_text()
+        )
+        desvios.extend(achados)
+        nao_verificaveis.extend(opacos)
+        quantidade += n
+
+    assert quantidade >= _MINIMO_DE_CHAMADORES_DO_ESTADO_VAZIO, (
+        f'A varredura achou só {quantidade} chamadores do estado vazio — o '
+        'guarda está passando por não enxergar, não por estar tudo certo'
+    )
+    assert not desvios, f'Copy fora do padrão do estado vazio: {desvios}'
+    assert not nao_verificaveis, (
+        'Título vindo de contexto de view não pode ser verificado aqui; se for '
+        f'mesmo necessário, ele entra numa lista nomeada: {nao_verificaveis}'
+    )
+
+
+class TestMecanismoDasGuardasDoEstadoVazio:
+    """As duas guardas precisam provar que *detectam*, não que hoje passa.
+
+    Uma guarda exercitada só pela árvore real é indistinguível de uma guarda
+    quebrada enquanto a árvore estiver limpa — foi assim que o piso de 44px
+    passou verde por cima de dois controles sem piso (#120).
+    """
+
+    CLONE = '<div class="rounded-xl border border-dashed border-border-strong bg-surface">x</div>'
+
+    def _clones(self, texto):
+        return _clones_do_estado_vazio('sintetico.html', texto)
+
+    def _desvios(self, texto):
+        desvios, _, _ = _desvios_de_copy_do_estado_vazio('sintetico.html', texto)
+        return desvios
+
+    def _nao_verificaveis(self, texto):
+        _, opacos, _ = _desvios_de_copy_do_estado_vazio('sintetico.html', texto)
+        return opacos
+
+    def test_clone_literal_e_detectado(self):
+        assert self._clones(self.CLONE)
+
+    def test_clone_com_classes_reordenadas_e_detectado(self):
+        """Trocar a ordem das classes não muda um pixel do render."""
+        texto = '<div class="border-border-strong bg-surface border-dashed">x</div>'
+        assert self._clones(texto)
+
+    def test_clone_quebrado_em_varias_linhas_e_detectado(self):
+        texto = (
+            '<div\n'
+            '  class="rounded-xl border border-dashed\n'
+            '         border-border-strong"\n'
+            '>x</div>'
+        )
+        assert self._clones(texto)
+
+    def test_clone_em_outra_tag_de_bloco_e_detectado(self):
+        """`<article>` renderiza igual; a guarda não pode depender da tag."""
+        texto = '<article class="border border-dashed border-border-strong">x</article>'
+        assert self._clones(texto)
+
+    def test_dropzone_tracejado_nao_e_estado_vazio(self):
+        """`border-2 border-dashed border-border` é área de upload, não vazio."""
+        texto = '<section class="border-2 border-dashed border-border bg-surface">x</section>'
+        assert not self._clones(texto)
+
+    def test_clone_dentro_de_comment_nao_e_clone(self):
+        texto = f'{{% comment %}}\n{self.CLONE}\n{{% endcomment %}}'
+        assert not self._clones(texto)
+
+    def test_o_proprio_componente_nao_se_acusa(self):
+        assert not _clones_do_estado_vazio(
+            f'apps/core/templates/{_TEMPLATE_DO_ESTADO_VAZIO}', self.CLONE
+        )
+
+    def test_falta_de_icone_reprova(self):
+        texto = (
+            "{% include 'components/empty_state.html' with titulo='Nada aqui' "
+            "descricao='Uma descrição.' %}"
+        )
+        assert self._desvios(texto)
+
+    def test_icone_vazio_reprova_como_ausencia(self):
+        """Chave presente não é contrato cumprido."""
+        texto = (
+            "{% include 'components/empty_state.html' with icone='' "
+            "titulo='Nada aqui' descricao='Uma descrição.' %}"
+        )
+        assert self._desvios(texto)
+
+    def test_descricao_vazia_reprova_como_ausencia(self):
+        texto = (
+            '{% include "components/empty_state.html" with icone="i.html" '
+            'titulo="Nada aqui" descricao="" %}'
+        )
+        assert self._desvios(texto)
+
+    def test_titulo_com_ponto_final_reprova(self):
+        texto = (
+            "{% include 'components/empty_state.html' with icone='i.html' "
+            "titulo='Nada aqui.' descricao='Uma descrição.' %}"
+        )
+        assert self._desvios(texto)
+
+    def test_chamada_completa_passa(self):
+        texto = (
+            "{% include 'components/empty_state.html' with icone='i.html' "
+            "titulo='Nada aqui' descricao='Uma descrição.' %}"
+        )
+        assert not self._desvios(texto)
+
+    def test_titulo_vindo_de_with_no_mesmo_arquivo_e_verificado(self):
+        """`titulo=titulo_busca` não é ponto cego: o `{% with %}` mora ao lado."""
+        texto = (
+            "{% with titulo_busca='Nada encontrado.' %}"
+            "{% include 'components/empty_state.html' with icone='i.html' "
+            "titulo=titulo_busca descricao='Uma descrição.' %}"
+            '{% endwith %}'
+        )
+        assert self._desvios(texto)
+
+    def test_titulo_vindo_de_contexto_de_view_entra_na_lista_e_nao_some(self):
+        """Uma isenção que ninguém consegue contar vira rota de fuga."""
+        texto = (
+            "{% include 'components/empty_state.html' with icone='i.html' "
+            "titulo=titulo_da_view descricao='Uma descrição.' %}"
+        )
+        assert self._nao_verificaveis(texto)
+
+
+class TestEmptyStateNivelDeTitulo:
+    """O nível do cabeçalho do estado vazio é escolha da tela, não do componente.
+
+    Até a #126 o `<h2>` era cravado. Coincidia com o nível dos títulos de cartão
+    das listagens, então o outline não quebrava — mas o acoplamento não estava
+    declarado em lugar nenhum, e a próxima tela que usasse o componente dentro de
+    uma seção mais funda quebraria a hierarquia sem aviso.
+    """
+
+    def _render(self, **ctx):
+        ctx.setdefault('titulo', 'Nenhum material')
+        return render_to_string('components/empty_state.html', ctx)
+
+    def test_titulo_usa_h2_por_padrao(self):
+        """O default preserva os 11 chamadores que já existiam."""
+        html = self._render()
+        assert '<h2' in html and '</h2>' in html
+
+    def test_nivel_titulo_parametriza_abertura_e_fechamento(self):
+        """`<h3>…</h2>` não quebra render nenhum — quebra o outline em silêncio."""
+        html = self._render(nivel_titulo=3)
+        assert '<h3' in html and '</h3>' in html
+        assert '<h2' not in html and '</h2>' not in html
+
+
+class TestEmptyStateMedidaDaProsa:
+    """Prosa centralizada ocupando os 80rem do container não é linha de leitura.
+
+    `DESIGN.md` limita prosa longa a 65–75ch. A descrição do estado vazio era o
+    único texto do componente sem limite de medida.
+    """
+
+    FAIXA_CH = (65, 75)
+
+    def _descricao(self):
+        html = render_to_string(
+            'components/empty_state.html',
+            {'titulo': 'Nenhum material', 'descricao': 'Uma descrição qualquer.'},
+        )
+        ((_, atributos, _),) = elementos(html, 'p')
+        return classes(atributos)
+
+    def _classe_de_medida(self):
+        (medida,) = {c for c in self._descricao() if c.startswith('max-w-')}
+        return medida
+
+    def test_descricao_tem_limite_de_medida(self):
+        assert self._classe_de_medida()
+
+    def test_descricao_centralizada_nao_encosta_na_esquerda(self):
+        """A caixa é `text-center`: sem `mx-auto` a coluna estreita vai pra esquerda."""
+        assert 'mx-auto' in self._descricao()
+
+    def test_medida_de_prosa_esta_compilada_no_app_css(self):
+        """O passo de build que o AGENTS.md não menciona.
+
+        Procurar o nome da classe no bundle não é asserção: o nome pode aparecer
+        num seletor sem provar que ele declara a largura certa, e uma saída por
+        valor arbitrário nem sequer contém a string. Esta guarda lê a declaração
+        `max-width` do seletor e exige unidade `ch` dentro da faixa do DESIGN.md.
+        Sem ela, esquecer `make css-build` deixa a classe inerte em produção com
+        a suíte verde.
+        """
+        raiz = Path(__file__).resolve().parents[3]
+        css = (raiz / 'apps/core/static/core/css/app.css').read_text()
+        classe = self._classe_de_medida()
+        seletor = '.' + re.sub(r'([.\[\]])', r'\\\1', classe)
+
+        posicao = css.find(seletor + '{')
+        assert posicao != -1, (
+            f'`{classe}` não está compilada em app.css — rode `make css-build`'
+        )
+
+        bloco = css[posicao : css.index('}', posicao)]
+        casamento = re.search(r'max-width:\s*([\d.]+)ch', bloco)
+        assert casamento, f'`{classe}` não declara `max-width` em `ch`: {bloco}'
+
+        piso, teto = self.FAIXA_CH
+        assert piso <= float(casamento.group(1)) <= teto, (
+            f'`{classe}` mede {casamento.group(1)}ch, fora da faixa {piso}–{teto}ch '
+            'de DESIGN.md'
+        )
+
+
 class TestPaginationHref:
     """A paginação já navegou para lugar nenhum sem quebrar um teste.
 

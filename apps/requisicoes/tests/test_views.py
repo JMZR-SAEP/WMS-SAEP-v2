@@ -3464,6 +3464,44 @@ class TestHistoricoRequisicoesFiltros:
         assert 'Nenhum resultado para este filtro'.encode() in filtrado
         assert 'Nenhuma requisição encontrada'.encode() not in filtrado
 
+    def test_vazio_de_filtro_e_vazio_inicial_usam_icones_diferentes(
+        self, client, superuser, req_historico_obras
+    ):
+        """Os dois estados vazios não são o mesmo estado emocional.
+
+        Até a #126 os dois usavam a seta de recarregar. "Atualizar" não é o que
+        nenhum dos dois diz: um diz "seu recorte não achou nada" e o outro diz
+        "a caixa está vazia". Ícone que não corresponde ao estado é ruído com
+        aparência de informação.
+        """
+        raiz = Path(__file__).resolve().parents[3]
+        icones = raiz / 'apps/core/templates/components/icons'
+        funil = icones.joinpath('_funil.html').read_text().strip()
+        caixa = icones.joinpath('_caixa_entrada.html').read_text().strip()
+
+        _login(client, superuser)
+        filtrado = client.get(
+            URL_HISTORICO_REQUISICOES, {'texto': 'inexistente'}
+        ).content.decode()
+
+        assert funil in filtrado
+        assert caixa not in filtrado
+
+    def test_vazio_inicial_do_historico_usa_icone_de_caixa(
+        self, client, chefe_almoxarifado
+    ):
+        """Sem filtro e sem dado: a caixa está vazia, não o recorte."""
+        raiz = Path(__file__).resolve().parents[3]
+        icones = raiz / 'apps/core/templates/components/icons'
+        funil = icones.joinpath('_funil.html').read_text().strip()
+        caixa = icones.joinpath('_caixa_entrada.html').read_text().strip()
+
+        _login(client, chefe_almoxarifado)
+        conteudo = client.get(URL_HISTORICO_REQUISICOES).content.decode()
+
+        assert caixa in conteudo
+        assert funil not in conteudo
+
 
 class TestHistoricoRequisicoesFiltrosPartials:
     """Cobertura da extração dos campos de filtro em partials (issue #88)."""
@@ -3965,6 +4003,25 @@ def test_historico_swap_htmx_anuncia_so_o_resumo(
     assert 'hx-swap-oob="innerHTML:#resumo-historico-requisicoes"' in html
     assert '1 requisição encontrada.' in html
     assert 'aria-atomic=' not in html
+
+
+@pytest.mark.django_db
+def test_historico_swap_htmx_anuncia_plural_com_duas_requisicoes(
+    client, superuser, req_historico_obras, req_historico_ti
+):
+    """O plural mais difícil do sistema, casado na frase inteira.
+
+    Aqui dois `pluralize` flexionam juntos na mesma frase — o substantivo troca
+    a sílaba tônica (`requisição`/`requisições`) e o particípio concorda com ele
+    (`encontrada`/`encontradas`). Um teste que casasse só o número passaria por
+    cima de "2 requisição encontrada" sem piscar.
+    """
+    _login(client, superuser)
+    html = client.get(
+        reverse('requisicoes:historico'), headers={'hx-request': 'true'}
+    ).content.decode()
+
+    assert '2 requisições encontradas.' in html
 
 
 @pytest.mark.django_db
