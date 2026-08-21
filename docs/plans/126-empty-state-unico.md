@@ -210,8 +210,13 @@ feminina regular, então basta um sufixo por palavra flexionada:
 | 1 | `1 movimentação encontrada.` |
 | 2+ | `N movimentações encontradas.` |
 
-Marcação: `{{ n }} movimenta{{ n|pluralize:"ção,ções" }} encontrada{{ n|pluralize }}`
-no ramo não-zero. O sufixo padrão (`s`) serve para "encontrada"; "movimentação"
+`n` é **`page_obj.paginator.count`** — o total do recorte filtrado, não
+`page_obj.object_list|length`. A listagem é paginada: anunciar o tamanho da
+página diria "25 movimentações encontradas" para um filtro que casou 300, que é
+pior que não anunciar. É a mesma fonte que requisições já usa.
+
+Marcação: `{{ n }} movimenta{{ n|pluralize:"ção,ções" }} encontrada{{ n|pluralize }}.`
+no ramo não-zero — com o ponto final, como as três frases da tabela. O sufixo padrão (`s`) serve para "encontrada"; "movimentação"
 precisa do par explícito porque a flexão troca a sílaba tônica, não só acrescenta
 letra. Os três casos viram três testes — 0, 1 e 2 —, não um só. Um teste que só
 exercita o zero deixa "1 movimentações" passar em produção.
@@ -314,6 +319,28 @@ reprova; `descricao=""` reprova; título literal com ponto reprova; título vind
 de `{% with %}` com ponto **reprova**; título vindo de variável de view entra na
 lista de não-verificáveis e não some.
 
+**O conflito com o contrato do componente, resolvido explicitamente.** Hoje o
+docstring do `empty_state.html` chama `icone` e `descricao` de opcionais, e os
+dois são renderizados dentro de `{% if %}`. D-9 exige os dois de todo chamador.
+As duas coisas parecem se contradizer; a resolução é que elas vivem em níveis
+diferentes, e o plano nomeia isso em vez de deixar o leitor deduzir:
+
+- **No componente, seguem opcionais — e o `{% if %}` fica.** Django não tem
+  parâmetro obrigatório em `{% include %}`: omitir `descricao` não levanta erro,
+  renderiza vazio. Um componente que assume presença produziria `<p>` órfão em
+  vez de falhar. Além disso os testes de componente renderizam o mínimo de
+  propósito (`render_to_string` com só `titulo`), para provar que o ramo
+  condicional existe.
+- **No chamador de tela, são obrigatórios — e a guarda é o único lugar onde essa
+  obrigatoriedade pode morar.** Não existindo mecanismo de template, o mecanismo
+  é o teste. Por isso D-9 varre `apps/**/*.html` (telas) e **não** alcança
+  `render_to_string` de teste nem exemplo de documentação.
+
+O docstring passa a dizer exatamente isso, com as duas metades: "opcional para o
+componente, obrigatório para chamador de tela (guardado por
+`test_todo_chamador_do_estado_vazio_segue_a_copy`)". Descrever como "opcional" e
+puni-lo num teste é a armadilha que esta issue veio fechar, não abrir.
+
 Piso de varredura (`assert quantidade >= 11`) pelo mesmo motivo do guarda de
 44px: um guarda que não enxerga nada passa verde.
 
@@ -343,9 +370,15 @@ renderizado por uma tela real.
 | `test_preview_sem_linhas_usa_o_componente_de_estado_vazio` (estoque) | D-1: componente presente, `text-text-disabled` ausente na caixa |
 | `test_resultados_de_movimentacoes_nao_e_live_region` (estoque, reescreve o 2089) | Wrapper sem `aria-live`/`aria-atomic` |
 | `test_movimentacoes_anuncia_contagem_em_swap_htmx` (estoque) | `#resumo-movimentacoes` existe vazio no GET full-page e chega preenchido no `hx-swap-oob` |
+| `test_regiao_de_resumo_e_live_region_de_verdade` (estoque) | `role="status"` e `sr-only` no elemento, no GET **e** na resposta HTMX — um `<p>` sem `role` troca de texto sem anunciar nada e passaria em todos os testes de mensagem |
 | `test_filtro_sem_resultado_anuncia_zero_movimentacoes` (estoque) | O caso da issue: filtro que zera a lista **anuncia** |
 | `test_anuncio_no_singular_com_uma_movimentacao` (estoque) | "1 movimentação encontrada" — o caso que um teste só de zero deixa passar |
 | `test_anuncio_no_plural_com_duas_movimentacoes` (estoque) | "2 movimentações encontradas": os dois `pluralize` flexionando juntos |
+
+Os três testes de mensagem casam a frase **exata e inteira**, ponto final
+incluído, e não só a contagem: `'2 movimentações encontradas.'`. Substring de
+número passaria por cima de qualquer erro de concordância — que é justamente o
+que se está travando.
 | `test_nenhum_material_cadastrado_exibe_empty_state_dashed` (estoque, atualizado) | Título sem ponto + ícone + descrição |
 | `test_vazio_contextual_usa_icone_de_filtro` (requisições) | D-5 nas duas telas filtradas |
 
@@ -367,6 +400,10 @@ devem seguir verdes.
   region por listagem filtrada, e ela carrega contagem, não conteúdo.
 - **Token, nunca shade**: nenhuma cor crua entra; o guarda de
   `test_tokens_semanticos.py` continua exato.
+- **Contrato do componente é de dois níveis, e ambos ficam escritos**: opcional
+  para o componente (Django não impõe parâmetro em `{% include %}`), obrigatório
+  para chamador de tela (a guarda D-9 é o mecanismo). Nenhum dos dois lados é
+  deixado implícito.
 - **Componente global não conhece enum de domínio**: `titulo`, `descricao`,
   `icone` e `nivel_titulo` chegam resolvidos pelo chamador. `nivel_titulo` é
   número, não regra de tela.
@@ -385,4 +422,5 @@ devem seguir verdes.
 | `<h{{ nivel_titulo }}>` com valor inesperado gera tag inválida | Só chamadores internos passam o parâmetro; a guarda D-9 pode ser estendida se algum dia um valor vier de contexto de domínio |
 | Apagar `_seta_circular.html` quebra um chamador não visto | `rg _seta_circular` no repositório inteiro já confirmou exatamente 4 chamadores, todos migrados nesta issue; a suíte roda antes do commit que apaga, e a branch é confirmada antes dele |
 | Reescrever `test_aria_live_polite_no_conteiner_de_resultados` parece "afrouxar" um teste | O teste novo é mais estrito, não menos: exige ausência no wrapper **e** presença da região de contagem **e** o anúncio no zero |
+| Anúncio dizer o tamanho da página em vez do total do filtro | `n` é `page_obj.paginator.count`, declarado em D-4 e travado pelo teste que casa a frase inteira com a contagem esperada |
 | Concorrência, contrato OpenAPI, mutação de estoque, máquina de estados | N/A — nenhuma linha de Python de domínio é tocada |
