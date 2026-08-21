@@ -1221,7 +1221,9 @@ class TestConfirmarImportacaoScpiView:
         assert 'border-success-border' in conteudo
         assert 'bg-success-subtle' in conteudo
         assert 'role="status"' in conteudo
-        assert 'aria-live="polite"' in conteudo
+        # `role="status"` já implica aria-live polido; declarar os dois fazia o
+        # leitor de tela anunciar duas vezes. `aria_live` saiu do alert na #127.
+        assert 'aria-live=' not in conteudo
 
     def test_hash_duplicado_usa_components_alert_com_aria(
         self, client, superuser, estoque_principal
@@ -1237,7 +1239,8 @@ class TestConfirmarImportacaoScpiView:
         assert 'border-danger-border' in conteudo
         assert 'bg-danger-subtle' in conteudo
         assert 'role="alert"' in conteudo
-        assert 'aria-live="assertive"' in conteudo
+        # `role="alert"` já é assertivo — a combinação era redundante (#127).
+        assert 'aria-live=' not in conteudo
 
     def test_get_nao_permitido_retorna_405(self, client, superuser):
         client.force_login(superuser)

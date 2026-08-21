@@ -438,21 +438,28 @@ def test_o_icone_de_nivel_herda_a_cor_da_caixa(nivel, caminho):
     assert CAMINHOS[caminho](nivel)['icone'] == 'currentColor'
 
 
-def test_layout_row_mantem_raio_de_papel_e_a_razao_esta_no_arquivo():
-    """O `row` tem sombra e padding de seção — é papel, não campo.
+def test_o_alert_nao_tem_mais_excecao_interna_de_raio():
+    """O `layout="row"` era a única superfície de papel dentro do `alert.html`,
+    e por isso a única exceção à Regra do Raio Crescente aqui dentro.
 
-    A divergência interna do `alert.html` é justificada, não drift. Se o raio
-    mudar ou a justificativa sumir, é decisão nova e precisa ser revisada.
+    Ele virou `requisicoes/partials/_painel_decisao.html` na #127, e a cobrança
+    do raio de papel foi junto: está em
+    `apps/requisicoes/tests/test_painel_decisao.py`. Deste lado sobra a regra
+    sem exceção — o alert é campo, e um `rounded-xl` reaparecendo aqui é drift.
     """
-    html = render_to_string(
-        'components/alert.html',
-        {'variant': 'warning', 'layout': 'row', 'message': 'Mensagem'},
+    alert = (BASE_DIR / 'apps/core/templates/components/alert.html').read_text(
+        encoding='utf-8'
     )
-    _, atributos, _ = next(elementos(html, 'section'))
-    assert _raio(atributos) == 'rounded-xl'
 
-    alert = BASE_DIR / 'apps/core/templates/components/alert.html'
-    assert 'Regra do Raio Crescente' in alert.read_text(encoding='utf-8')
+    for nivel in NIVEIS:
+        html = render_to_string(
+            'components/alert.html', {'variant': nivel, 'message': 'Mensagem'}
+        )
+        _, atributos, _ = next(elementos(html, 'div'))
+        assert _raio(atributos) == 'rounded-lg'
+
+    assert 'rounded-xl' not in alert
+    assert 'Regra do Raio Crescente' in alert
 
 
 @pytest.mark.parametrize(

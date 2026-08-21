@@ -1,4 +1,11 @@
-"""Testes diretos de components/alert.html (sem DB, sem view)."""
+"""Testes diretos de components/alert.html (sem DB, sem view).
+
+Contrato de uma frase (#127): caixa de aviso estático de página ou formulário,
+com glifo de nível e `role` derivado da variante. O `layout="row"` — que era
+cartão de decisão de workflow — saiu para
+`requisicoes/partials/_painel_decisao.html`, e com ele saíram `action_template`,
+`heading_id`, `bg_class`, `icone` e `aria_live`.
+"""
 
 import copy
 import pathlib
@@ -76,14 +83,18 @@ def test_role_override_sobrescreve_padrao_da_variante():
     assert 'role="alert"' not in html
 
 
-def test_icone_e_exibido_por_padrao():
-    html = _render()
-    assert '<svg' in html
+def test_o_glifo_de_nivel_e_sempre_emitido():
+    """`icone=False` morreu (#127). 100% de quem o passava era `warning` ou
+    `danger` — os dois níveis em que o glifo é o único sinal não-cromático, e
+    justamente onde a distinção precisa sobreviver ao daltonismo e ao brilho do
+    galpão."""
+    for variant in ('info', 'success', 'warning', 'danger', VARIANTE_DESCONHECIDA):
+        assert _render(variant=variant).count('<svg') == 1
 
 
-def test_icone_false_oculta_svg():
-    html = _render(icone=False)
-    assert '<svg' not in html
+def test_icone_do_chamador_nao_desliga_mais_o_glifo():
+    assert '<svg' in _render(icone=False)
+    assert '<svg' in _render(icone='False')
 
 
 def test_message_e_autoescapado():
@@ -119,12 +130,10 @@ def test_body_template_inclui_conteudo_e_herda_contexto():
         'components/alert.html',
         {
             'variant': 'danger',
-            'icone': False,
             'body_template': '_fixture_teste_body_template.html',
             'valor_herdado': 'valor-vindo-do-contexto-do-chamador',
         },
     )
-    assert '<svg' not in html
     assert 'data-fixture-heranca-contexto' in html
     assert 'valor-vindo-do-contexto-do-chamador' in html
 
@@ -164,14 +173,16 @@ def test_class_passthrough_e_mesclado_nao_substitui_invariantes():
     assert 'px-4 py-3' in html
 
 
-def test_aria_live_ausente_por_padrao():
-    html = _render()
-    assert 'aria-live' not in html
+@pytest.mark.parametrize('variant', ['info', 'success', 'warning', 'danger'])
+def test_aria_live_nao_existe_mais_no_contrato(variant):
+    """Contradição impossível por construção, não barrada por guarda (#127).
 
-
-def test_aria_live_explicito_renderiza_atributo():
-    html = _render(aria_live='assertive')
-    assert 'aria-live="assertive"' in html
+    `role` e `aria_live` eram passthrough independentes, e nada impedia
+    `role="alert"` com `aria-live="polite"`. O `role` já carrega a
+    assertividade: `alert` é assertivo, `status` é polido.
+    """
+    assert 'aria-live' not in _render(variant=variant, aria_live='polite')
+    assert 'aria-live' not in _render(variant=variant, aria_live='assertive')
 
 
 def test_id_ausente_por_padrao():
@@ -189,9 +200,7 @@ def test_message_vazia_sem_body_template_renderiza_casca_valida():
         'components/alert.html',
         {
             'variant': 'danger',
-            'icone': False,
             'id': 'aviso-duplicidade',
-            'aria_live': 'assertive',
             'message': '',
             'class': 'hidden',
         },
@@ -199,6 +208,19 @@ def test_message_vazia_sem_body_template_renderiza_casca_valida():
     assert 'id="aviso-duplicidade"' in html
     assert 'hidden' in html
     assert 'role="alert"' in html
+
+
+def test_casca_com_id_declara_o_slot_de_hidratacao():
+    """O JS do chamador escrevia `textContent` no nó raiz, apagando o wrapper
+    interno — funcionava por acidente de layout, porque as classes de flex da
+    raiz continuavam aplicando sobre o text node. O slot dá um alvo declarado."""
+    html = _render(id='aviso-duplicidade', message='')
+
+    assert 'id="aviso-duplicidade-conteudo"' in html
+
+
+def test_sem_id_nao_ha_slot_a_declarar():
+    assert '-conteudo"' not in _render()
 
 
 # ─── Variante "" explícita normaliza para info (issue #122) ───────────────
@@ -253,59 +275,35 @@ def test_fallback_stack_recebe_role_alert():
     assert 'role="alert"' in html
 
 
-def test_fallback_row_recebe_role_alert():
-    html = render_to_string(
-        'components/alert.html',
-        {
-            'layout': 'row',
-            'variant': VARIANTE_DESCONHECIDA,
-            'body_template': None,
-            'message': 'Mensagem',
-        },
-    )
-    assert 'role="alert"' in html
-
-
-@pytest.mark.parametrize('layout', ['stack', 'row'])
-def test_fallback_ignora_role_explicito(layout):
-    html = _render(layout=layout, variant=VARIANTE_DESCONHECIDA, role='note')
+def test_fallback_ignora_role_explicito():
+    html = _render(variant=VARIANTE_DESCONHECIDA, role='note')
     assert 'role="alert"' in html
     assert 'role="note"' not in html
 
 
-def test_fallback_row_ignora_bg_class():
-    html = render_to_string(
-        'components/alert.html',
-        {
-            'layout': 'row',
-            'variant': VARIANTE_DESCONHECIDA,
-            'bg_class': 'bg-danger-subtle',
-            'message': 'Mensagem',
-        },
+PARAMETROS_MORTOS = ('layout', 'action_template', 'heading_id', 'bg_class')
+
+
+@pytest.mark.parametrize('morto', PARAMETROS_MORTOS)
+def test_parametro_do_painel_de_decisao_nao_tem_mais_efeito(morto):
+    """O componente fazia três trabalhos incompatíveis. Sobrou um."""
+    html = _render(variant='danger', **{morto: 'bg-return-subtle'})
+
+    assert 'bg-return-subtle' not in html
+    assert 'bg-danger-subtle' in html
+    assert '<section' not in html
+
+
+@pytest.mark.parametrize('morto', [*PARAMETROS_MORTOS, 'icone', 'aria_live'])
+def test_nenhum_chamador_passa_parametro_morto_ao_alert(morto):
+    """Falha na presença, não na contagem: parâmetro morto que continua sendo
+    passado não quebra a tela — ele silenciosamente não faz nada."""
+    padrao = re.compile(
+        r'\{%\s*include\s+["\']components/alert\\.html["\'].*?%\}', re.S
     )
-    assert 'bg-danger"' in html or 'bg-danger ' in html
-    assert 'bg-danger-subtle' not in html
-
-
-def test_row_variante_conhecida_sem_role_automatico():
-    html = render_to_string(
-        'components/alert.html',
-        {'layout': 'row', 'variant': 'danger', 'message': 'Mensagem'},
-    )
-    assert 'role=' not in html
-
-
-def test_row_bg_class_vence_com_variante_conhecida():
-    html = render_to_string(
-        'components/alert.html',
-        {
-            'layout': 'row',
-            'variant': 'danger',
-            'bg_class': 'bg-danger-subtle/60',
-            'message': 'Mensagem',
-        },
-    )
-    assert 'bg-danger-subtle/60' in html
+    for arquivo in sorted((BASE_DIR / 'apps').rglob('*.html')):
+        for include in padrao.findall(arquivo.read_text(encoding='utf-8')):
+            assert f'{morto}=' not in include, arquivo.relative_to(BASE_DIR)
 
 
 def test_nenhum_chamador_de_alert_passa_variante_fora_das_quatro_conhecidas():
