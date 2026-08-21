@@ -326,8 +326,14 @@ para o mesmo valor errado.
 - `apps/core/tests/test_tokens_semanticos.py` — a allowlist de cor crua tem
   contagem exata. Nenhuma classe crua nova entra nesta PR; se a contagem mudar,
   algo vazou.
-- `test_nenhum_controle_abaixo_do_piso_de_44px` — a variante `return` sai de
-  `classes_botao`, logo já satisfaz o piso comprovável. Confirmar, não supor.
+- `test_nenhum_controle_abaixo_do_piso_de_44px` — o piso não vem do mapa de
+  variantes e sim de `_FORMA_BOTAO` (`core_tags.py:130`), que traz `min-h-11`
+  literal e é emitido por `classes_botao` para toda variante que não seja
+  `link`. `return` não é `link`, logo herda o piso. Como isso é inferência sobre
+  a montagem da string, vira medição: asserção direta de que
+  `classes_botao(variant='return')` contém `min-h-11`, junto da que já cobra o
+  fundo `return-strong`. Sem ela, alguém que desse a `return` uma forma própria
+  — como `link` tem — derrubaria o piso sem quebrar nada.
 
 ## Invariantes
 
