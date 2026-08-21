@@ -70,7 +70,7 @@ no código vivo, em includes, está no fim deste documento e é o número que va
 |---|---|---|
 | D-1 | `layout="row"` sai do componente, junto com `action_template`, `heading_id` e `bg_class` | `apps/core/templates/components/alert.html` |
 | D-2 | `icone` deixa de existir; o ícone é sempre emitido (mata `icone != False`) | `apps/core/templates/components/alert.html` |
-| D-3 | `aria_live` deixa de existir; o `role` é o único botão de ARIA | `apps/core/templates/components/alert.html` |
+| D-3 | `aria_live` deixa de existir; `role` passa a ser o único atributo ARIA configurável pelo chamador | `apps/core/templates/components/alert.html` |
 | D-4 | Slot de hidratação: com `id`, o wrapper interno recebe `id="{{ id }}-conteudo"`, declarado no docstring | `apps/core/templates/components/alert.html` |
 | D-5 | Docstring reescrito: contrato de uma frase + parâmetros sobreviventes | `apps/core/templates/components/alert.html` |
 | D-6 | Glifo de nível extraído para partial único, em `currentColor` | novo `apps/core/templates/components/_icone_nivel.html` |
