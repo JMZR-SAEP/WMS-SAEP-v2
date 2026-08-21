@@ -108,9 +108,9 @@
 
     {# Empty state contextual: filtro sem resultado vs histórico visível vazio #}
     {% if tem_filtro_ativo %}
-      {% include 'components/empty_state.html' with icone='components/icons/_seta_circular.html' titulo='Nenhum resultado para este filtro' descricao='Ajuste ou limpe os filtros para ver mais requisições.' %}
+      {% include 'components/empty_state.html' with icone='components/icons/_funil.html' titulo='Nenhum resultado para este filtro' descricao='Ajuste ou limpe os filtros para ver mais requisições.' %}
     {% else %}
-      {% include 'components/empty_state.html' with icone='components/icons/_seta_circular.html' titulo='Nenhuma requisição encontrada' descricao='Ainda não há requisições visíveis para o seu papel.' %}
+      {% include 'components/empty_state.html' with icone='components/icons/_caixa_entrada.html' titulo='Nenhuma requisição encontrada' descricao='Ainda não há requisições visíveis para o seu papel.' %}
     {% endif %}
 
   {% endif %}

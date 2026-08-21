@@ -219,7 +219,12 @@
       </span>
     </div>
 
-    {% if linhas %}
+    {% comment %}
+      Chegar aqui já garante `linhas`: o ramo de upload cobre a lista vazia sem
+      erro, e o de erro cobre a lista vazia com erro — inclusive o arquivo que
+      só tem cabeçalho, roteado para lá pela view. Não existe estado vazio
+      nesta altura da tela; o que existia era marcação inalcançável.
+    {% endcomment %}
 
       {# ── Desktop: tabela ─────────────────────────────────────────────── #}
 
@@ -268,12 +273,6 @@
         {% endfor %}
       </div>
 
-    {% else %}
-      <div class="rounded-xl border border-dashed border-border-strong bg-surface px-6 py-12 text-center">
-        <p class="text-sm text-text-tertiary">O arquivo não contém linhas de dados após o cabeçalho.</p>
-        <p class="mt-1 text-xs text-text-disabled">Verifique se o arquivo possui registros abaixo do cabeçalho.</p>
-      </div>
-    {% endif %}
 
     {# CTA: confirmação da importação #}
     {% comment %}

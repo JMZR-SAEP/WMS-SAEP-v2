@@ -106,6 +106,46 @@ hoje. D-3 exige `make css-build` antes do PR — o `app.css` é versionado.
 
 ## Decisões
 
+### D-1 — o clone do preview SCPI é código morto, e o caso vazio vira erro
+
+**Revisão em implementação (decidida com o dono do produto).** A premissa da
+issue — e deste plano até aqui — era que o clone renderizava. Ele não renderiza:
+é inalcançável.
+
+| Linha | Condição | Ramo |
+|---|---|---|
+| `:16` | `{% if not linhas and not erro_arquivo %}` | formulário de upload |
+| `:91` | `{% elif erro_arquivo %}` | alerta de erro + campo de retry |
+| `:134` | `{% else %}` | preview — **só com `linhas` truthy** |
+| `:222` | `{% if linhas %}` dentro do ramo acima | sempre verdadeiro |
+| `:271` | `{% else %}` correspondente | **nunca renderiza** |
+
+Verificado por teste: um CSV só com cabeçalho volta ao formulário de upload,
+**sem mensagem nenhuma**. A pessoa envia o arquivo e a tela parece não ter feito
+nada — num ritual recorrente, operado por quem confia mais no papel do que no
+software, uma tela que não reage é indistinguível de uma tela travada. Esse
+defeito é maior que o de contraste que a issue nomeia.
+
+Trocar o clone por um include cumpriria a letra do critério de aceite e deixaria
+os dois problemas de pé: marcação que nunca renderiza, e o silêncio. Então:
+
+1. **A marcação clonada é apagada**, junto do `{% if linhas %}` que a
+   envolvia — o ramo já garante `linhas`. Um comentário no lugar registra por quê.
+2. **A view roteia `linhas == []` para `erro_arquivo`**, com a copy que estava
+   na caixa morta. O caminho de erro já tem montado o mecanismo certo: alerta
+   com `id`, campo de retry com `autofocus`, `aria-invalid` e
+   `aria-describedby` amarrando o texto ao campo. Depois de um POST full-page é
+   o **foco** que anuncia, não live region — decisão que o próprio design system
+   já registra e que a #123 aplicou na barra de resumo desta mesma tela.
+
+O critério "usa `components/empty_state.html`, sem markup clonado" é cumprido por
+**remoção**: o clone some, nada replica a caixa, e a guarda D-8 passa a vigiar o
+arquivo inteiro. O critério de contraste é cumprido por construção — o
+`text-text-disabled` estava só na caixa apagada.
+
+<details>
+<summary>Redação anterior (premissa de que o clone renderizava)</summary>
+
 ### D-1 — o clone do preview SCPI vira include
 
 Hoje (`preview_importacao_scpi.html:271-275`):
@@ -132,6 +172,8 @@ abrem com `<code>`, não com heading. Um `<h2>` aqui é exatamente o degrau cert
 
 Esta conferência é o motivo de D-2 existir: hoje o acoplamento é real e não está
 escrito em lugar nenhum, então cada novo chamador precisa refazê-la de cabeça.
+
+</details>
 
 ### D-2 — `nivel_titulo`, default 2
 
@@ -367,7 +409,9 @@ renderizado por uma tela real.
 | `TestMecanismoDaGuardaDeClone` (sintéticos) | A guarda D-8 detecta clone, ignora dropzone e ignora `{% comment %}` |
 | `test_todo_chamador_do_estado_vazio_segue_a_copy` | D-9, varredura real + piso de 11 |
 | `TestMecanismoDaGuardaDeCopy` (sintéticos) | A guarda D-9 detecta falta de ícone, falta de descrição e título com ponto |
-| `test_preview_sem_linhas_usa_o_componente_de_estado_vazio` (estoque) | D-1: componente presente, `text-text-disabled` ausente na caixa |
+| `test_arquivo_so_com_cabecalho_nao_volta_em_silencio` (estoque) | D-1: o POST reage; não recai no formulário de upload |
+| `test_arquivo_so_com_cabecalho_amarra_o_erro_ao_campo_de_retry` (estoque) | `id`, `aria-describedby` e `autofocus` — o mecanismo que anuncia depois de POST full-page |
+| `test_preview_nao_carrega_estado_vazio_inalcancavel` (estoque) | A caixa clonada saiu do arquivo |
 | `test_resultados_de_movimentacoes_nao_e_live_region` (estoque, reescreve o 2089) | Wrapper sem `aria-live`/`aria-atomic` |
 | `test_movimentacoes_anuncia_contagem_em_swap_htmx` (estoque) | `#resumo-movimentacoes` existe vazio no GET full-page e chega preenchido no `hx-swap-oob` |
 | `test_regiao_de_resumo_e_live_region_de_verdade` (estoque) | No **GET full-page**: `<p id="resumo-movimentacoes" class="sr-only" role="status">` presente e vazio. Um `<p>` sem `role` troca de texto sem anunciar nada e passaria em todos os testes de mensagem |
@@ -438,4 +482,5 @@ devem seguir verdes.
 | Apagar `_seta_circular.html` quebra um chamador não visto | `rg _seta_circular` no repositório inteiro já confirmou exatamente 4 chamadores, todos migrados nesta issue; a suíte roda antes do commit que apaga, e a branch é confirmada antes dele |
 | Reescrever `test_aria_live_polite_no_conteiner_de_resultados` parece "afrouxar" um teste | O teste novo é mais estrito, não menos: exige ausência no wrapper **e** presença da região de contagem **e** o anúncio no zero |
 | Anúncio dizer o tamanho da página em vez do total do filtro | `n` é `page_obj.paginator.count`, declarado em D-4 e travado pelo teste que casa a frase inteira com a contagem esperada |
-| Concorrência, contrato OpenAPI, mutação de estoque, máquina de estados | N/A — nenhuma linha de Python de domínio é tocada |
+| Rotear o arquivo vazio para `erro_arquivo` chama de "erro" o que talvez não seja | É erro de entrada para este ritual: o arquivo não tem nada a importar. E a alternativa medida era pior — silêncio total. A copy nomeia a causa e a próxima ação, sem culpar quem enviou |
+| Concorrência, contrato OpenAPI, mutação de estoque, máquina de estados | N/A — nenhuma linha de Python de domínio é tocada. A view ganha um `return` de apresentação, sem tocar service, selector ou policy |

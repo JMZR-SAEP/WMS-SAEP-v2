@@ -38,8 +38,18 @@
     </div>
   </details>
 
-  {# Wrapper estável do swap HTMX: alvo persistente (id + aria-live único). O fragmento {% partialdef resultados %} entrega só o conteúdo interno. #}
-  <div id="resultados-movimentacoes" aria-live="polite" aria-atomic="true">
+  {% comment %}
+    Live region permanente e enxuta: anuncia só o tamanho do resultado após um
+    swap HTMX. Fica FORA do wrapper de resultados de propósito — uma região que
+    é substituída inteira não anuncia de forma confiável, e marcar a listagem
+    toda como aria-live/aria-atomic faria o leitor de tela reler as 25 linhas a
+    cada ajuste de filtro. O conteúdo chega por `hx-swap-oob="innerHTML:"`,
+    preservando o elemento. Vazia no carregamento inicial: nada mudou ainda.
+  {% endcomment %}
+  <p id="resumo-movimentacoes" class="sr-only" role="status"></p>
+
+  {# Wrapper estável do swap HTMX: alvo persistente. O fragmento {% partialdef resultados %} entrega só o conteúdo interno. #}
+  <div id="resultados-movimentacoes">
     {% partialdef resultados %}
     {% if page_obj.object_list %}
 
@@ -86,9 +96,9 @@
 
       {# Empty state contextual: filtro sem resultado vs ledger visível vazio #}
       {% if tem_filtro_ativo %}
-        {% include 'components/empty_state.html' with icone='components/icons/_seta_circular.html' titulo='Nenhum resultado para este filtro' descricao='Ajuste ou limpe os filtros para ver mais movimentações.' %}
+        {% include 'components/empty_state.html' with icone='components/icons/_funil.html' titulo='Nenhum resultado para este filtro' descricao='Ajuste ou limpe os filtros para ver mais movimentações.' %}
       {% else %}
-        {% include 'components/empty_state.html' with icone='components/icons/_seta_circular.html' titulo='Nenhuma movimentação encontrada' descricao='Ainda não há movimentações de estoque visíveis para o seu papel.' %}
+        {% include 'components/empty_state.html' with icone='components/icons/_caixa_entrada.html' titulo='Nenhuma movimentação encontrada' descricao='Ainda não há movimentações de estoque visíveis para o seu papel.' %}
       {% endif %}
 
     {% endif %}
@@ -103,6 +113,10 @@
 
     {# filter_acoes.html vive fora de #resultados-movimentacoes (dentro do <form>); reemite via out-of-band pra refletir tem_filtro_ativo após um swap HTMX. #}
     {% if is_htmx %}{% include "components/filter_acoes.html" with id="filtro-acoes-movimentacoes" action_url=url_movimentacoes target_id="resultados-movimentacoes" tem_filtro_ativo=tem_filtro_ativo oob=True %}{% endif %}
+    {% if is_htmx %}
+    {# Só o conteúdo da live region é trocado; o elemento com role="status" permanece no DOM. #}
+    <span hx-swap-oob="innerHTML:#resumo-movimentacoes">{% if page_obj.paginator.count %}{{ page_obj.paginator.count }} movimenta{{ page_obj.paginator.count|pluralize:"ção,ções" }} encontrada{{ page_obj.paginator.count|pluralize }}.{% else %}Nenhuma movimentação encontrada.{% endif %}</span>
+    {% endif %}
     {% endpartialdef %}
     {% partial resultados %}
   </div>

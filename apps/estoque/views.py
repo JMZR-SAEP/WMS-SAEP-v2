@@ -463,6 +463,25 @@ def preview_importacao_scpi_view(request):
             {'erro_arquivo': str(exc)},
         )
 
+    # Arquivo lido com sucesso e sem nenhuma linha de dados. Sem este ramo o
+    # POST cai de volta no formulário de upload — idêntico ao que a pessoa já
+    # estava vendo, sem alerta e sem foco —, e uma tela que não reage é
+    # indistinguível de uma tela travada. O caminho de erro do arquivo já tem o
+    # mecanismo certo montado: alerta amarrado ao campo de retry por
+    # aria-describedby, com autofocus. Depois de um POST full-page é o foco que
+    # anuncia, não live region.
+    if not linhas:
+        return render(
+            request,
+            'estoque/preview_importacao_scpi.html',
+            {
+                'erro_arquivo': (
+                    'O arquivo não contém linhas de dados após o cabeçalho. '
+                    'Verifique se há registros abaixo do cabeçalho e envie novamente.'
+                )
+            },
+        )
+
     import base64
 
     request.session['scpi_preview_bytes'] = base64.b64encode(conteudo).decode('ascii')

@@ -1,9 +1,25 @@
 {% comment %}
-Estado vazio reutilizável. Recebe `titulo` (obrigatório), `descricao`
-(opcional), `icone` (opcional — caminho de partial contendo apenas o
-`<path>` do SVG) e `cta_url`/`cta_label` (opcionais). Por padrão o CTA
-renderiza como botão primário; `cta_secundario=True` renderiza como link
-sublinhado. Nenhum condicional de domínio aqui — quem chama já resolve
+Estado vazio reutilizável.
+
+Parâmetros:
+  titulo         (obrigatório) frase curta, **sem ponto final**
+  descricao      frase completa com ponto, dizendo o que houve e o que fazer
+  icone          caminho de partial contendo apenas o `<path>` do SVG
+  nivel_titulo   nível do cabeçalho (default 2). O default existe porque as
+                 listagens abrem os títulos de cartão em `<h2>` e o estado
+                 vazio ocupa o mesmo degrau; tela que usa o componente dentro
+                 de uma seção mais funda passa o nível explicitamente
+  cta_url        / cta_label — CTA opcional, botão primário por padrão;
+                 `cta_secundario=True` renderiza como link sublinhado
+
+`icone` e `descricao` são **opcionais para o componente e obrigatórios para
+chamador de tela**. Os dois níveis são de propósito: Django não tem parâmetro
+obrigatório em `{% include %}` — omitir não levanta erro, renderiza vazio —,
+então o componente mantém o `{% if %}` para não produzir marcação órfã, e a
+obrigatoriedade mora onde ela pode ser mecanismo: o guarda
+`test_todo_chamador_do_estado_vazio_segue_a_copy` (`apps/core/tests/test_components.py`).
+
+Nenhum condicional de domínio aqui — quem chama já resolve
 títulos/descrições/flags antes do include.
 {% endcomment %}
 <div class="rounded-xl border border-dashed border-border-strong bg-surface px-6 py-12 text-center">
@@ -12,9 +28,11 @@ títulos/descrições/flags antes do include.
       {% include icone %}
     </svg>
   {% endif %}
-  <h2 class="text-base font-medium text-text-secondary">{{ titulo }}</h2>
+  {% with nivel=nivel_titulo|default:2 %}
+    <h{{ nivel }} class="text-base font-medium text-text-secondary">{{ titulo }}</h{{ nivel }}>
+  {% endwith %}
   {% if descricao %}
-    <p class="mt-1 text-sm text-text-tertiary">{{ descricao }}</p>
+    <p class="mx-auto mt-1 max-w-prose text-sm text-text-tertiary">{{ descricao }}</p>
   {% endif %}
   {% if cta_url and cta_label %}
     {% if cta_secundario %}
