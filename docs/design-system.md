@@ -315,7 +315,7 @@ componentes ou surgir uma família grande.
 
 ## Índice de componentes
 
-21 componentes. A API de cada um está no `{% comment %}` do próprio arquivo —
+22 componentes. A API de cada um está no `{% comment %}` do próprio arquivo —
 esta tabela diz o que existe e para quê, não como se chama cada parâmetro.
 
 ### Ação e navegação
@@ -357,7 +357,8 @@ Família `filter_*`, montada por composição explícita na tela chamadora.
 | `modal.html` | `<dialog>` nativo com foco preso — componente-assinatura |
 | `_modal_body.html` | Corpo compartilhado do modal (header, erro, corpo, rodapé) |
 | `_modal_icon.html` | Ícone semântico do header de modal |
-| `alert.html` | Banner de aviso estático, layout `stack` ou `row` |
+| `_icone_nivel.html` | Glifo de severidade em `currentColor`, compartilhado pelo banner e pelo painel de decisão |
+| `alert.html` | Banner de aviso estático de página ou formulário: glifo de nível, mensagem e o `role` que a variante determina. Faz só isso |
 | `badge.html` | Pill de estado. 13 variantes visuais, zero conhecimento de domínio |
 | `empty_state.html` | Estado vazio com causa distinguida, nível de cabeçalho parametrizável (`nivel_titulo`, default 2) e CTA opcional |
 
@@ -397,9 +398,11 @@ Três coisas que a tabela decide e que valem a pena dizer em voz alta:
   famílias o 800 se chama `-text-emphasis`; em âmbar, que tem `-text-subtle` e
   não tem `-text-emphasis`, o 800 se chama `-text`. Mesmo degrau, dois nomes.
 
-O `layout="row"` do `alert.html` fica **fora** desta tabela e mantém
-`rounded-xl`: ele tem `shadow-sm` e padding de seção, e sombra só existe em
-papel neste sistema — papel leva raio de papel.
+O `alert.html` não tem mais exceção interna de raio. O `layout="row"`, que era
+papel dentro de um componente de campo, virou o painel de decisão de
+`requisicoes/partials/_painel_decisao.html` na #127 — ver §Painel de decisão de
+workflow. Deste lado sobra a regra sem exceção, e `apps/core/tests/test_paridade_feedback.py`
+falha se um `rounded-xl` reaparecer aqui.
 
 #### Por que não há um partial compartilhado
 
@@ -411,12 +414,49 @@ obrigaria o parâmetro a descrever comportamento em vez de aparência — o sina
 pelo contrato de componente logo abaixo, de que a abstração está errada.
 
 O que **não** é compartilhado, e não deve passar a ser: o dismiss e seu timer, a
-ordenação por assertividade, `body_template`/`action_template`, `bg_class`, o
-ramo de fallback de variante desconhecida e o `layout="row"`.
+ordenação por assertividade, `body_template` e o ramo de fallback de variante
+desconhecida.
 
 `apps/core/tests/test_paridade_feedback.py` lê esta tabela e compara com os dois
 templates renderizados **e** com a expectativa aprovada no próprio teste. As
 três pontas precisam concordar: mudar tabela e templates juntos não passa.
+
+### Painel de decisão de workflow
+
+`requisicoes/partials/_painel_decisao.html` é a superfície onde o chefe de setor
+autoriza, recusa, retorna, cancela ou estorna: título, descrição e o botão que
+abre o modal de confirmação. Dois layouts — `card`, dentro do grid de decisão, e
+`banner`, seção de largura total.
+
+Ele já foi montado em cima do `alert.html`, de onde herdava só a lavagem de cor
+por variante. A separação é da #127, e o que ela fixou vale para qualquer
+superfície de decisão que venha depois:
+
+- **É papel, não campo.** `rounded-xl`, `shadow-sm`, padding de seção. Um alerta
+  é banner embutido no fluxo e leva raio de campo; um painel com ação
+  persistente é papel. A Regra do Raio Crescente responde isso sozinha.
+- **O nível é comunicado por mais do que cor.** Glifo de `_icone_nivel.html` em
+  `currentColor`, o mesmo do banner. Sem ele, um painel `danger` e um `warning`
+  se distinguiam só pela lavagem `-subtle` (L≈98%) e pela borda — cor como sinal
+  único de estado, que a Regra do Sinal Único não permite para severidade.
+- **Todo painel tem nome acessível.** O `card` é `role="group"` amarrado por
+  `aria-labelledby` ao próprio `<h3>`; o `banner` é `<section>` nomeada pelo
+  `<h2>`. `role="group"` anônimo faz três cards virarem "grupo, grupo, grupo" na
+  navegação estrutural, apesar de cada um já ter um heading pronto.
+- **A descrição é corpo de 14px.** Ela sustenta uma decisão irreversível, lida em
+  bloco. 12px é rótulo estrutural em caixa alta, pela Regra dos 14px.
+- **O mapa variante→token vive em `classes_painel_decisao`** (`core_tags.py`),
+  nunca reescrito no partial de domínio. Era exatamente essa duplicação —
+  dois switches que precisavam concordar com o do componente, sem nada
+  garantindo isso — que a extração fechou.
+- **Variante desconhecida cai na Decisão A-1**, como no `alert.html` e no
+  `badge.html`: `bg-danger` preenchido, "Aviso indisponível", `role="alert"` sem
+  exceção e `data-painel-variant` cru — com a decisão ainda legível e acionável.
+- **O painel não recebe classe do chamador.** `desc_class` e `bg_class`
+  existiram e morreram: pela Regra do Chrome Sem Parâmetro, parâmetro que
+  descreve conteúdo em vez de estrutura é sinal de abstração errada.
+
+Verificado por `apps/requisicoes/tests/test_painel_decisao.py`.
 
 ## Contrato de componente novo
 

@@ -304,6 +304,35 @@ que **governam** o trabalho são as regras nomeadas do design system:
 | **Casca hidratada com ícone.** Com `icone` morto, a caixa de duplicidade passa a renderizar um ícone `danger` que antes não existia — dentro de um elemento `hidden` com `role="none"`. | Comportamento correto (a caixa aparece com ícone quando o JS a revela) e coberto por teste de marcação. |
 | **Escopo escorregando para `_modal_icon.html` ou para a #128.** | Ambos listados em "O que NÃO muda". |
 
+## Divergências entre o plano e a execução
+
+Registradas aqui em vez de reescritas acima, para que a diferença fique
+auditável:
+
+1. **Três partials morreram em vez de mudar.** O plano previa editar
+   `_confirmacao_acao_corpo.html`, `_confirmacao_acao_banner_corpo.html` e
+   `_confirmacao_acao_banner_botao.html` (D-10). Com o painel dono da própria
+   superfície, os três deixaram de ter conteúdo próprio: viraram
+   `_painel_decisao.html`. Quatro arquivos passaram a dois.
+2. **`_painel_decisao.html` não estava na tabela de arquivos.** O plano
+   imaginava a marcação dentro de `_confirmacao_acao.html`. Separar a superfície
+   da composição foi decidido durante a F-2, por um motivo de teste: o modal que
+   a composição inclui traz o próprio ícone, e uma asserção de "exatamente um
+   `<svg>`" feita sobre os dois juntos não estaria medindo o painel.
+   `_confirmacao_acao.html` ficou sendo só o `x-data` que une painel e modal.
+3. **`botao_class` também era parâmetro morto.** O plano listou `desc_class` e
+   `bg_class` (D-11). O banner de estorno passava um terceiro,
+   `botao_class="shrink-0"`, que hoje é responsabilidade do painel. A guarda
+   cobre os três.
+4. **O índice do design system estava com um componente a menos desde antes.**
+   A contagem foi de 21 para 22 com o `_icone_nivel.html`, como o plano previa,
+   mas há 23 arquivos em `apps/core/templates/components/`: `field_error.html`
+   nunca foi listado. É omissão anterior a esta issue e fica fora do escopo.
+5. **`app.css` encolheu sem classe nova.** O gate de CSS foi executado e o
+   resultado é o inverso do risco previsto: `text-danger-text-emphasis/80` só
+   existia no exemplo do docstring que saiu, e o Tailwind o purgou. Nenhuma
+   classe nova precisou ser compilada.
+
 ## Critérios de aceite × onde são fechados
 
 | Critério da issue | Fatia |
