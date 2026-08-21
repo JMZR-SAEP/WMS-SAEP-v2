@@ -1,6 +1,13 @@
 # Plano de implementação — issue #128
 
-**Resolver a Regra da Reversão Não é Erro no estorno**
+**Resolver a Regra da Reversão Não é Erro no estorno de requisição**
+
+> **Dois fluxos de estorno, não um.** O domínio distingue o **estorno de
+> requisição** (`requisicoes:estornar`, encerra a requisição e devolve a
+> entregue líquida ao saldo físico) do **estorno de saída excepcional**
+> (`estoque:estornar_saida_excepcional`, registrado à parte). Neste documento,
+> "estorno" sem qualificador significa sempre **estorno de requisição**. O
+> estorno de saída excepcional aparece só no escopo D-4b.
 
 Issue: https://github.com/JMZR-SAEP/WMS-SAEP-v2/issues/128
 Origem: Etapa 2 (Feedback e estado) do `docs/plans/audit-frontend-restante.md`.
@@ -11,9 +18,10 @@ Tipo: **HITL** — a fonte da verdade se contradiz; a decisão vem antes do cód
 Estas decisões destravam a issue. Estão registradas aqui para que uma revisão
 futura não reabra o assunto apontando o outro trecho do mesmo documento.
 
-### D-1 — Opção A: o estorno é reversão, não recusa
+### D-1 — Opção A: o estorno de requisição é reversão, não recusa
 
-O caminho inteiro do estorno passa para teal (`return`). A irreversibilidade
+D-1 decide **um** fluxo: o estorno de requisição. O caminho inteiro dele passa
+para teal (`return`). A irreversibilidade
 continua comunicada por copy (`"Esta operação é irreversível"`, já presente no
 modal) e pelo próprio modal de confirmação — que já fazem esse trabalho sem
 depender da cor.
@@ -71,8 +79,16 @@ teal preenchido enquanto retorno e cancelamento confirmam em `neutral`.
 ### D-4 — escopo lateral: corrigir junto, não só documentar
 
 O critério de aceite manda revisar devolução e cancelamento no mesmo passe. A
-auditoria achou três divergências além do estorno da requisição, e todas são
-corrigidas nesta PR.
+auditoria achou três divergências além do estorno de requisição, e as três
+entram no escopo planejado desta issue — serão corrigidas na Fase 2, junto com
+o alvo principal, não neste commit de plano.
+
+- **D-4a** — devolução de item: disparo já é teal, mas a confirmação do modal é
+  `primary` e o ícone cai no ramo `info`.
+- **D-4b** — estorno de **saída excepcional**: fluxo separado do estorno de
+  requisição, mesmo veredito de D-1 pelo mesmo motivo. Confirmação migra de
+  `danger` para a família `return`.
+- **D-4c** — cancelamento: é D-2, listado aqui só para fechar a conta das três.
 
 ## Auditoria — todo evento de domínio e sua família de cor
 
@@ -190,34 +206,61 @@ mecanismo que a verificava era a palavra `revisão`. `docs/design-system.md`
 avisa: **regra sem mecanismo vira sugestão**. O teste é o entregável central,
 não o acessório.
 
-### O teste que amarra o caminho ao destino
+### O teste que amarra cada ação à sua família de cor
 
-`apps/requisicoes/tests/test_views.py` — uma tabela única, no módulo de teste,
-que declara para cada ação de workflow a família de cor esperada no caminho e a
-variante de badge esperada no estado final. O teste renderiza o detalhe da
-requisição no estado que habilita a ação e cobra:
+**Não existe invariante universal "caminho e estado final são da mesma
+família".** Ela é falsa de propósito em dois fluxos: o retorno para rascunho
+termina em `slate` (o estado neutro para onde a requisição volta) e o
+cancelamento termina em `orange` (catálogo cru, que distingue *cancelada* de
+*recusada* na listagem). Transformar a igualdade em regra geral obrigaria a
+estragar um dos dois lados desses dois fluxos.
 
-1. o painel de decisão usa a superfície da família declarada;
-2. o botão de disparo usa uma variante da mesma família;
-3. o botão de confirmação do modal usa uma variante da mesma família;
-4. o ícone do modal usa a mesma família;
-5. o badge do estado final produzido pela ação pertence à mesma família.
+O que o teste amarra é uma **tabela de valores esperados por ação**, declarada
+uma vez no módulo de teste. Cada ação declara os seus cinco valores de forma
+independente:
 
-O estorno de saída excepcional não passa pelo detalhe da requisição e portanto
-não cabe nessa tabela: ele ganha asserção própria em
-`apps/estoque/tests/test_views.py`, cobrando a mesma família no modal.
+| Ação | Painel | Disparo | Confirmação | Ícone do modal | Estado final |
+|---|---|---|---|---|---|
+| Autorizar | `info` | `primary` | `primary` | `info` | badge `blue` |
+| Retornar para rascunho | `warning` | `warning-outline` | `neutral` | `warning` | badge `slate` |
+| Recusar | `danger` | `danger-outline` | `danger` | `danger` | badge `red-strong` |
+| Cancelar | `warning` | `warning-outline` | `neutral` | `warning` | badge `orange` |
+| Estornar requisição | `return` | `return-outline` | `return` | `return` | badge `teal` |
+| Registrar devolução | — | `return-outline` | `return` | `return` | — |
 
-Divergir de novo em qualquer um dos cinco pontos quebra. É o mesmo arranjo de
-três lados que a #124 usou na paridade banner/faixa, e pelo mesmo motivo:
-comparar só dois templates entre si passa se alguém mudar os dois para o mesmo
-valor errado.
+Registrar devolução não tem painel de decisão nem muda o estado da requisição:
+é botão + modal dentro da linha do item. As duas células vazias são ausência
+declarada, não valor a preencher depois.
+
+Sobre a tabela, três asserções separadas:
+
+1. **Valores por ação** — cada célula preenchida bate com o HTML renderizado.
+   É isto que impede a regressão silenciosa, e vale para as seis linhas.
+2. **Nenhum evento legítimo em vermelho** — só `Recusar` pode usar a família
+   `danger`, nas quatro colunas de caminho. É a Regra da Reversão Não é Erro
+   virando mecanismo, e é a asserção que teria pego o defeito original.
+3. **Caminho igual ao destino, onde foi decidido** — restrita ao **estorno de
+   requisição** (D-1) e a `Recusar`, os dois fluxos em que a decisão registrada
+   diz que caminho e destino contam a mesma história. As outras quatro linhas
+   ficam explicitamente fora, cada uma com o motivo na própria tabela.
+
+O estorno de **saída excepcional** não passa pelo detalhe da requisição e não
+cabe nessa tabela: ganha asserção própria em `apps/estoque/tests/test_views.py`,
+cobrando a família `return` no modal.
+
+É o mesmo arranjo de três lados que a #124 usou na paridade banner/faixa, e pelo
+mesmo motivo: comparar só dois templates entre si passa se alguém mudar os dois
+para o mesmo valor errado.
 
 ### Caminho feliz
 
-- Painel de estorno renderiza superfície `return-subtle`, disparo
+- Estorno de requisição renderiza painel `return-subtle`, disparo
   `return-outline`, confirmação `return` preenchida e ícone de modal teal.
-- Devolução renderiza a família `return` do disparo à confirmação.
-- Cancelamento renderiza a família `warning` do disparo à confirmação.
+- Devolução renderiza disparo `return-outline`, confirmação `return` e ícone
+  teal — sem painel e sem mudança de estado.
+- Cancelamento renderiza painel `warning`, disparo `warning-outline`,
+  confirmação `neutral`, ícone `warning` e badge final `orange`.
+- Estorno de saída excepcional renderiza confirmação `return` e ícone teal.
 
 ### Violação de domínio / contrato
 
@@ -276,7 +319,8 @@ valor errado.
   templatetag. Os dois precisam da mesma família, senão a issue troca uma
   divergência por outra.
 - **Escopo lateral crescendo.** `estoque/detalhe_saida_excepcional.html` entra
-  porque é literalmente o mesmo evento de domínio. Qualquer outro achado fora
+  como D-4b: é fluxo separado do estorno de requisição, mas cai sob a mesma
+  Named Rule pelo mesmo motivo. Qualquer outro achado fora
   destes quatro caminhos vira issue nova, não commit desta PR.
 - **Sem risco de concorrência, de migração ou de contrato de dados.** Nenhum
   model, service, policy ou transição é tocado.
@@ -293,7 +337,7 @@ Fase 2, depois da decisão e antes do fechamento:
 3. **Fase 2, passo de cor** — rodar o comando recomendado na issue **depois**
    de a contradição no `DESIGN.md` estar resolvida:
 
-   ```
+   ```text
    /impeccable colorize apps/requisicoes/templates/requisicoes/detalhe.html apps/requisicoes/templates/requisicoes/partials/_estado_badge.html DESIGN.md
    ```
 
@@ -313,7 +357,7 @@ saída limpa). Qualquer contagem final abaixo disso é regressão.
 
 - [ ] Contradição do `DESIGN.md` resolvida, com o motivo registrado (D-1)
 - [ ] `docs/design-system.md` §Regras invioláveis reflete a decisão
-- [ ] Caminho do estorno e estado final usam a mesma família de cor
+- [ ] Caminho do estorno de requisição e estado final usam a mesma família de cor
 - [ ] Painel de decisão tem ramo `return`/teal; irreversibilidade segue por copy
       e pelo modal
 - [ ] Nenhum outro evento legítimo ficou com a cor da recusa — devolução e
