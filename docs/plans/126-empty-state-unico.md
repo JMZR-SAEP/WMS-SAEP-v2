@@ -370,7 +370,8 @@ renderizado por uma tela real.
 | `test_preview_sem_linhas_usa_o_componente_de_estado_vazio` (estoque) | D-1: componente presente, `text-text-disabled` ausente na caixa |
 | `test_resultados_de_movimentacoes_nao_e_live_region` (estoque, reescreve o 2089) | Wrapper sem `aria-live`/`aria-atomic` |
 | `test_movimentacoes_anuncia_contagem_em_swap_htmx` (estoque) | `#resumo-movimentacoes` existe vazio no GET full-page e chega preenchido no `hx-swap-oob` |
-| `test_regiao_de_resumo_e_live_region_de_verdade` (estoque) | `role="status"` e `sr-only` no elemento, no GET **e** na resposta HTMX — um `<p>` sem `role` troca de texto sem anunciar nada e passaria em todos os testes de mensagem |
+| `test_regiao_de_resumo_e_live_region_de_verdade` (estoque) | No **GET full-page**: `<p id="resumo-movimentacoes" class="sr-only" role="status">` presente e vazio. Um `<p>` sem `role` troca de texto sem anunciar nada e passaria em todos os testes de mensagem |
+| `test_swap_oob_preserva_o_elemento_da_live_region` (estoque) | Na **resposta HTMX**: o alvo é `innerHTML:#resumo-movimentacoes`, e a resposta **não** traz um segundo `id="resumo-movimentacoes"`. É o que garante que o elemento que carrega o `role` sobrevive ao swap |
 | `test_filtro_sem_resultado_anuncia_zero_movimentacoes` (estoque) | O caso da issue: filtro que zera a lista **anuncia** |
 | `test_anuncio_no_singular_com_uma_movimentacao` (estoque) | "1 movimentação encontrada" — o caso que um teste só de zero deixa passar |
 | `test_anuncio_no_plural_com_duas_movimentacoes` (estoque) | "2 movimentações encontradas": os dois `pluralize` flexionando juntos |
@@ -379,6 +380,19 @@ Os três testes de mensagem casam a frase **exata e inteira**, ponto final
 incluído, e não só a contagem: `'2 movimentações encontradas.'`. Substring de
 número passaria por cima de qualquer erro de concordância — que é justamente o
 que se está travando.
+
+**Os dois lados do contrato são asserções diferentes, em respostas diferentes.**
+O elemento persistente (`<p>` com `role="status"` e `sr-only`) só existe na
+resposta do GET full-page; a resposta HTMX carrega apenas o
+`<span hx-swap-oob="innerHTML:#resumo-movimentacoes">` com a frase. Exigir
+`role="status"` na resposta HTMX seria exigir o oposto do que `innerHTML:` faz —
+o teste falharia por estar errado, não por o código estar. O que uma resposta
+Django consegue provar sobre a preservação é o **modo do swap**: `innerHTML:`
+troca o conteúdo e deixa o elemento (e o `role`) de pé, enquanto um oob sem
+prefixo trocaria o elemento inteiro e levaria a live region junto. Por isso o
+teste do lado HTMX casa o seletor com o prefixo `innerHTML:` e exige que a
+resposta não reintroduza o `id` — as duas coisas que, se quebrarem, matam o
+anúncio em silêncio.
 | `test_nenhum_material_cadastrado_exibe_empty_state_dashed` (estoque, atualizado) | Título sem ponto + ícone + descrição |
 | `test_vazio_contextual_usa_icone_de_filtro` (requisições) | D-5 nas duas telas filtradas |
 
@@ -418,7 +432,8 @@ devem seguir verdes.
 | Risco | Mitigação |
 |---|---|
 | `max-w-prose` não está compilado no `app.css` versionado | `make css-build` obrigatório antes do PR; sem isso a classe é inerte em produção e o teste de componente (que lê o HTML, não o CSS) passaria verde por cima |
-| Tirar `aria-live` do wrapper de movimentações **reduz** acessibilidade se o oob falhar | O teste do swap HTMX cobre os dois lados: região presente no GET e preenchida na resposta HTMX, inclusive no zero |
+| Tirar `aria-live` do wrapper de movimentações **reduz** acessibilidade se o oob falhar | Os testes cobrem os dois lados nas respostas em que cada um existe: elemento com `role="status"` no GET, seletor `innerHTML:` e frase exata na resposta HTMX, inclusive no zero |
+| Trocar o modo do swap para oob sem prefixo levaria o `role` junto e mataria o anúncio sem quebrar nada visível | `test_swap_oob_preserva_o_elemento_da_live_region` casa o prefixo `innerHTML:` e recusa um segundo `id` na resposta |
 | `<h{{ nivel_titulo }}>` com valor inesperado gera tag inválida | Só chamadores internos passam o parâmetro; a guarda D-9 pode ser estendida se algum dia um valor vier de contexto de domínio |
 | Apagar `_seta_circular.html` quebra um chamador não visto | `rg _seta_circular` no repositório inteiro já confirmou exatamente 4 chamadores, todos migrados nesta issue; a suíte roda antes do commit que apaga, e a branch é confirmada antes dele |
 | Reescrever `test_aria_live_polite_no_conteiner_de_resultados` parece "afrouxar" um teste | O teste novo é mais estrito, não menos: exige ausência no wrapper **e** presença da região de contagem **e** o anúncio no zero |
