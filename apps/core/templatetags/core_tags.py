@@ -219,6 +219,46 @@ def classes_botao(
     return ' '.join(partes)
 
 
+_PAINEL_DECISAO = {
+    'info': 'bg-primary-subtle border-primary-border text-primary-text-strong',
+    'warning': 'bg-warning-subtle border-warning-border text-warning-text-strong',
+    'danger': 'bg-danger-subtle border-danger-border text-danger-text-strong',
+}
+_PAINEL_DECISAO_FALLBACK = 'bg-danger border-danger-hover text-text-on-primary'
+
+
+@register.simple_tag
+def classes_painel_decisao(variant: str = '') -> dict[str, Any]:
+    """Resolve a superfície do painel de decisão de workflow (#127).
+
+    O mapa vivia reescrito em `_confirmacao_acao_corpo.html` e em
+    `_confirmacao_acao_banner_corpo.html`, só para colorir o `<h2>`/`<h3>` —
+    dois switches que precisavam concordar com o do `alert.html` sem nada
+    garantindo isso. Aqui ele existe uma vez e é testável sozinho, como
+    `classes_botao`.
+
+    Uma classe de texto só para a caixa inteira: título, descrição e o glifo de
+    `_icone_nivel.html` herdam por `currentColor`. É o mesmo arranjo que a #124
+    fixou para o `alert.html`.
+
+    A entrada é vocabulário de design system (`info`/`warning`/`danger`), nunca
+    um enum de domínio — o partial de domínio resolve o estado antes de chamar.
+
+    Variante fora do catálogo cai na Decisão A-1 (docs/design-system.md, falha
+    alta): fundo `danger` preenchido em vez de `-subtle`, para que a caixa grite
+    em vez de virar um painel plausível. `conhecida` e `variante` sustentam a
+    linha "Aviso indisponível" e o `data-painel-variant` do chamador.
+    """
+    conhecida = variant in _PAINEL_DECISAO
+    return {
+        'conhecida': conhecida,
+        'superficie': _PAINEL_DECISAO[variant]
+        if conhecida
+        else _PAINEL_DECISAO_FALLBACK,
+        'variante': variant,
+    }
+
+
 @register.simple_tag
 def validar_contrato_modal(action_url, submit_form_id):
     """Exige exatamente um entre action_url e submit_form_id em components/modal.html."""

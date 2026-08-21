@@ -619,3 +619,63 @@ def test_sem_ancora_geral_o_item_segue_sem_link():
     (item,) = coletar_erros('Falha genérica.')
 
     assert item['id'] == ''
+
+
+# ---------------------------------------------------------------------------
+# classes_painel_decisao — #127
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ('variant', 'esperado'),
+    [
+        ('info', 'bg-primary-subtle border-primary-border text-primary-text-strong'),
+        ('warning', 'bg-warning-subtle border-warning-border text-warning-text-strong'),
+        ('danger', 'bg-danger-subtle border-danger-border text-danger-text-strong'),
+    ],
+)
+def test_painel_decisao_resolve_a_variante_conhecida(variant, esperado):
+    from apps.core.templatetags.core_tags import classes_painel_decisao
+
+    tokens = classes_painel_decisao(variant)
+
+    assert tokens['superficie'] == esperado
+    assert tokens['conhecida'] is True
+
+
+@pytest.mark.parametrize('variant', ['', 'primary', 'success', 'estado-que-nao-existe'])
+def test_painel_decisao_desconhecido_grita_em_cor_preenchida(variant):
+    """Decisão A-1: falha alta, nunca plausível.
+
+    `success` está aqui de propósito: o painel de decisão declara três
+    variantes, e uma quarta plausível não pode virar um painel verde silencioso.
+    """
+    from apps.core.templatetags.core_tags import classes_painel_decisao
+
+    tokens = classes_painel_decisao(variant)
+
+    assert tokens['conhecida'] is False
+    assert tokens['superficie'] == 'bg-danger border-danger-hover text-text-on-primary'
+    assert '-subtle' not in tokens['superficie']
+
+
+def test_painel_decisao_devolve_a_variante_crua_para_depuracao():
+    from apps.core.templatetags.core_tags import classes_painel_decisao
+
+    assert classes_painel_decisao('estado-que-nao-existe')['variante'] == (
+        'estado-que-nao-existe'
+    )
+
+
+def test_painel_decisao_nao_emite_cor_crua_de_paleta():
+    """Regra do Token, Nunca do Shade — nenhuma família crua no mapa."""
+    import re
+
+    from apps.core.templatetags.core_tags import classes_painel_decisao
+
+    cru = re.compile(
+        r'\b(?:bg|text|border)-'
+        r'(?:blue|red|amber|green|teal|slate|orange|indigo|violet|yellow)-\d{2,3}\b'
+    )
+    for variant in ('info', 'warning', 'danger', 'desconhecida'):
+        assert not cru.search(classes_painel_decisao(variant)['superficie'])
