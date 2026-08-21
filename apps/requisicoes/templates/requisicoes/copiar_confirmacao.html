@@ -52,7 +52,7 @@
 
     {# variant="warning": aviso de perda de dado (quantidades autorizadas/entregues não são copiadas), #}
     {# não uma confirmação neutra — usa o role="alert" automático do contrato, sem override custom #}
-    {% include "components/alert.html" with variant="warning" icone=False body_template="requisicoes/partials/_alert_nota_copia_corpo.html" class="mb-6" %}
+    {% include "components/alert.html" with variant="warning" body_template="requisicoes/partials/_alert_nota_copia_corpo.html" class="mb-6" %}
 
     {% url 'requisicoes:detalhe' requisicao.pk as url_cancelar %}
     <form method="post" action="{% url 'requisicoes:copiar' requisicao.pk %}">

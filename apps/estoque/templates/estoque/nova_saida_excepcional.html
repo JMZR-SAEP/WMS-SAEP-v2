@@ -18,7 +18,7 @@
 <div class="max-w-3xl mx-auto pb-20 sm:pb-0">
 
   {% if erro_geral %}
-    {% include "components/alert.html" with variant="danger" icone=False message=erro_geral class="mb-4" %}
+    {% include "components/alert.html" with variant="danger" message=erro_geral class="mb-4" %}
   {% endif %}
 
   <form method="post" novalidate data-prevent-double-submit>
@@ -95,7 +95,7 @@
         live: leitor de tela não anuncia mutação em elemento display:none. O anúncio
         vive na região sr-only abaixo, sempre presente no DOM.
       {% endcomment %}
-      {% include "components/alert.html" with variant="danger" id="aviso-duplicidade" icone=False message="" role="none" class="hidden mb-3" %}
+      {% include "components/alert.html" with variant="danger" id="aviso-duplicidade" message="" role="none" class="hidden mb-3" %}
       <div id="aviso-duplicidade-live" role="alert" aria-live="assertive" class="sr-only"></div>
 
       {% comment %}
@@ -190,14 +190,14 @@
     });
 
     const aviso = document.getElementById('aviso-duplicidade');
+    const avisoConteudo = document.getElementById('aviso-duplicidade-conteudo');
     const live = document.getElementById('aviso-duplicidade-live');
     if (duplicado) {
       const texto =
         'Este material já foi adicionado. Cada material pode aparecer apenas uma vez no documento.';
-      if (aviso) {
-        aviso.textContent = texto;
-        aviso.classList.remove('hidden');
-      }
+      // O slot declarado pelo alert.html. Escrever na raiz apagaria o wrapper interno.
+      if (avisoConteudo) avisoConteudo.textContent = texto;
+      if (aviso) aviso.classList.remove('hidden');
       // Região live sempre visível para AT: escrever aqui é o que dispara o anúncio.
       if (live) live.textContent = texto;
       return false;
