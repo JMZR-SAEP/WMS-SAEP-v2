@@ -315,7 +315,7 @@ componentes ou surgir uma família grande.
 
 ## Índice de componentes
 
-22 componentes. A API de cada um está no `{% comment %}` do próprio arquivo —
+23 componentes. A API de cada um está no `{% comment %}` do próprio arquivo —
 esta tabela diz o que existe e para quê, não como se chama cada parâmetro.
 
 ### Ação e navegação
@@ -332,6 +332,7 @@ esta tabela diz o que existe e para quê, não como se chama cada parâmetro.
 | Componente | Para quê |
 |---|---|
 | `form_field.html` | Campo com label vinculada, ajuda, erro e fiação ARIA completa |
+| `field_error.html` | Erro inline de um campo em `role="alert"`, com todos os erros do campo numa frase só. O texto vem do Form, nunca daqui |
 | `error_summary.html` | Sumário de erros no topo do formulário (padrão GOV.UK, foco no mount). Montado só por `{% erros_do_formulario %}` — nunca incluído direto |
 | `item_form_row.html` | Linha de formset de item, compartilhada entre requisição e saída excepcional |
 | `autocomplete.html` | Combobox ARIA de busca de material |
