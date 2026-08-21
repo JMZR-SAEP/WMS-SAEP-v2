@@ -313,3 +313,23 @@ def test_a_composicao_monta_painel_e_modal_no_mesmo_escopo_alpine():
     assert "modalController({ id: 'confirmar-autorizar'" in html
     assert 'data-modal-trigger="confirmar-autorizar"' in html
     assert 'id="confirmar-autorizar"' in html
+
+
+@pytest.mark.parametrize('morto', ['desc_class', 'bg_class', 'botao_class'])
+def test_nenhum_chamador_passa_parametro_morto_ao_painel(morto):
+    """Falha na presença, não na contagem.
+
+    `desc_class` e `bg_class` descreviam conteúdo, não estrutura; `botao_class`
+    existia só para repassar o `shrink-0` que hoje é do próprio painel. Um
+    parâmetro morto que continua sendo passado não quebra a tela — ele
+    silenciosamente não faz nada, que é pior.
+    """
+    for caminho in (BASE_DIR / 'apps').rglob('*.html'):
+        fonte = caminho.read_text(encoding='utf-8')
+        for include in re.findall(
+            r'\{%\s*include\s+["\']requisicoes/partials/_confirmacao_acao\.html["\']'
+            r'.*?%\}',
+            fonte,
+            flags=re.S,
+        ):
+            assert f'{morto}=' not in include, caminho
