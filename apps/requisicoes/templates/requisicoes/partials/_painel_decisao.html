@@ -1,0 +1,84 @@
+{% load core_tags %}{% comment %}
+Painel de decisão de uma ação de fluxo da requisição: título, descrição e o
+botão que abre o modal de confirmação. Superfície própria — não é alerta.
+
+Por que não usa components/alert.html (#127): o alert é banner estático de
+mensagem. Deste painel ele emprestava só a lavagem de cor por variante, e junto
+vinham quatro problemas — o nível comunicado só por cor, `role="group"` sem nome
+acessível, o switch variante→token reescrito aqui para colorir o heading, e a
+descrição de uma decisão irreversível em 12px.
+
+Regra do Raio Crescente: papel, 0.75rem. O painel tem `shadow-sm` e padding de
+seção, que é a definição de papel no design system — diferente do alert, que é
+banner embutido no fluxo, sem sombra, e portanto campo (0.5rem).
+
+Nome acessível, nos dois layouts: o heading que o painel já tem é quem nomeia.
+O `card` é `role="group"` amarrado por `aria-labelledby` ao próprio `<h3>`; o
+`banner` é `<section>` nomeada pelo `<h2>`, e vira uma região da página. Sem
+isso, os três cards de decisão viravam "grupo, grupo, grupo" na navegação
+estrutural.
+
+Nível por mais do que cor: o glifo de components/_icone_nivel.html, em
+`currentColor`. Entre um painel `danger` e um `warning`, a única diferença era
+a lavagem `-subtle` (L≈98%) e a borda `-200`.
+
+Variante desconhecida: Decisão A-1 de docs/design-system.md — falha alta, nunca
+plausível. Fundo `danger` preenchido em vez de `-subtle`, linha "Aviso
+indisponível" antes do conteúdo, `role="alert"` sem exceção (nem `group`, nem
+região anônima) e `data-painel-variant` com o valor cru para depuração. A
+decisão em si continua legível e acionável — falha alta não é falha muda.
+
+Parâmetros:
+  layout         "card" (dentro do grid de decisão) ou "banner" (seção de
+                 largura total, título e descrição à esquerda, botão à direita)
+  variant_token  info | warning | danger — vocabulário de design system, já
+                 resolvido pela tela chamadora. O painel não conhece estado de
+                 requisição.
+  titulo         texto do heading (h3 no card, h2 no banner)
+  conteudo       texto da descrição
+  modal_id       id do modal; também é a raiz do id do heading no card
+  heading_id     (obrigatório em layout="banner") id do h2, para o
+                 aria-labelledby da section
+  botao_label    texto do botão de disparo
+  botao_variant  variant repassado a components/button.html
+  botao_icon     (opcional) icon_template repassado a components/button.html
+  botao_aria_haspopup  (opcional) aria_haspopup repassado a components/button.html
+
+O painel não recebe classe de cor nem de descrição do chamador. Pela Regra do
+Chrome Sem Parâmetro, se ele precisasse de um parâmetro que descreve conteúdo
+em vez de estrutura, a abstração estaria errada — foi o que `desc_class` e
+`bg_class` eram antes de morrerem.
+{% endcomment %}
+{% classes_painel_decisao variant_token as painel %}
+{% if layout == 'banner' %}
+<section
+  {% if painel.conhecida %}aria-labelledby="{{ heading_id }}"{% else %}role="alert" aria-labelledby="{{ heading_id }}" data-painel-variant="{{ painel.variante }}"{% endif %}
+  class="mb-6 flex flex-col gap-3 rounded-xl border p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6 {{ painel.superficie }}"
+>
+  <div class="flex min-w-0 items-start gap-2">
+    {% include "components/_icone_nivel.html" with variant=variant_token class="mt-0.5 h-4 w-4 shrink-0" %}
+    <div class="min-w-0">
+      {% if not painel.conhecida %}<p class="text-sm font-semibold">Aviso indisponível</p>{% endif %}
+      <h2 id="{{ heading_id }}" class="text-sm font-semibold">{{ titulo }}</h2>
+      <p class="mt-1 text-sm">{{ conteudo }}</p>
+    </div>
+  </div>
+  {% include "components/button.html" with variant=botao_variant label=botao_label data_modal_trigger=modal_id icon_template=botao_icon aria_haspopup=botao_aria_haspopup class="shrink-0" full_width_mobile=True %}
+</section>
+{% else %}
+<div
+  {% if painel.conhecida %}role="group"{% else %}role="alert" data-painel-variant="{{ painel.variante }}"{% endif %}
+  aria-labelledby="{{ modal_id }}-titulo"
+  class="rounded-xl border p-4 shadow-sm {{ painel.superficie }}"
+>
+  <div class="flex items-start gap-2">
+    {% include "components/_icone_nivel.html" with variant=variant_token class="mt-0.5 h-4 w-4 shrink-0" %}
+    <div class="min-w-0">
+      {% if not painel.conhecida %}<p class="text-sm font-semibold">Aviso indisponível</p>{% endif %}
+      <h3 id="{{ modal_id }}-titulo" class="block text-sm font-medium">{{ titulo }}</h3>
+      <p class="mt-1 text-sm">{{ conteudo }}</p>
+    </div>
+  </div>
+  {% include "components/button.html" with variant=botao_variant label=botao_label data_modal_trigger=modal_id icon_template=botao_icon full_width_mobile=True class="mt-3" %}
+</div>
+{% endif %}
