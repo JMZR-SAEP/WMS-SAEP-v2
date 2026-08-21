@@ -358,7 +358,7 @@ Família `filter_*`, montada por composição explícita na tela chamadora.
 | `_modal_body.html` | Corpo compartilhado do modal (header, erro, corpo, rodapé) |
 | `_modal_icon.html` | Ícone semântico do header de modal |
 | `_icone_nivel.html` | Glifo de severidade em `currentColor`, compartilhado pelo banner e pelo painel de decisão |
-| `alert.html` | Banner de aviso estático de página ou formulário: glifo de nível, mensagem e o `role` que a variante determina. Faz só isso |
+| `alert.html` | Banner de aviso estático de página ou formulário: glifo de nível, mensagem e um `role` — `alert` em `warning`/`danger`, `status` em `info`/`success` — que o chamador pode sobrescrever. Faz só isso |
 | `badge.html` | Pill de estado. 13 variantes visuais, zero conhecimento de domínio |
 | `empty_state.html` | Estado vazio com causa distinguida, nível de cabeçalho parametrizável (`nivel_titulo`, default 2) e CTA opcional |
 
@@ -367,7 +367,7 @@ Fora de `components/`: `core/partials/_messages.html` (flash messages do Django)
 
 ### Paridade entre o banner e a faixa de flash
 
-`components/alert.html` em `layout="stack"` e a faixa de flash message
+`components/alert.html` e a faixa de flash message
 (`core/partials/_messages.html`, que delega a marcação a
 `core/partials/_message_item.html`) desenham os mesmos quatro níveis de
 severidade. **São dois arquivos de propósito, e continuam sendo.** O que eles
@@ -398,11 +398,12 @@ Três coisas que a tabela decide e que valem a pena dizer em voz alta:
   famílias o 800 se chama `-text-emphasis`; em âmbar, que tem `-text-subtle` e
   não tem `-text-emphasis`, o 800 se chama `-text`. Mesmo degrau, dois nomes.
 
-O `alert.html` não tem mais exceção interna de raio. O `layout="row"`, que era
-papel dentro de um componente de campo, virou o painel de decisão de
+O `alert.html` não tem mais exceção interna de raio. O cartão de decisão de
+workflow, que era papel num componente de campo, virou
 `requisicoes/partials/_painel_decisao.html` na #127 — ver §Painel de decisão de
-workflow. Deste lado sobra a regra sem exceção, e `apps/core/tests/test_paridade_feedback.py`
-falha se um `rounded-xl` reaparecer aqui.
+workflow. Deste lado sobra a regra sem exceção, e
+`apps/core/tests/test_paridade_feedback.py` falha se um `rounded-xl` reaparecer
+aqui.
 
 #### Por que não há um partial compartilhado
 
@@ -423,10 +424,16 @@ três pontas precisam concordar: mudar tabela e templates juntos não passa.
 
 ### Painel de decisão de workflow
 
-`requisicoes/partials/_painel_decisao.html` é a superfície onde o chefe de setor
-autoriza, recusa, retorna, cancela ou estorna: título, descrição e o botão que
-abre o modal de confirmação. Dois layouts — `card`, dentro do grid de decisão, e
-`banner`, seção de largura total.
+`requisicoes/partials/_painel_decisao.html` é a superfície compartilhada das
+decisões de fluxo da requisição — autorizar, recusar, retornar, cancelar,
+estornar: título, descrição e o botão que abre o modal de confirmação. Dois
+layouts — `card`, dentro do grid de decisão, e `banner`, seção de largura total.
+
+O painel **não** implica um ator. Quem pode cada operação sai das policies e de
+`docs/matriz-permissoes.md`, e varia por ator efetivo, setor, beneficiário e
+estado atual — autorizar e recusar são do chefe do Setor do Beneficiário,
+enquanto estornar é do chefe de Almoxarifado. A tela só renderiza o painel que
+o `pode_*` correspondente liberou.
 
 Ele já foi montado em cima do `alert.html`, de onde herdava só a lavagem de cor
 por variante. A separação é da #127, e o que ela fixou vale para qualquer
@@ -455,6 +462,10 @@ superfície de decisão que venha depois:
 - **O painel não recebe classe do chamador.** `desc_class` e `bg_class`
   existiram e morreram: pela Regra do Chrome Sem Parâmetro, parâmetro que
   descreve conteúdo em vez de estrutura é sinal de abstração errada.
+- **`aria-haspopup="dialog"` é do painel, não do chamador.** O botão abre um
+  modal por definição — é isso que faz dele um painel de decisão. Como
+  parâmetro opcional, só um dos cinco painéis declarava, e os outros quatro
+  prometiam menos do que faziam.
 
 Verificado por `apps/requisicoes/tests/test_painel_decisao.py`.
 

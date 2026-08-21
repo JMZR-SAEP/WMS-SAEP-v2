@@ -42,7 +42,11 @@ Parâmetros:
   botao_label    texto do botão de disparo
   botao_variant  variant repassado a components/button.html
   botao_icon     (opcional) icon_template repassado a components/button.html
-  botao_aria_haspopup  (opcional) aria_haspopup repassado a components/button.html
+
+`aria-haspopup="dialog"` não é parâmetro: o botão do painel abre um modal por
+definição — é isso que faz dele um painel de decisão e não um cartão qualquer.
+Deixar isso opcional produziu o estado anterior, em que só o banner de estorno
+declarava, e os outros quatro painéis prometiam menos do que faziam.
 
 O painel não recebe classe de cor nem de descrição do chamador. Pela Regra do
 Chrome Sem Parâmetro, se ele precisasse de um parâmetro que descreve conteúdo
@@ -63,7 +67,7 @@ em vez de estrutura, a abstração estaria errada — foi o que `desc_class` e
       <p class="mt-1 text-sm">{{ conteudo }}</p>
     </div>
   </div>
-  {% include "components/button.html" with variant=botao_variant label=botao_label data_modal_trigger=modal_id icon_template=botao_icon aria_haspopup=botao_aria_haspopup class="shrink-0" full_width_mobile=True %}
+  {% include "components/button.html" with variant=botao_variant label=botao_label data_modal_trigger=modal_id icon_template=botao_icon aria_haspopup="dialog" class="shrink-0" full_width_mobile=True %}
 </section>
 {% else %}
 <div
@@ -79,6 +83,6 @@ em vez de estrutura, a abstração estaria errada — foi o que `desc_class` e
       <p class="mt-1 text-sm">{{ conteudo }}</p>
     </div>
   </div>
-  {% include "components/button.html" with variant=botao_variant label=botao_label data_modal_trigger=modal_id icon_template=botao_icon full_width_mobile=True class="mt-3" %}
+  {% include "components/button.html" with variant=botao_variant label=botao_label data_modal_trigger=modal_id icon_template=botao_icon aria_haspopup="dialog" full_width_mobile=True class="mt-3" %}
 </div>
 {% endif %}

@@ -333,3 +333,21 @@ def test_nenhum_chamador_passa_parametro_morto_ao_painel(morto):
             flags=re.S,
         ):
             assert f'{morto}=' not in include, caminho
+
+
+@pytest.mark.parametrize('layout', ['card', 'banner'])
+def test_o_botao_do_painel_sempre_anuncia_que_abre_um_modal(layout):
+    """`aria-haspopup="dialog"` não é opcional: o botão do painel abre um modal
+    por definição — é isso que faz dele um painel de decisão.
+
+    Como parâmetro, só o banner de estorno declarava, e os outros quatro
+    painéis prometiam menos do que faziam.
+    """
+    html = _render(layout=layout)
+
+    assert 'aria-haspopup="dialog"' in html
+
+
+def test_botao_aria_haspopup_deixou_de_ser_parametro():
+    for caminho in (BASE_DIR / 'apps').rglob('*.html'):
+        assert 'botao_aria_haspopup' not in caminho.read_text(encoding='utf-8'), caminho
