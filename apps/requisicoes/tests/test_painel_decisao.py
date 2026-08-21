@@ -342,10 +342,17 @@ def test_o_botao_do_painel_sempre_anuncia_que_abre_um_modal(layout):
 
     Como parâmetro, só o banner de estorno declarava, e os outros quatro
     painéis prometiam menos do que faziam.
+
+    A asserção é estrutural: um `in` sobre o HTML inteiro passaria com o
+    atributo em qualquer elemento, e é justamente no `<button>` que ele precisa
+    estar para o leitor de tela anunciar que a ativação abre um diálogo.
     """
     html = _render(layout=layout)
 
-    assert 'aria-haspopup="dialog"' in html
+    (botao,) = [atributos for _, atributos, _ in elementos(html, 'button', 'a')]
+
+    assert atributo(botao, 'aria-haspopup') == 'dialog'
+    assert atributo(botao, 'data-modal-trigger') == 'confirmar-autorizar'
 
 
 def test_botao_aria_haspopup_deixou_de_ser_parametro():
