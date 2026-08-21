@@ -57,6 +57,13 @@ aceite da issue cobra.
 
 ## Escopo
 
+### Unidade de contagem
+
+Todo número de call site neste plano conta **includes de template**, nunca
+arquivos nem grupos de migração. Um arquivo com três `{% include %}` conta três.
+A issue fala em "7 call sites de domínio" sem definir a unidade; o levantamento
+no código vivo, em includes, está no fim deste documento e é o número que vale.
+
 ### O que muda
 
 | # | Mudança | Arquivo |
@@ -71,7 +78,7 @@ aceite da issue cobra.
 | D-8 | O partial passa a renderizar a própria superfície (card e banner), sem incluir `alert.html` | `apps/requisicoes/templates/requisicoes/partials/_confirmacao_acao.html` |
 | D-9 | Nome acessível nos dois layouts: `role="group"` só é emitido com `aria-labelledby` | `_confirmacao_acao.html` |
 | D-10 | Switch de variante sai dos corpos; descrição sobe de `text-xs` para `text-sm` | `_confirmacao_acao_corpo.html`, `_confirmacao_acao_banner_corpo.html` |
-| D-11 | `desc_class` e `bg_class` deixam de existir na API do painel | `_confirmacao_acao.html` + 4 chamadas em `detalhe.html` |
+| D-11 | `desc_class` e `bg_class` deixam de existir na API do painel | `_confirmacao_acao.html` + **2** includes em `detalhe.html` (só os dois banners, linhas 300 e 327; os 3 cards nunca passaram nenhum dos dois) |
 | D-12 | `icone=False` removido dos 3 chamadores restantes | `copiar_confirmacao.html`, `nova_saida_excepcional.html` (2 chamadas) |
 | D-13 | `aria_live` removido dos 2 chamadores | `confirmar_importacao_scpi.html` |
 | D-14 | O JS de duplicidade escreve no slot, não na raiz | `nova_saida_excepcional.html` |
@@ -138,7 +145,7 @@ global não conhece enum de domínio".
 | `apps/requisicoes/templates/requisicoes/partials/_confirmacao_acao_corpo.html` | sem switch, `text-sm`, id do `<h3>` (D-10) |
 | `apps/requisicoes/templates/requisicoes/partials/_confirmacao_acao_banner_corpo.html` | sem switch, `text-sm` (D-10) |
 | `apps/requisicoes/templates/requisicoes/partials/_confirmacao_acao_banner_botao.html` | só docstring |
-| `apps/requisicoes/templates/requisicoes/detalhe.html` | 4 chamadas perdem `desc_class`/`bg_class` (D-11) |
+| `apps/requisicoes/templates/requisicoes/detalhe.html` | 2 dos 5 includes perdem `desc_class`/`bg_class` (D-11); os 5 são revalidados |
 | `apps/requisicoes/templates/requisicoes/copiar_confirmacao.html` | perde `icone=False` (D-12) |
 | `apps/estoque/templates/estoque/nova_saida_excepcional.html` | perde 2× `icone=False`; JS escreve no slot (D-12, D-14) |
 | `apps/estoque/templates/estoque/confirmar_importacao_scpi.html` | perde 2× `aria_live` (D-13) |
@@ -161,13 +168,16 @@ escolhida para que a suíte nunca fique vermelha por mais de uma fatia.
 2. **F-2 — painel de decisão renderiza sozinho.** `_confirmacao_acao.html` para
    de incluir `alert.html` nos dois layouts. Testes de nome acessível, ícone,
    `text-sm` e fallback.
-3. **F-3 — migração dos 5 call sites.** `detalhe.html` perde `desc_class` e
-   `bg_class`. Teste por call site (a `detalhe.html` já tem cobertura de view
-   em `test_views.py` para renderizar cada estado).
+3. **F-3 — migração dos 5 includes de `_confirmacao_acao.html`.** Dois deles
+   (os banners) perdem `desc_class` e `bg_class`; os três cards já não passavam
+   nenhum dos dois e só precisam ser revalidados. Teste por include (a
+   `detalhe.html` já tem cobertura de view em `test_views.py` para renderizar
+   cada estado).
 4. **F-4 — redução do `alert.html`.** Remove `layout`, `action_template`,
    `heading_id`, `bg_class`, `icone`, `aria_live`; adiciona o slot
-   `-conteudo`. Migra os 5 chamadores restantes (`copiar_confirmacao`,
-   `nova_saida_excepcional` ×2, `confirmar_importacao_scpi` ×2).
+   `-conteudo`. Migra os 5 includes de `alert.html` que passam parâmetro morto
+   (`copiar_confirmacao` ×1, `nova_saida_excepcional` ×2,
+   `confirmar_importacao_scpi` ×2).
 5. **F-5 — JS do slot.** `nova_saida_excepcional.html` escreve em
    `#aviso-duplicidade-conteudo`. Teste de marcação (o wrapper de flex
    sobrevive à hidratação porque não é mais o alvo).
@@ -203,12 +213,50 @@ mecanismo vira sugestão", e este conjunto já perdeu essa aposta três vezes.
 - Combinação contraditória `role`/`aria-live` é impossível por construção:
   `aria_live` deixou de existir e o `role` carrega a assertividade.
 
+#### Fronteira com o contrato de dismiss (fora deste escopo, e por quê)
+
+O contrato de `docs/CONVENTIONS.md` §Níveis e ARIA — `success`/`info` em
+`role="status"`, `warning`/`error` em `role="alert"`, **toda mensagem com
+dispensa manual** — governa as *flash messages* do Django, renderizadas por
+`core/partials/_messages.html` e `core/partials/_message_item.html`. Ele foi
+implementado na #119 e é verificado lá; nenhum arquivo desse par é tocado por
+esta issue.
+
+`components/alert.html` e o painel de decisão estão **fora** desse contrato, e
+isso é decisão registrada, não omissão: o docstring do `alert.html` já declara a
+separação, e a #124 fixou que os dois seguem separados de propósito porque os
+contratos ARIA são incompatíveis. Um banner de página não é dispensável — ele
+descreve uma condição da tela, não um evento passado — e o painel de decisão
+menos ainda, já que dispensá-lo esconderia a única forma de autorizar ou
+recusar. A paridade que os dois **têm** é de superfície (raio, padding, degrau
+de texto, ícone em `currentColor`), e é isso, e só isso, que
+`apps/core/tests/test_paridade_feedback.py` cobra.
+
+O que este plano preserva do lado do `alert.html`: `warning`/`danger` continuam
+em `role="alert"` e `info`/`success` em `role="status"` (D-3 remove `aria_live`,
+nunca o `role`). Nenhuma fatia adiciona, remove ou altera controle de dispensa.
+
 ### Erro de contrato (falha alta, Decisão A-1)
 
 - Variante desconhecida no `alert.html`: fallback preservado, `role="alert"`
   sem exceção do parâmetro `role`, `data-alert-variant` cru e escapado.
-- `variant_token` desconhecido no painel: mesmo tratamento. Hoje produz painel
-  sem cor nenhuma — é um bug novo que a extração fecha.
+- `variant_token` desconhecido no painel. **Hoje a superfície já grita**, e é
+  preciso ser exato sobre por quê: `_confirmacao_acao.html:64,69` repassa
+  `variant_token` como `variant` para o `alert.html`, então o ramo de variante
+  desconhecida do componente já emite `bg-danger` preenchido, a linha "Aviso
+  indisponível", `role="alert"` e `data-alert-variant`. O que **não** tem
+  `{% else %}` hoje são os corpos de domínio: `_confirmacao_acao_corpo.html:9-10`
+  e `_confirmacao_acao_banner_corpo.html:7` só cobrem `info`/`warning`/`danger`,
+  e um token fora disso deixa `<h2>`/`<h3>` e a descrição **sem token de cor
+  nenhum** — texto herdado sobre o fundo de grito.
+
+  Depois da extração o painel deixa de herdar o fallback do `alert.html` e passa
+  a ser dono dele. Os quatro sinais são requisito explícito, não emergentes, e
+  cada um vira asserção: fundo `bg-danger` preenchido com borda
+  `border-danger-hover`, linha "Aviso indisponível" antes do conteúdo,
+  `role="alert"` sem exceção do `role` do chamador, e `data-alert-variant` com o
+  valor cru escapado. `classes_painel_decisao` é quem os resolve, e o título e a
+  descrição ganham o token de texto do grito — fechando o buraco que existe hoje.
 
 ### Guardas contra regressão
 
@@ -226,7 +274,7 @@ mecanismo vira sugestão", e este conjunto já perdeu essa aposta três vezes.
 ### O que não dá para testar aqui
 
 O contraste medido do ícone (`currentColor` sobre `-subtle`) foi verificado na
-#124 e está registrado na memória do backlog. Não remedir.
+issue `#124` e está registrado na memória do backlog. Não remedir.
 
 ## Invariantes
 
@@ -271,8 +319,8 @@ que **governam** o trabalho são as regras nomeadas do design system:
 | `icone=False` resolvido na raiz | F-4 (D-2, S-3) |
 | `role`/`aria-live` contraditórios impossíveis | F-4 (D-3) |
 | Casca hidratada com slot de `id` declarado | F-4 + F-5 (D-4, D-14) |
-| 7 call sites migrados | F-3 + F-4 |
-| Testes cobrindo API nova e cada call site | todas as fatias |
+| Call sites migrados (a issue diz "7"; em includes são **10**: 5 de `_confirmacao_acao.html` + 5 de `alert.html` com parâmetro morto) | F-3 + F-4 |
+| Testes cobrindo API nova e cada include migrado | todas as fatias |
 | `docs/design-system.md` §Índice atualizado | F-6 (D-15) |
 | `pytest`, `ruff check`, `ruff format --check`, `mypy apps` verdes | antes do push |
 
