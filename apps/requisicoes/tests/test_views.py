@@ -4006,6 +4006,25 @@ def test_historico_swap_htmx_anuncia_so_o_resumo(
 
 
 @pytest.mark.django_db
+def test_historico_swap_htmx_anuncia_plural_com_duas_requisicoes(
+    client, superuser, req_historico_obras, req_historico_ti
+):
+    """O plural mais difícil do sistema, casado na frase inteira.
+
+    Aqui dois `pluralize` flexionam juntos na mesma frase — o substantivo troca
+    a sílaba tônica (`requisição`/`requisições`) e o particípio concorda com ele
+    (`encontrada`/`encontradas`). Um teste que casasse só o número passaria por
+    cima de "2 requisição encontrada" sem piscar.
+    """
+    _login(client, superuser)
+    html = client.get(
+        reverse('requisicoes:historico'), headers={'hx-request': 'true'}
+    ).content.decode()
+
+    assert '2 requisições encontradas.' in html
+
+
+@pytest.mark.django_db
 def test_historico_swap_htmx_anuncia_resultado_vazio(client, superuser):
     _login(client, superuser)
     response = client.get(

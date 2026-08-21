@@ -543,7 +543,7 @@ O padrão é anunciar o **tamanho** do resultado, não o resultado:
   {% partialdef resultados %}
   ...
   {% if is_htmx %}
-    <span hx-swap-oob="innerHTML:#resumo-listagem">{% if page_obj.paginator.count %}{{ page_obj.paginator.count }} item{{ page_obj.paginator.count|pluralize:"ns" }} encontrado{{ page_obj.paginator.count|pluralize }}.{% else %}Nenhum item encontrado.{% endif %}</span>
+    <span hx-swap-oob="innerHTML:#resumo-listagem">{% if page_obj.paginator.count %}{{ page_obj.paginator.count }} it{{ page_obj.paginator.count|pluralize:"em,ens" }} encontrad{{ page_obj.paginator.count|pluralize:"o,os" }}.{% else %}Nenhum item encontrado.{% endif %}</span>
   {% endif %}
   {% endpartialdef %}
   {% partial resultados %}
@@ -561,10 +561,22 @@ Três coisas não são negociáveis aqui:
   `object_list|length` anunciaria o tamanho da página: "25 encontrados" para um
   filtro que casou 300.
 
-Em PT-BR os sufixos de `pluralize` são escritos à mão, e a concordância pode
-exigir mais de um filtro na mesma frase (`requisiç{{ n|pluralize:"ão,ões" }}
-encontrad{{ n|pluralize:"a,as" }}`). Cada listagem cobre 0, 1 e 2 em teste — só
-o caso zero deixa "1 movimentações" passar para produção.
+**O filtro corta a palavra onde a flexão começa.** `pluralize` acrescenta o
+sufixo ao que vem antes dele, então o exemplo acima escreve `it` + `em`/`ens`, e
+não `item` + algum sufixo — `item{{ n|pluralize:"ns" }}` produziria `itemns`. Em
+PT-BR isso quase sempre significa cortar no meio da palavra, e a concordância
+costuma exigir mais de um filtro na mesma frase: o substantivo troca a sílaba
+tônica e o particípio concorda com ele.
+
+```django
+{{ n }} requisiç{{ n|pluralize:"ão,ões" }} encontrad{{ n|pluralize:"a,as" }}.
+{{ n }} movimenta{{ n|pluralize:"ção,ções" }} encontrada{{ n|pluralize }}.
+```
+
+Cada listagem cobre **0, 1 e 2** em teste, casando a frase inteira e não só o
+número. O caso 1 é o que impede "1 movimentações"; o caso 2 é o que impede "2
+requisição encontrada". Uma asserção por substring de número passaria por cima
+dos dois.
 
 Implementado em `historico_requisicoes.html` e `historico_movimentacoes.html`.
 

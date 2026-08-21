@@ -2176,41 +2176,45 @@ class TestHistoricoMovimentacoesResponsivo:
         assert pos_details != -1, '<details não encontrado'
         assert pos_chip < pos_details, 'chip deve aparecer antes do <details>'
 
-    CODIGO_ISOLADO = '000.000.777'
-
-    def _movimentacoes_isoladas(
-        self, n, superuser, requisicao_autorizada, estoque_principal
+    def _consumos_isolados(
+        self,
+        n,
+        superuser,
+        requisicao_autorizada,
+        material_disponivel,
+        estoque_principal,
     ):
-        """Cria `n` movimentações num material só delas e devolve o filtro.
+        """Cria `n` consumos e devolve o filtro que isola só eles.
 
-        O ledger é append-only e recusa exclusão em lote — o que é o
-        comportamento correto do domínio, não um obstáculo a contornar. Como as
-        fixtures já deixam movimentações lá, isolar por material é o que torna a
-        contagem anunciada exatamente `n` e a frase esperada verificável.
+        Duas coisas precisam ser verdade ao mesmo tempo: a contagem anunciada
+        tem de ser exatamente `n`, e o ledger não pode ficar incoerente só para
+        o teste caber.
+
+        O isolamento é pelo **tipo**, não por um material inventado. As fixtures
+        deixam uma `reserva` no ledger, então filtrar por `consumo` já separa o
+        que este teste criou — sem material órfão, fora da requisição e sem
+        `SaldoEstoque`. O material continua sendo o da própria requisição.
+
+        A escrita direta no ledger é a mesma dos testes vizinhos desta classe:
+        aqui o assunto é a frase anunciada, não a aritmética de saldo, que tem
+        cobertura própria nos testes de service.
         """
         from decimal import Decimal
 
-        from apps.estoque.models import (
-            Material,
-            MovimentacaoEstoque,
-            TipoMovimentacaoEstoque,
-        )
+        from apps.estoque.models import MovimentacaoEstoque, TipoMovimentacaoEstoque
 
         req, _ = requisicao_autorizada
-        material = Material.objects.create(
-            codigo=self.CODIGO_ISOLADO, nome='Material do anúncio', unidade='UN'
-        )
         for _ in range(n):
             MovimentacaoEstoque.objects.create(
                 tipo=TipoMovimentacaoEstoque.CONSUMO,
-                material=material,
+                material=material_disponivel,
                 estoque=estoque_principal,
                 delta_fisico=Decimal('-1'),
                 delta_reservado=Decimal('-1'),
                 requisicao=req,
                 ator=superuser,
             )
-        return {'material': self.CODIGO_ISOLADO}
+        return {'tipos': TipoMovimentacaoEstoque.CONSUMO.value}
 
     def test_lista_de_resultados_nao_e_live_region(self, client, chefe_almoxarifado):
         """Marcar a listagem inteira como live region faz o leitor reler tudo.
@@ -2281,11 +2285,20 @@ class TestHistoricoMovimentacoesResponsivo:
         assert 'Nenhuma movimentação encontrada.' in html
 
     def test_anuncio_no_singular_com_uma_movimentacao(
-        self, client, superuser, requisicao_autorizada, estoque_principal
+        self,
+        client,
+        superuser,
+        requisicao_autorizada,
+        material_disponivel,
+        estoque_principal,
     ):
         """ "1 movimentações" é o erro que um teste só do zero deixa passar."""
-        filtro = self._movimentacoes_isoladas(
-            1, superuser, requisicao_autorizada, estoque_principal
+        filtro = self._consumos_isolados(
+            1,
+            superuser,
+            requisicao_autorizada,
+            material_disponivel,
+            estoque_principal,
         )
         client.force_login(superuser)
         html = client.get(
@@ -2295,11 +2308,20 @@ class TestHistoricoMovimentacoesResponsivo:
         assert '1 movimentação encontrada.' in html
 
     def test_anuncio_no_plural_com_duas_movimentacoes(
-        self, client, superuser, requisicao_autorizada, estoque_principal
+        self,
+        client,
+        superuser,
+        requisicao_autorizada,
+        material_disponivel,
+        estoque_principal,
     ):
         """Os dois `pluralize` flexionando juntos, casados na frase inteira."""
-        filtro = self._movimentacoes_isoladas(
-            2, superuser, requisicao_autorizada, estoque_principal
+        filtro = self._consumos_isolados(
+            2,
+            superuser,
+            requisicao_autorizada,
+            material_disponivel,
+            estoque_principal,
         )
         client.force_login(superuser)
         html = client.get(
