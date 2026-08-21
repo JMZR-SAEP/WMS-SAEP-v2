@@ -174,9 +174,18 @@ faixa de `DESIGN.md:259`.
 
 **Guarda do CSS compilado.** Um teste que lê o HTML renderizado vê a classe e
 passa verde mesmo com `app.css` desatualizado — a classe seria inerte em
-produção. Por isso D-3 fecha com uma asserção de que `max-w-prose` existe em
+produção. Por isso D-3 fecha com uma asserção sobre
 `apps/core/static/core/css/app.css`. É a mesma doutrina de "regra sem mecanismo
 vira sugestão", aplicada ao passo de build que o `AGENTS.md` não menciona.
+
+Procurar a string `max-w-prose` no bundle **não** é asserção suficiente: o nome
+da classe aparece num seletor sem provar que ele declara a largura certa, e
+`max-w-[70ch]` (a saída de fallback) nem sequer contém essa string. A guarda
+localiza o seletor da classe efetivamente usada pelo componente e lê a
+declaração `max-width` dele, exigindo unidade `ch` e valor dentro de 65–75 —
+o intervalo de `DESIGN.md:259`, não um número mágico. Assim a guarda vale para
+`max-w-prose` (65ch) e para `max-w-[70ch]` sem ser reescrita, e falha de verdade
+quando o build não rodou.
 
 ### D-4 — live region de contagem em movimentações
 
@@ -187,8 +196,25 @@ Espelha requisições, linha a linha:
 2. Nasce `<p id="resumo-movimentacoes" class="sr-only" role="status"></p>`
    **fora** do wrapper, vazio no carregamento inicial (nada mudou ainda).
 3. No ramo `is_htmx`, um `<span hx-swap-oob="innerHTML:#resumo-movimentacoes">`
-   com a contagem — plural por `pluralize`, e "Nenhuma movimentação encontrada"
-   no zero, que é o caso que a issue nomeia.
+   com a contagem.
+
+**As três frases, literais.** "Plural por `pluralize`" não é especificação — em
+PT-BR o filtro precisa dos dois sufixos escritos à mão, e requisições já paga
+esse preço (`pluralize:"ão,ões"` mais `pluralize:"a,as"`, dois filtros na mesma
+frase por causa da concordância do particípio). Movimentações é palavra
+feminina regular, então basta um sufixo por palavra flexionada:
+
+| Contagem | Texto anunciado |
+|---|---|
+| 0 | `Nenhuma movimentação encontrada.` |
+| 1 | `1 movimentação encontrada.` |
+| 2+ | `N movimentações encontradas.` |
+
+Marcação: `{{ n }} movimenta{{ n|pluralize:"ção,ções" }} encontrada{{ n|pluralize }}`
+no ramo não-zero. O sufixo padrão (`s`) serve para "encontrada"; "movimentação"
+precisa do par explícito porque a flexão troca a sílaba tônica, não só acrescenta
+letra. Os três casos viram três testes — 0, 1 e 2 —, não um só. Um teste que só
+exercita o zero deixa "1 movimentações" passar em produção.
 
 O `hx-swap-oob` dispara em **todo** `is_htmx`, não só no submit do filtro:
 paginação e troca de ordenação também passam por ali e também vão anunciar a
@@ -217,8 +243,14 @@ primeiro no código/documentação vivos. O plano antigo não é editado.
 `fill`/`class` próprios — a cor e o tamanho vêm do componente.
 
 Com os 4 migrados, `_seta_circular.html` fica órfão e é apagado no mesmo commit.
-A varredura foi feita no repositório inteiro, não só em `apps/`: fora dos 4
-`{% include %}`, as únicas menções vivem em planos antigos
+Esse commit tem pré-requisito de procedimento, não só de código: **confirmar a
+branch atual** (`git branch --show-current` → `feat/126-empty-state-unico`) antes
+de qualquer `git commit`, como manda o `AGENTS.md`, e só então rodar a suíte
+completa. Apagar um partial direto na `main` é o tipo de erro que a suíte verde
+não pega.
+A varredura foi feita com `rg` no repositório inteiro, não só em `apps/`, em
+chamada direta e sem pipe, redirecionamento ou truncamento (`AGENTS.md`): fora
+dos 4 `{% include %}`, as únicas menções vivem em planos antigos
 (`71-empty-state-component.md`, `81-icon-system.md`, `audit-design-system.md`),
 que são registro histórico e não são editados.
 Ícone sem chamador é convite a voltar a usar o ícone errado.
@@ -239,20 +271,48 @@ resultado — mesma semântica das listagens filtradas.
 
 ### D-8 — guarda contra clone
 
-Varre `apps/**/*.html` procurando `border-dashed border-border-strong` fora de
+Varre `apps/**/*.html` procurando a assinatura do estado vazio fora de
 `components/empty_state.html`. Segue a anatomia já usada por
 `test_nenhum_controle_abaixo_do_piso_de_44px`: varredura real **mais** uma classe
-de casos sintéticos que prova que a varredura detecta (marcação clonada casa;
-o dropzone `border-2 border-dashed border-border` não casa; marcação dentro de
-`{% comment %}` não casa).
+de casos sintéticos que prova que a varredura detecta.
+
+**A busca é por conjunto de tokens, não por substring.** Procurar a sequência
+literal `border-dashed border-border-strong` é guarda contornável por
+formatação: trocar a ordem das classes, quebrar a linha entre elas ou intercalar
+uma terceira classe já escapa — e nenhuma dessas três coisas muda um pixel do
+render. A guarda usa os helpers de `apps/core/tests/marcacao.py` (`elementos`,
+`classes`), que já normalizam atributo em conjunto de tokens, e casa quando
+`{'border-dashed', 'border-border-strong'}` é subconjunto das classes do
+elemento — em qualquer ordem, com qualquer quebra de linha.
+
+Casos sintéticos: marcação clonada casa; **clone com as classes reordenadas
+casa**; **clone com quebra de linha no meio do atributo casa**; o dropzone
+(`border-2 border-dashed border-border`, sem `-strong`) não casa; marcação dentro
+de `{% comment %}` não casa.
 
 ### D-9 — guarda de copy
 
-Varre os `{% include %}` de `components/empty_state.html` em `apps/**/*.html` e
-exige de cada um: `icone=` presente, `descricao=` presente, e — quando o
-`titulo` é literal — sem ponto final. Título vindo de variável
-(`titulo=titulo_busca`) escapa da checagem de ponto por construção; o guarda
-declara isso no docstring em vez de fingir cobertura.
+Varre os `{% include %}` de `components/empty_state.html` em `apps/**/*.html`,
+**parseia os argumentos** do include em pares `chave=valor` (mesma forma do
+`pares()` de `marcacao.py`) e exige de cada chamada:
+
+- `icone` presente **e com valor não vazio** — `icone=''` e `icone=""` são
+  reprovados junto com a ausência. Chave presente não é contrato cumprido.
+- `descricao` presente e com valor não vazio, pelo mesmo motivo.
+- `titulo` sem ponto final.
+
+**Título dinâmico não é ponto cego.** `titulo=titulo_busca` (`lista_materiais.html`)
+não pode ser lido no template, mas a variável é montada duas linhas acima, num
+`{% with %}` do mesmo arquivo. A guarda resolve `{% with nome=... %}` no escopo
+do próprio arquivo antes de desistir: só cai para "não verificável" quando o
+valor vem de contexto de view, e nesse caso registra o ponto de chamada numa
+lista nomeada em vez de silenciosamente pular. Uma isenção que ninguém consegue
+contar vira rota de fuga.
+
+Casos sintéticos: falta de ícone reprova; `icone=''` reprova; falta de descrição
+reprova; `descricao=""` reprova; título literal com ponto reprova; título vindo
+de `{% with %}` com ponto **reprova**; título vindo de variável de view entra na
+lista de não-verificáveis e não some.
 
 Piso de varredura (`assert quantidade >= 11`) pelo mesmo motivo do guarda de
 44px: um guarda que não enxerga nada passa verde.
@@ -275,7 +335,7 @@ renderizado por uma tela real.
 | `test_nivel_titulo_parametriza_a_tag_de_abertura_e_de_fechamento` | `nivel_titulo=3` → `<h3>…</h3>`; um fechamento errado quebraria o outline em silêncio |
 | `test_descricao_respeita_a_medida_de_prosa` | `max-w-prose` na descrição |
 | `test_descricao_centralizada_nao_encosta_na_esquerda` | `mx-auto` junto do `max-w-prose` |
-| `test_medida_de_prosa_esta_compilada_no_app_css` | O passo de build: classe no template sem classe no CSS é regra inerte |
+| `test_medida_de_prosa_esta_compilada_no_app_css` | O passo de build: o seletor da classe existe em `app.css` **e** declara `max-width` em `ch` dentro de 65–75 |
 | `test_nenhum_template_replica_a_marcacao_do_estado_vazio` | D-8, varredura real |
 | `TestMecanismoDaGuardaDeClone` (sintéticos) | A guarda D-8 detecta clone, ignora dropzone e ignora `{% comment %}` |
 | `test_todo_chamador_do_estado_vazio_segue_a_copy` | D-9, varredura real + piso de 11 |
@@ -284,6 +344,8 @@ renderizado por uma tela real.
 | `test_resultados_de_movimentacoes_nao_e_live_region` (estoque, reescreve o 2089) | Wrapper sem `aria-live`/`aria-atomic` |
 | `test_movimentacoes_anuncia_contagem_em_swap_htmx` (estoque) | `#resumo-movimentacoes` existe vazio no GET full-page e chega preenchido no `hx-swap-oob` |
 | `test_filtro_sem_resultado_anuncia_zero_movimentacoes` (estoque) | O caso da issue: filtro que zera a lista **anuncia** |
+| `test_anuncio_no_singular_com_uma_movimentacao` (estoque) | "1 movimentação encontrada" — o caso que um teste só de zero deixa passar |
+| `test_anuncio_no_plural_com_duas_movimentacoes` (estoque) | "2 movimentações encontradas": os dois `pluralize` flexionando juntos |
 | `test_nenhum_material_cadastrado_exibe_empty_state_dashed` (estoque, atualizado) | Título sem ponto + ícone + descrição |
 | `test_vazio_contextual_usa_icone_de_filtro` (requisições) | D-5 nas duas telas filtradas |
 
@@ -321,6 +383,6 @@ devem seguir verdes.
 | `max-w-prose` não está compilado no `app.css` versionado | `make css-build` obrigatório antes do PR; sem isso a classe é inerte em produção e o teste de componente (que lê o HTML, não o CSS) passaria verde por cima |
 | Tirar `aria-live` do wrapper de movimentações **reduz** acessibilidade se o oob falhar | O teste do swap HTMX cobre os dois lados: região presente no GET e preenchida na resposta HTMX, inclusive no zero |
 | `<h{{ nivel_titulo }}>` com valor inesperado gera tag inválida | Só chamadores internos passam o parâmetro; a guarda D-9 pode ser estendida se algum dia um valor vier de contexto de domínio |
-| Apagar `_seta_circular.html` quebra um chamador não visto | `grep` já confirmou exatamente 4 chamadores, todos migrados nesta issue; a suíte roda antes do commit que apaga |
+| Apagar `_seta_circular.html` quebra um chamador não visto | `rg _seta_circular` no repositório inteiro já confirmou exatamente 4 chamadores, todos migrados nesta issue; a suíte roda antes do commit que apaga, e a branch é confirmada antes dele |
 | Reescrever `test_aria_live_polite_no_conteiner_de_resultados` parece "afrouxar" um teste | O teste novo é mais estrito, não menos: exige ausência no wrapper **e** presença da região de contagem **e** o anúncio no zero |
 | Concorrência, contrato OpenAPI, mutação de estoque, máquina de estados | N/A — nenhuma linha de Python de domínio é tocada |
