@@ -8,6 +8,13 @@
 > (`estoque:estornar_saida_excepcional`, registrado à parte). Neste documento,
 > "estorno" sem qualificador significa sempre **estorno de requisição**. O
 > estorno de saída excepcional aparece só no escopo D-4b.
+>
+> **Invariante da saída excepcional** (`EstadoSaidaExcepcional`,
+> `apps/estoque/models.py:135`): o documento nasce em `registrada` e só chega a
+> `estornada` por estorno explícito **daquele documento**, pelo service próprio
+> `estornar_saida_excepcional` (`apps/estoque/services.py:560`). Não reutiliza a
+> transição da requisição, não aceita outro documento como alvo, e o botão de UI
+> desta PR não abre nenhum caminho novo — ele só troca de família de cor.
 
 Issue: https://github.com/JMZR-SAEP/WMS-SAEP-v2/issues/128
 Origem: Etapa 2 (Feedback e estado) do `docs/plans/audit-frontend-restante.md`.
@@ -87,7 +94,10 @@ o alvo principal, não neste commit de plano.
   `primary` e o ícone cai no ramo `info`.
 - **D-4b** — estorno de **saída excepcional**: fluxo separado do estorno de
   requisição, mesmo veredito de D-1 pelo mesmo motivo. Confirmação migra de
-  `danger` para a família `return`.
+  `danger` para a família `return`. Operação, estados, botão de UI e evento de
+  timeline continuam distintos e intocados: só `confirm_variant` e
+  `icon_variant` do modal mudam. A transição `registrada → estornada` segue
+  exclusiva do service de estoque; nada nesta PR a toca.
 - **D-4c** — cancelamento: é D-2, listado aqui só para fechar a conta das três.
 
 ## Auditoria — todo evento de domínio e sua família de cor
@@ -217,7 +227,17 @@ estragar um dos dois lados desses dois fluxos.
 
 O que o teste amarra é uma **tabela de valores esperados por ação**, declarada
 uma vez no módulo de teste. Cada ação declara os seus cinco valores de forma
-independente:
+independente.
+
+**A camada da tabela é a variante semântica** — o valor que a tela passa em
+`variant_token`, `botao_variant`, `confirm_variant`, `icon_variant` e `variant`,
+antes de qualquer resolução de classe. É a camada em que a decisão de design
+vive: `_estado_badge.html` escolhe `teal`, não `bg-return-muted`.
+
+O teste, porém, assere contra o **HTML renderizado**, porque uma tabela que
+comparasse argumento com argumento passaria mesmo se `classes_botao` perdesse a
+variante. A ponte entre as duas camadas é explícita, e é ela que o teste
+percorre:
 
 | Ação | Painel | Disparo | Confirmação | Ícone do modal | Estado final |
 |---|---|---|---|---|---|
@@ -228,13 +248,36 @@ independente:
 | Estornar requisição | `return` | `return-outline` | `return` | `return` | badge `teal` |
 | Registrar devolução | — | `return-outline` | `return` | `return` | — |
 
+Ponte variante → marca no HTML. A coluna da direita é o que a asserção procura;
+a fonte de cada linha é `classes_painel_decisao` e `classes_botao`
+(`apps/core/templatetags/core_tags.py`), `_modal_icon.html` e `badge.html`:
+
+| Slot | Variante | Marca renderizada |
+|---|---|---|
+| Painel | `info` / `warning` / `danger` / **`return`** | `bg-primary-subtle` / `bg-warning-subtle` / `bg-danger-subtle` / **`bg-return-subtle`** |
+| Disparo | `primary` | `bg-primary` |
+| Disparo | `warning-outline` / `danger-outline` / `return-outline` | `border-warning-border-strong` / `border-danger-border-strong` / `border-return-border` |
+| Confirmação | `primary` / `neutral` / `danger` / **`return`** | `bg-primary` / `bg-text-secondary` / `bg-danger` / **`bg-return-strong`** |
+| Ícone do modal | `info` / `warning` / `danger` / **`return`** | `bg-primary-muted` / `bg-warning-muted` / `bg-danger-muted` / **`bg-return-muted`** |
+| Badge | `slate` / `blue` / `red-strong` / `orange` / `teal` | `bg-bg-subtle` / `bg-primary-muted` / `bg-danger-muted-strong` / `bg-orange-100` / `bg-return-muted` |
+
+Em **negrito**, o que nasce nesta PR. As três variantes `return` novas caem em
+tokens da mesma família que o badge `teal` já consome hoje (`bg-return-muted`,
+`text-return-text-strong`, `ring-return-border`) — é por isso que a asserção 3
+consegue dizer que caminho e destino são a mesma família sem comparar strings
+soltas.
+
+O disparo é o único slot cuja marca não é o fundo: as três variantes `-outline`
+compartilham `bg-surface`, e quem as distingue é a borda.
+
 Registrar devolução não tem painel de decisão nem muda o estado da requisição:
 é botão + modal dentro da linha do item. As duas células vazias são ausência
 declarada, não valor a preencher depois.
 
 Sobre a tabela, três asserções separadas:
 
-1. **Valores por ação** — cada célula preenchida bate com o HTML renderizado.
+1. **Valores por ação** — a marca renderizada de cada célula preenchida está no
+   HTML, pela ponte acima.
    É isto que impede a regressão silenciosa, e vale para as seis linhas.
 2. **Nenhum evento legítimo em vermelho** — só `Recusar` pode usar a família
    `danger`, nas quatro colunas de caminho. É a Regra da Reversão Não é Erro
