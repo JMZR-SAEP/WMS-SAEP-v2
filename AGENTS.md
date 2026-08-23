@@ -61,7 +61,8 @@ Não duplique regras do projeto aqui. Use estas fontes:
 
 ## Comandos do projeto
 
-- Rodar testes: `uv run pytest -q -ra --tb=short --strict-markers --disable-warnings -n logical` (bate com o CI; `-n logical` roda a suíte em paralelo via pytest-xdist)
+- Rodar testes: `uv run pytest -q -ra --tb=short --strict-markers --disable-warnings -n logical -m "not navegador"` (bate com o job `pytest` do CI; `-n logical` roda a suíte em paralelo via pytest-xdist)
+- Rodar a camada de navegador: `make test-navegador` (ADR-0019; instala o Chromium se faltar e roda `pytest -m navegador`, o mesmo do job `navegador` do CI)
 - Formatar código: `uv run ruff format .`
 - Checar formatação: `uv run ruff format --check .`
 - Lint: `uv run ruff check .`
