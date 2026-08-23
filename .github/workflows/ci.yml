@@ -150,9 +150,9 @@ jobs:
 
   # Camada Navegador (ADR-0019). Depende de `pytest`, e não dos gates de
   # qualidade: teste de navegador só informa alguma coisa se a suíte de unidade
-  # já está verde, e boot de browser sobre suíte vermelha é minuto queimado sem
+  # já está verde, e boot de navegador sobre suíte vermelha é minuto queimado sem
   # sinal. Sem `-n`: a camada é pequena por desenho e paralelizá-la só
-  # multiplicaria instâncias de browser.
+  # multiplicaria instâncias de navegador.
   navegador:
     name: navegador
     runs-on: ubuntu-latest

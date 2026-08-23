@@ -18,7 +18,7 @@ copiando a forma quebrada, ou concluiria que `noscroll` nunca funcionou neste
 projeto. O lado quebrado ganha teste quando a #134 for consertada.
 
 Critério de admissão atendido: depende de layout real (`documentElement.style
-.overflow` só existe depois que o browser aplica o efeito) — nenhuma asserção
+.overflow` só existe depois que o navegador aplica o efeito) — nenhuma asserção
 sobre HTML renderizado alcança isso.
 """
 
@@ -32,7 +32,7 @@ pytestmark = pytest.mark.navegador
 def pagina_logada(live_server, context, page, chefe_comum):
     """Devolve uma `page` já autenticada como `chefe_comum`, na home.
 
-    O login é feito pelo `Client` do Django e transplantado para o browser como
+    O login é feito pelo `Client` do Django e transplantado para o navegador como
     cookie de sessão. Preencher o formulário de login em cada teste gastaria um
     round-trip e acoplaria toda a camada à marcação da tela de login — que tem
     testes próprios, na camada certa.

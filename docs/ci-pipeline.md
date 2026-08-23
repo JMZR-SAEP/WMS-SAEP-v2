@@ -36,7 +36,7 @@ JavaScript num Chromium real, para o comportamento que não deixa rastro no HTML
 foco dentro de `<dialog>`, ida e volta de XHR do htmx.
 
 Ela é **excluída do comando padrão** por marcador. Motivo: a suíte de unidade roda em segundos e é
-usada em loop curto a cada mudança; diluí-la com boot de browser destrói isso. Quem clona o repo e
+usada em loop curto a cada mudança; diluí-la com boot de navegador destrói isso. Quem clona o repo e
 roda o comando padrão não precisa do Chromium.
 
 O binário é baixado por `uv run playwright install chromium` (~150 MB) e fica no cache do usuário,

@@ -56,14 +56,15 @@ def test_ci_workflow_isola_a_camada_de_navegador_da_adr_0019():
     """
     workflow = REPO_ROOT / '.github' / 'workflows' / 'ci.yml'
     conteudo = workflow.read_text()
-    conteudo_normalizado = ' '.join(conteudo.split())
     pytest_job = _bloco_job(conteudo, 'pytest')
     navegador = _bloco_job(conteudo, 'navegador')
 
     assert '-m "not navegador"' in pytest_job
     assert '-m navegador' in navegador
     assert '-m "not navegador"' not in navegador
-    assert 'needs: [pytest]' in conteudo_normalizado
+    # Dentro do bloco, e não no arquivo inteiro: um `needs: [pytest]` em
+    # qualquer outro job deixaria a asserção verde com o `navegador` solto.
+    assert 'needs: [pytest]' in navegador
     assert 'playwright install --with-deps chromium' in navegador
     assert 'postgres:16' in navegador
     assert 'persist-credentials: false' in navegador

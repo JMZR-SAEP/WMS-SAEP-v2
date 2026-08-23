@@ -128,7 +128,7 @@ uv run pytest -m navegador
 ```
 
 Motivo: a suíte de 7,85s é ferramenta de loop curto, usada a cada mudança. Diluí-la com boot de
-browser destrói o que ela tem de melhor. Quem precisa da camada a invoca; o CI a invoca sempre.
+navegador destrói o que ela tem de melhor. Quem precisa da camada a invoca; o CI a invoca sempre.
 
 ### Escopo por arquivo de JS
 
@@ -158,7 +158,7 @@ mypy        ─┘   migrations
 ```
 
 `needs: [pytest]` e não `needs: [ruff-format, ruff-check, mypy]`: teste de navegador só informa
-alguma coisa se a suíte de unidade já está verde, e boot de browser em cima de suíte vermelha é
+alguma coisa se a suíte de unidade já está verde, e boot de navegador em cima de suíte vermelha é
 minuto de CI queimado sem sinal.
 
 Bloqueante e não informativo: um check não-bloqueante vermelho vira paisagem e para de ser lido — e

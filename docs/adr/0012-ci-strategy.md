@@ -48,7 +48,7 @@ Qualquer falha em quality → não roda backend. Falha em lint poupa tempo rodan
 
 O job `navegador` foi acrescentado pela [ADR-0019](0019-camada-de-teste-de-navegador.md). Ele
 depende de `pytest`, e não dos gates de qualidade: teste de navegador só informa alguma coisa se a
-suíte de unidade já está verde, e boot de browser sobre suíte vermelha é minuto de CI queimado sem
+suíte de unidade já está verde, e boot de navegador sobre suíte vermelha é minuto de CI queimado sem
 sinal. É bloqueante para merge, pelo motivo declarado naquele ADR.
 
 ### Quality checks
@@ -120,11 +120,15 @@ Configuração em `main`:
 ```text
 ✓ Require a pull request before merging
 ✓ Require status checks to pass before merging
-  (ruff format, ruff check, mypy, tests, migrations)
+  (ruff format, ruff check, mypy, pytest, migrations, navegador)
 ✓ Require branches to be up to date before merging
 ✗ Require code reviews
 ✗ Require signed commits
 ```
+
+Os nomes acima são os nomes reais dos jobs em `.github/workflows/ci.yml` — é assim que o GitHub os
+identifica na configuração de branch protection. Um check listado com nome diferente do job não
+bloqueia nada, e a falha é silenciosa: a proteção fica configurada e nunca dispara.
 
 PR é o ponto de controle. Merge só com CI verde.
 
