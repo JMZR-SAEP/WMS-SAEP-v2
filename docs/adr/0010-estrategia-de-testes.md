@@ -25,7 +25,13 @@ Policies  → matriz de autorização por papel/contexto
 Selectors → visibilidade e escopo de leitura por papel
 Services  → orquestração, atomicidade, efeitos de transição
 Views     → contrato HTTP: autenticação, autorização de acesso, renderização
+Navegador → comportamento que só existe com layout, top layer e XHR reais
 ```
+
+A camada Navegador foi acrescentada pela [ADR-0019](0019-camada-de-teste-de-navegador.md), que
+define seu critério de admissão, seu escopo fechado e a fronteira dela com as duas lanes de front
+que já existiam (varredura de marcação e asserção sobre HTML renderizado). Ela é excluída do comando
+padrão de teste por marcador — ver ADR-0019 e `docs/ci-pipeline.md`.
 
 ### Testes de models
 

@@ -39,9 +39,17 @@ Quality gates baratos (paralelo):
 Backend (após quality):
   - tests (PostgreSQL real)
   - migrations check
+  ↓
+Navegador (após tests):
+  - pytest -m navegador (Chromium + live_server)
 ```
 
 Qualquer falha em quality → não roda backend. Falha em lint poupa tempo rodando testes caros.
+
+O job `navegador` foi acrescentado pela [ADR-0019](0019-camada-de-teste-de-navegador.md). Ele
+depende de `pytest`, e não dos gates de qualidade: teste de navegador só informa alguma coisa se a
+suíte de unidade já está verde, e boot de browser sobre suíte vermelha é minuto de CI queimado sem
+sinal. É bloqueante para merge, pelo motivo declarado naquele ADR.
 
 ### Quality checks
 
