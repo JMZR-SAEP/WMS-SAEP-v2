@@ -311,6 +311,14 @@ O contrato positivo de cada uma das quatro views corrigidas (302 para onde, ou 2
 página) fica no teste por view, no arquivo do app, onde a expectativa pode ser específica sem
 inventar uniformidade — é o critério 3 da issue.
 
+Esse teste por view assere **também o estado persistido**, nos dois sentidos: no POST válido a
+mutação principal tem que estar gravada, e no POST inválido não pode haver mutação nenhuma. A
+ADR-0010 pede "redirect correto + evidência mínima de mutação (estado principal alterado)" em
+toda view de mutação, e sem essa metade o teste passaria numa view que redireciona para o lugar
+certo sem ter gravado nada — que é a mesma pergunta sem resposta que esta issue trata, só que
+pela porta do fallback. A evidência é a mínima: o estado da requisição, o saldo da saída, a
+existência da importação. Efeitos internos seguem sendo assunto dos testes de service.
+
 ## Estratégia de testes (ADR-0010)
 
 Camada **Views** — contrato HTTP. Nada aqui revalida timeline, saldo ou matriz de policy.
@@ -321,7 +329,8 @@ Camada **Views** — contrato HTTP. Nada aqui revalida timeline, saldo ou matriz
 | Erro de domínio no estorno de saída, HTMX | `estoque/tests/test_views.py` | 422 + `data-modal-body` + justificativa digitada preservada |
 | SCPI sem preview na sessão, HTMX | `requisicoes/tests/test_views.py` | 422 + `data-modal-body` + texto do erro |
 | Form inválido em devolução e estorno, HTMX | `requisicoes/tests/test_views.py` | 422 + texto do Form, sem `*` de `as_text()` |
-| Fallback sem HTMX das quatro views | idem | 302 / 200 de página, como hoje — destino e template específicos por view |
+| Fallback sem HTMX das quatro views, POST válido | idem | 302 para o destino certo **e** a mutação principal gravada |
+| Fallback sem HTMX das quatro views, POST inválido | idem | 200 da página de erro (ou 302 com mensagem) **e** nenhuma mutação |
 | As mesmas 10 rotas, autorizado e sem HTMX | `*/tests/test_contrato_modal_http.py` | nunca 204, nunca `HX-Redirect` — a única forma de errar o fallback que é uniforme |
 | Permissão negada | já coberto | 403, inalterado |
 | Contrato das 10 rotas, ator autorizado | `*/tests/test_contrato_modal_http.py` | 204 + `HX-Redirect` para o destino esperado, ou 422 + fragment |
