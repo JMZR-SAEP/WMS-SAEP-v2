@@ -423,6 +423,62 @@ desconhecida.
 templates renderizados **e** com a expectativa aprovada no próprio teste. As
 três pontas precisam concordar: mudar tabela e templates juntos não passa.
 
+### Foco inicial do modal de confirmação
+
+`modal.js` decide para onde o foco vai quando o `<dialog>` abre, e a ordem é
+sempre a mesma — no render inicial e no re-render de 422:
+
+1. `[aria-invalid="true"]` — o campo que voltou com erro;
+2. o primeiro campo do DOM (`textarea`, `input` não-oculto, `select`) — a
+   consulta é por ordem de documento e não olha visibilidade computada;
+3. `[data-modal-dismiss]` — o botão de dispensa ("Voltar").
+
+Não há quarta perna: sem botão de dispensa, `modal.js` não mexe no foco e a
+resposta final é onde os passos nativos de `showModal()` o puseram. O
+`[data-modal-body]` é `tabindex="-1"` para que esse lugar seja o corpo do
+diálogo — conteúdo inerte, que anuncia título e descrição e não tem o que Enter
+ative.
+
+**O foco de abertura nunca vai para `[data-modal-confirm]`** (#132). Modal sem
+campo é confirmação pura, e neste sistema esses são exatamente os que executam
+operação irreversível — enviar, separar, autorizar, atender retirada, importar
+SCPI. Quem aciona o trigger pelo teclado chega ao diálogo com o Enter ainda
+pressionado, e o `keydown` repete no elemento que acabou de receber o foco: com
+o foco no botão que executa, a porta abre com a mão já na maçaneta errada. A
+WAI-ARIA APG manda o contrário — foco inicial na opção menos destrutiva. Por
+isso o degrau 3 existe, e por isso `button.html` tem `data_modal_dismiss`: é o
+par de `data_modal_confirm`, e diz qual botão o foco pode encostar sem executar
+nada.
+
+**O modal também não confirma por submissão implícita.** Enter num campo de
+linha única submete o `<form>` sem passar pelo rodapé, que é onde a consequência
+está escrita — e o modal de devolução abre com o foco num
+`<input type="number">`. `modal.html` traz
+`@keydown.enter="bloquearSubmitImplicito($event)"` **nos dois modos**: no
+`<form>` interno do modo `action_url`, e no `<div>` envolvente do modo
+`submit_form_id`, onde o `<dialog>` costuma ficar dentro do formulário que
+confirma e um campo do corpo pertenceria a ele.
+
+A trava barra `<input>` que não seja botão e `<select>` — os dois no seletor do
+degrau 2. **As duas origens não têm o mesmo estatuto**, e a diferença importa
+para quem for mexer nisso:
+
+- `<input>` é a regra do HTML. A especificação lista os estados que governam a
+  submissão implícita (Text, Search, URL, Telephone, Email, Password, Number e
+  os de data/hora); é comportamento exigido, não conveniência de navegador.
+- `<select>` **não** está nessa lista. Entra na trava por decisão deste
+  componente, porque o degrau 2 pode pousar o foco num `select` e o navegador
+  submete assim mesmo. Medido no Chromium: Enter com o select fechado dispara o
+  submit do `<form>`, igual a um campo de texto.
+
+Passam de propósito o `<textarea>` (onde Enter é quebra de linha) e os botões e
+links (onde Enter é a ativação do próprio controle, e `preventDefault` mataria o
+clique ou a navegação).
+
+Verificado por `apps/core/tests/test_modal.py` (marcação do contrato) e por
+`apps/requisicoes/tests/test_navegador_modal_foco.py` (comportamento em
+Chromium, camada Navegador da ADR-0019).
+
 ### Painel de decisão de workflow
 
 `requisicoes/partials/_painel_decisao.html` é a superfície compartilhada das
@@ -503,6 +559,10 @@ estrutura, a abstração está errada. Parar e registrar, não generalizar.
 [ ] Campo com erro usa aria-invalid + aria-describedby
 [ ] Readonly e disabled visualmente distintos
 [ ] Modal e dropdown operáveis por teclado (Tab, Escape, Enter/Espaço)
+[ ] Modal de confirmação abre no campo com erro, no primeiro campo, na ação
+    menos destrutiva ou no corpo quando não há controle aplicável — nessa
+    ordem, e nunca em [data-modal-confirm]
+    (ver §Foco inicial do modal de confirmação)
 [ ] Ação bloqueada tem motivo textual amarrado por aria-describedby
 [ ] Atualização HTMX crítica tem aria-live ou feedback visível
 [ ] Listagem filtrada por HTMX anuncia a CONTAGEM numa live region fora da

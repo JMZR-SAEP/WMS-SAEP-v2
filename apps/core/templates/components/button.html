@@ -52,6 +52,12 @@ Parâmetros:
                      contrato do consumidor: form-submit.js seleciona
                      `button[data-modal-confirm]`, e o rodapé de modal nunca é
                      um link.
+  data_modal_dismiss (opcional, boolean) emite `data-modal-dismiss` — marca o
+                     botão que só fecha o modal. `modal.js` leva o foco de
+                     abertura para ele quando o modal não tem campo, para que
+                     um Enter reflexo não execute a ação (WAI-ARIA APG: foco
+                     inicial na opção menos destrutiva). Só <button> pelo mesmo
+                     motivo de `data_modal_confirm`.
   x_click            (opcional, expressão Alpine) emite `@click="..."`. Ignorado
                      quando `data_modal_trigger` está presente, que já emite o
                      seu próprio `@click`
@@ -122,6 +128,7 @@ Uso:
   {% if hx_push_url %}hx-push-url="{{ hx_push_url }}"{% endif %}
   {% if data_modal_trigger %}data-modal-trigger="{{ data_modal_trigger }}" @click="abrir($event)"{% elif x_click %}@click="{{ x_click }}"{% endif %}
   {% if data_modal_confirm %}data-modal-confirm{% endif %}
+  {% if data_modal_dismiss %}data-modal-dismiss{% endif %}
   {% if loading_label %}data-submit-loading-label="{{ loading_label }}"{% endif %}
 >{% if icon_template %}<span class="mr-2 inline-flex" aria-hidden="true">{% include icon_template with class=icon_class|default:"h-4 w-4" %}</span>{% endif %}{% if loading_label and label_mobile %}<span data-submit-text class="hidden sm:inline">{{ label }}</span><span data-submit-text class="sm:hidden">{{ label_mobile }}</span>{% elif loading_label %}<span data-submit-text>{{ label }}</span>{% else %}{{ label }}{% endif %}</button>
 {% endif %}

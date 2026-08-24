@@ -57,7 +57,19 @@
   class="m-auto w-full max-w-xl overscroll-contain rounded-2xl border border-border bg-surface p-0 text-left text-text-primary shadow-2xl backdrop:bg-slate-900/50 backdrop:backdrop-blur-sm sm:max-w-2xl"
 >
   {% if submit_form_id %}
-    <div x-trap.inert.noscroll="$refs.dialog.open" class="flex max-h-[calc(100dvh-2rem)] flex-col">
+    {% comment %}
+      A trava de submissão implícita vale aqui também, mesmo sem `<form>`
+      próprio: neste modo o `<dialog>` costuma ficar **dentro** do formulário que
+      ele confirma (`requisicoes/atender_retirada.html` abre o `<form>` antes do
+      diálogo), então um campo no corpo do modal pertence ao form externo e o
+      Enter o submeteria sem passar pelo rodapé. Hoje nenhum consumidor deste
+      modo tem campo no corpo, e é para continuar seguro quando um tiver.
+    {% endcomment %}
+    <div
+      @keydown.enter="bloquearSubmitImplicito($event)"
+      x-trap.inert.noscroll="$refs.dialog.open"
+      class="flex max-h-[calc(100dvh-2rem)] flex-col"
+    >
       {% include "components/_modal_body.html" %}
     </div>
   {% else %}
@@ -82,6 +94,14 @@
       {% endcomment %}
       hx-sync="this:drop"
       data-prevent-double-submit
+      {% comment %}
+        Enter num campo de linha única submeteria este form pela regra de
+        submissão implícita do HTML, pulando o rodapé — que é onde a frase que
+        descreve a consequência está, e onde a pessoa decide. O modal de
+        devolução abre com o foco num `<input type="number">`: sem esta trava,
+        a operação é confirmada por uma tecla apertada antes da leitura.
+      {% endcomment %}
+      @keydown.enter="bloquearSubmitImplicito($event)"
       x-trap.inert.noscroll="$refs.dialog.open"
       class="flex max-h-[calc(100dvh-2rem)] flex-col"
     >
