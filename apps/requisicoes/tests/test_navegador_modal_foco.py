@@ -19,9 +19,9 @@ rodapé, o handler de Enter no `<form>` — fica na lane de baixo, em
 from decimal import Decimal
 
 import pytest
-from django.test import Client
 from django.urls import reverse
 
+from apps.core.tests.navegador import autenticar
 from apps.requisicoes.models import EstadoRequisicao, ItemRequisicao, Requisicao
 
 pytestmark = pytest.mark.navegador
@@ -29,26 +29,10 @@ pytestmark = pytest.mark.navegador
 
 @pytest.fixture
 def abrir_pagina(live_server, context, page):
-    """Fábrica de página autenticada: `abrir_pagina(usuario, caminho)`.
-
-    O login sai do `Client` do Django e é transplantado como cookie de sessão,
-    pelo mesmo motivo de `apps/core/tests/test_navegador_smoke.py`: preencher o
-    formulário de login acoplaria esta camada à marcação de uma tela que tem
-    testes próprios, na lane certa.
-    """
+    """Fábrica de página autenticada: `abrir_pagina(usuario, caminho)`."""
 
     def _abrir(usuario, caminho):
-        cliente = Client()
-        cliente.force_login(usuario)
-        context.add_cookies(
-            [
-                {
-                    'name': 'sessionid',
-                    'value': cliente.cookies['sessionid'].value,
-                    'url': live_server.url,
-                }
-            ]
-        )
+        autenticar(live_server, context, usuario)
         page.goto(f'{live_server.url}{caminho}')
         return page
 
@@ -183,31 +167,18 @@ def test_modal_sem_campo_abre_o_foco_na_dispensa_e_nao_no_confirmar(
     )
     assert foco['dispensa'], f'Foco esperado no botão de dispensa, veio em {foco}.'
 
-    # O alvo novo continua dentro do diálogo nomeado: é o foco entrando no
-    # `<dialog aria-modal="true">` que faz o leitor de tela anunciar título e
+    # O alvo novo continua dentro do diálogo certo: é o foco entrando no
+    # `<dialog aria-modal="true">` que faz o leitor de tela anunciar o título e a
     # descrição. Mudar para onde o foco vai só é seguro enquanto ele fica aqui
-    # dentro.
-    anuncio = page.evaluate("""
-      () => {
-        const dialogo = document.activeElement.closest('dialog');
-        const rotulo = document.getElementById(
-          dialogo.getAttribute('aria-labelledby')
-        );
-        const descricao = document.getElementById(
-          dialogo.getAttribute('aria-describedby')
-        );
-        return {
-          modal: dialogo.getAttribute('aria-modal'),
-          rotulo: rotulo && rotulo.textContent.trim(),
-          temDescricao: Boolean(descricao && descricao.textContent.trim()),
-        };
-      }
-    """)
-    assert anuncio['modal'] == 'true'
-    assert anuncio['rotulo'] == 'Autorizar requisição?', (
-        f'O diálogo tem que ser anunciado pelo próprio título, veio {anuncio}.'
-    )
-    assert anuncio['temDescricao'], f'Descrição do diálogo vazia: {anuncio}.'
+    # dentro, e é só isto que exige navegador — que o `aria-labelledby` aponte
+    # para o `<h2>` do próprio modal é fato do HTML renderizado, guardado por
+    # `test_dialog_e_nomeado_pelo_titulo_do_proprio_modal` em `test_views.py`.
+    assert (
+        page.evaluate(
+            '() => document.activeElement.closest(\'dialog[aria-modal="true"]\')?.id'
+        )
+        == 'confirmar-autorizar'
+    ), 'O foco saiu do diálogo — sem ele dentro, nada é anunciado na abertura.'
 
 
 def test_modal_com_campo_abre_o_foco_no_primeiro_campo(
@@ -280,11 +251,14 @@ def test_enter_no_campo_numerico_nao_confirma_a_devolucao(
     )
 
     page.keyboard.type('2')
-    page.keyboard.press('Enter')
-    # O htmx emite o XHR dentro do próprio listener de `submit`, então um envio
-    # implícito apareceria na lista no mesmo tique. A margem é para o caso de o
-    # navegador agendar o `submit` como tarefa separada.
-    page.wait_for_timeout(300)
+    # Asserção negativa não pode ser cronometrada: uma soneca fixa passa num CI
+    # lento mesmo se a regressão voltar, e um teste que nunca observa é pior que
+    # um instável. A sentinela é uma requisição emitida DEPOIS do Enter — os
+    # eventos de rede chegam na ordem em que a página os emitiu, então, quando
+    # ela aparece, um POST disparado pelo Enter já estaria na lista.
+    with page.expect_request(lambda req: 'sentinela-de-ordem' in req.url):
+        page.keyboard.press('Enter')
+        page.evaluate("() => { fetch(location.pathname + '?sentinela-de-ordem=1'); }")
 
     assert not any(url_devolver in url for url in enviadas), (
         'Enter no campo numérico submeteu o form do modal de devolução.'

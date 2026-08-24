@@ -23,31 +23,16 @@ sobre HTML renderizado alcança isso.
 """
 
 import pytest
-from django.test import Client
+
+from apps.core.tests.navegador import autenticar
 
 pytestmark = pytest.mark.navegador
 
 
 @pytest.fixture
 def pagina_logada(live_server, context, page, chefe_comum):
-    """Devolve uma `page` já autenticada como `chefe_comum`, na home.
-
-    O login é feito pelo `Client` do Django e transplantado para o navegador como
-    cookie de sessão. Preencher o formulário de login em cada teste gastaria um
-    round-trip e acoplaria toda a camada à marcação da tela de login — que tem
-    testes próprios, na camada certa.
-    """
-    cliente = Client()
-    cliente.force_login(chefe_comum)
-    context.add_cookies(
-        [
-            {
-                'name': 'sessionid',
-                'value': cliente.cookies['sessionid'].value,
-                'url': live_server.url,
-            }
-        ]
-    )
+    """Devolve uma `page` já autenticada como `chefe_comum`, na home."""
+    autenticar(live_server, context, chefe_comum)
     page.goto(f'{live_server.url}/')
     return page
 

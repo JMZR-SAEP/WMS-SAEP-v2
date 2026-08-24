@@ -137,29 +137,23 @@
           primeiroCampo.focus();
           return;
         }
-        this.focarDispensa();
-      },
-
-      // Modal sem campo visível é confirmação pura, e no sistema inteiro esses
-      // são exatamente os que executam operação irreversível (enviar, separar,
-      // autorizar, atender retirada, importar SCPI). O foco de abertura não
-      // pode pousar no botão que executa: quem acionou o trigger pelo teclado
-      // chega aqui com o Enter ainda pressionado, e o `keydown` repete no
-      // elemento que acabou de receber o foco. A WAI-ARIA APG manda o foco
-      // inicial de diálogo de confirmação para a opção menos destrutiva.
-      focarDispensa() {
-        const dialog = this.$refs.dialog;
+        // Modal sem campo visível é confirmação pura, e no sistema inteiro
+        // esses são exatamente os que executam operação irreversível (enviar,
+        // separar, autorizar, atender retirada, importar SCPI). O foco de
+        // abertura não pode pousar no botão que executa: quem acionou o
+        // trigger pelo teclado chega aqui com o Enter ainda pressionado, e o
+        // `keydown` repete no elemento que acabou de receber o foco. A
+        // WAI-ARIA APG manda o foco inicial de diálogo de confirmação para a
+        // opção menos destrutiva.
+        //
+        // Sem botão de dispensa não há terceira perna: o foco fica onde os
+        // passos nativos de `showModal()` o puseram, e `_modal_body.html` tem
+        // `tabindex="-1"` justamente para que esse lugar seja o corpo do
+        // diálogo — conteúdo inerte, com o `<h2>` do `aria-labelledby` e a
+        // descrição do `aria-describedby`, e nada que Enter ative.
         const dispensar = dialog.querySelector('[data-modal-dismiss]');
         if (dispensar) {
           dispensar.focus();
-          return;
-        }
-        // Sem botão de dispensa, o corpo (`tabindex="-1"`) é o alvo: ele carrega
-        // o `<h2>` do `aria-labelledby` e a descrição do `aria-describedby`, o
-        // diálogo continua sendo anunciado, e não há nada que Enter ative.
-        const corpo = dialog.querySelector('[data-modal-body]');
-        if (corpo) {
-          corpo.focus();
         }
       },
 
@@ -168,20 +162,25 @@
       // descreve a consequência está. No modal de devolução o primeiro campo é
       // `<input type="number">` e recebe o foco de abertura, então a operação
       // seria confirmada por uma tecla apertada antes de a pessoa ler o que vai
-      // acontecer. `<textarea>` não entra: ali Enter é quebra de linha.
+      // acontecer.
       //
-      // Os tipos de botão ficam de fora porque neles o Enter não é submissão
-      // implícita, e sim a ativação do próprio controle — `preventDefault` no
-      // `keydown` mataria o clique que o navegador gera como ação padrão.
+      // O alvo é a regra do HTML, e não uma lista de tipos: submissão implícita
+      // nasce de `<input>` que não seja botão e de `<select>` — os dois estão
+      // no seletor de `focarPrimeiroCampo`, então cobrir só `<input>` deixaria
+      // o buraco reaberto no dia em que o primeiro modal ganhasse um `<select>`.
+      //
+      // Tudo o mais passa de propósito. `<textarea>` usa Enter como quebra de
+      // linha; nos botões e nos links Enter é a ativação do próprio controle, e
+      // o `preventDefault` do `keydown` mataria o clique ou a navegação que o
+      // navegador gera como ação padrão.
       bloquearSubmitImplicito(event) {
         const alvo = event.target;
-        if (!(alvo instanceof HTMLInputElement)) {
-          return;
+        const ehCampoDeTexto =
+          alvo instanceof HTMLInputElement &&
+          !['submit', 'button', 'reset', 'image'].includes(alvo.type);
+        if (ehCampoDeTexto || alvo instanceof HTMLSelectElement) {
+          event.preventDefault();
         }
-        if (['submit', 'button', 'reset', 'image'].includes(alvo.type)) {
-          return;
-        }
-        event.preventDefault();
       },
 
       devolverFoco() {

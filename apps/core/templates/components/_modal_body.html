@@ -15,11 +15,20 @@
 {% load core_tags %}
 
 {% comment %}
-  `tabindex="-1"` no corpo é o alvo de último recurso do foco de abertura
-  (`focarDispensa` em `modal.js`): modal sem campo e sem botão de dispensa
-  precisa de um lugar para o foco pousar que não seja o botão que executa a
-  ação. Ele carrega o `<h2>` do `aria-labelledby` e a descrição do
-  `aria-describedby`, então o diálogo continua anunciado.
+  `tabindex="-1"` faz do corpo o primeiro focável do diálogo, e é isso que
+  governa onde o foco pousa **antes** de `modal.js` decidir: os passos nativos
+  de `showModal()` rodam no clique, e o `focarPrimeiroCampo` só no `$nextTick`
+  seguinte.
+
+  O corpo é o pouso certo porque é inerte — carrega o `<h2>` do
+  `aria-labelledby` e a descrição do `aria-describedby`, então o diálogo
+  continua sendo anunciado, e não há nada ali que Enter ative. É também a única
+  perna que sobra num modal sem botão de dispensa, caso em que `modal.js` não
+  mexe no foco e o pouso nativo é a resposta final.
+
+  Hoje o pouso nativo já seria seguro sem o atributo, porque o rodapé emite a
+  dispensa antes da confirmação. O `tabindex` é o que mantém isso verdadeiro no
+  dia em que o rodapé mudar de ordem ou de conteúdo.
 {% endcomment %}
 <div data-modal-body="{{ id }}" tabindex="-1" class="flex min-h-0 flex-1 flex-col">
   <header class="border-b border-border px-6 py-5">

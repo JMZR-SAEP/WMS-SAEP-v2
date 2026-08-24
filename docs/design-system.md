@@ -429,9 +429,15 @@ três pontas precisam concordar: mudar tabela e templates juntos não passa.
 sempre a mesma — no render inicial e no re-render de 422:
 
 1. `[aria-invalid="true"]` — o campo que voltou com erro;
-2. o primeiro campo visível (`textarea`, `input` não-oculto, `select`);
-3. `[data-modal-dismiss]` — o botão de dispensa ("Voltar");
-4. `[data-modal-body]`, que é `tabindex="-1"` por isso.
+2. o primeiro campo do DOM (`textarea`, `input` não-oculto, `select`) — a
+   consulta é por ordem de documento e não olha visibilidade computada;
+3. `[data-modal-dismiss]` — o botão de dispensa ("Voltar").
+
+Não há quarta perna: sem botão de dispensa, `modal.js` não mexe no foco e a
+resposta final é onde os passos nativos de `showModal()` o puseram. O
+`[data-modal-body]` é `tabindex="-1"` para que esse lugar seja o corpo do
+diálogo — conteúdo inerte, que anuncia título e descrição e não tem o que Enter
+ative.
 
 **O foco de abertura nunca vai para `[data-modal-confirm]`** (#132). Modal sem
 campo é confirmação pura, e neste sistema esses são exatamente os que executam
@@ -440,17 +446,24 @@ SCPI. Quem aciona o trigger pelo teclado chega ao diálogo com o Enter ainda
 pressionado, e o `keydown` repete no elemento que acabou de receber o foco: com
 o foco no botão que executa, a porta abre com a mão já na maçaneta errada. A
 WAI-ARIA APG manda o contrário — foco inicial na opção menos destrutiva. Por
-isso os degraus 3 e 4 existem, e por isso `button.html` tem
-`data_modal_dismiss`: é o par de `data_modal_confirm`, e diz qual botão o foco
-pode encostar sem executar nada.
+isso o degrau 3 existe, e por isso `button.html` tem `data_modal_dismiss`: é o
+par de `data_modal_confirm`, e diz qual botão o foco pode encostar sem executar
+nada.
 
 **O modal também não confirma por submissão implícita.** Enter num campo de
 linha única submete o `<form>` sem passar pelo rodapé, que é onde a consequência
 está escrita — e o modal de devolução abre com o foco num
-`<input type="number">`. O `<form>` de `modal.html` traz
-`@keydown.enter="bloquearSubmitImplicito($event)"`, que barra o Enter vindo de
-`<input>` e deixa passar o de `<textarea>` (onde é quebra de linha) e o dos
-tipos de botão (onde é ativação do próprio controle, não submissão implícita).
+`<input type="number">`. `modal.html` traz
+`@keydown.enter="bloquearSubmitImplicito($event)"` **nos dois modos**: no
+`<form>` interno do modo `action_url`, e no `<div>` envolvente do modo
+`submit_form_id`, onde o `<dialog>` costuma ficar dentro do formulário que
+confirma e um campo do corpo pertenceria a ele.
+
+A trava barra o que a regra do HTML define como origem de submissão implícita —
+`<input>` que não seja botão, e `<select>`, os dois no seletor do degrau 2.
+Passam de propósito o `<textarea>` (onde Enter é quebra de linha) e os botões e
+links (onde Enter é a ativação do próprio controle, e `preventDefault` mataria o
+clique ou a navegação).
 
 Verificado por `apps/core/tests/test_modal.py` (marcação do contrato) e por
 `apps/requisicoes/tests/test_navegador_modal_foco.py` (comportamento em
