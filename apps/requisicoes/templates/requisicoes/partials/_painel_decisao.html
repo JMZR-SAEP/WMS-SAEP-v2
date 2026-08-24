@@ -18,6 +18,13 @@ O `card` é `role="group"` amarrado por `aria-labelledby` ao próprio `<h3>`; o
 isso, os três cards de decisão viravam "grupo, grupo, grupo" na navegação
 estrutural.
 
+O sufixo `-titulo` sobre o `modal_id` é reservado ao modal (#131): quem emite
+`{{ modal_id }}-titulo` é o `<h2>` de components/_modal_body.html, e é para ele
+que o `aria-labelledby` do `<dialog>` aponta. O card entra antes do modal no
+DOM, então derivar dali o id do `<h3>` duplicava o id, e a resolução — que
+devolve o primeiro em ordem de árvore — caía no cartão que ficou atrás do
+diálogo. Por isso o card usa `-painel-titulo`.
+
 Nível por mais do que cor: o glifo de components/_icone_nivel.html, em
 `currentColor`. Entre um painel `danger` e um `warning`, a única diferença era
 a lavagem `-subtle` (L≈98%) e a borda `-200`.
@@ -36,7 +43,8 @@ Parâmetros:
                  requisição.
   titulo         texto do heading (h3 no card, h2 no banner)
   conteudo       texto da descrição
-  modal_id       id do modal; também é a raiz do id do heading no card
+  modal_id       id do modal; também é a raiz do id do heading no card, que é
+                 `{{ modal_id }}-painel-titulo` — nunca `-titulo`, que é do modal
   heading_id     (obrigatório em layout="banner") id do h2, para o
                  aria-labelledby da section
   botao_label    texto do botão de disparo
@@ -72,14 +80,14 @@ em vez de estrutura, a abstração estaria errada — foi o que `desc_class` e
 {% else %}
 <div
   {% if painel.conhecida %}role="group"{% else %}role="alert" data-painel-variant="{{ painel.variante }}"{% endif %}
-  aria-labelledby="{{ modal_id }}-titulo"
+  aria-labelledby="{{ modal_id }}-painel-titulo"
   class="rounded-xl border p-4 shadow-sm {{ painel.superficie }}"
 >
   <div class="flex items-start gap-2">
     {% include "components/_icone_nivel.html" with variant=variant_token class="mt-0.5 h-4 w-4 shrink-0" %}
     <div class="min-w-0">
       {% if not painel.conhecida %}<p class="text-sm font-semibold">Aviso indisponível</p>{% endif %}
-      <h3 id="{{ modal_id }}-titulo" class="block text-sm font-medium">{{ titulo }}</h3>
+      <h3 id="{{ modal_id }}-painel-titulo" class="block text-sm font-medium">{{ titulo }}</h3>
       <p class="mt-1 text-sm">{{ conteudo }}</p>
     </div>
   </div>

@@ -5,6 +5,7 @@ Sem testar HTML detalhado ou texto completo de mensagens.
 """
 
 import re
+from collections import Counter
 from decimal import Decimal
 from html.parser import HTMLParser
 from pathlib import Path
@@ -66,6 +67,59 @@ def _assert_html_balanceado(fragmento):
     parser = _PilhaDeTags()
     parser.feed(fragmento)
     assert parser.pilha == [], f'tags não fechadas: {parser.pilha}'
+
+
+class _ColetorDeIds(HTMLParser):
+    """Todos os `id` do documento, na ordem em que aparecem (issue #131)."""
+
+    def __init__(self):
+        super().__init__()
+        self.ids = []
+
+    def handle_starttag(self, tag, attrs):
+        for nome, valor in attrs:
+            if nome == 'id' and valor:
+                self.ids.append(valor)
+
+
+def _ids_do_documento(html):
+    coletor = _ColetorDeIds()
+    coletor.feed(html)
+    return coletor.ids
+
+
+class _NomesDeDialogo(HTMLParser):
+    """Para cada `<dialog>`, o `aria-labelledby` e os ids dos `<h2>` internos.
+
+    A leitura é estrutural, não por fatia de string: prova que o alvo do
+    `aria-labelledby` existe *dentro* do diálogo. Quem separa o `<h2>` do modal
+    do heading do painel é a unicidade do id, cobrada junto no teste — sozinha,
+    a checagem estrutural passa até com o id duplicado, porque o `<h2>` do modal
+    continua carregando o id; quem resolvia para o cartão era o navegador.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.dialogos = []
+        self._dentro = False
+
+    def handle_starttag(self, tag, attrs):
+        atributos = dict(attrs)
+        if tag == 'dialog':
+            self.dialogos.append((atributos.get('aria-labelledby'), []))
+            self._dentro = True
+        elif self._dentro and tag == 'h2' and atributos.get('id'):
+            self.dialogos[-1][1].append(atributos['id'])
+
+    def handle_endtag(self, tag):
+        if tag == 'dialog':
+            self._dentro = False
+
+
+def _dialogos(html):
+    parser = _NomesDeDialogo()
+    parser.feed(html)
+    return parser.dialogos
 
 
 def _formset_post(material_id, quantidade='5', extra=None):
@@ -1548,6 +1602,49 @@ def test_detalhe_exibe_recusa_para_chefe_e_nao_exibe_retorno(
     assert 'data-modal-trigger="confirmar-recusar"' in html
     assert 'window.confirm' not in html
     assert html.count('id="decisao-autorizacao-titulo"') == 1
+
+
+@pytest.mark.django_db
+def test_detalhe_com_painel_de_decisao_nao_repete_nenhum_id(
+    client, chefe_obras, req_enviada_solicitante
+):
+    """#131: o card do painel derivava `{{ modal_id }}-titulo`, o mesmo id do
+    `<h2>` do modal que ele abre. Id duplicado é HTML inválido e torna qualquer
+    `getElementById` imprevisível."""
+    _login(client, chefe_obras)
+    response = client.get(
+        reverse('requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk})
+    )
+    html = response.content.decode('utf-8')
+
+    ids = _ids_do_documento(html)
+    duplicados = [id_ for id_, vezes in Counter(ids).items() if vezes > 1]
+
+    assert duplicados == []
+    assert 'confirmar-recusar-painel-titulo' in ids
+
+
+@pytest.mark.django_db
+def test_dialog_e_nomeado_pelo_titulo_do_proprio_modal(
+    client, chefe_obras, req_enviada_solicitante
+):
+    """O nome acessível do `<dialog>` tem que ser o `<h2>` do corpo do modal.
+    Com o id duplicado, `aria-labelledby` resolvia para o `<h3>` do cartão que
+    ficou atrás: via-se "Recusar requisição?" e ouvia-se "Recusar requisição"."""
+    _login(client, chefe_obras)
+    response = client.get(
+        reverse('requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk})
+    )
+    html = response.content.decode('utf-8')
+
+    dialogos = _dialogos(html)
+    ids = _ids_do_documento(html)
+
+    assert dialogos
+    for rotulado_por, ids_de_h2 in dialogos:
+        assert rotulado_por
+        assert rotulado_por in ids_de_h2
+        assert ids.count(rotulado_por) == 1
 
 
 @pytest.mark.django_db
