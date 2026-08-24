@@ -3,9 +3,9 @@
   justificativa (obrigatório). Usado via form_body_template em
   components/modal.html (issue #78).
 
-  Params: justificativa (texto digitado, devolvido no 422), id, erro.
+  Parâmetros: justificativa (texto digitado, devolvido no 422), id, erro.
 
-  O `{{ justificativa }}` existe para o re-render de erro (issue #130): o 422
+  O `{{ justificativa }}` existe para a nova renderização de erro (#130): o 422
   devolve a caixa aberta, e sem isso ela voltaria em branco — a pessoa
   reescreveria a justificativa a cada recusa do domínio. É o que
   `_modal_form_recusar.html` já faz com `motivo_recusa`.
