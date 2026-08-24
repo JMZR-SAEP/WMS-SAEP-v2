@@ -252,8 +252,12 @@ preview, estado que o service recusa) — é o ramo onde as violações desta is
 feliz das duas views corrigidas ganha teste próprio de 204 + `HX-Redirect` para o destino certo
 ao lado, no arquivo de views do app.
 
-**Segundo eixo: sem autenticação.** A mesma parametrização roda anônima e espera 302 para o
-login. A ADR-0010 põe "sem login → 302 para login" no contrato de toda view de mutação, e hoje
+**Segundo eixo: sem autenticação.** A mesma parametrização roda anônima e espera 302 com
+`Location` igual a `f'{reverse("accounts:login")}?next={url}'` — o valor exato, pela mesma razão
+do `HX-Redirect`: status sozinho não distingue "mandou para o login" de "mandou para outro
+lugar", e `settings.LOGIN_URL` (`config/settings/base.py:109`) é um nome de rota, então o
+destino é derivável sem literal na asserção. O `?next=` também é conteúdo do contrato: é ele que
+devolve a pessoa à ação que ela tentou. A ADR-0010 põe "sem login → 302 para login" no contrato de toda view de mutação, e hoje
 só 3 das 10 rotas têm esse caso escrito: `enviar_rascunho`, `confirmar_importacao_scpi` e
 `estornar_saida_excepcional`. As outras sete dependem de `@login_required` sem nada travando.
 Este eixo é barato porque `@login_required` decide antes de qualquer busca de objeto: o teste
@@ -273,7 +277,7 @@ Camada **Views** — contrato HTTP. Nada aqui revalida timeline, saldo ou matriz
 | Fallback sem HTMX das quatro views | idem | 302 / 200 de página, como hoje |
 | Permissão negada | já coberto | 403, inalterado |
 | Contrato das 10 rotas, ator autorizado | `*/tests/test_contrato_modal_http.py` | 204 + `HX-Redirect` para o destino esperado, ou 422 + fragment |
-| As mesmas 10 rotas, anônimo | `*/tests/test_contrato_modal_http.py` | 302 para o login (ADR-0010; 7 das 10 não tinham) |
+| As mesmas 10 rotas, anônimo | `*/tests/test_contrato_modal_http.py` | 302 com `Location` == login + `?next=<url da ação>` (ADR-0010; 7 das 10 não tinham) |
 | Registro fechado | `core/tests/test_contrato_modal.py` | conjunto varrido == registro |
 
 Testes existentes que mudam de expectativa:
