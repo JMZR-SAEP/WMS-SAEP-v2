@@ -3035,6 +3035,85 @@ def test_registrar_devolucao_view_dados_invalidos_mostra_error(
 
 
 @pytest.mark.django_db
+def test_registrar_devolucao_htmx_form_invalido_devolve_422_do_modal(
+    client, aux_almoxarifado, req_atendida_view
+):
+    """Form inválido via HTMX reabre o modal com erro, não derruba a página.
+
+    `form.errors.as_text()` numa mensagem levava o dump do Django à tela — com
+    o asterisco de formatação de log — e trocava o modal por uma navegação de
+    página inteira.
+    """
+    _login(client, aux_almoxarifado)
+    item = req_atendida_view.itens.first()
+    url = reverse(
+        'requisicoes:registrar_devolucao',
+        kwargs={'pk': req_atendida_view.pk, 'item_pk': item.pk},
+    )
+    response = client.post(url, {'quantidade': ''}, HTTP_HX_REQUEST='true')
+
+    assert response.status_code == 422
+    conteudo = response.content.decode()
+    assert f'data-modal-body="devolver-{item.pk}"' in conteudo
+    assert 'data-modal-erro' in conteudo
+    assert '<html' not in conteudo
+    # O texto vem do Form, sem o asterisco de `as_text()`.
+    assert 'obrigat' in conteudo.lower()
+    assert '* quantidade' not in conteudo
+
+
+@pytest.mark.django_db
+def test_registrar_devolucao_sem_htmx_nao_usa_dump_do_as_text(
+    client, aux_almoxarifado, req_atendida_view
+):
+    """Fallback sem HTMX segue redirecionando, mas com texto do Form."""
+    _login(client, aux_almoxarifado)
+    item = req_atendida_view.itens.first()
+    url = reverse(
+        'requisicoes:registrar_devolucao',
+        kwargs={'pk': req_atendida_view.pk, 'item_pk': item.pk},
+    )
+    response = client.post(url, {'quantidade': ''}, follow=True)
+
+    assert response.status_code == 200
+    mensagens = [str(m) for m in response.context['messages']]
+    assert mensagens
+    assert not any('*' in m for m in mensagens)
+
+
+@pytest.mark.django_db
+def test_estornar_htmx_form_invalido_devolve_422_do_modal(
+    client, chefe_almoxarifado, req_atendida_view
+):
+    _login(client, chefe_almoxarifado)
+    url = reverse('requisicoes:estornar', kwargs={'pk': req_atendida_view.pk})
+    response = client.post(url, {'justificativa': ''}, HTTP_HX_REQUEST='true')
+
+    assert response.status_code == 422
+    conteudo = response.content.decode()
+    assert 'data-modal-body="estornar-modal"' in conteudo
+    assert 'data-modal-erro' in conteudo
+    assert '<html' not in conteudo
+    assert '* justificativa' not in conteudo
+    req_atendida_view.refresh_from_db()
+    assert req_atendida_view.estado == EstadoRequisicao.ATENDIDA
+
+
+@pytest.mark.django_db
+def test_estornar_sem_htmx_nao_usa_dump_do_as_text(
+    client, chefe_almoxarifado, req_atendida_view
+):
+    _login(client, chefe_almoxarifado)
+    url = reverse('requisicoes:estornar', kwargs={'pk': req_atendida_view.pk})
+    response = client.post(url, {'justificativa': ''}, follow=True)
+
+    assert response.status_code == 200
+    mensagens = [str(m) for m in response.context['messages']]
+    assert mensagens
+    assert not any('*' in m for m in mensagens)
+
+
+@pytest.mark.django_db
 def test_registrar_devolucao_view_sem_permissao_403(
     client, solicitante, req_atendida_view
 ):

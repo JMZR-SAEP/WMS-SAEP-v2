@@ -220,45 +220,17 @@ def _render_detalhe(request, requisicao: Requisicao, **contexto_extra):
     )
 
 
-def _render_modal_erro(
-    request,
-    *,
-    modal_id: str,
-    titulo: str,
-    descricao: str,
-    erro: str,
-    form_body_template: str,
-    confirm_label: str,
-    confirm_variant: str,
-    cancel_label: str = 'Voltar',
-    icon_variant: str = 'danger',
-    contexto_form: dict | None = None,
-) -> HttpResponse:
-    """Renderiza o fragment de corpo do modal com erros e retorna HTTP 422.
+def _texto_dos_erros(form) -> str:
+    """Junta as mensagens do Form numa frase, para o fallback sem HTMX.
 
-    Permite que o cliente HTMX troque apenas o conteúdo do modal mantendo-o aberto.
-    Fallback (sem HTMX) ainda retorna 422 — caller pode redirecionar se preferir.
+    Substitui `form.errors.as_text()`, cujo dump (`* justificativa\\n  * Este
+    campo é obrigatório.`) chegava à tela com o asterisco de formatação de log.
+    O caminho com HTMX não passa por aqui: lá o Form vai inteiro para
+    `{% erros_do_formulario %}`, que preserva a âncora por campo.
     """
-    contexto = {
-        'id': modal_id,
-        'titulo': titulo,
-        'descricao': descricao,
-        'erro': erro,
-        'form_body_template': form_body_template,
-        'confirm_label': confirm_label,
-        'confirm_variant': confirm_variant,
-        'cancel_label': cancel_label,
-        'icon_variant': icon_variant,
-    }
-    if contexto_form:
-        contexto.update(contexto_form)
-    response = render(
-        request,
-        'requisicoes/partials/_modal_body_fragment.html',
-        contexto,
+    return ' '.join(
+        mensagem for mensagens in form.errors.values() for mensagem in mensagens
     )
-    response.status_code = 422
-    return response
 
 
 # ---------------------------------------------------------------------------
@@ -931,7 +903,7 @@ def cancelar_requisicao_view(request, pk: int):
     except DadosInvalidos as exc:
         if exc.code == 'justificativa_cancelamento_obrigatoria':
             if request.htmx:
-                return _render_modal_erro(
+                return render_modal_erro(
                     request,
                     modal_id='confirmar-cancelar',
                     titulo='Cancelar requisição',
@@ -1007,7 +979,7 @@ def recusar_requisicao_view(request, pk: int):
             pk=pk,
         )
         if request.htmx:
-            return _render_modal_erro(
+            return render_modal_erro(
                 request,
                 modal_id='confirmar-recusar',
                 titulo='Recusar requisição',
@@ -1094,11 +1066,37 @@ def copiar_requisicao_view(request, pk: int):
 @require_http_methods(['POST'])
 def registrar_devolucao_view(request, pk: int, item_pk: int) -> HttpResponse:
     """Registra devolução de item de requisição atendida (TR-020)."""
-    get_object_or_404(requisicoes_visiveis_para(request.user.pk), pk=pk)
+    requisicao = get_object_or_404(requisicoes_visiveis_para(request.user.pk), pk=pk)
     form = RegistrarDevolucaoForm(request.POST)
     if not form.is_valid():
-        messages.warning(request, form.errors.as_text())
-        return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
+        if request.htmx:
+            # O item só é buscado aqui, e não no topo da view: fora deste ramo
+            # ele mudaria o código de resposta de um POST que hoje vai direto ao
+            # service sem olhar o item.
+            item = get_object_or_404(
+                requisicao.itens.select_related('material'), pk=item_pk
+            )
+            entregues = entregue_liquida_por_requisicao(requisicao_id=pk)
+            return render_modal_erro(
+                request,
+                modal_id=f'devolver-{item_pk}',
+                titulo='Registrar devolução',
+                descricao='Informe a quantidade a devolver ao estoque.',
+                # O Form, e não um texto pré-formatado: `erros_do_formulario`
+                # achata as mensagens dele com âncora por campo, sem o asterisco
+                # de log que `form.errors.as_text()` produzia.
+                erro=form,
+                form_body_template=('requisicoes/partials/_modal_form_devolucao.html'),
+                confirm_label='Registrar devolução',
+                acao_erro='registrar a devolução',
+                contexto_form={
+                    'form': form,
+                    'item': item,
+                    'entregue_liquida': entregues.get(item.material_id, Decimal('0')),
+                },
+            )
+        messages.error(request, _texto_dos_erros(form))
+        return redirect('requisicoes:detalhe', pk=pk)
     try:
         registrar_devolucao(
             ator_id=request.user.pk,
@@ -1124,8 +1122,26 @@ def estornar_requisicao_view(request, pk: int) -> HttpResponse:
     get_object_or_404(requisicoes_visiveis_para(request.user.pk), pk=pk)
     form = EstornarRequisicaoForm(request.POST)
     if not form.is_valid():
-        messages.warning(request, form.errors.as_text())
-        return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
+        if request.htmx:
+            # Espelha detalhe.html:327 (via _confirmacao_acao.html).
+            return render_modal_erro(
+                request,
+                modal_id='estornar-modal',
+                titulo='Estornar requisição',
+                descricao=(
+                    'O estorno reverte toda a entregue líquida ao saldo físico '
+                    'e encerra definitivamente a requisição. Esta operação é '
+                    'irreversível.'
+                ),
+                erro=form,
+                form_body_template='requisicoes/partials/_modal_form_estorno.html',
+                confirm_label='Confirmar estorno',
+                confirm_variant='danger',
+                acao_erro='estornar a requisição',
+                contexto_form={'estorno_form': form},
+            )
+        messages.error(request, _texto_dos_erros(form))
+        return redirect('requisicoes:detalhe', pk=pk)
     try:
         estornar_requisicao(
             ator_id=request.user.pk,
