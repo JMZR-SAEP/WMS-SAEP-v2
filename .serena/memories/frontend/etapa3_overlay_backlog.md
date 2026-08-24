@@ -39,7 +39,7 @@ Os 8 consumidores reais, que é por onde o componente foi julgado (o componente 
 |---|---|---|---|---|
 | 129 | ADR: entra camada de teste de comportamento em navegador? | **HITL** | — | — |
 | 130 | Contrato HTTP de toda `action_url` de modal (204+`HX-Redirect` ou 422+fragment) | AFK | — | `/impeccable harden` |
-| 131 | Nome acessível do `<dialog>` — id `-titulo` duplicado com o painel | AFK | — | `/impeccable harden` |
+| 131 | Nome acessível do `<dialog>` — id `-titulo` duplicado com o painel — **FEITA** | AFK | — | `/impeccable harden` |
 | 132 | Foco inicial vai para a ação menos destrutiva | AFK | 129 | `/impeccable harden` |
 | 133 | Não fecha com requisição em voo; `htmx:responseError` visível | AFK | 129, 130 | `/impeccable harden` |
 | 134 | Trava de scroll de fundo, `overscroll-contain`, `abrir_ao_carregar` server-side | AFK | 129 | `/impeccable harden` |
@@ -132,8 +132,14 @@ Também: o htmx que **executa** é `apps/core/static/core/vendor/htmx.min.js` **
   modo `submit_form_id`); `test_painel_decisao.py:101-103,313-314,339-355`;
   `estoque/tests/test_views.py:652-666,1038-1060`; `core/tests/test_components.py:1922-1934`
   (guard de superfície única de erro — `_modal_body.html` tem que usar `{% erros_do_formulario %}`).
-- **`test_painel_decisao.py:101-103` assere `id="confirmar-recusar-titulo"` no painel** — é
-  exatamente o id que a #131 tira de lá. Atualizar junto.
+- **O painel já cedeu o sufixo `-titulo` ao modal (#131, feita).** O card usa
+  `{{ modal_id }}-painel-titulo`, e a reserva está no `{% comment %}` do painel e em
+  `docs/design-system.md`. As guardas são `test_painel_decisao.py`
+  (`test_o_card_nao_toma_o_sufixo_titulo_do_modal`) e, em `requisicoes/tests/test_views.py`,
+  `test_detalhe_com_painel_de_decisao_nao_repete_nenhum_id` +
+  `test_dialog_e_nomeado_pelo_titulo_do_proprio_modal`, que leem o HTML por `HTMLParser`
+  (`_ids_do_documento`, `_dialogos`). Ainda não cobertas: as telas de modal de `estoque`, que
+  compartilham o mesmo contrato de id de `components/modal.html`.
 
 ## Armadilhas técnicas
 

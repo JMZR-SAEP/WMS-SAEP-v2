@@ -451,6 +451,13 @@ superfície de decisão que venha depois:
   `aria-labelledby` ao próprio `<h3>`; o `banner` é `<section>` nomeada pelo
   `<h2>`. `role="group"` anônimo faz três cards virarem "grupo, grupo, grupo" na
   navegação estrutural, apesar de cada um já ter um heading pronto.
+- **O sufixo `-titulo` sobre o `modal_id` é do modal, não do painel** (#131).
+  Quem emite `{{ modal_id }}-titulo` é o `<h2>` de `_modal_body.html`, alvo do
+  `aria-labelledby` do `<dialog>`. O painel entra antes no DOM, então um `<h3>`
+  com esse mesmo id duplicava o id e fazia o diálogo ser anunciado com o título
+  do cartão que ficou atrás. O card usa `-painel-titulo`; o `heading_id` que o
+  chamador passa ao `banner` também não pode terminar em `-titulo` sobre o
+  `modal_id` daquele painel.
 - **A descrição é corpo de 14px.** Ela sustenta uma decisão irreversível, lida em
   bloco. 12px é rótulo estrutural em caixa alta, pela Regra dos 14px.
 - **O mapa variante→token vive em `classes_painel_decisao`** (`core_tags.py`),

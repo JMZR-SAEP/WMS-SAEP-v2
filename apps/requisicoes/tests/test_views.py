@@ -91,9 +91,11 @@ def _ids_do_documento(html):
 class _NomesDeDialogo(HTMLParser):
     """Para cada `<dialog>`, o `aria-labelledby` e os ids dos `<h2>` internos.
 
-    A leitura é estrutural, não por fatia de string: o que a #131 quebrava era
-    justamente a resolução do id, e um `in` sobre o documento inteiro não
-    distingue o `<h2>` de dentro do diálogo do heading que ficou atrás.
+    A leitura é estrutural, não por fatia de string: prova que o alvo do
+    `aria-labelledby` existe *dentro* do diálogo. Quem separa o `<h2>` do modal
+    do heading do painel é a unicidade do id, cobrada junto no teste — sozinha,
+    a checagem estrutural passa até com o id duplicado, porque o `<h2>` do modal
+    continua carregando o id; quem resolvia para o cartão era o navegador.
     """
 
     def __init__(self):
@@ -1616,9 +1618,10 @@ def test_detalhe_com_painel_de_decisao_nao_repete_nenhum_id(
     html = response.content.decode('utf-8')
 
     ids = _ids_do_documento(html)
+    duplicados = [id_ for id_, vezes in Counter(ids).items() if vezes > 1]
 
+    assert duplicados == []
     assert 'confirmar-recusar-painel-titulo' in ids
-    assert [id_ for id_, vezes in Counter(ids).items() if vezes > 1] == []
 
 
 @pytest.mark.django_db
