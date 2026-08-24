@@ -259,16 +259,23 @@ lugar", e `settings.LOGIN_URL` (`config/settings/base.py:109`) é um nome de rot
 destino é derivável sem literal na asserção. O `?next=` também é conteúdo do contrato: é ele que
 devolve a pessoa à ação que ela tentou.
 
+A ADR-0010 põe "sem login → 302 para login" no contrato de toda view de mutação, e hoje só 3 das
+10 rotas têm esse caso escrito: `enviar_rascunho`, `confirmar_importacao_scpi` e
+`estornar_saida_excepcional`. As outras sete dependem de `@login_required` sem nada travando.
+
 O eixo anônimo assere também que **nada mudou**: o POST não pode ter tocado o objeto do cenário.
 É a metade do contrato que o status não cobre — 302 para o login com a mutação já gravada seria
-o pior resultado possível, e é a única coisa aqui que exercita código do projeto, não do Django.
+o pior resultado possível, e é a única asserção do eixo que exercita código do projeto (que o
+decorador está na view, antes de qualquer chamada de service) em vez de exercitar o Django.
 `estoque/tests/test_views.py:458` (`test_post_anonimo_redireciona_sem_persistencia`) já é esse
-teste para uma rota; o eixo o generaliza para as 10. A ADR-0010 põe "sem login → 302 para login" no contrato de toda view de mutação, e hoje
-só 3 das 10 rotas têm esse caso escrito: `enviar_rascunho`, `confirmar_importacao_scpi` e
-`estornar_saida_excepcional`. As outras sete dependem de `@login_required` sem nada travando.
-Este eixo é barato porque `@login_required` decide antes de qualquer busca de objeto: o teste
-anônimo não precisa de cenário nenhum, só da URL — o que o mantém fora do `dict` de
-construtoras e imune ao custo de fixture.
+teste para uma rota; o eixo o generaliza para as 10.
+
+**Isso obriga o eixo anônimo a usar as mesmas construtoras do eixo autorizado**, e não só a URL:
+sem objeto real não há estado para comparar, e com `pk` inventado o teste provaria apenas que
+`@login_required` dispara antes da busca — que é comportamento do Django, não deste projeto. O
+cenário é construído, o estado do objeto é capturado antes do POST, e relido depois do 302. O
+custo de fixture é o mesmo do eixo autorizado porque a construtora é a mesma; o que muda é só o
+cliente não estar autenticado e a asserção ser de imobilidade.
 
 ## Estratégia de testes (ADR-0010)
 
