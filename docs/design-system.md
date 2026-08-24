@@ -479,6 +479,55 @@ Verificado por `apps/core/tests/test_modal.py` (marcação do contrato) e por
 `apps/requisicoes/tests/test_navegador_modal_foco.py` (comportamento em
 Chromium, camada Navegador da ADR-0019).
 
+### Desfechos do modal depois de confirmar
+
+Confirmar num modal dispara um POST por HTMX, e o componente tem que ter uma
+resposta visível para **cada** desfecho possível — o rodapé descreve essas ações
+como irreversíveis, e "a tela voltou ao normal" não é resposta (#133).
+
+| Desfecho | O que acontece |
+|---|---|
+| 204 + `HX-Redirect` | Navega. É o contrato PRG da ADR-0011, fechado pela #130 |
+| 422 | `htmx:beforeSwap` liga o swap, `[data-modal-body]` volta com a caixa de erro, o foco vai ao `[aria-invalid]` |
+| 5xx, 403, 404 | `htmx:responseError` clona o molde `servidor` para dentro do slot |
+| Queda de conexão | `htmx:sendError` clona o molde `conexao` |
+
+**A caixa de falha de transporte é renderizada pelo servidor, não montada em
+JS.** `_modal_body.html` emite dois `<template data-modal-erro-transporte>` com
+`{% erros_do_formulario %}` dentro, e `modal.js` só clona o que couber ao
+desfecho para o `[data-modal-erro-transporte-slot]`. Montar markup de erro no JS
+seria a quarta grafia de "o formulário falhou", que é a divergência que a tag
+existe para fechar; e o texto é copy de produto em PT-BR, nunca o status code.
+O slot fica **fora** da região rolável, entre cabeçalho e corpo, para estar na
+tela mesmo com o formulário rolado.
+
+**Nenhuma via de fechamento vale com a requisição em voo.** `Esc`, backdrop e
+"Voltar" passam todos por `fechar()`, que desiste enquanto existe
+`form[data-submitting="1"]` dentro do diálogo — ou envolvendo-o, no modo
+`submit_form_id`. `Esc` tem uma segunda rota e precisa da segunda trava: o
+`@keydown.escape` está no `<dialog>` e só roda com o foco dentro dele, e depois
+do clique em confirmar o foco não está mais lá — `form-submit.js` desabilita o
+botão acionado e o navegador o solta. O fechamento nativo continua valendo dali,
+então `modal.js` também escuta `cancel` e o cancela em voo. Fechar ali trocaria o corpo de um `<dialog>` já fechado: a
+recusa não seria vista e o `role="alert"` seria anunciado num nó não
+renderizado. A marca é gravada e apagada por `form-submit.js`, e o
+`htmx:afterRequest` que a apaga dispara em qualquer desfecho — não há caminho em
+que o diálogo fique preso.
+
+**Fechar por backdrop exige `mousedown` e `mouseup` fora da caixa.** Só com
+`@click`, uma seleção de texto que começa dentro do modal e termina fora chega
+com `target` no `<dialog>` e era lida como "clicou fora" — apagando a
+justificativa inteira. E, com texto digitado, o backdrop fica **inerte**: é o
+gesto mais fácil de disparar sem querer do componente, e justificativa de
+estorno e de cancelamento é obrigatória e pode ter parágrafos. As duas saídas
+deliberadas — `Esc` e "Voltar" — continuam de pé, e são elas que dizem que a
+pessoa quis mesmo sair. "Preenchido" é `value !== defaultValue`: um campo com
+default do servidor não trava nada.
+
+Verificado por `apps/core/tests/test_modal.py` (slot, moldes, copy, `@mousedown`)
+e por `apps/requisicoes/tests/test_navegador_modal_em_voo.py` (comportamento em
+Chromium).
+
 ### Painel de decisão de workflow
 
 `requisicoes/partials/_painel_decisao.html` é a superfície compartilhada das

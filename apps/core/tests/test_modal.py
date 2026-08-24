@@ -158,3 +158,90 @@ def test_modo_submit_form_id_mantem_o_contrato_de_foco():
     html = _render_modal(submit_form_id='form-externo')
     assert atributo(_corpo(html), 'tabindex') == '-1'
     assert any(_tem(a, 'data-modal-dismiss') for a in _botoes(html))
+
+
+def _moldes_de_transporte(html):
+    """Atributos de cada `<template data-modal-erro-transporte>`, em ordem."""
+    return {
+        atributo(atributos, 'data-modal-erro-transporte'): atributos
+        for _, atributos, _ in elementos(html, 'template')
+        if atributo(atributos, 'data-modal-erro-transporte')
+    }
+
+
+def test_modal_traz_o_slot_e_os_dois_moldes_de_falha_de_transporte():
+    """5xx e queda de conexão têm superfície pronta no HTML (#133).
+
+    O JS não renderiza a caixa: ele clona o que o servidor deixou no
+    `<template>`. Sem o slot ou sem os moldes, `mostrarFalhaDeTransporte` vira
+    no-op e a falha volta a ser silenciosa — que é exatamente o defeito.
+    """
+    html = _render_modal(action_url='/confirmar/')
+
+    assert 'data-modal-erro-transporte-slot' in html
+    assert set(_moldes_de_transporte(html)) == {'conexao', 'servidor'}
+
+
+def test_moldes_de_transporte_valem_tambem_no_modo_submit_form_id():
+    """O modo sem `<form>` próprio também pode receber 5xx do form externo."""
+    html = _render_modal(submit_form_id='form-externo')
+
+    assert 'data-modal-erro-transporte-slot' in html
+    assert set(_moldes_de_transporte(html)) == {'conexao', 'servidor'}
+
+
+def test_falha_de_transporte_usa_a_caixa_canonica_de_erro():
+    """A caixa é a de `{% erros_do_formulario %}`, não uma terceira grafia.
+
+    `data-error-summary` e `role="alert"` são o que `error_summary.html` emite —
+    se a caixa passar a ser montada em `modal.js`, o mesmo erro volta a parecer
+    coisa diferente conforme a tela, e o anúncio depende de quem escreveu o JS.
+    """
+    html = _render_modal(action_url='/confirmar/', acao_erro='estornar a saída')
+
+    assert html.count('data-error-summary') == 2
+    assert html.count('role="alert"') == 2
+    # O verbo da tela chega à frase-líder das duas caixas.
+    assert html.count('Não foi possível estornar a saída:') == 2
+
+
+def test_texto_da_falha_de_transporte_e_copy_de_produto_em_pt_br():
+    """Nem status code cru, nem jargão de rede (#133).
+
+    A pessoa que vê isto acabou de confirmar uma operação irreversível: o texto
+    tem que dizer o que fazer para descobrir se ela foi registrada.
+    """
+    html = _render_modal(action_url='/confirmar/')
+
+    assert 'A conexão com o servidor caiu durante o envio.' in html
+    assert 'O servidor não concluiu esta ação.' in html
+    for proibido in ('500', 'Internal Server Error', 'HTTP', 'XHR', 'status'):
+        assert proibido not in html, f'{proibido!r} vazou para a copy do modal.'
+
+
+def test_moldes_de_transporte_nao_repetem_id_entre_si():
+    """Dois `<template>` no mesmo diálogo não podem carregar o mesmo id.
+
+    A caixa entra no documento por clone; ids iguais nos moldes viram ids
+    duplicados na página assim que os dois desfechos ocorrerem na mesma sessão,
+    e é por id que `aria-describedby` e as âncoras do sumário resolvem.
+    """
+    html = _render_modal(action_url='/confirmar/')
+
+    assert 'id="meu-modal-erro-conexao"' in html
+    assert 'id="meu-modal-erro-servidor"' in html
+
+
+def test_backdrop_ancora_o_fechamento_no_mousedown():
+    """Fechar por backdrop exige o par `mousedown` + `click` (#133).
+
+    Só com `@click`, uma seleção de texto que começa dentro da caixa e termina
+    fora chega com `target` no `<dialog>` e descarta a justificativa inteira.
+    """
+    dialogo = next(
+        atributos
+        for _, atributos, _ in elementos(_render_modal(action_url='/x/'), 'dialog')
+    )
+
+    assert atributo(dialogo, '@mousedown') == 'backdropMouseDown($event)'
+    assert atributo(dialogo, '@click') == 'backdropClick($event)'

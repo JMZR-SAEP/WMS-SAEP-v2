@@ -49,6 +49,37 @@
     </div>
   </header>
 
+  {% comment %}
+    Superfície da falha de transporte (#133): 5xx, 403, 404 e queda de conexão.
+
+    O 422 tem swap e volta como corpo inteiro; estes desfechos não trocam nada,
+    e sem esta caixa o modal voltava ao estado inicial — indistinguível de "não
+    aconteceu nada" numa ação que o rodapé descreve como irreversível.
+
+    A caixa é a mesma do resto do sistema, e é o servidor quem a renderiza: o
+    JS não sabe montar `{% templatetag openblock %} erros_do_formulario
+    {% templatetag closeblock %}`, e uma segunda grafia escrita em `modal.js`
+    seria exatamente a divergência que a tag existe para fechar. Os moldes ficam
+    em `<template>` — conteúdo inerte, fora do documento —, e `modal.js` clona o
+    que couber ao desfecho para dentro do slot. Nó novo dentro de um
+    `role="alert"` recém-inserido é o que o leitor de tela anuncia; revelar um
+    nó que já estava no DOM não é confiável.
+
+    O slot fica **fora** da região rolável, entre o cabeçalho e o corpo, para
+    que a mensagem esteja na tela mesmo com o formulário rolado para baixo.
+  {% endcomment %}
+  <div data-modal-erro-transporte-slot></div>
+  <template data-modal-erro-transporte="conexao">
+    <div class="px-6 pt-5">
+      {% erros_do_formulario "A conexão com o servidor caiu durante o envio. Recarregue a página para conferir se a ação foi registrada antes de tentar de novo." acao=acao_erro|default:"concluir" id=id|add:"-erro-conexao" focar=False %}
+    </div>
+  </template>
+  <template data-modal-erro-transporte="servidor">
+    <div class="px-6 pt-5">
+      {% erros_do_formulario "O servidor não concluiu esta ação. Recarregue a página para conferir o estado atual antes de tentar de novo; se o erro se repetir, avise o suporte." acao=acao_erro|default:"concluir" id=id|add:"-erro-servidor" focar=False %}
+    </div>
+  </template>
+
   {% if form_body_template or erro %}
     <div class="flex-1 overflow-y-auto px-6 py-5">
       {% comment %}
