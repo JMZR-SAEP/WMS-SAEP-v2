@@ -100,7 +100,18 @@ def test_o_id_do_titulo_do_card_deriva_do_modal_id():
     """Derivado, nunca contado: dois painéis na mesma tela não podem colidir."""
     html = _render(layout='card', modal_id='confirmar-recusar')
 
-    assert 'id="confirmar-recusar-titulo"' in html
+    assert 'id="confirmar-recusar-painel-titulo"' in html
+
+
+def test_o_card_nao_toma_o_sufixo_titulo_do_modal():
+    """#131: `{{ modal_id }}-titulo` é o `<h2>` de `components/_modal_body.html`,
+    para onde o `aria-labelledby` do `<dialog>` aponta. Como o painel entra antes
+    do modal no DOM, o card que derivasse esse mesmo id duplicava o id e fazia o
+    diálogo ser anunciado com o título do cartão que ficou atrás."""
+    html = _render(layout='card', modal_id='confirmar-recusar')
+
+    assert 'id="confirmar-recusar-titulo"' not in html
+    assert 'aria-labelledby="confirmar-recusar-titulo"' not in html
 
 
 @pytest.mark.parametrize('layout', ['card', 'banner'])
