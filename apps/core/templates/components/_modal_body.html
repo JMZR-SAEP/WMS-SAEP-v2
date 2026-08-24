@@ -14,7 +14,14 @@
 {% endcomment %}
 {% load core_tags %}
 
-<div data-modal-body="{{ id }}" class="flex min-h-0 flex-1 flex-col">
+{% comment %}
+  `tabindex="-1"` no corpo é o alvo de último recurso do foco de abertura
+  (`focarDispensa` em `modal.js`): modal sem campo e sem botão de dispensa
+  precisa de um lugar para o foco pousar que não seja o botão que executa a
+  ação. Ele carrega o `<h2>` do `aria-labelledby` e a descrição do
+  `aria-describedby`, então o diálogo continua anunciado.
+{% endcomment %}
+<div data-modal-body="{{ id }}" tabindex="-1" class="flex min-h-0 flex-1 flex-col">
   <header class="border-b border-border px-6 py-5">
     <div class="flex items-start gap-4">
       {% if icon_variant %}
@@ -70,8 +77,13 @@
       preenchida, o oposto do `secondary` de button.html, que é papel branco com
       borda) — dois nomes para coisas diferentes é como o rodapé foi parar fora
       do componente de botão.
+
+      `data_modal_dismiss` marca o botão de dispensa como alvo do foco de
+      abertura de modal sem campo (`focarDispensa`, em `modal.js`). É o par de
+      `data_modal_confirm`: um diz qual botão executa, o outro diz qual botão o
+      foco pode encostar sem executar nada.
     {% endcomment %}
-    {% include "components/button.html" with variant="secondary" label=cancel_label|default:"Voltar" x_click="fechar()" %}
+    {% include "components/button.html" with variant="secondary" label=cancel_label|default:"Voltar" x_click="fechar()" data_modal_dismiss=True %}
     {% if submit_form_id %}
       {% with expressao_submit="document.getElementById('"|add:submit_form_id|add:"')?.requestSubmit() ?? console.error('modal "|add:id|add:": submit_form_id "|add:submit_form_id|add:" nao encontrado')" %}
         {% include "components/button.html" with variant=confirm_variant|default:"primary" label=confirm_label|default:"Confirmar" data_modal_confirm=True x_click=expressao_submit %}

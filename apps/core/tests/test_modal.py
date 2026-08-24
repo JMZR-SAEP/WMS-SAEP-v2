@@ -48,3 +48,58 @@ def test_form_htmx_bloqueia_duplo_envio_no_proprio_htmx():
     """
     html = _render_modal(action_url='/confirmar/')
     assert 'hx-sync="this:drop"' in html
+
+
+def test_corpo_do_modal_e_focavel_por_programa():
+    """O corpo é o alvo de último recurso do foco de abertura (#132).
+
+    Sem `tabindex="-1"` o `focarDispensa` de `modal.js` não teria para onde
+    mandar o foco num modal sem campo e sem botão de dispensa, e a única coisa
+    focável restante seria o botão que executa a ação.
+    """
+    html = _render_modal(action_url='/confirmar/')
+    assert 'data-modal-body="meu-modal" tabindex="-1"' in html
+
+
+def test_rodape_marca_a_dispensa_e_a_confirmacao_com_ganchos_distintos():
+    """`data-modal-dismiss` é o par de `data-modal-confirm` (#132).
+
+    `modal.js` precisa distinguir "o botão que só fecha" de "o botão que
+    executa" para levar o foco de abertura ao primeiro. Um rodapé com os dois
+    ganchos no mesmo botão, ou sem o de dispensa, devolve o foco ao caminho
+    perigoso sem quebrar nada visível.
+    """
+    html = _render_modal(action_url='/confirmar/')
+    assert html.count('data-modal-dismiss') == 1
+    assert html.count('data-modal-confirm') == 1
+    # Dispensa antes da confirmação, na ordem do DOM: é ela que o
+    # `querySelector` de `focarDispensa` encontra, e é ela que vem primeiro na
+    # tabulação a partir do corpo.
+    assert html.index('data-modal-dismiss') < html.index('data-modal-confirm')
+
+
+def test_botao_de_dispensa_nao_e_o_que_submete():
+    """O gancho de dispensa nunca pode cair num `<button type="submit">`."""
+    html = _render_modal(action_url='/confirmar/')
+    trecho = html[: html.index('data-modal-dismiss')]
+    abertura = trecho.rindex('<button')
+    assert 'type="submit"' not in html[abertura : html.index('data-modal-dismiss')]
+
+
+def test_form_do_modal_barra_submissao_implicita():
+    """Enter num campo de linha única não pode confirmar a ação (#132).
+
+    O modal de devolução abre com o foco num `<input type="number">`. A
+    submissão implícita do HTML levaria o POST direto, pulando o rodapé — que é
+    onde a frase que descreve a consequência está.
+    """
+    html = _render_modal(action_url='/confirmar/')
+    assert '@keydown.enter="bloquearSubmitImplicito($event)"' in html
+
+
+def test_modo_submit_form_id_nao_tem_form_para_barrar():
+    """Sem `<form>` interno não há submissão implícita — nem handler pendurado."""
+    html = _render_modal(submit_form_id='form-externo')
+    assert 'bloquearSubmitImplicito' not in html
+    assert 'tabindex="-1"' in html
+    assert 'data-modal-dismiss' in html

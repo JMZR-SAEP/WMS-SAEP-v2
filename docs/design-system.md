@@ -423,6 +423,39 @@ desconhecida.
 templates renderizados **e** com a expectativa aprovada no próprio teste. As
 três pontas precisam concordar: mudar tabela e templates juntos não passa.
 
+### Foco inicial do modal de confirmação
+
+`modal.js` decide para onde o foco vai quando o `<dialog>` abre, e a ordem é
+sempre a mesma — no render inicial e no re-render de 422:
+
+1. `[aria-invalid="true"]` — o campo que voltou com erro;
+2. o primeiro campo visível (`textarea`, `input` não-oculto, `select`);
+3. `[data-modal-dismiss]` — o botão de dispensa ("Voltar");
+4. `[data-modal-body]`, que é `tabindex="-1"` por isso.
+
+**O foco de abertura nunca vai para `[data-modal-confirm]`** (#132). Modal sem
+campo é confirmação pura, e neste sistema esses são exatamente os que executam
+operação irreversível — enviar, separar, autorizar, atender retirada, importar
+SCPI. Quem aciona o trigger pelo teclado chega ao diálogo com o Enter ainda
+pressionado, e o `keydown` repete no elemento que acabou de receber o foco: com
+o foco no botão que executa, a porta abre com a mão já na maçaneta errada. A
+WAI-ARIA APG manda o contrário — foco inicial na opção menos destrutiva. Por
+isso os degraus 3 e 4 existem, e por isso `button.html` tem
+`data_modal_dismiss`: é o par de `data_modal_confirm`, e diz qual botão o foco
+pode encostar sem executar nada.
+
+**O modal também não confirma por submissão implícita.** Enter num campo de
+linha única submete o `<form>` sem passar pelo rodapé, que é onde a consequência
+está escrita — e o modal de devolução abre com o foco num
+`<input type="number">`. O `<form>` de `modal.html` traz
+`@keydown.enter="bloquearSubmitImplicito($event)"`, que barra o Enter vindo de
+`<input>` e deixa passar o de `<textarea>` (onde é quebra de linha) e o dos
+tipos de botão (onde é ativação do próprio controle, não submissão implícita).
+
+Verificado por `apps/core/tests/test_modal.py` (marcação do contrato) e por
+`apps/requisicoes/tests/test_navegador_modal_foco.py` (comportamento em
+Chromium, camada Navegador da ADR-0019).
+
 ### Painel de decisão de workflow
 
 `requisicoes/partials/_painel_decisao.html` é a superfície compartilhada das
@@ -503,6 +536,8 @@ estrutura, a abstração está errada. Parar e registrar, não generalizar.
 [ ] Campo com erro usa aria-invalid + aria-describedby
 [ ] Readonly e disabled visualmente distintos
 [ ] Modal e dropdown operáveis por teclado (Tab, Escape, Enter/Espaço)
+[ ] Modal de confirmação abre com o foco na ação menos destrutiva — nunca
+    em [data-modal-confirm] (ver §Foco inicial do modal de confirmação)
 [ ] Ação bloqueada tem motivo textual amarrado por aria-describedby
 [ ] Atualização HTMX crítica tem aria-live ou feedback visível
 [ ] Listagem filtrada por HTMX anuncia a CONTAGEM numa live region fora da

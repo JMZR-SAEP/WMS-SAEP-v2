@@ -137,10 +137,51 @@
           primeiroCampo.focus();
           return;
         }
-        const confirmar = dialog.querySelector('[data-modal-confirm]');
-        if (confirmar) {
-          confirmar.focus();
+        this.focarDispensa();
+      },
+
+      // Modal sem campo visível é confirmação pura, e no sistema inteiro esses
+      // são exatamente os que executam operação irreversível (enviar, separar,
+      // autorizar, atender retirada, importar SCPI). O foco de abertura não
+      // pode pousar no botão que executa: quem acionou o trigger pelo teclado
+      // chega aqui com o Enter ainda pressionado, e o `keydown` repete no
+      // elemento que acabou de receber o foco. A WAI-ARIA APG manda o foco
+      // inicial de diálogo de confirmação para a opção menos destrutiva.
+      focarDispensa() {
+        const dialog = this.$refs.dialog;
+        const dispensar = dialog.querySelector('[data-modal-dismiss]');
+        if (dispensar) {
+          dispensar.focus();
+          return;
         }
+        // Sem botão de dispensa, o corpo (`tabindex="-1"`) é o alvo: ele carrega
+        // o `<h2>` do `aria-labelledby` e a descrição do `aria-describedby`, o
+        // diálogo continua sendo anunciado, e não há nada que Enter ative.
+        const corpo = dialog.querySelector('[data-modal-body]');
+        if (corpo) {
+          corpo.focus();
+        }
+      },
+
+      // Enter num campo de linha única submete o <form> pela regra de submissão
+      // implícita do HTML, sem passar pelo rodapé — que é onde a frase que
+      // descreve a consequência está. No modal de devolução o primeiro campo é
+      // `<input type="number">` e recebe o foco de abertura, então a operação
+      // seria confirmada por uma tecla apertada antes de a pessoa ler o que vai
+      // acontecer. `<textarea>` não entra: ali Enter é quebra de linha.
+      //
+      // Os tipos de botão ficam de fora porque neles o Enter não é submissão
+      // implícita, e sim a ativação do próprio controle — `preventDefault` no
+      // `keydown` mataria o clique que o navegador gera como ação padrão.
+      bloquearSubmitImplicito(event) {
+        const alvo = event.target;
+        if (!(alvo instanceof HTMLInputElement)) {
+          return;
+        }
+        if (['submit', 'button', 'reset', 'image'].includes(alvo.type)) {
+          return;
+        }
+        event.preventDefault();
       },
 
       devolverFoco() {

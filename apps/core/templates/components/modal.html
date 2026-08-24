@@ -82,6 +82,14 @@
       {% endcomment %}
       hx-sync="this:drop"
       data-prevent-double-submit
+      {% comment %}
+        Enter num campo de linha única submeteria este form pela regra de
+        submissão implícita do HTML, pulando o rodapé — que é onde a frase que
+        descreve a consequência está, e onde a pessoa decide. O modal de
+        devolução abre com o foco num `<input type="number">`: sem esta trava,
+        a operação é confirmada por uma tecla apertada antes da leitura.
+      {% endcomment %}
+      @keydown.enter="bloquearSubmitImplicito($event)"
       x-trap.inert.noscroll="$refs.dialog.open"
       class="flex max-h-[calc(100dvh-2rem)] flex-col"
     >
