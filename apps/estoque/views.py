@@ -18,6 +18,7 @@ from apps.core.exceptions import (
 )
 from apps.core.http import htmx_redirect, parse_data_iso
 from apps.core.listagem import paginar_com_filtros
+from apps.core.modal import render_modal_erro
 from apps.core.presentation import traduz_erro_dominio
 from apps.core.templatetags.core_tags import formatar_quantidade
 from apps.estoque.forms import ItemSaidaExcepcionalFormSet, SaidaExcepcionalForm
@@ -408,12 +409,32 @@ def estornar_saida_excepcional_view(request, pk: int):
             justificativa=justificativa,
         )
     except ErroDominio as exc:
+        if request.htmx:
+            # Título, descrição e rótulos vêm de detalhe_saida_excepcional.html:177:
+            # o modal que reabre com erro tem de ser o mesmo modal, não um parente.
+            return render_modal_erro(
+                request,
+                modal_id='estornar-saida',
+                titulo='Estornar saída excepcional',
+                descricao=(
+                    'Esta ação é irreversível. Todos os itens serão devolvidos '
+                    'ao saldo físico do estoque.'
+                ),
+                erro=str(exc),
+                form_body_template=('estoque/partials/_modal_form_estorno_saida.html'),
+                confirm_label='Confirmar estorno',
+                confirm_variant='danger',
+                acao_erro='estornar a saída',
+                contexto_form={'justificativa': justificativa},
+            )
         pres = traduz_erro_dominio(exc)
         getattr(messages, pres.severity)(request, str(exc))
         return redirect('estoque:detalhe_saida_excepcional', pk=pk)
 
     messages.success(request, f'Saída {saida.numero_publico} estornada com sucesso.')
-    return redirect('estoque:detalhe_saida_excepcional', pk=pk)
+    return htmx_redirect(
+        request, reverse('estoque:detalhe_saida_excepcional', args=[pk])
+    )
 
 
 @login_required

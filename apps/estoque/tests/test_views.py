@@ -801,6 +801,68 @@ class TestEstornarSaidaExcepcionalView:
         assert any(m.tags == 'warning' for m in messages_list)
         assert not any(m.tags == 'error' for m in messages_list)
 
+    def test_htmx_sucesso_devolve_204_com_hx_redirect(
+        self, client, chefe_almoxarifado, saida_registrada
+    ):
+        """Sucesso via HTMX é PRG por cabeçalho, não 302 seguido pelo XHR.
+
+        O modal faz `hx-post` com `hx-target="[data-modal-body]"` e
+        `hx-swap="outerHTML"`: um 302 é seguido pelo próprio XHR, que recebe a
+        página de detalhe inteira e a injeta dentro da caixa do modal.
+        """
+        client.force_login(chefe_almoxarifado)
+        response = client.post(
+            self._url(saida_registrada.pk),
+            data={'justificativa': 'Registro equivocado.'},
+            HTTP_HX_REQUEST='true',
+        )
+        assert response.status_code == 204
+        assert response['HX-Redirect'] == reverse(
+            'estoque:detalhe_saida_excepcional', args=[saida_registrada.pk]
+        )
+
+    def test_htmx_erro_de_dominio_devolve_422_com_corpo_do_modal(
+        self, client, chefe_almoxarifado, saida_registrada
+    ):
+        """Erro de domínio via HTMX mantém o modal de pé, sem página inteira."""
+        client.force_login(chefe_almoxarifado)
+        response = client.post(
+            self._url(saida_registrada.pk),
+            data={'justificativa': ''},
+            HTTP_HX_REQUEST='true',
+        )
+        assert response.status_code == 422
+        conteudo = response.content.decode()
+        assert 'data-modal-body="estornar-saida"' in conteudo
+        assert 'data-modal-erro' in conteudo
+        # Não pode ter vindo página inteira dentro da caixa do modal.
+        assert '<html' not in conteudo
+        assert 'app-bar' not in conteudo
+
+    def test_htmx_erro_preserva_justificativa_digitada(
+        self, client, chefe_almoxarifado, saida_registrada
+    ):
+        """O 422 devolve a caixa aberta com o texto digitado, não em branco.
+
+        É o que `recusar_requisicao_view` já faz com `motivo_recusa`. Sem isso a
+        pessoa reescreve a justificativa a cada erro.
+        """
+        client.force_login(chefe_almoxarifado)
+        from apps.estoque.services import estornar_saida_excepcional
+
+        estornar_saida_excepcional(
+            ator_id=chefe_almoxarifado.pk,
+            saida_id=saida_registrada.pk,
+            justificativa='Primeiro.',
+        )
+        response = client.post(
+            self._url(saida_registrada.pk),
+            data={'justificativa': 'Texto que não pode sumir.'},
+            HTTP_HX_REQUEST='true',
+        )
+        assert response.status_code == 422
+        assert 'Texto que não pode sumir.' in response.content.decode()
+
 
 class TestPreviewImportacaoScpiView:
     """Contrato HTTP de preview_importacao_scpi_view."""
