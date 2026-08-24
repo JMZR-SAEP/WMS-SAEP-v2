@@ -40,6 +40,11 @@
 | 5 | Teste de contrato que enumera toda `action_url` e verifica 204+`HX-Redirect` ou 422+fragment | Passos 6 e 7 |
 | 6 | O teste falha se um modal novo apontar para uma view fora do contrato | Passo 6 (registro fechado) + passo 7 (`pytest.fail` sem cenário) |
 
+A varredura enumera **nomes de rota**, não URLs concretas: `requisicoes:cancelar` aparece em dois
+pontos de `detalhe.html` com o mesmo `{% url %}` e `pk` diferente por requisição. O nome é a
+unidade que identifica a view responsável pela resposta — que é o que o contrato governa. A URL
+concreta reaparece no passo 7, onde cada cenário faz o `reverse()` com o objeto que criou.
+
 ## Arquivos tocados
 
 | Arquivo | Mudança |
@@ -177,8 +182,14 @@ if not form.is_valid():
     if request.htmx:
         return render_modal_erro(request, modal_id=..., erro=form, ...)
     messages.error(request, ' '.join(m for ms in form.errors.values() for m in ms))
-    return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
+    return redirect('requisicoes:detalhe', pk=pk)
 ```
+
+`redirect(...)` e não `htmx_redirect(...)` neste ramo. Os dois produzem a mesma resposta aqui —
+`htmx_redirect` (`core/http.py:23`) só devolve 204 quando `request.htmx` é verdadeiro, e dentro
+de um `else` de `if request.htmx:` ele é provadamente falso —, mas escrever o helper de HTMX no
+ramo que existe justamente por não ser HTMX obriga quem lê a provar a equivalência para saber
+qual status sai dali. O ramo não-HTMX chama o redirect não-HTMX.
 
 - Devolução: `modal_id=f'devolver-{item_pk}'`,
   `form_body_template='requisicoes/partials/_modal_form_devolucao.html'`,
@@ -213,8 +224,15 @@ suíte já trava como `error` nos testes de drift 4 e 5
   - `submit_form_id` sem `action_url` é ignorado (modo de form externo).
 - `REGISTRO_CONTRATO_MODAL: dict[str, str]` — rota → app dono do teste HTTP. Fechado, com as 10
   entradas da tabela acima.
-- `assert_contrato_modal(resposta)` — 204 com `HX-Redirect`, ou 422 com `data-modal-body` no
-  corpo. Qualquer outra coisa falha nomeando o status recebido.
+- `assert_contrato_modal(resposta, *, destino_esperado=None)` — 204 com `HX-Redirect`, ou 422 com
+  `data-modal-body` no corpo. Qualquer outra coisa falha nomeando o status recebido.
+
+  No ramo 204, **o valor do cabeçalho é comparado, não só a presença**. `HX-Redirect: ''` e
+  `HX-Redirect` apontando para a tela errada são as duas falhas que a mera presença deixa passar,
+  e a segunda é exatamente o sintoma que esta issue trata: a pessoa termina numa tela que não
+  responde se gravou. `destino_esperado` é obrigatório sempre que o cenário puder terminar em
+  204, e vem da função construtora do cenário, que já conhece o `pk` do objeto que criou. Quando
+  `None`, o helper exige 422 — é o caso dos cenários que exercitam só o ramo de erro.
 
 `test_contrato_modal.py` (sem DB): `rotas_de_modal() == set(REGISTRO_CONTRATO_MODAL)`. Modal novo
 apontando para rota não registrada quebra aqui.
@@ -227,11 +245,20 @@ a construtora não existir, o teste chama `pytest.fail` nomeando a rota. É esse
 critério 6: registrar a rota sem escrever o cenário não passa, e não registrar a rota não passa
 no passo 6.
 
-Cada cenário faz um POST com `HTTP_HX_REQUEST='true'` como ator autorizado e passa a resposta
-por `assert_contrato_modal`. A carga escolhida é a que exercita o **ramo de erro** de cada rota
-(payload vazio, sessão sem preview, estado que o service recusa) — é o ramo onde as violações
-desta issue viviam; o caminho feliz das duas views corrigidas ganha teste próprio de
-204 + `HX-Redirect` ao lado, no arquivo de views do app.
+A construtora devolve `(url, payload, destino_esperado)`. Cada cenário faz um POST com
+`HTTP_HX_REQUEST='true'` como ator autorizado e passa a resposta por `assert_contrato_modal`. A
+carga escolhida é a que exercita o **ramo de erro** de cada rota (payload vazio, sessão sem
+preview, estado que o service recusa) — é o ramo onde as violações desta issue viviam; o caminho
+feliz das duas views corrigidas ganha teste próprio de 204 + `HX-Redirect` para o destino certo
+ao lado, no arquivo de views do app.
+
+**Segundo eixo: sem autenticação.** A mesma parametrização roda anônima e espera 302 para o
+login. A ADR-0010 põe "sem login → 302 para login" no contrato de toda view de mutação, e hoje
+só 3 das 10 rotas têm esse caso escrito: `enviar_rascunho`, `confirmar_importacao_scpi` e
+`estornar_saida_excepcional`. As outras sete dependem de `@login_required` sem nada travando.
+Este eixo é barato porque `@login_required` decide antes de qualquer busca de objeto: o teste
+anônimo não precisa de cenário nenhum, só da URL — o que o mantém fora do `dict` de
+construtoras e imune ao custo de fixture.
 
 ## Estratégia de testes (ADR-0010)
 
@@ -245,7 +272,8 @@ Camada **Views** — contrato HTTP. Nada aqui revalida timeline, saldo ou matriz
 | Form inválido em devolução e estorno, HTMX | `requisicoes/tests/test_views.py` | 422 + texto do Form, sem `*` de `as_text()` |
 | Fallback sem HTMX das quatro views | idem | 302 / 200 de página, como hoje |
 | Permissão negada | já coberto | 403, inalterado |
-| Contrato das 10 rotas | `*/tests/test_contrato_modal_http.py` | 204+`HX-Redirect` ou 422+fragment |
+| Contrato das 10 rotas, ator autorizado | `*/tests/test_contrato_modal_http.py` | 204 + `HX-Redirect` para o destino esperado, ou 422 + fragment |
+| As mesmas 10 rotas, anônimo | `*/tests/test_contrato_modal_http.py` | 302 para o login (ADR-0010; 7 das 10 não tinham) |
 | Registro fechado | `core/tests/test_contrato_modal.py` | conjunto varrido == registro |
 
 Testes existentes que mudam de expectativa:
@@ -278,7 +306,7 @@ Testes existentes que mudam de expectativa:
 | `render_modal_erro` no core criar dependência de camada errada | Ele é apresentação HTTP pura: renderiza template, não importa service nem model — mesma faixa de `core/http.py`. Não entra em `core/presentation.py`, que é declaradamente independente de Django/templates |
 | Passar o Form como `erro` gerar âncora para `id` inexistente | Os campos do modal usam id próprio (`modal-devolver-quantidade-<pk>`), não `id_quantidade`. O sumário perde o link, não a mensagem — e `focar=False` já vale dentro do modal. Verificar no teste que a **mensagem** aparece; não prometer a âncora |
 | SCPI 422 sem a recapitulação parecer perda de informação | Decidido no passo 4 e registrado aqui: repetir contagem de um preview consumido é pior que omiti-la |
-| Remover `_modal_body_fragment.html` quebrar um teste por nome de template | Grep antes de apagar; hoje há um único consumidor vivo |
+| Remover `_modal_body_fragment.html` quebrar um teste por nome de parcial | Confirmar a ausência de referência ao caminho antes de apagar; hoje há um único consumidor vivo |
 | Mudar `warning`→`error` no fallback sem HTMX | Nenhum teste assere o nível nesses dois casos; o alinhamento com os testes de drift 4/5 é o motivo |
 
 ## Fora de escopo declarado
