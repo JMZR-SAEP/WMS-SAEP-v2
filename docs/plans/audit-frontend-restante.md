@@ -23,7 +23,7 @@ Cada etapa é uma branch `fix/{desc}`, com code-review antes do merge, conforme 
 | Partials de requisições | `apps/requisicoes/templates/requisicoes/partials/**` (14) | — |
 | Partials de estoque | `apps/estoque/templates/estoque/partials/**` (10) | — |
 | Partials de accounts | `apps/accounts/templates/accounts/partials/**` (1) | — |
-| Comportamento | `apps/core/static/core/js/*.js` (4) | 586 |
+| Comportamento | `apps/core/static/core/js/*.js` (6) | 923 |
 
 `app.css` é artefato de build (`npm run css:build`) — não auditar, não editar à mão.
 

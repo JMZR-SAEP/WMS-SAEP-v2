@@ -133,5 +133,12 @@ resetdb: resetpostgres ## Recriar schema do banco do zero sem apagar migrations 
 run: ## Subir servidor de desenvolvimento
 	DJANGO_SETTINGS_MODULE=$(DJANGO_SETTINGS_MODULE) $(DJANGO_ADMIN) runserver
 
-.PHONY: help prepare init setup clean veryclean test seed-dev resetdb run resetpostgres css-build css-dev
+test: ## Rodar a suíte padrão (exclui a camada Navegador, ADR-0019)
+	uv run pytest -q -ra --tb=short --strict-markers --disable-warnings -n logical -m "not navegador"
+
+test-navegador: ## Rodar a camada Navegador em Chromium (ADR-0019)
+	uv run playwright install chromium
+	uv run pytest -q -ra --tb=short --strict-markers --disable-warnings -m navegador
+
+.PHONY: help prepare init setup clean veryclean test test-navegador seed-dev resetdb run resetpostgres css-build css-dev
 .EXPORT_ALL_VARIABLES:

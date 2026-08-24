@@ -44,3 +44,27 @@ def test_ci_workflow_declara_gates_do_issue_16():
     assert 'pytest -q -ra --tb=short --strict-markers --disable-warnings' in conteudo
     assert 'DEBUG: "true"' in migrations
     assert 'DEBUG:' not in pytest_job
+
+
+def test_ci_workflow_isola_a_camada_de_navegador_da_adr_0019():
+    """A camada Navegador roda em job próprio, depois do `pytest`, e só ela.
+
+    Os dois lados do marcador são conferidos porque a divisão só vale se as
+    duas metades existirem: sem `-m "not navegador"` no job `pytest`, a suíte
+    rápida tentaria subir browser; sem `-m navegador` no job próprio, a camada
+    nunca rodaria e o gate seria decorativo.
+    """
+    workflow = REPO_ROOT / '.github' / 'workflows' / 'ci.yml'
+    conteudo = workflow.read_text()
+    pytest_job = _bloco_job(conteudo, 'pytest')
+    navegador = _bloco_job(conteudo, 'navegador')
+
+    assert '-m "not navegador"' in pytest_job
+    assert '-m navegador' in navegador
+    assert '-m "not navegador"' not in navegador
+    # Dentro do bloco, e não no arquivo inteiro: um `needs: [pytest]` em
+    # qualquer outro job deixaria a asserção verde com o `navegador` solto.
+    assert 'needs: [pytest]' in navegador
+    assert 'playwright install --with-deps chromium' in navegador
+    assert 'postgres:16' in navegador
+    assert 'persist-credentials: false' in navegador

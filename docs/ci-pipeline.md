@@ -21,10 +21,36 @@ uv run python manage.py makemigrations --check --dry-run
 uv run python manage.py migrate --run-syncdb
 SEED_DEV_HABILITADO=true uv run python manage.py seed_dev
 SEED_DEV_HABILITADO=true uv run python manage.py seed_dev
-uv run pytest
+uv run pytest -q -ra --tb=short --strict-markers --disable-warnings -n logical -m "not navegador"
+
+# Camada de navegador (ADR-0019) — instala o Chromium se faltar
+make test-navegador
 ```
 
 Se algo falhar localmente, não abre PR até corrigir.
+
+### Sobre a camada de navegador
+
+A [ADR-0019](adr/0019-camada-de-teste-de-navegador.md) criou uma camada de teste que executa o
+JavaScript num Chromium real, para o comportamento que não deixa rastro no HTML — trava de scroll,
+foco dentro de `<dialog>`, ida e volta de XHR do htmx.
+
+Ela é **excluída do comando padrão** por marcador. Motivo: a suíte de unidade roda em segundos e é
+usada em loop curto a cada mudança; diluí-la com boot de navegador destrói isso. Quem clona o repo e
+roda o comando padrão não precisa do Chromium.
+
+O binário é baixado por `uv run playwright install chromium` (~150 MB) e fica no cache do usuário,
+fora do repositório. No CI o job `navegador` faz `playwright install --with-deps chromium`.
+
+Antes de escrever um teste novo nessa camada, confira o critério de admissão da ADR-0019: se o
+conserto puder ser provado por um atributo no HTML renderizado, ele não entra aqui.
+
+**Se aparecer `SynchronousOnlyOperation: You cannot call this from an async context`**: a API
+síncrona do Playwright mantém um event loop na própria thread, e o Django recusa acesso ao banco
+quando detecta um loop rodando. O `conftest.py` da raiz libera isso via `DJANGO_ALLOW_ASYNC_UNSAFE`
+quando o marcador `navegador` está selecionado — e só nesse caso, para que a suíte padrão mantenha a
+proteção. Se você invocar a camada com uma expressão de marcador diferente das duas documentadas,
+exporte a variável na própria invocação.
 
 ## Falhas comuns e como corrigir
 
@@ -199,6 +225,7 @@ Em `main`, esses checks são obrigatórios:
 - mypy
 - pytest
 - migrations
+- navegador
 ```
 
 PR só pode ser mergeado com todos verdes.
@@ -252,8 +279,9 @@ Tempo típico do pipeline:
 - migrate: ~5s
 - seed_dev (2x): ~10s
 - pytest: ~30-60s (depende de DB setup)
+- navegador: ~1-2min (download/cache do Chromium domina; a suíte em si é pequena por desenho)
 
-**Total:** ~1-2 minutos.
+**Total:** ~2-4 minutos.
 
 Se passar de 5 minutos, algo está fora do padrão. Confira:
 - PostgreSQL service health check

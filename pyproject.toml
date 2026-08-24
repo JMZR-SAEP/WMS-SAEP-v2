@@ -16,6 +16,7 @@ dev = [
     "mypy>=1.19.0",
     "pytest>=9.0.3",
     "pytest-django>=4.12.0",
+    "pytest-playwright>=0.7.1",
     "pytest-xdist>=3.6.1",
     "ruff>=0.14.8",
 ]
@@ -23,6 +24,9 @@ dev = [
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "config.settings.test"
 python_files = ["tests.py", "test_*.py", "*_test.py"]
+markers = [
+    "navegador: executa o JS num Chromium real via pytest-playwright + live_server (ADR-0019). Excluído do comando padrão com -m \"not navegador\".",
+]
 
 [tool.ruff]
 target-version = "py313"

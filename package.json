@@ -10,7 +10,6 @@
     "@tailwindcss/cli": "^4",
     "alpinejs": "^3",
     "htmx.org": "^2",
-    "playwright": "^1.60.0",
     "tailwindcss": "^4"
   }
 }
