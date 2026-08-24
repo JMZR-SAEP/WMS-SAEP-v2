@@ -316,8 +316,31 @@ mutação principal tem que estar gravada, e no POST inválido não pode haver m
 ADR-0010 pede "redirect correto + evidência mínima de mutação (estado principal alterado)" em
 toda view de mutação, e sem essa metade o teste passaria numa view que redireciona para o lugar
 certo sem ter gravado nada — que é a mesma pergunta sem resposta que esta issue trata, só que
-pela porta do fallback. A evidência é a mínima: o estado da requisição, o saldo da saída, a
-existência da importação. Efeitos internos seguem sendo assunto dos testes de service.
+pela porta do fallback.
+
+A evidência é a mínima, e o recorte de `ler_estado` é nomeado por rota para não reler o registro
+errado nem omitir a mutação principal:
+
+| Rota | `ler_estado` relê |
+|---|---|
+| `requisicoes:autorizar` | `Requisicao.estado` + `ItemRequisicao.quantidade_autorizada` + `SaldoEstoque.saldo_reservado` |
+| `requisicoes:recusar` | `Requisicao.estado` |
+| `requisicoes:retornar_rascunho` | `Requisicao.estado` |
+| `requisicoes:enviar_rascunho` | `Requisicao.estado` + `Requisicao.numero_publico` |
+| `requisicoes:cancelar` | `Requisicao.estado` + `SaldoEstoque.saldo_reservado` |
+| `requisicoes:separar_retirada` | `Requisicao.estado` |
+| `requisicoes:registrar_devolucao` | `ItemRequisicao.quantidade_entregue` + `SaldoEstoque.saldo_fisico` |
+| `requisicoes:estornar` | `Requisicao.estado` + `SaldoEstoque.saldo_fisico` |
+| `requisicoes:confirmar_importacao_scpi` | `ImportacaoSCPI.objects.count()` |
+| `estoque:estornar_saida_excepcional` | `SaidaExcepcional.estado` + `SaidaExcepcional.estornado_em` + `SaldoEstoque.saldo_fisico` |
+
+Três termos que a tabela mantém distintos de propósito, porque o `CONTEXT.md` os separa:
+**Saída excepcional** é o registro da saída (`SaidaExcepcional`), **SaldoEstoque** é a linha de
+saldo do material no estoque, e **Importação SCPI** é o registro da importação
+(`ImportacaoSCPI`). "Saldo da saída" não é nenhum dos três, e era o que a frase anterior dizia.
+
+Efeitos internos — timeline, movimentações, ordem de reserva — seguem sendo assunto dos testes
+de service, como a ADR-0010 separa.
 
 ## Estratégia de testes (ADR-0010)
 
