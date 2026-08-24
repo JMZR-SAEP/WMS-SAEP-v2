@@ -50,7 +50,7 @@ concreta reaparece no passo 7, onde cada cenário faz o `reverse()` com o objeto
 | Arquivo | Mudança |
 |---|---|
 | `apps/core/modal.py` | **novo** — `render_modal_erro` (fragment 422) |
-| `apps/core/tests/contrato_modal.py` | **novo** — varredura de `action_url` + registro de rotas + asserção compartilhada |
+| `apps/core/tests/contrato_modal.py` | **novo** — `CenarioModal`, varredura de `action_url`, registro de rotas e as duas asserções compartilhadas |
 | `apps/core/tests/test_contrato_modal.py` | **novo** — guarda estática (sem DB) |
 | `apps/requisicoes/views.py` | `_render_modal_erro` delega ao core; SCPI, devolução e estorno passam a 422/204 |
 | `apps/estoque/views.py` | `estornar_saida_excepcional_view` passa a 422/204 |
@@ -253,6 +253,7 @@ class CenarioModal(NamedTuple):
     payload: dict                  # a carga do POST
     destino_esperado: str | None   # None quando o cenário só pode terminar em 422
     ler_estado: Callable[[], Any]  # snapshot comparável do que o POST poderia mudar
+    ator: Any                      # quem faz o POST nos dois eixos autenticados
 ```
 
 `ler_estado` é o campo que o eixo anônimo consome: uma função sem argumentos que relê do banco e
@@ -268,6 +269,12 @@ carga escolhida é a que exercita o **ramo de erro** de cada rota (payload vazio
 preview, estado que o service recusa) — é o ramo onde as violações desta issue viviam; o caminho
 feliz das duas views corrigidas ganha teste próprio de 204 + `HX-Redirect` para o destino certo
 ao lado, no arquivo de views do app.
+
+**Sete das nove rotas de `requisicoes:` chegam ao ramo de erro; duas não.** `autorizar` e
+`separar_retirada` acabam no caminho feliz porque os estados que elas recusam ou não são
+visíveis ao ator (404) ou morrem antes na policy (403) — e nem 403 nem 404 dizem coisa alguma
+sobre o que cabe dentro da caixa do modal. Os três eixos continuam valendo para as duas: o
+contrato governa a resposta, não o ramo que a produziu.
 
 **Segundo eixo: sem autenticação.** A mesma parametrização roda anônima e espera 302 com
 `Location` igual a `f'{reverse("accounts:login")}?next={url}'` — o valor exato, pela mesma razão

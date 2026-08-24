@@ -801,6 +801,38 @@ class TestEstornarSaidaExcepcionalView:
         assert any(m.tags == 'warning' for m in messages_list)
         assert not any(m.tags == 'error' for m in messages_list)
 
+    def test_sem_htmx_post_valido_grava_o_estorno(
+        self, client, chefe_almoxarifado, saida_registrada
+    ):
+        """Fallback sem JS: redirecionar para o lugar certo não basta.
+
+        Sem esta metade, o teste passaria numa view que redireciona para o
+        detalhe sem ter gravado nada — a mesma pergunta sem resposta que a
+        issue trata, só que pela porta do fallback (ADR-0010).
+        """
+        from apps.estoque.models import EstadoSaidaExcepcional
+
+        client.force_login(chefe_almoxarifado)
+        response = client.post(
+            self._url(saida_registrada.pk),
+            data={'justificativa': 'Registro equivocado.'},
+        )
+        assert response.status_code == 302
+        saida_registrada.refresh_from_db()
+        assert saida_registrada.estado == EstadoSaidaExcepcional.ESTORNADA
+        assert saida_registrada.estornado_em is not None
+
+    def test_sem_htmx_post_invalido_nao_grava_nada(
+        self, client, chefe_almoxarifado, saida_registrada
+    ):
+        from apps.estoque.models import EstadoSaidaExcepcional
+
+        client.force_login(chefe_almoxarifado)
+        client.post(self._url(saida_registrada.pk), data={'justificativa': ''})
+        saida_registrada.refresh_from_db()
+        assert saida_registrada.estado == EstadoSaidaExcepcional.REGISTRADA
+        assert saida_registrada.estornado_em is None
+
     def test_htmx_sucesso_devolve_204_com_hx_redirect(
         self, client, chefe_almoxarifado, saida_registrada
     ):
@@ -1270,6 +1302,26 @@ class TestConfirmarImportacaoScpiView:
             or b'reimporta' in resp.content.lower()
             or b'j\xc3\xa1' in resp.content.lower()
         )
+
+    def test_sem_htmx_post_valido_grava_a_importacao(
+        self, client, superuser, estoque_principal
+    ):
+        from apps.estoque.models import ImportacaoSCPI
+
+        self._seed_session(client, superuser, self._csv('000.888.070'))
+        antes = ImportacaoSCPI.objects.count()
+        resp = client.post(self.URL, {})
+        assert resp.status_code == 302
+        assert ImportacaoSCPI.objects.count() == antes + 1
+
+    def test_sem_htmx_sem_preview_nao_grava_nada(self, client, superuser):
+        from apps.estoque.models import ImportacaoSCPI
+
+        client.force_login(superuser)
+        antes = ImportacaoSCPI.objects.count()
+        resp = client.post(self.URL, {})
+        assert resp.status_code == 200
+        assert ImportacaoSCPI.objects.count() == antes
 
     def test_htmx_sucesso_devolve_204_com_hx_redirect(
         self, client, superuser, estoque_principal

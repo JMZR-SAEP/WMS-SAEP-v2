@@ -3069,6 +3069,7 @@ def test_registrar_devolucao_sem_htmx_nao_usa_dump_do_as_text(
     """Fallback sem HTMX segue redirecionando, mas com texto do Form."""
     _login(client, aux_almoxarifado)
     item = req_atendida_view.itens.first()
+    entregue_antes = item.quantidade_entregue
     url = reverse(
         'requisicoes:registrar_devolucao',
         kwargs={'pk': req_atendida_view.pk, 'item_pk': item.pk},
@@ -3079,6 +3080,9 @@ def test_registrar_devolucao_sem_htmx_nao_usa_dump_do_as_text(
     mensagens = [str(m) for m in response.context['messages']]
     assert mensagens
     assert not any('*' in m for m in mensagens)
+    # Form inválido não pode ter gravado devolução nenhuma.
+    item.refresh_from_db()
+    assert item.quantidade_entregue == entregue_antes
 
 
 @pytest.mark.django_db
@@ -3111,6 +3115,8 @@ def test_estornar_sem_htmx_nao_usa_dump_do_as_text(
     mensagens = [str(m) for m in response.context['messages']]
     assert mensagens
     assert not any('*' in m for m in mensagens)
+    req_atendida_view.refresh_from_db()
+    assert req_atendida_view.estado == EstadoRequisicao.ATENDIDA
 
 
 @pytest.mark.django_db
