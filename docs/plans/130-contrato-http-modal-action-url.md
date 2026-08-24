@@ -327,7 +327,7 @@ errado nem omitir a mutação principal:
 | `requisicoes:recusar` | `Requisicao.estado` |
 | `requisicoes:retornar_rascunho` | `Requisicao.estado` |
 | `requisicoes:enviar_rascunho` | `Requisicao.estado` + `Requisicao.numero_publico` |
-| `requisicoes:cancelar` | `Requisicao.estado` + `SaldoEstoque.saldo_reservado` |
+| `requisicoes:cancelar` | **existência** + `Requisicao.estado` + `SaldoEstoque.saldo_reservado` |
 | `requisicoes:separar_retirada` | `Requisicao.estado` |
 | `requisicoes:registrar_devolucao` | `ItemRequisicao.quantidade_entregue` + `SaldoEstoque.saldo_fisico` |
 | `requisicoes:estornar` | `Requisicao.estado` + `SaldoEstoque.saldo_fisico` |
@@ -338,6 +338,15 @@ Três termos que a tabela mantém distintos de propósito, porque o `CONTEXT.md`
 **Saída excepcional** é o registro da saída (`SaidaExcepcional`), **SaldoEstoque** é a linha de
 saldo do material no estoque, e **Importação SCPI** é o registro da importação
 (`ImportacaoSCPI`). "Saldo da saída" não é nenhum dos três, e era o que a frase anterior dizia.
+
+**`ler_estado` nunca pode assumir que a linha sobreviveu.** O descarte de rascunho sem número
+público apaga a `Requisicao` (`services/cancelamento.py:44`), e é por isso que
+`cancelar_requisicao_view` testa `resultado_cancelamento.pk is None` (`views.py:970`). Um leitor
+que fizesse `Requisicao.objects.get(pk=…)` estouraria `DoesNotExist` em vez de comparar. A forma
+é sempre `filter(pk=…).values_list(…).first()`, que devolve `None` quando o registro deixou de
+existir — e `None != ('rascunho', …)` é exatamente a diferença que se quer detectar. Isso vale
+como regra para toda a coluna, não só para `cancelar`: o snapshot representa ausência, não
+presume presença.
 
 Efeitos internos — timeline, movimentações, ordem de reserva — seguem sendo assunto dos testes
 de service, como a ADR-0010 separa.
