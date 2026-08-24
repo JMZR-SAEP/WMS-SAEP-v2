@@ -801,6 +801,100 @@ class TestEstornarSaidaExcepcionalView:
         assert any(m.tags == 'warning' for m in messages_list)
         assert not any(m.tags == 'error' for m in messages_list)
 
+    def test_sem_htmx_post_valido_grava_o_estorno(
+        self, client, chefe_almoxarifado, saida_registrada
+    ):
+        """Fallback sem JS: redirecionar para o lugar certo não basta.
+
+        Sem esta metade, o teste passaria numa view que redireciona para o
+        detalhe sem ter gravado nada — a mesma pergunta sem resposta que a
+        issue trata, só que pela porta do fallback (ADR-0010).
+        """
+        from apps.estoque.models import EstadoSaidaExcepcional
+
+        client.force_login(chefe_almoxarifado)
+        response = client.post(
+            self._url(saida_registrada.pk),
+            data={'justificativa': 'Registro equivocado.'},
+        )
+        assert response.status_code == 302
+        saida_registrada.refresh_from_db()
+        assert saida_registrada.estado == EstadoSaidaExcepcional.ESTORNADA
+        assert saida_registrada.estornado_em is not None
+
+    def test_sem_htmx_post_invalido_nao_grava_nada(
+        self, client, chefe_almoxarifado, saida_registrada
+    ):
+        from apps.estoque.models import EstadoSaidaExcepcional
+
+        client.force_login(chefe_almoxarifado)
+        client.post(self._url(saida_registrada.pk), data={'justificativa': ''})
+        saida_registrada.refresh_from_db()
+        assert saida_registrada.estado == EstadoSaidaExcepcional.REGISTRADA
+        assert saida_registrada.estornado_em is None
+
+    def test_htmx_sucesso_devolve_204_com_hx_redirect(
+        self, client, chefe_almoxarifado, saida_registrada
+    ):
+        """Sucesso via HTMX é PRG por cabeçalho, não 302 seguido pelo XHR.
+
+        O modal faz `hx-post` com `hx-target="[data-modal-body]"` e
+        `hx-swap="outerHTML"`: um 302 é seguido pelo próprio XHR, que recebe a
+        página de detalhe inteira e a injeta dentro da caixa do modal.
+        """
+        client.force_login(chefe_almoxarifado)
+        response = client.post(
+            self._url(saida_registrada.pk),
+            data={'justificativa': 'Registro equivocado.'},
+            HTTP_HX_REQUEST='true',
+        )
+        assert response.status_code == 204
+        assert response['HX-Redirect'] == reverse(
+            'estoque:detalhe_saida_excepcional', args=[saida_registrada.pk]
+        )
+
+    def test_htmx_erro_de_dominio_devolve_422_com_corpo_do_modal(
+        self, client, chefe_almoxarifado, saida_registrada
+    ):
+        """Erro de domínio via HTMX mantém o modal de pé, sem página inteira."""
+        client.force_login(chefe_almoxarifado)
+        response = client.post(
+            self._url(saida_registrada.pk),
+            data={'justificativa': ''},
+            HTTP_HX_REQUEST='true',
+        )
+        assert response.status_code == 422
+        conteudo = response.content.decode()
+        assert 'data-modal-body="estornar-saida"' in conteudo
+        assert 'data-modal-erro' in conteudo
+        # Não pode ter vindo página inteira dentro da caixa do modal.
+        assert '<html' not in conteudo
+        assert 'app-bar' not in conteudo
+
+    def test_htmx_erro_preserva_justificativa_digitada(
+        self, client, chefe_almoxarifado, saida_registrada
+    ):
+        """O 422 devolve a caixa aberta com o texto digitado, não em branco.
+
+        É o que `recusar_requisicao_view` já faz com `motivo_recusa`. Sem isso a
+        pessoa reescreve a justificativa a cada erro.
+        """
+        client.force_login(chefe_almoxarifado)
+        from apps.estoque.services import estornar_saida_excepcional
+
+        estornar_saida_excepcional(
+            ator_id=chefe_almoxarifado.pk,
+            saida_id=saida_registrada.pk,
+            justificativa='Primeiro.',
+        )
+        response = client.post(
+            self._url(saida_registrada.pk),
+            data={'justificativa': 'Texto que não pode sumir.'},
+            HTTP_HX_REQUEST='true',
+        )
+        assert response.status_code == 422
+        assert 'Texto que não pode sumir.' in response.content.decode()
+
 
 class TestPreviewImportacaoScpiView:
     """Contrato HTTP de preview_importacao_scpi_view."""
@@ -1208,6 +1302,91 @@ class TestConfirmarImportacaoScpiView:
             or b'reimporta' in resp.content.lower()
             or b'j\xc3\xa1' in resp.content.lower()
         )
+
+    def test_sem_htmx_post_valido_grava_a_importacao(
+        self, client, superuser, estoque_principal
+    ):
+        from apps.estoque.models import ImportacaoSCPI
+
+        self._seed_session(client, superuser, self._csv('000.888.070'))
+        antes = ImportacaoSCPI.objects.count()
+        resp = client.post(self.URL, {})
+        assert resp.status_code == 302
+        assert ImportacaoSCPI.objects.count() == antes + 1
+
+    def test_sem_htmx_sem_preview_nao_grava_nada(self, client, superuser):
+        from apps.estoque.models import ImportacaoSCPI
+
+        client.force_login(superuser)
+        antes = ImportacaoSCPI.objects.count()
+        resp = client.post(self.URL, {})
+        assert resp.status_code == 200
+        assert ImportacaoSCPI.objects.count() == antes
+
+    def test_htmx_sucesso_devolve_204_com_hx_redirect(
+        self, client, superuser, estoque_principal
+    ):
+        """A única escrita irreversível declarada do sistema não pode terminar
+        com a página de sucesso injetada dentro da caixa do modal."""
+        from django.urls import reverse
+
+        from apps.estoque.models import ImportacaoSCPI
+
+        self._seed_session(client, superuser, self._csv('000.888.040'))
+        resp = client.post(self.URL, {}, HTTP_HX_REQUEST='true')
+        assert resp.status_code == 204
+        importacao = ImportacaoSCPI.objects.latest('pk')
+        assert resp['HX-Redirect'] == reverse(
+            'estoque:sucesso_importacao_scpi', kwargs={'pk': importacao.pk}
+        )
+
+    def test_htmx_sem_preview_na_sessao_devolve_422(self, client, superuser):
+        """Segunda tentativa é o pior caso: a sessão do preview já foi limpa e a
+        pessoa fica com duas evidências contraditórias, ambas dentro da caixa."""
+        client.force_login(superuser)
+        resp = client.post(self.URL, {}, HTTP_HX_REQUEST='true')
+        assert resp.status_code == 422
+        conteudo = resp.content.decode()
+        assert 'data-modal-body="confirmar-importacao-scpi"' in conteudo
+        assert 'data-modal-erro' in conteudo
+        assert 'pré-visualização ativa' in conteudo
+        assert '<html' not in conteudo
+
+    def test_htmx_hash_duplicado_devolve_422(
+        self, client, superuser, estoque_principal
+    ):
+        csv_bytes = self._csv('000.888.050')
+        self._seed_session(client, superuser, csv_bytes)
+        client.post(self.URL, {})
+
+        self._seed_session(client, superuser, csv_bytes)
+        resp = client.post(self.URL, {}, HTTP_HX_REQUEST='true')
+        assert resp.status_code == 422
+        conteudo = resp.content.decode()
+        assert 'data-modal-body="confirmar-importacao-scpi"' in conteudo
+        assert 'duplicad' in conteudo.lower() or 'já' in conteudo.lower()
+        assert '<html' not in conteudo
+
+    def test_htmx_sem_estoque_ativo_devolve_422(
+        self, client, superuser, estoque_principal
+    ):
+        """A fixture `estoque_principal` é o que faz este teste testar algo.
+
+        Sem ela não há `Estoque` no banco, o preview sai cedo sem semear a
+        sessão, e o 422 vem do ramo "nenhuma pré-visualização ativa" — ou seja,
+        uma cópia do teste de cima, com o ramo de estoque inativo sem cobertura
+        nenhuma. É por isso que a asserção de texto abaixo importa: sem ela os
+        três ramos de `_erro()` são indistinguíveis entre si.
+        """
+        from apps.estoque.models import Estoque
+
+        self._seed_session(client, superuser, self._csv('000.888.060'))
+        Estoque.objects.update(ativo=False)
+        resp = client.post(self.URL, {}, HTTP_HX_REQUEST='true')
+        assert resp.status_code == 422
+        conteudo = resp.content.decode()
+        assert 'data-modal-body="confirmar-importacao-scpi"' in conteudo
+        assert 'estoque ativo' in conteudo
 
     def test_get_sucesso_usa_components_alert_com_aria(
         self, client, superuser, estoque_principal

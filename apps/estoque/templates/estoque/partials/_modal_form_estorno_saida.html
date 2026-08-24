@@ -2,6 +2,13 @@
   Corpo do form do modal de estorno de saída excepcional — só o campo de
   justificativa (obrigatório). Usado via form_body_template em
   components/modal.html (issue #78).
+
+  Parâmetros: justificativa (texto digitado, devolvido no 422), id, erro.
+
+  O `{{ justificativa }}` existe para a nova renderização de erro (#130): o 422
+  devolve a caixa aberta, e sem isso ela voltaria em branco — a pessoa
+  reescreveria a justificativa a cada recusa do domínio. É o que
+  `_modal_form_recusar.html` já faz com `motivo_recusa`.
 {% endcomment %}
 
 <div>
@@ -14,6 +21,7 @@
     required
     rows="3"
     class="campo mt-1"
+    {% if erro %}aria-invalid="true" aria-describedby="{{ id }}-erro"{% endif %}
     placeholder="Descreva o motivo do estorno…"
-  ></textarea>
+  >{{ justificativa|default_if_none:"" }}</textarea>
 </div>

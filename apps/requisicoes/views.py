@@ -36,8 +36,10 @@ from apps.core.exceptions import (
 )
 from apps.core.http import htmx_redirect, parse_data_iso
 from apps.core.listagem import paginar, paginar_com_filtros
+from apps.core.modal import render_modal_erro
 from apps.core.presentation import traduz_erro_dominio
 from apps.core.quantidades import formatar as formatar_quantidade
+from apps.core.templatetags.core_tags import coletar_erros
 from apps.core.quantidades import normalizar
 from apps.estoque.models import SaldoEstoque
 from apps.estoque.selectors import entregue_liquida_por_requisicao
@@ -219,45 +221,27 @@ def _render_detalhe(request, requisicao: Requisicao, **contexto_extra):
     )
 
 
-def _render_modal_erro(
-    request,
-    *,
-    modal_id: str,
-    titulo: str,
-    descricao: str,
-    erro: str,
-    form_body_template: str,
-    confirm_label: str,
-    confirm_variant: str,
-    cancel_label: str = 'Voltar',
-    icon_variant: str = 'danger',
-    contexto_form: dict | None = None,
-) -> HttpResponse:
-    """Renderiza o fragment de corpo do modal com erros e retorna HTTP 422.
+def _texto_dos_erros(form) -> str:
+    """Junta as mensagens do Form numa frase, para o fallback sem HTMX.
 
-    Permite que o cliente HTMX troque apenas o conteúdo do modal mantendo-o aberto.
-    Fallback (sem HTMX) ainda retorna 422 — caller pode redirecionar se preferir.
+    Substitui `form.errors.as_text()`, cujo dump (`* justificativa\\n  * Este
+    campo é obrigatório.`) chegava à tela com o asterisco de formatação de log.
+    O caminho com HTMX não passa por aqui: lá o Form vai inteiro para
+    `{% erros_do_formulario %}`, que preserva a âncora por campo.
+
+    Sai por `coletar_erros`, a mesma porta que a tag usa, e **mantém o rótulo
+    do campo**. Tirar o asterisco estava certo; tirar o rótulo não estaria:
+    esta frase chega por `messages.error` na tela de detalhe, depois do
+    redirect, onde não há formulário nenhum — "Este campo é obrigatório." numa
+    página sem campos não diz o que fazer. Hoje os dois forms têm um campo só
+    que pode errar, então a ambiguidade não aparece; ela apareceria calada no
+    dia em que ganhassem o segundo.
     """
-    contexto = {
-        'id': modal_id,
-        'titulo': titulo,
-        'descricao': descricao,
-        'erro': erro,
-        'form_body_template': form_body_template,
-        'confirm_label': confirm_label,
-        'confirm_variant': confirm_variant,
-        'cancel_label': cancel_label,
-        'icon_variant': icon_variant,
-    }
-    if contexto_form:
-        contexto.update(contexto_form)
-    response = render(
-        request,
-        'requisicoes/partials/_modal_body_fragment.html',
-        contexto,
-    )
-    response.status_code = 422
-    return response
+    partes = [
+        f'{item["rotulo"]}: {item["mensagem"]}' if item['rotulo'] else item['mensagem']
+        for item in coletar_erros(form)
+    ]
+    return ' '.join(partes)
 
 
 # ---------------------------------------------------------------------------
@@ -930,7 +914,7 @@ def cancelar_requisicao_view(request, pk: int):
     except DadosInvalidos as exc:
         if exc.code == 'justificativa_cancelamento_obrigatoria':
             if request.htmx:
-                return _render_modal_erro(
+                return render_modal_erro(
                     request,
                     modal_id='confirmar-cancelar',
                     titulo='Cancelar requisição',
@@ -1006,7 +990,7 @@ def recusar_requisicao_view(request, pk: int):
             pk=pk,
         )
         if request.htmx:
-            return _render_modal_erro(
+            return render_modal_erro(
                 request,
                 modal_id='confirmar-recusar',
                 titulo='Recusar requisição',
@@ -1093,11 +1077,55 @@ def copiar_requisicao_view(request, pk: int):
 @require_http_methods(['POST'])
 def registrar_devolucao_view(request, pk: int, item_pk: int) -> HttpResponse:
     """Registra devolução de item de requisição atendida (TR-020)."""
-    get_object_or_404(requisicoes_visiveis_para(request.user.pk), pk=pk)
+    requisicao = get_object_or_404(requisicoes_visiveis_para(request.user.pk), pk=pk)
     form = RegistrarDevolucaoForm(request.POST)
     if not form.is_valid():
-        messages.warning(request, form.errors.as_text())
-        return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
+        if request.htmx:
+            # O item só é buscado aqui, e não no topo da view: fora deste ramo
+            # ele mudaria o código de resposta de um POST que hoje vai direto ao
+            # service sem olhar o item.
+            #
+            # `.first()` e não `get_object_or_404`: um 404 aqui devolveria
+            # página inteira a um `hx-post` que faz `outerHTML` em
+            # `[data-modal-body]` — o defeito que esta issue existe para matar,
+            # reintroduzido pelo próprio conserto. Pior, seria assimétrico: com
+            # o form válido, o mesmo `item_pk` obsoleto vira `DadosInvalidos`
+            # do service e a pessoa é informada; com o form inválido, ela veria
+            # a página de erro dentro do diálogo. O item obsoleto cai no mesmo
+            # 422, dizendo a mesma frase que o service diria.
+            item = (
+                requisicao.itens.select_related('material').filter(pk=item_pk).first()
+            )
+            if item is None:
+                return render_modal_erro(
+                    request,
+                    modal_id=f'devolver-{item_pk}',
+                    titulo='Registrar devolução',
+                    erro='Item não pertence à requisição informada.',
+                    confirm_label='Registrar devolução',
+                    acao_erro='registrar a devolução',
+                )
+            entregues = entregue_liquida_por_requisicao(requisicao_id=pk)
+            return render_modal_erro(
+                request,
+                modal_id=f'devolver-{item_pk}',
+                titulo='Registrar devolução',
+                descricao='Informe a quantidade a devolver ao estoque.',
+                # O Form, e não um texto pré-formatado: `erros_do_formulario`
+                # achata as mensagens dele com âncora por campo, sem o asterisco
+                # de log que `form.errors.as_text()` produzia.
+                erro=form,
+                form_body_template=('requisicoes/partials/_modal_form_devolucao.html'),
+                confirm_label='Registrar devolução',
+                acao_erro='registrar a devolução',
+                contexto_form={
+                    'form': form,
+                    'item': item,
+                    'entregue_liquida': entregues.get(item.material_id, Decimal('0')),
+                },
+            )
+        messages.error(request, _texto_dos_erros(form))
+        return redirect('requisicoes:detalhe', pk=pk)
     try:
         registrar_devolucao(
             ator_id=request.user.pk,
@@ -1123,8 +1151,26 @@ def estornar_requisicao_view(request, pk: int) -> HttpResponse:
     get_object_or_404(requisicoes_visiveis_para(request.user.pk), pk=pk)
     form = EstornarRequisicaoForm(request.POST)
     if not form.is_valid():
-        messages.warning(request, form.errors.as_text())
-        return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
+        if request.htmx:
+            # Espelha detalhe.html:327 (via _confirmacao_acao.html).
+            return render_modal_erro(
+                request,
+                modal_id='estornar-modal',
+                titulo='Estornar requisição',
+                descricao=(
+                    'O estorno reverte toda a entregue líquida ao saldo físico '
+                    'e encerra definitivamente a requisição. Esta operação é '
+                    'irreversível.'
+                ),
+                erro=form,
+                form_body_template='requisicoes/partials/_modal_form_estorno.html',
+                confirm_label='Confirmar estorno',
+                confirm_variant='danger',
+                acao_erro='estornar a requisição',
+                contexto_form={'estorno_form': form},
+            )
+        messages.error(request, _texto_dos_erros(form))
+        return redirect('requisicoes:detalhe', pk=pk)
     try:
         estornar_requisicao(
             ator_id=request.user.pk,
@@ -1156,6 +1202,34 @@ def confirmar_importacao_scpi_view(request):
         registrar_timeline_divergencia_importacao,
     )
 
+    def _erro(mensagem: str):
+        """Erro da confirmação: fragment 422 no modal, página completa sem HTMX.
+
+        O 422 vai **sem** `form_body_template`. O corpo do modal é
+        `_modal_corpo_confirmar_importacao.html`, a recapitulação de
+        novos/divergências/total do preview — e no ramo mais comum de erro a
+        sessão do preview já foi consumida. Repetir a contagem de uma
+        pré-visualização que não existe mais seria a segunda evidência
+        contraditória, justamente o que esta porta existe para evitar.
+        """
+        if request.htmx:
+            # Espelha preview_importacao_scpi.html:313.
+            return render_modal_erro(
+                request,
+                modal_id='confirmar-importacao-scpi',
+                titulo='Confirmar importação do SCPI?',
+                descricao='A gravação não pode ser desfeita.',
+                erro=mensagem,
+                confirm_label='Confirmar importação',
+                icon_variant='warning',
+                acao_erro='confirmar a importação',
+            )
+        return render(
+            request,
+            'estoque/confirmar_importacao_scpi.html',
+            {'erro': mensagem},
+        )
+
     papel = papel_efetivo(request.user)
     try:
         exigir_pode_confirmar_importacao_scpi(papel)
@@ -1166,21 +1240,13 @@ def confirmar_importacao_scpi_view(request):
     arquivo_nome = request.session.get('scpi_preview_nome', 'importacao.csv')
 
     if not conteudo_b64:
-        return render(
-            request,
-            'estoque/confirmar_importacao_scpi.html',
-            {
-                'erro': 'Nenhuma pré-visualização ativa. Faça o upload do arquivo novamente.'
-            },
+        return _erro(
+            'Nenhuma pré-visualização ativa. Faça o upload do arquivo novamente.'
         )
 
     estoque = Estoque.objects.filter(ativo=True).first()
     if estoque is None:
-        return render(
-            request,
-            'estoque/confirmar_importacao_scpi.html',
-            {'erro': 'Não há estoque ativo configurado.'},
-        )
+        return _erro('Não há estoque ativo configurado.')
 
     try:
         conteudo = base64.b64decode(conteudo_b64)
@@ -1191,26 +1257,15 @@ def confirmar_importacao_scpi_view(request):
             estoque_id=estoque.pk,
             _pos_importacao_hook=registrar_timeline_divergencia_importacao,
         )
-    except ConflitoDominio as exc:
-        return render(
-            request,
-            'estoque/confirmar_importacao_scpi.html',
-            {'erro': str(exc)},
-        )
-    except DadosInvalidos as exc:
-        return render(
-            request,
-            'estoque/confirmar_importacao_scpi.html',
-            {'erro': str(exc)},
-        )
+    except (ConflitoDominio, DadosInvalidos) as exc:
+        return _erro(str(exc))
 
     request.session.pop('scpi_preview_bytes', None)
     request.session.pop('scpi_preview_nome', None)
 
-    from django.http import HttpResponseRedirect
-
-    return HttpResponseRedirect(
-        _reverse('estoque:sucesso_importacao_scpi', kwargs={'pk': importacao.pk})
+    return htmx_redirect(
+        request,
+        _reverse('estoque:sucesso_importacao_scpi', kwargs={'pk': importacao.pk}),
     )
 
 
