@@ -164,10 +164,13 @@
       // seria confirmada por uma tecla apertada antes de a pessoa ler o que vai
       // acontecer.
       //
-      // O alvo é a regra do HTML, e não uma lista de tipos: submissão implícita
-      // nasce de `<input>` que não seja botão e de `<select>` — os dois estão
-      // no seletor de `focarPrimeiroCampo`, então cobrir só `<input>` deixaria
-      // o buraco reaberto no dia em que o primeiro modal ganhasse um `<select>`.
+      // O alvo são as duas origens reais de submissão implícita, e não uma
+      // lista de tipos. `<input>` é a regra do HTML, que nomeia os estados de
+      // texto. `<select>` **não** está nessa lista da especificação, mas o
+      // navegador submete assim mesmo (medido no Chromium: Enter com o select
+      // fechado dispara o submit), e ele está no seletor de
+      // `focarPrimeiroCampo` — cobrir só `<input>` deixaria o buraco reaberto
+      // no dia em que o primeiro modal ganhasse um `<select>`.
       //
       // Tudo o mais passa de propósito. `<textarea>` usa Enter como quebra de
       // linha; nos botões e nos links Enter é a ativação do próprio controle, e

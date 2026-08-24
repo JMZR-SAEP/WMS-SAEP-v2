@@ -459,8 +459,18 @@ está escrita — e o modal de devolução abre com o foco num
 `submit_form_id`, onde o `<dialog>` costuma ficar dentro do formulário que
 confirma e um campo do corpo pertenceria a ele.
 
-A trava barra o que a regra do HTML define como origem de submissão implícita —
-`<input>` que não seja botão, e `<select>`, os dois no seletor do degrau 2.
+A trava barra `<input>` que não seja botão e `<select>` — os dois no seletor do
+degrau 2. **As duas origens não têm o mesmo estatuto**, e a diferença importa
+para quem for mexer nisso:
+
+- `<input>` é a regra do HTML. A especificação lista os estados que governam a
+  submissão implícita (Text, Search, URL, Telephone, Email, Password, Number e
+  os de data/hora); é comportamento exigido, não conveniência de navegador.
+- `<select>` **não** está nessa lista. Entra na trava por decisão deste
+  componente, porque o degrau 2 pode pousar o foco num `select` e o navegador
+  submete assim mesmo. Medido no Chromium: Enter com o select fechado dispara o
+  submit do `<form>`, igual a um campo de texto.
+
 Passam de propósito o `<textarea>` (onde Enter é quebra de linha) e os botões e
 links (onde Enter é a ativação do próprio controle, e `preventDefault` mataria o
 clique ou a navegação).
@@ -549,8 +559,10 @@ estrutura, a abstração está errada. Parar e registrar, não generalizar.
 [ ] Campo com erro usa aria-invalid + aria-describedby
 [ ] Readonly e disabled visualmente distintos
 [ ] Modal e dropdown operáveis por teclado (Tab, Escape, Enter/Espaço)
-[ ] Modal de confirmação abre com o foco na ação menos destrutiva — nunca
-    em [data-modal-confirm] (ver §Foco inicial do modal de confirmação)
+[ ] Modal de confirmação abre no campo com erro, no primeiro campo, na ação
+    menos destrutiva ou no corpo quando não há controle aplicável — nessa
+    ordem, e nunca em [data-modal-confirm]
+    (ver §Foco inicial do modal de confirmação)
 [ ] Ação bloqueada tem motivo textual amarrado por aria-describedby
 [ ] Atualização HTMX crítica tem aria-live ou feedback visível
 [ ] Listagem filtrada por HTMX anuncia a CONTAGEM numa live region fora da
