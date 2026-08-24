@@ -295,6 +295,22 @@ custo de fixture é o mesmo do eixo autorizado porque a construtora é a mesma; 
 cliente não estar autenticado e a asserção ser `cenario.ler_estado()` antes == `cenario.ler_estado()`
 depois.
 
+**Terceiro eixo: autorizado e sem HTMX.** A mesma parametrização, mesmo cenário, sem o cabeçalho
+`HX-Request`. A asserção aqui é mais fraca de propósito, e a razão importa: **o contrato não-HTMX
+não é uniforme entre as 10 rotas**. Umas redirecionam, outras renderizam página de erro — é
+decisão de cada tela, não do componente, e por isso o `assert_contrato_modal` não serve. Uma
+asserção genérica que aceitasse os dois casos aceitaria quase tudo e não provaria nada.
+
+O que **é** uniforme, e é o que este eixo trava: a resposta não pode ser 204 nem carregar
+`HX-Redirect`. Um cliente sem JS não tem como agir sobre nenhum dos dois — 204 deixa a página
+parada e o cabeçalho é lido por ninguém. É exatamente a regressão que uma view ganharia ao
+trocar o `if request.htmx:` por um `return htmx_redirect(...)` incondicional, e é a única forma
+de errar o fallback que vale generalizar para rotas que este PR não toca.
+
+O contrato positivo de cada uma das quatro views corrigidas (302 para onde, ou 200 de qual
+página) fica no teste por view, no arquivo do app, onde a expectativa pode ser específica sem
+inventar uniformidade — é o critério 3 da issue.
+
 ## Estratégia de testes (ADR-0010)
 
 Camada **Views** — contrato HTTP. Nada aqui revalida timeline, saldo ou matriz de policy.
@@ -305,7 +321,8 @@ Camada **Views** — contrato HTTP. Nada aqui revalida timeline, saldo ou matriz
 | Erro de domínio no estorno de saída, HTMX | `estoque/tests/test_views.py` | 422 + `data-modal-body` + justificativa digitada preservada |
 | SCPI sem preview na sessão, HTMX | `requisicoes/tests/test_views.py` | 422 + `data-modal-body` + texto do erro |
 | Form inválido em devolução e estorno, HTMX | `requisicoes/tests/test_views.py` | 422 + texto do Form, sem `*` de `as_text()` |
-| Fallback sem HTMX das quatro views | idem | 302 / 200 de página, como hoje |
+| Fallback sem HTMX das quatro views | idem | 302 / 200 de página, como hoje — destino e template específicos por view |
+| As mesmas 10 rotas, autorizado e sem HTMX | `*/tests/test_contrato_modal_http.py` | nunca 204, nunca `HX-Redirect` — a única forma de errar o fallback que é uniforme |
 | Permissão negada | já coberto | 403, inalterado |
 | Contrato das 10 rotas, ator autorizado | `*/tests/test_contrato_modal_http.py` | 204 + `HX-Redirect` para o destino esperado, ou 422 + fragment |
 | As mesmas 10 rotas, anônimo | `*/tests/test_contrato_modal_http.py` | 302 com `Location` == login + `?next=<url da ação>`, e nenhuma mutação (ADR-0010; 7 das 10 não tinham) |
