@@ -3063,6 +3063,43 @@ def test_registrar_devolucao_htmx_form_invalido_devolve_422_do_modal(
 
 
 @pytest.mark.django_db
+def test_registrar_devolucao_htmx_item_obsoleto_devolve_422_nao_404(
+    client, aux_almoxarifado, req_atendida_view, solicitante, setor_obras
+):
+    """Item que não é da requisição cai no 422, não numa página 404.
+
+    Um 404 aqui devolveria página inteira a um `hx-post` que faz `outerHTML`
+    em `[data-modal-body]` — o defeito desta issue, reintroduzido pelo ramo de
+    erro do próprio conserto. E seria assimétrico: com o form válido o mesmo
+    `item_pk` vira `DadosInvalidos` do service, e a pessoa é informada.
+
+    Gatilho real: modal aberto numa aba, item alterado em outra.
+    """
+    outra = Requisicao.objects.create(
+        estado=EstadoRequisicao.RASCUNHO,
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+    )
+    item_de_fora = ItemRequisicao.objects.create(
+        requisicao=outra,
+        material=req_atendida_view.itens.first().material,
+        quantidade_solicitada=Decimal('1'),
+    )
+    _login(client, aux_almoxarifado)
+    url = reverse(
+        'requisicoes:registrar_devolucao',
+        kwargs={'pk': req_atendida_view.pk, 'item_pk': item_de_fora.pk},
+    )
+    response = client.post(url, {'quantidade': ''}, HTTP_HX_REQUEST='true')
+
+    assert response.status_code == 422
+    conteudo = response.content.decode()
+    assert f'data-modal-body="devolver-{item_de_fora.pk}"' in conteudo
+    assert '<html' not in conteudo
+
+
+@pytest.mark.django_db
 def test_registrar_devolucao_sem_htmx_nao_usa_dump_do_as_text(
     client, aux_almoxarifado, req_atendida_view
 ):
@@ -3080,6 +3117,12 @@ def test_registrar_devolucao_sem_htmx_nao_usa_dump_do_as_text(
     mensagens = [str(m) for m in response.context['messages']]
     assert mensagens
     assert not any('*' in m for m in mensagens)
+    # O positivo, e não só o negativo: uma regressão que devolvesse só o nome
+    # do campo ("quantidade") passaria na asserção de asterisco sozinha.
+    assert any('obrigat' in m.lower() for m in mensagens)
+    # E o rótulo do campo sobrevive: a frase chega depois do redirect, numa
+    # tela sem formulário, onde "Este campo é obrigatório." não diz qual.
+    assert any('uantidade' in m for m in mensagens)
     # Form inválido não pode ter gravado devolução nenhuma.
     item.refresh_from_db()
     assert item.quantidade_entregue == entregue_antes
@@ -3115,6 +3158,8 @@ def test_estornar_sem_htmx_nao_usa_dump_do_as_text(
     mensagens = [str(m) for m in response.context['messages']]
     assert mensagens
     assert not any('*' in m for m in mensagens)
+    assert any('obrigat' in m.lower() for m in mensagens)
+    assert any('ustificativa' in m for m in mensagens)
     req_atendida_view.refresh_from_db()
     assert req_atendida_view.estado == EstadoRequisicao.ATENDIDA
 

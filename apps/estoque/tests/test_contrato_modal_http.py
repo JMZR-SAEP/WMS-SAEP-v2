@@ -14,6 +14,7 @@ from apps.core.tests.contrato_modal import (
     CenarioModal,
     assert_contrato_modal,
     assert_fallback_sem_htmx,
+    snapshot,
 )
 
 
@@ -35,9 +36,7 @@ def _cenario_estornar_saida(request) -> CenarioModal:
 
     def ler_estado():
         return (
-            SaidaExcepcional.objects.filter(pk=saida.pk)
-            .values_list('estado', 'estornado_em')
-            .first(),
+            snapshot(SaidaExcepcional.objects, saida.pk, 'estado', 'estornado_em'),
             sorted(SaldoEstoque.objects.values_list('pk', 'saldo_fisico')),
         )
 
@@ -47,6 +46,8 @@ def _cenario_estornar_saida(request) -> CenarioModal:
         destino_esperado=None,
         ler_estado=ler_estado,
         ator=chefe,
+        modal_id='estornar-saida',
+        muta=False,
     )
 
 
@@ -70,8 +71,19 @@ def _cenario(request, rota: str) -> CenarioModal:
 def test_resposta_htmx_cabe_na_caixa_do_modal(db, request, client, rota):
     cenario = _cenario(request, rota)
     client.force_login(cenario.ator)
+    antes = cenario.ler_estado()
     resposta = client.post(cenario.url, cenario.payload, HTTP_HX_REQUEST='true')
-    assert_contrato_modal(resposta, destino_esperado=cenario.destino_esperado)
+    assert_contrato_modal(
+        resposta,
+        destino_esperado=cenario.destino_esperado,
+        modal_id=cenario.modal_id,
+    )
+    if not cenario.muta:
+        # Sem isto, um cenário de erro e um de caminho feliz asseveram a mesma
+        # resposta e nada distingue os dois.
+        assert cenario.ler_estado() == antes, (
+            f'{rota}: cenário declarado como sem mutação, mas o estado mudou.'
+        )
 
 
 @pytest.mark.parametrize('rota', ROTAS)

@@ -39,6 +39,7 @@ from apps.core.listagem import paginar, paginar_com_filtros
 from apps.core.modal import render_modal_erro
 from apps.core.presentation import traduz_erro_dominio
 from apps.core.quantidades import formatar as formatar_quantidade
+from apps.core.templatetags.core_tags import coletar_erros
 from apps.core.quantidades import normalizar
 from apps.estoque.models import SaldoEstoque
 from apps.estoque.selectors import entregue_liquida_por_requisicao
@@ -227,10 +228,20 @@ def _texto_dos_erros(form) -> str:
     campo é obrigatório.`) chegava à tela com o asterisco de formatação de log.
     O caminho com HTMX não passa por aqui: lá o Form vai inteiro para
     `{% erros_do_formulario %}`, que preserva a âncora por campo.
+
+    Sai por `coletar_erros`, a mesma porta que a tag usa, e **mantém o rótulo
+    do campo**. Tirar o asterisco estava certo; tirar o rótulo não estaria:
+    esta frase chega por `messages.error` na tela de detalhe, depois do
+    redirect, onde não há formulário nenhum — "Este campo é obrigatório." numa
+    página sem campos não diz o que fazer. Hoje os dois forms têm um campo só
+    que pode errar, então a ambiguidade não aparece; ela apareceria calada no
+    dia em que ganhassem o segundo.
     """
-    return ' '.join(
-        mensagem for mensagens in form.errors.values() for mensagem in mensagens
-    )
+    partes = [
+        f'{item["rotulo"]}: {item["mensagem"]}' if item['rotulo'] else item['mensagem']
+        for item in coletar_erros(form)
+    ]
+    return ' '.join(partes)
 
 
 # ---------------------------------------------------------------------------
@@ -1073,9 +1084,27 @@ def registrar_devolucao_view(request, pk: int, item_pk: int) -> HttpResponse:
             # O item só é buscado aqui, e não no topo da view: fora deste ramo
             # ele mudaria o código de resposta de um POST que hoje vai direto ao
             # service sem olhar o item.
-            item = get_object_or_404(
-                requisicao.itens.select_related('material'), pk=item_pk
+            #
+            # `.first()` e não `get_object_or_404`: um 404 aqui devolveria
+            # página inteira a um `hx-post` que faz `outerHTML` em
+            # `[data-modal-body]` — o defeito que esta issue existe para matar,
+            # reintroduzido pelo próprio conserto. Pior, seria assimétrico: com
+            # o form válido, o mesmo `item_pk` obsoleto vira `DadosInvalidos`
+            # do service e a pessoa é informada; com o form inválido, ela veria
+            # a página de erro dentro do diálogo. O item obsoleto cai no mesmo
+            # 422, dizendo a mesma frase que o service diria.
+            item = (
+                requisicao.itens.select_related('material').filter(pk=item_pk).first()
             )
+            if item is None:
+                return render_modal_erro(
+                    request,
+                    modal_id=f'devolver-{item_pk}',
+                    titulo='Registrar devolução',
+                    erro='Item não pertence à requisição informada.',
+                    confirm_label='Registrar devolução',
+                    acao_erro='registrar a devolução',
+                )
             entregues = entregue_liquida_por_requisicao(requisicao_id=pk)
             return render_modal_erro(
                 request,

@@ -13,6 +13,23 @@ dinâmica vive em `apps/<app>/tests/test_contrato_modal_http.py`, onde as
 fixtures do app existem.
 
 Não é coletado como teste (nome sem prefixo `test_`), como `marcacao.py`.
+
+## O que este guarda NÃO cobre
+
+**Sessão expirada com HTMX.** Um POST de modal sem sessão válida recebe 302 do
+`@login_required` — sem `HX-Redirect`. O XHR segue o 302 sozinho, recebe 200 com
+a página de login inteira, e o `responseHandling` default do htmx troca 2xx: a
+página de login vai parar dentro de `[data-modal-body]`. É a mesma imagem que a
+issue #130 descreve, disparada por expiração de sessão em vez de por código de
+view — e é o caso realista, porque o modal fica aberto na tela enquanto a sessão
+morre.
+
+O eixo anônimo daqui faz o POST **sem** o cabeçalho HTMX, então não vê isso. Não
+é descuido: fechar esse buraco exige converter o redirect de login em 204 +
+`HX-Redirect` para toda requisição HTMX do sistema — middleware ou
+`login_required` próprio —, o que muda o comportamento de todo endpoint HTMX e
+não só dos modais. Fica para issue própria; o eixo anônimo com HTMX entra junto
+com a correção, porque hoje ele falharia por um defeito que não é destas rotas.
 """
 
 from __future__ import annotations
@@ -37,9 +54,16 @@ class CenarioModal(NamedTuple):
     `ler_estado` **nunca pode presumir que a linha sobreviveu**: o descarte de
     rascunho sem número público apaga a `Requisicao`
     (`services/cancelamento.py`), e um `objects.get(pk=…)` estouraria
-    `DoesNotExist` em vez de comparar. A forma é
-    `filter(pk=…).values_list(…).first()`, que devolve `None` quando o registro
-    deixou de existir.
+    `DoesNotExist` em vez de comparar. Use o helper `snapshot` desta módulo.
+
+    `muta` separa o cenário que **deve** gravar do que não deve. Sem ele, um
+    cenário de transição recusada e um de caminho feliz asseveram exatamente a
+    mesma coisa — 204 para o detalhe —, e o de erro continuaria verde se a view
+    regredisse e passasse a executar a transição que devia recusar.
+
+    `modal_id` é o `id` do modal que abriu a ação. O 422 tem de devolver o
+    corpo **daquele** modal: `[data-modal-body]` sem id passaria por um
+    fragment que o `outerHTML` colocaria no lugar errado.
     """
 
     url: str
@@ -47,6 +71,8 @@ class CenarioModal(NamedTuple):
     destino_esperado: str | None
     ler_estado: Callable[[], Any]
     ator: Any
+    modal_id: str
+    muta: bool = False
 
 
 COMPONENTE_MODAL = 'components/modal.html'
@@ -80,6 +106,16 @@ _INCLUDE = re.compile(
 _ACTION_URL = re.compile(r'\baction_url\s*=\s*(?P<valor>\S+)')
 _SUBMIT_FORM_ID = re.compile(r'\bsubmit_form_id\s*=')
 _COMENTARIO = re.compile(r'\{%\s*comment\s*%\}.*?\{%\s*endcomment\s*%\}', re.S)
+
+
+def snapshot(queryset, pk: int, *campos: str):
+    """Tupla dos campos da linha, ou `None` se ela não existe mais.
+
+    Existe para que a forma correta seja o caminho mais curto: `get(pk=…)`
+    estouraria `DoesNotExist` no cenário de `cancelar`, onde o descarte de
+    rascunho sem número público apaga a `Requisicao`.
+    """
+    return queryset.filter(pk=pk).values_list(*campos).first()
 
 
 def _templates() -> list[Path]:
@@ -150,7 +186,9 @@ def rotas_do_texto(texto: str, *, origem: str) -> set[str]:
     return rotas
 
 
-def assert_contrato_modal(resposta, *, destino_esperado: str | None = None) -> None:
+def assert_contrato_modal(
+    resposta, *, destino_esperado: str | None = None, modal_id: str | None = None
+) -> None:
     """Assere que a resposta cabe dentro da caixa do modal.
 
     Só duas formas cabem: 204 + `HX-Redirect` (o PRG do projeto, ver
@@ -180,9 +218,32 @@ def assert_contrato_modal(resposta, *, destino_esperado: str | None = None) -> N
         f'ser injetado dentro de [data-modal-body] pelo hx-swap="outerHTML" do '
         f'componente — só 204+HX-Redirect ou 422+fragment cabem ali.'
     )
+    # A outra direção da união. Sem isto, um cenário que declara destino e
+    # regride para 422 continua verde — 422+fragment é forma válida —, e a
+    # declaração de destino vira decoração.
+    assert destino_esperado is None, (
+        f'Cenário declarou destino_esperado={destino_esperado!r} e respondeu 422. '
+        'Ou a rota regrediu para o ramo de erro, ou o cenário deve declarar None.'
+    )
     assert b'data-modal-body' in resposta.content, (
         '422 sem [data-modal-body] no corpo: o swap trocaria o corpo do modal '
         'por um fragment que não é um corpo de modal.'
+    )
+    if modal_id is not None:
+        # O id importa: `hx-target` é `[data-modal-body='<id>']`. Um fragment
+        # com o id de outro modal é trocado no lugar errado, e o `modal_id` é
+        # string literal repetida à mão em quatro views.
+        assert f'data-modal-body="{modal_id}"'.encode() in resposta.content, (
+            f'422 devolveu o corpo de outro modal — esperado id {modal_id!r}.'
+        )
+    # O 422 tem de *dizer* o que falhou. `coletar_erros` (`core_tags.py`)
+    # despacha a fonte por `isinstance(str)` / `non_form_errors` / `errors` e
+    # não tem `else`: uma fonte que ela não reconhece — `erro=exc` em vez de
+    # `erro=str(exc)` — é descartada em silêncio, e o modal reabre com a caixa
+    # de erro vazia. Que é o sintoma da issue, com outro nome.
+    assert b'data-error-summary' in resposta.content, (
+        '422 com [data-modal-erro] vazio: o modal reabriu sem dizer o que '
+        'falhou. Fonte de erro que a tag não reconhece some assim, sem barulho.'
     )
 
 

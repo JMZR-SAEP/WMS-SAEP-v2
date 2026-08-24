@@ -1349,6 +1349,7 @@ class TestConfirmarImportacaoScpiView:
         conteudo = resp.content.decode()
         assert 'data-modal-body="confirmar-importacao-scpi"' in conteudo
         assert 'data-modal-erro' in conteudo
+        assert 'pré-visualização ativa' in conteudo
         assert '<html' not in conteudo
 
     def test_htmx_hash_duplicado_devolve_422(
@@ -1363,16 +1364,29 @@ class TestConfirmarImportacaoScpiView:
         assert resp.status_code == 422
         conteudo = resp.content.decode()
         assert 'data-modal-body="confirmar-importacao-scpi"' in conteudo
+        assert 'duplicad' in conteudo.lower() or 'já' in conteudo.lower()
         assert '<html' not in conteudo
 
-    def test_htmx_sem_estoque_ativo_devolve_422(self, client, superuser):
+    def test_htmx_sem_estoque_ativo_devolve_422(
+        self, client, superuser, estoque_principal
+    ):
+        """A fixture `estoque_principal` é o que faz este teste testar algo.
+
+        Sem ela não há `Estoque` no banco, o preview sai cedo sem semear a
+        sessão, e o 422 vem do ramo "nenhuma pré-visualização ativa" — ou seja,
+        uma cópia do teste de cima, com o ramo de estoque inativo sem cobertura
+        nenhuma. É por isso que a asserção de texto abaixo importa: sem ela os
+        três ramos de `_erro()` são indistinguíveis entre si.
+        """
         from apps.estoque.models import Estoque
 
         self._seed_session(client, superuser, self._csv('000.888.060'))
         Estoque.objects.update(ativo=False)
         resp = client.post(self.URL, {}, HTTP_HX_REQUEST='true')
         assert resp.status_code == 422
-        assert 'data-modal-body="confirmar-importacao-scpi"' in resp.content.decode()
+        conteudo = resp.content.decode()
+        assert 'data-modal-body="confirmar-importacao-scpi"' in conteudo
+        assert 'estoque ativo' in conteudo
 
     def test_get_sucesso_usa_components_alert_com_aria(
         self, client, superuser, estoque_principal

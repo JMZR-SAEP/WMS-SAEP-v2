@@ -17,6 +17,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from django.core.exceptions import ImproperlyConfigured
+from django.forms import BaseForm, BaseFormSet
 from django.http import HttpResponse
 from django.shortcuts import render
 
@@ -26,7 +28,7 @@ def render_modal_erro(
     *,
     modal_id: str,
     titulo: str,
-    erro: Any,
+    erro: str | BaseForm | BaseFormSet,
     descricao: str = '',
     form_body_template: str = '',
     confirm_label: str = 'Confirmar',
@@ -48,6 +50,12 @@ def render_modal_erro(
     Form, com âncora por campo, e não do `form.errors.as_text()`, cujo dump
     (`* justificativa\\n  * Este campo é obrigatório.`) chega à tela com o
     asterisco de formatação de log.
+
+    O tipo é fechado nessas três formas porque `coletar_erros` (`core_tags.py`)
+    despacha por `isinstance(str)` / `non_form_errors` / `errors` e **não tem
+    `else`**: uma fonte que ela não reconhece é descartada em silêncio, e o 422
+    volta com a caixa de erro vazia. `erro=exc` em vez de `erro=str(exc)` é o
+    engano de uma letra que produz exatamente isso.
 
     `icon_variant` não tem default de severidade de propósito. Um default
     `'danger'` reclassificaria como perigo qualquer modal `info` ou `warning`
@@ -71,6 +79,16 @@ def render_modal_erro(
     if acao_erro:
         contexto['acao_erro'] = acao_erro
     if contexto_form:
+        # `contexto_form` traz o que o `form_body_template` precisa, não o que
+        # o modal já decidiu. Sobrescrever `id` daqui trocaria o
+        # `data-modal-body` do fragment: o swap acontece, mas o corpo trocado
+        # passa a responder por outro seletor, e o 422 seguinte erra o alvo.
+        colisao = contexto_form.keys() & contexto.keys()
+        if colisao:
+            raise ImproperlyConfigured(
+                f'contexto_form sobrescreve chave do modal: {sorted(colisao)}. '
+                'Passe o valor pelo parâmetro nomeado correspondente.'
+            )
         contexto.update(contexto_form)
 
     response = render(request, 'components/_modal_body.html', contexto)

@@ -30,6 +30,7 @@ from apps.core.tests.contrato_modal import (
     CenarioModal,
     assert_contrato_modal,
     assert_fallback_sem_htmx,
+    snapshot,
 )
 from apps.requisicoes.models import EstadoRequisicao, ItemRequisicao, Requisicao
 
@@ -78,9 +79,7 @@ def _le_requisicao(pk: int):
     from apps.estoque.models import SaldoEstoque
 
     return (
-        Requisicao.objects.filter(pk=pk)
-        .values_list('estado', 'numero_publico')
-        .first(),
+        snapshot(Requisicao.objects, pk, 'estado', 'numero_publico'),
         sorted(
             SaldoEstoque.objects.values_list('pk', 'saldo_fisico', 'saldo_reservado')
         ),
@@ -92,7 +91,13 @@ def _detalhe(pk: int) -> str:
 
 
 def _cenario_estado_recusado(
-    request, rota: str, estado: str, ator: str, payload: dict | None = None
+    request,
+    rota: str,
+    estado: str,
+    ator: str,
+    modal_id: str,
+    payload: dict | None = None,
+    muta: bool = False,
 ) -> CenarioModal:
     """Rota chamada num estado dado, com o destino de 204 já declarado.
 
@@ -107,6 +112,8 @@ def _cenario_estado_recusado(
         destino_esperado=_detalhe(requisicao.pk),
         ler_estado=lambda: _le_requisicao(requisicao.pk),
         ator=request.getfixturevalue(ator),
+        modal_id=modal_id,
+        muta=muta,
     )
 
 
@@ -121,6 +128,8 @@ def _cenario_autorizar(request) -> CenarioModal:
         'requisicoes:autorizar',
         EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
         'chefe_obras',
+        modal_id='confirmar-autorizar',
+        muta=True,
     )
 
 
@@ -133,6 +142,7 @@ def _cenario_retornar_rascunho(request) -> CenarioModal:
         'requisicoes:retornar_rascunho',
         EstadoRequisicao.RASCUNHO,
         'solicitante',
+        modal_id='confirmar-retornar',
     )
 
 
@@ -145,6 +155,8 @@ def _cenario_separar_retirada(request) -> CenarioModal:
         'requisicoes:separar_retirada',
         EstadoRequisicao.AUTORIZADA,
         'aux_almoxarifado',
+        modal_id='confirmar-separar',
+        muta=True,
     )
 
 
@@ -157,6 +169,7 @@ def _cenario_enviar_rascunho(request) -> CenarioModal:
         destino_esperado=_detalhe(requisicao.pk),
         ler_estado=lambda: _le_requisicao(requisicao.pk),
         ator=request.getfixturevalue('solicitante'),
+        modal_id='confirmar-enviar',
     )
 
 
@@ -167,6 +180,7 @@ def _cenario_cancelar(request) -> CenarioModal:
         'requisicoes:cancelar',
         EstadoRequisicao.ATENDIDA,
         'solicitante',
+        modal_id='confirmar-cancelar',
         payload={'justificativa': 'Motivo.'},
     )
 
@@ -180,6 +194,7 @@ def _cenario_recusar(request) -> CenarioModal:
         destino_esperado=None,
         ler_estado=lambda: _le_requisicao(requisicao.pk),
         ator=request.getfixturevalue('chefe_obras'),
+        modal_id='confirmar-recusar',
     )
 
 
@@ -192,6 +207,7 @@ def _cenario_estornar(request) -> CenarioModal:
         destino_esperado=None,
         ler_estado=lambda: _le_requisicao(requisicao.pk),
         ator=request.getfixturevalue('chefe_almoxarifado'),
+        modal_id='estornar-modal',
     )
 
 
@@ -208,6 +224,7 @@ def _cenario_registrar_devolucao(request) -> CenarioModal:
         destino_esperado=None,
         ler_estado=lambda: _le_requisicao(requisicao.pk),
         ator=request.getfixturevalue('aux_almoxarifado'),
+        modal_id=f'devolver-{item.pk}',
     )
 
 
@@ -226,6 +243,7 @@ def _cenario_confirmar_importacao_scpi(request) -> CenarioModal:
         destino_esperado=None,
         ler_estado=lambda: ImportacaoSCPI.objects.count(),
         ator=request.getfixturevalue('superuser'),
+        modal_id='confirmar-importacao-scpi',
     )
 
 
@@ -257,8 +275,21 @@ def _cenario(request, rota: str) -> CenarioModal:
 def test_resposta_htmx_cabe_na_caixa_do_modal(db, request, client, rota):
     cenario = _cenario(request, rota)
     client.force_login(cenario.ator)
+    antes = cenario.ler_estado()
     resposta = client.post(cenario.url, cenario.payload, HTTP_HX_REQUEST='true')
-    assert_contrato_modal(resposta, destino_esperado=cenario.destino_esperado)
+    assert_contrato_modal(
+        resposta,
+        destino_esperado=cenario.destino_esperado,
+        modal_id=cenario.modal_id,
+    )
+    if not cenario.muta:
+        # `cancelar` em ATENDIDA, `retornar_rascunho` em RASCUNHO e
+        # `enviar_rascunho` sem item respondem 204 para o detalhe — igual ao
+        # caminho feliz. Sem esta linha, os três seguiriam verdes se a
+        # transição que deviam recusar passasse a acontecer.
+        assert cenario.ler_estado() == antes, (
+            f'{rota}: cenário declarado como sem mutação, mas o estado mudou.'
+        )
 
 
 @pytest.mark.parametrize('rota', ROTAS)

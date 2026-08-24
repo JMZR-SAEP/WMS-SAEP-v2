@@ -408,6 +408,13 @@ def estornar_saida_excepcional_view(request, pk: int):
             saida_id=pk,
             justificativa=justificativa,
         )
+    except PermissaoNegada as exc:
+        # Antes do `except ErroDominio`, como nas views irmãs: `PermissaoNegada`
+        # é subclasse de `ErroDominio`, e sem esta linha ela sairia como 422 com
+        # o botão "Confirmar estorno" — convidando a repetir uma ação que a
+        # pessoa não pode executar. O service revalida a policy, então este
+        # caminho é alcançável mesmo com a checagem do topo desta view.
+        raise PermissionDenied(str(exc))
     except ErroDominio as exc:
         if request.htmx:
             # Título, descrição e rótulos vêm de detalhe_saida_excepcional.html:177:
