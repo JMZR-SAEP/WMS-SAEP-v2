@@ -1271,6 +1271,57 @@ class TestConfirmarImportacaoScpiView:
             or b'j\xc3\xa1' in resp.content.lower()
         )
 
+    def test_htmx_sucesso_devolve_204_com_hx_redirect(
+        self, client, superuser, estoque_principal
+    ):
+        """A única escrita irreversível declarada do sistema não pode terminar
+        com a página de sucesso injetada dentro da caixa do modal."""
+        from django.urls import reverse
+
+        from apps.estoque.models import ImportacaoSCPI
+
+        self._seed_session(client, superuser, self._csv('000.888.040'))
+        resp = client.post(self.URL, {}, HTTP_HX_REQUEST='true')
+        assert resp.status_code == 204
+        importacao = ImportacaoSCPI.objects.latest('pk')
+        assert resp['HX-Redirect'] == reverse(
+            'estoque:sucesso_importacao_scpi', kwargs={'pk': importacao.pk}
+        )
+
+    def test_htmx_sem_preview_na_sessao_devolve_422(self, client, superuser):
+        """Segunda tentativa é o pior caso: a sessão do preview já foi limpa e a
+        pessoa fica com duas evidências contraditórias, ambas dentro da caixa."""
+        client.force_login(superuser)
+        resp = client.post(self.URL, {}, HTTP_HX_REQUEST='true')
+        assert resp.status_code == 422
+        conteudo = resp.content.decode()
+        assert 'data-modal-body="confirmar-importacao-scpi"' in conteudo
+        assert 'data-modal-erro' in conteudo
+        assert '<html' not in conteudo
+
+    def test_htmx_hash_duplicado_devolve_422(
+        self, client, superuser, estoque_principal
+    ):
+        csv_bytes = self._csv('000.888.050')
+        self._seed_session(client, superuser, csv_bytes)
+        client.post(self.URL, {})
+
+        self._seed_session(client, superuser, csv_bytes)
+        resp = client.post(self.URL, {}, HTTP_HX_REQUEST='true')
+        assert resp.status_code == 422
+        conteudo = resp.content.decode()
+        assert 'data-modal-body="confirmar-importacao-scpi"' in conteudo
+        assert '<html' not in conteudo
+
+    def test_htmx_sem_estoque_ativo_devolve_422(self, client, superuser):
+        from apps.estoque.models import Estoque
+
+        self._seed_session(client, superuser, self._csv('000.888.060'))
+        Estoque.objects.update(ativo=False)
+        resp = client.post(self.URL, {}, HTTP_HX_REQUEST='true')
+        assert resp.status_code == 422
+        assert 'data-modal-body="confirmar-importacao-scpi"' in resp.content.decode()
+
     def test_get_sucesso_usa_components_alert_com_aria(
         self, client, superuser, estoque_principal
     ):

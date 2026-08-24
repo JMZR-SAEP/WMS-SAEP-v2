@@ -36,6 +36,7 @@ from apps.core.exceptions import (
 )
 from apps.core.http import htmx_redirect, parse_data_iso
 from apps.core.listagem import paginar, paginar_com_filtros
+from apps.core.modal import render_modal_erro
 from apps.core.presentation import traduz_erro_dominio
 from apps.core.quantidades import formatar as formatar_quantidade
 from apps.core.quantidades import normalizar
@@ -1156,6 +1157,34 @@ def confirmar_importacao_scpi_view(request):
         registrar_timeline_divergencia_importacao,
     )
 
+    def _erro(mensagem: str):
+        """Erro da confirmação: fragment 422 no modal, página completa sem HTMX.
+
+        O 422 vai **sem** `form_body_template`. O corpo do modal é
+        `_modal_corpo_confirmar_importacao.html`, a recapitulação de
+        novos/divergências/total do preview — e no ramo mais comum de erro a
+        sessão do preview já foi consumida. Repetir a contagem de uma
+        pré-visualização que não existe mais seria a segunda evidência
+        contraditória, justamente o que esta porta existe para evitar.
+        """
+        if request.htmx:
+            # Espelha preview_importacao_scpi.html:313.
+            return render_modal_erro(
+                request,
+                modal_id='confirmar-importacao-scpi',
+                titulo='Confirmar importação do SCPI?',
+                descricao='A gravação não pode ser desfeita.',
+                erro=mensagem,
+                confirm_label='Confirmar importação',
+                icon_variant='warning',
+                acao_erro='confirmar a importação',
+            )
+        return render(
+            request,
+            'estoque/confirmar_importacao_scpi.html',
+            {'erro': mensagem},
+        )
+
     papel = papel_efetivo(request.user)
     try:
         exigir_pode_confirmar_importacao_scpi(papel)
@@ -1166,21 +1195,13 @@ def confirmar_importacao_scpi_view(request):
     arquivo_nome = request.session.get('scpi_preview_nome', 'importacao.csv')
 
     if not conteudo_b64:
-        return render(
-            request,
-            'estoque/confirmar_importacao_scpi.html',
-            {
-                'erro': 'Nenhuma pré-visualização ativa. Faça o upload do arquivo novamente.'
-            },
+        return _erro(
+            'Nenhuma pré-visualização ativa. Faça o upload do arquivo novamente.'
         )
 
     estoque = Estoque.objects.filter(ativo=True).first()
     if estoque is None:
-        return render(
-            request,
-            'estoque/confirmar_importacao_scpi.html',
-            {'erro': 'Não há estoque ativo configurado.'},
-        )
+        return _erro('Não há estoque ativo configurado.')
 
     try:
         conteudo = base64.b64decode(conteudo_b64)
@@ -1191,26 +1212,15 @@ def confirmar_importacao_scpi_view(request):
             estoque_id=estoque.pk,
             _pos_importacao_hook=registrar_timeline_divergencia_importacao,
         )
-    except ConflitoDominio as exc:
-        return render(
-            request,
-            'estoque/confirmar_importacao_scpi.html',
-            {'erro': str(exc)},
-        )
-    except DadosInvalidos as exc:
-        return render(
-            request,
-            'estoque/confirmar_importacao_scpi.html',
-            {'erro': str(exc)},
-        )
+    except (ConflitoDominio, DadosInvalidos) as exc:
+        return _erro(str(exc))
 
     request.session.pop('scpi_preview_bytes', None)
     request.session.pop('scpi_preview_nome', None)
 
-    from django.http import HttpResponseRedirect
-
-    return HttpResponseRedirect(
-        _reverse('estoque:sucesso_importacao_scpi', kwargs={'pk': importacao.pk})
+    return htmx_redirect(
+        request,
+        _reverse('estoque:sucesso_importacao_scpi', kwargs={'pk': importacao.pk}),
     )
 
 
