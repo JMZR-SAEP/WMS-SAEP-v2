@@ -160,6 +160,15 @@ def test_modo_submit_form_id_mantem_o_contrato_de_foco():
     assert any(_tem(a, 'data-modal-dismiss') for a in _botoes(html))
 
 
+def _corpos_dos_moldes(html):
+    """Conteúdo de cada `<template data-modal-erro-transporte>`, sem a tag."""
+    corpos = []
+    for pedaco in html.split('<template data-modal-erro-transporte=')[1:]:
+        corpos.append(pedaco.split('</template>')[0])
+    assert corpos, 'modal renderizado sem molde de falha de transporte'
+    return corpos
+
+
 def _moldes_de_transporte(html):
     """Atributos de cada `<template data-modal-erro-transporte>`, em ordem."""
     return {
@@ -183,7 +192,16 @@ def test_modal_traz_o_slot_e_os_dois_moldes_de_falha_de_transporte():
 
 
 def test_moldes_de_transporte_valem_tambem_no_modo_submit_form_id():
-    """O modo sem `<form>` próprio também pode receber 5xx do form externo."""
+    """O corpo é fonte única: os moldes vêm nos dois modos.
+
+    Hoje eles não são alcançáveis neste modo — o `<dialog>` fica **dentro** do
+    formulário que confirma, e evento de htmx sobe a partir de quem emitiu, logo
+    nunca chega aos listeners do diálogo; e o único consumidor do modo
+    (`requisicoes/atender_retirada.html`) nem usa htmx. O que este teste guarda é
+    que `_modal_body.html` continua sendo uma grafia só: um `{% if %}` que
+    poupasse os moldes aqui é como o modo vira um componente paralelo, e é ele
+    que teria de ser desfeito no dia em que o modo ganhar `hx-post`.
+    """
     html = _render_modal(submit_form_id='form-externo')
 
     assert 'data-modal-erro-transporte-slot' in html
@@ -215,8 +233,12 @@ def test_texto_da_falha_de_transporte_e_copy_de_produto_em_pt_br():
 
     assert 'A conexão com o servidor caiu durante o envio.' in html
     assert 'O servidor não concluiu esta ação.' in html
-    for proibido in ('500', 'Internal Server Error', 'HTTP', 'XHR', 'status'):
-        assert proibido not in html, f'{proibido!r} vazou para a copy do modal.'
+    # A varredura é dos dois moldes, e não do modal inteiro: no dia em que um
+    # consumidor tiver um campo "Status" ou uma `action_url` com esquema, um
+    # teste de escopo aberto acusaria a tela errada.
+    for corpo in _corpos_dos_moldes(html):
+        for proibido in ('500', 'Internal Server Error', 'HTTP', 'XHR', 'status'):
+            assert proibido not in corpo, f'{proibido!r} vazou para a copy.'
 
 
 def test_moldes_de_transporte_nao_repetem_id_entre_si():
@@ -245,3 +267,21 @@ def test_backdrop_ancora_o_fechamento_no_mousedown():
 
     assert atributo(dialogo, '@mousedown') == 'backdropMouseDown($event)'
     assert atributo(dialogo, '@click') == 'backdropClick($event)'
+
+
+def test_form_do_modal_carrega_o_hx_post_de_que_a_trava_em_voo_depende():
+    """`fechar()` só trava em `form[data-submitting="1"][hx-post]` (#133).
+
+    O recorte por `hx-post` existe para não trancar o diálogo num POST clássico,
+    cuja marca de envio só é liberada pela navegação — mas ele também significa
+    que este `<form>` perder o `hx-post` mataria a trava em silêncio, e a
+    resposta voltaria a ser engolida por um `Esc` no meio do caminho.
+    """
+    formularios = [
+        atributos
+        for _, atributos, _ in elementos(
+            _render_modal(action_url='/confirmar/'), 'form'
+        )
+    ]
+    assert atributo(formularios[0], 'hx-post') == '/confirmar/'
+    assert _tem(formularios[0], 'data-prevent-double-submit')

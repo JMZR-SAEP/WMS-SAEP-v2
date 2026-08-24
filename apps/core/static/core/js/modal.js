@@ -149,9 +149,21 @@
       //
       // A trava é o `data-submitting="1"` que `form-submit.js` grava no envio e
       // apaga no `htmx:afterRequest`, que dispara em **qualquer** desfecho (2xx,
-      // erro de resposta, falha de rede, abort). Não há caminho em que a marca
-      // sobreviva ao fim da requisição, então não há caminho em que o diálogo
-      // fique preso.
+      // erro de resposta, falha de rede, abort).
+      //
+      // **Só form de HTMX entra na trava**, e por duas razões que apontam para
+      // o mesmo lugar. A primeira é o motivo dela existir: o dano é a resposta
+      // ser trocada dentro de um diálogo fechado, e só um XHR troca alguma
+      // coisa — um POST clássico navega, e o diálogo vai embora com a página.
+      // A segunda é que `htmx:afterRequest` é a única porta de liberação que
+      // corre em tempo de página viva, e num form clássico ela nunca dispara:
+      // `data-submitting="1"` fica gravado até a navegação terminar. Se a
+      // navegação for abortada (`Esc` durante o carregamento interrompe o load
+      // do navegador), a marca sobrevive — e sem o recorte por `hx-post` o
+      // diálogo ficaria trancado sem saída, com `Esc`, backdrop e "Voltar"
+      // todos mortos. Isso é real hoje: `requisicoes/atender_retirada.html` é
+      // POST clássico com `data-prevent-double-submit`, e é a tela do
+      // atendimento.
       //
       // Os dois modos do componente entram pela mesma porta: no modo
       // `action_url` o `<form>` está **dentro** do diálogo; no modo
@@ -173,10 +185,8 @@
         if (!dialog) {
           return null;
         }
-        return (
-          dialog.querySelector('form[data-submitting="1"]') ||
-          dialog.closest('form[data-submitting="1"]')
-        );
+        const emVoo = 'form[data-submitting="1"][hx-post]';
+        return dialog.querySelector(emVoo) || dialog.closest(emVoo);
       },
 
       // Clona para dentro do slot o molde que o servidor já renderizou em
@@ -218,6 +228,13 @@
         if (!dialog || dialog.open) {
           return;
         }
+        // A caixa de falha de transporte descreve a tentativa anterior, e o
+        // modal reabre justamente para tentar de novo: deixá-la ali faria a
+        // abertura acusar um erro que ainda não aconteceu. O `beforeRequest`
+        // sozinho não cobre isto — ele só corre quando a pessoa confirma, e
+        // até lá a mensagem velha fica na tela por cima de um formulário
+        // intocado.
+        this.limparFalhaDeTransporte();
         dialog.showModal();
         this.$nextTick(() => this.focarPrimeiroCampo());
       },
@@ -258,7 +275,12 @@
         // `tabindex="-1"` justamente para que esse lugar seja o corpo do
         // diálogo — conteúdo inerte, com o `<h2>` do `aria-labelledby` e a
         // descrição do `aria-describedby`, e nada que Enter ative.
-        const dispensar = dialog.querySelector('[data-modal-dismiss]');
+        this.focarDispensa();
+      },
+
+      focarDispensa() {
+        const dialog = this.$refs.dialog;
+        const dispensar = dialog && dialog.querySelector('[data-modal-dismiss]');
         if (dispensar) {
           dispensar.focus();
         }
@@ -337,10 +359,19 @@
         }
         // Justificativa de estorno e de cancelamento são obrigatórias e podem
         // ter parágrafos, e o backdrop é o gesto mais fácil de disparar sem
-        // querer do componente inteiro. Com texto digitado ele fica inerte; as
+        // querer do componente inteiro. Com texto digitado ele não descarta; as
         // duas saídas deliberadas — `Esc` e o botão "Voltar" — continuam de pé,
         // e são elas que dizem que a pessoa quis mesmo sair.
+        //
+        // Recusar o gesto **em silêncio** seria a mesma falha muda que esta
+        // issue fecha em outros três lugares: a pessoa age e nada acontece, sem
+        // explicação. O foco vai para "Voltar" — é a saída de verdade, o leitor
+        // de tela anuncia o botão, e nada é executado por encostar nele
+        // (`data-modal-dismiss` é `type="button"`, garantido por
+        // `test_botao_de_dispensa_nao_e_o_que_submete`). Um `confirm()` nativo
+        // resolveria também, mas é vocabulário que este design system não tem.
         if (this.temTextoDigitado()) {
+          this.focarDispensa();
           return;
         }
         this.fechar();

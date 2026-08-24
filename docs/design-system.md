@@ -481,9 +481,11 @@ Chromium, camada Navegador da ADR-0019).
 
 ### Desfechos do modal depois de confirmar
 
-Confirmar num modal dispara um POST por HTMX, e o componente tem que ter uma
-resposta visível para **cada** desfecho possível — o rodapé descreve essas ações
-como irreversíveis, e "a tela voltou ao normal" não é resposta (#133).
+No modo `action_url`, confirmar dispara um POST por HTMX, e o componente tem que
+ter uma resposta visível para **cada** desfecho possível — o rodapé descreve
+essas ações como irreversíveis, e "a tela voltou ao normal" não é resposta
+(#133). O modo `submit_form_id` submete o formulário externo, que hoje é POST
+clássico: ali o desfecho é a navegação, e a tabela abaixo não se aplica.
 
 | Desfecho | O que acontece |
 |---|---|
@@ -503,12 +505,27 @@ tela mesmo com o formulário rolado.
 
 **Nenhuma via de fechamento vale com a requisição em voo.** `Esc`, backdrop e
 "Voltar" passam todos por `fechar()`, que desiste enquanto existe
-`form[data-submitting="1"]` dentro do diálogo — ou envolvendo-o, no modo
-`submit_form_id`. `Esc` tem uma segunda rota e precisa da segunda trava: o
-`@keydown.escape` está no `<dialog>` e só roda com o foco dentro dele, e depois
-do clique em confirmar o foco não está mais lá — `form-submit.js` desabilita o
-botão acionado e o navegador o solta. O fechamento nativo continua valendo dali,
-então `modal.js` também escuta `cancel` e o cancela em voo. Fechar ali trocaria o corpo de um `<dialog>` já fechado: a
+`form[data-submitting="1"][hx-post]` dentro do diálogo — ou envolvendo-o, no
+modo `submit_form_id`.
+
+O recorte por `hx-post` é deliberado, e as duas razões apontam para o mesmo
+lugar. O dano que a trava evita é a resposta ser trocada dentro de um diálogo
+fechado, e só um XHR troca alguma coisa; um POST clássico navega, e o diálogo
+vai embora com a página. E `htmx:afterRequest` — que é quem apaga a marca — não
+dispara em form clássico, então lá o `data-submitting` só cai com a navegação:
+se ela for abortada, sem o recorte o diálogo ficaria trancado sem saída.
+`requisicoes/atender_retirada.html` é exatamente esse form.
+
+`Esc` tem uma segunda rota e precisa da segunda trava: o `@keydown.escape` está
+no `<dialog>` e só roda com o foco dentro dele, e depois do clique em confirmar
+o foco não está mais lá — `form-submit.js` desabilita o botão acionado e o
+navegador o solta. O fechamento nativo continua valendo dali, então `modal.js`
+também escuta `cancel` e o cancela em voo.
+
+**A caixa de falha de transporte é limpa na abertura**, e não só no
+`htmx:beforeRequest`. Reabrir o modal é tentar de novo; a mensagem descreve a
+tentativa anterior, e deixá-la ali faria a abertura acusar um erro que ainda não
+aconteceu. Fechar ali trocaria o corpo de um `<dialog>` já fechado: a
 recusa não seria vista e o `role="alert"` seria anunciado num nó não
 renderizado. A marca é gravada e apagada por `form-submit.js`, e o
 `htmx:afterRequest` que a apaga dispara em qualquer desfecho — não há caminho em
@@ -517,12 +534,20 @@ que o diálogo fique preso.
 **Fechar por backdrop exige `mousedown` e `mouseup` fora da caixa.** Só com
 `@click`, uma seleção de texto que começa dentro do modal e termina fora chega
 com `target` no `<dialog>` e era lida como "clicou fora" — apagando a
-justificativa inteira. E, com texto digitado, o backdrop fica **inerte**: é o
+justificativa inteira. E, com texto digitado, o backdrop **não descarta**: é o
 gesto mais fácil de disparar sem querer do componente, e justificativa de
 estorno e de cancelamento é obrigatória e pode ter parágrafos. As duas saídas
 deliberadas — `Esc` e "Voltar" — continuam de pé, e são elas que dizem que a
 pessoa quis mesmo sair. "Preenchido" é `value !== defaultValue`: um campo com
 default do servidor não trava nada.
+
+**Recusar o gesto não pode ser mudo**, ou seria a mesma falha que esta seção
+fecha nos outros três lugares — a pessoa age e nada acontece, sem explicação. O
+foco vai para "Voltar": é a saída de verdade, o leitor de tela anuncia o botão,
+e encostar nele não executa nada, porque `[data-modal-dismiss]` é `type="button"`
+por contrato. Um `confirm()` nativo também resolveria e foi **descartado** — é
+vocabulário que este design system não tem, e apareceria como artefato do
+navegador por cima de um `<dialog>`.
 
 Verificado por `apps/core/tests/test_modal.py` (slot, moldes, copy, `@mousedown`)
 e por `apps/requisicoes/tests/test_navegador_modal_em_voo.py` (comportamento em

@@ -13,6 +13,20 @@ verdade; a terceira, da geometria do `<dialog>` no top layer e da ordem
 A marcação do contrato — o slot, os dois `<template>`, o `@mousedown` no
 diálogo, a copy PT-BR das duas caixas — fica na lane de baixo, em
 `apps/core/tests/test_modal.py`.
+
+## Fora de escopo declarado: o POST clássico do modo `submit_form_id`
+
+A trava de requisição em voo é recortada por `hx-post` justamente para não
+trancar `requisicoes/atender_retirada.html`, que é POST clássico e cuja marca de
+envio só cai com a navegação. **Esse caso não é dirigível em automação**: com uma
+navegação pendente, `evaluate` e `wait_for_function` não retornam — a página não
+tem contexto de execução para responder —, então não há como observar o estado
+do diálogo no exato instante que interessa. Mesmo tratamento que a ADR-0019 já
+dá ao bfcache de `form-submit.js`.
+
+O que sobra guardando o recorte é a lane de baixo: o `hx-post` no `<form>` do
+modo `action_url` é cobrado por
+`test_form_do_modal_carrega_o_hx_post_de_que_a_trava_em_voo_depende`.
 """
 
 from decimal import Decimal
@@ -220,6 +234,12 @@ def test_backdrop_fica_inerte_com_texto_digitado_mas_esc_e_voltar_continuam(
     assert dialogo.evaluate('(d) => d.open'), (
         'Clique fora apagou texto que a pessoa digitou.'
     )
+    # Recusar o gesto em silêncio seria a mesma falha muda que a issue fecha nos
+    # outros três lugares. O foco vai para "Voltar": aponta a saída de verdade e
+    # é anunciado, sem executar nada.
+    assert page.evaluate(
+        '() => document.activeElement.hasAttribute("data-modal-dismiss")'
+    ), 'O backdrop recusou o fechamento sem dizer por onde sair.'
 
     dialogo.locator('[data-modal-dismiss]').click()
     page.wait_for_function("() => !document.getElementById('confirmar-recusar').open")
@@ -237,3 +257,59 @@ def test_backdrop_continua_fechando_o_modal_sem_texto_digitado(pagina_de_decisao
     _clicar_no_backdrop(page, dialogo)
 
     page.wait_for_function("() => !document.getElementById('confirmar-autorizar').open")
+
+
+def test_queda_de_conexao_dentro_do_modal_vira_mensagem_visivel(
+    pagina_de_decisao, req_para_decisao
+):
+    """`htmx:sendError` tem molde próprio, e é outra copy (#133).
+
+    A requisição que nunca chega a ter resposta não passa por
+    `htmx:responseError`: só o `sendError` dispara, e sem este caminho a queda
+    de conexão continuaria sendo o desfecho mudo que a issue nomeia.
+    """
+    page = pagina_de_decisao
+    url_autorizar = reverse('requisicoes:autorizar', kwargs={'pk': req_para_decisao.pk})
+    page.route(f'**{url_autorizar}', lambda rota: rota.abort())
+
+    dialogo = _abrir(page, 'confirmar-autorizar')
+    dialogo.locator('[data-modal-confirm]').click()
+
+    caixa = dialogo.locator('[data-modal-erro-transporte-slot] [data-error-summary]')
+    caixa.wait_for()
+    assert dialogo.evaluate('(d) => d.open')
+    assert 'A conexão com o servidor caiu durante o envio.' in caixa.inner_text(), (
+        'A queda de conexão recebeu a copy de erro de servidor.'
+    )
+
+
+def test_falha_de_transporte_nao_sobrevive_ao_fechar_e_reabrir(
+    pagina_de_decisao, req_para_decisao
+):
+    """A mensagem descreve a tentativa anterior; reabrir é tentar de novo.
+
+    Sem a limpeza na abertura, o modal reabriria acusando um erro que ainda não
+    aconteceu, por cima de um formulário intocado — a mesma classe de defeito
+    que a issue fecha: a tela mostrando um estado que não corresponde ao que
+    acabou de ocorrer.
+    """
+    page = pagina_de_decisao
+    url_autorizar = reverse('requisicoes:autorizar', kwargs={'pk': req_para_decisao.pk})
+    page.route(
+        f'**{url_autorizar}',
+        lambda rota: rota.fulfill(
+            status=500, content_type='text/html; charset=utf-8', body='<h1>500</h1>'
+        ),
+    )
+
+    dialogo = _abrir(page, 'confirmar-autorizar')
+    dialogo.locator('[data-modal-confirm]').click()
+    dialogo.locator('[data-modal-erro-transporte-slot] [data-error-summary]').wait_for()
+
+    dialogo.locator('[data-modal-dismiss]').click()
+    page.wait_for_function("() => !document.getElementById('confirmar-autorizar').open")
+    _abrir(page, 'confirmar-autorizar')
+
+    assert (
+        dialogo.locator('[data-modal-erro-transporte-slot]').inner_html().strip() == ''
+    ), 'O modal reabriu acusando o erro da tentativa anterior.'
