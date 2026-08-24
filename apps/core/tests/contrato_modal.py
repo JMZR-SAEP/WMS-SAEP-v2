@@ -1,11 +1,15 @@
 """Contrato HTTP das URLs que aparecem como `action_url` de um modal.
 
-`components/modal.html` sempre emite `hx-post` com
-`hx-target="[data-modal-body='<id>']"` e `hx-swap="outerHTML"`. Isso significa
-que **qualquer** resposta que não seja 204 + `HX-Redirect` ou 422 + fragment do
-corpo é injetada dentro da caixa do modal — uma página completa ali produz app
-bar e navegação empilhados no diálogo, com a URL inalterada e o conteúdo de
-fundo ainda clicável.
+`components/modal.html` emite `hx-post` com
+`hx-target="[data-modal-body='<id>']"` e `hx-swap="outerHTML"` sempre que recebe
+`action_url` — que é o modo de todos os modais, menos o de confirmação de form
+externo (`submit_form_id`), onde o `<dialog>` não emite nada.
+
+Nesse modo, uma resposta **2xx** que não seja o 204 do PRG é trocada dentro da
+caixa do modal — uma página completa ali produz app bar e navegação empilhados
+no diálogo, com a URL inalterada e o conteúdo de fundo ainda clicável. O 422 é
+trocado por opt-in do `modal.js` (`htmx:beforeSwap`), e é por isso que ele serve
+de superfície de erro.
 
 Este módulo é a metade estática do guarda: descobre quais rotas estão nessa
 posição hoje e oferece a asserção que os testes HTTP de cada app usam. A metade
@@ -214,9 +218,13 @@ def assert_contrato_modal(
         return
 
     assert status == 422, (
-        f'Resposta {status} a um POST HTMX de modal. O corpo desta resposta vai '
-        f'ser injetado dentro de [data-modal-body] pelo hx-swap="outerHTML" do '
-        f'componente — só 204+HX-Redirect ou 422+fragment cabem ali.'
+        f'Resposta {status} a um POST HTMX de modal — só 204+HX-Redirect ou '
+        f'422+fragment cumprem o contrato. Um 2xx aqui é trocado dentro de '
+        f'[data-modal-body] pelo hx-swap="outerHTML" do componente, e uma '
+        f'página inteira empilha app bar e navegação no diálogo; um 4xx/5xx '
+        f'não é trocado por padrão no htmx 2, e vira no-op silencioso — o '
+        f'diálogo fica idêntico e a pessoa aperta de novo. Nenhum dos dois '
+        f'responde se gravou ou não.'
     )
     # A outra direção da união. Sem isto, um cenário que declara destino e
     # regride para 422 continua verde — 422+fragment é forma válida —, e a
@@ -255,9 +263,13 @@ def assert_fallback_sem_htmx(resposta) -> None:
     asserção genérica que aceitasse os dois casos aceitaria quase tudo.
 
     O que é uniforme é o negativo: um cliente sem JS não age sobre nenhum dos
-    dois — 204 deixa a página parada e o cabeçalho é lido por ninguém. É a
-    regressão que uma view ganharia ao trocar o `if request.htmx:` por um
-    `htmx_redirect()` incondicional.
+    dois — 204 deixa a página parada e o cabeçalho é lido por ninguém.
+
+    Note o que isto **não** pega: `htmx_redirect` incondicional passa, porque o
+    helper já ramifica por dentro e devolve 302 fora do HTMX. A regressão que
+    esta asserção pega é o 204 montado à mão — `HttpResponse(status=204)` com o
+    cabeçalho posto na resposta —, ou o `HttpResponseClientRedirect` do
+    django_htmx, que responde 200 e emite o cabeçalho sempre.
     """
     assert resposta.status_code != 204, (
         'Resposta 204 a um POST sem HTMX: um cliente sem JS fica com a página '

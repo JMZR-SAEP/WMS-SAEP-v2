@@ -5,19 +5,25 @@ rota registrada sem construtora falha aqui, e uma rota usada num modal sem estar
 registrada falha em `core/tests/test_contrato_modal.py`. Juntas, as duas pontas
 fazem com que um modal novo não consiga nascer fora do contrato.
 
-A carga de cada cenário busca o **ramo de erro** da rota, que é onde as
-violações desta issue viviam. Sete das nove chegam lá (as quatro que terminam em
-422 e as três que erram por transição recusada); `autorizar` e
-`separar_retirada` acabam no caminho feliz, porque os estados que essas duas
-recusam ou não são visíveis ao ator (404) ou não passam pela policy (403) — e
-nem 403 nem 404 dizem coisa alguma sobre o que cabe dentro da caixa do modal.
-Os dois eixos continuam valendo para elas: o contrato governa a resposta, não o
-ramo que a produziu.
+A carga de cada cenário busca o **ramo de erro** da rota — é onde as violações
+desta issue viviam —, e todas as nove chegam lá. Quatro terminam em 422; as
+outras cinco em 204 para o detalhe, com a transição recusada e mensagem. Como
+essas cinco respondem o mesmo que o caminho feliz responderia, `muta=False` no
+cenário faz o eixo HTMX conferir que nada foi gravado: sem isso elas seriam
+tautológicas.
 
-Uma resposta que não seja 204+`HX-Redirect` nem 422+fragment é injetada dentro
-da caixa do modal pelo `hx-swap="outerHTML"` do componente, e produz a imagem
+Nenhum cenário usa `RASCUNHO` para `autorizar`/`separar_retirada`, e não é
+descuido: rascunho de terceiro não é visível ao selector desses atores, então a
+resposta seria 404 — que não exercita o corpo do modal.
+
+Uma resposta **2xx** que não seja o 204 do PRG é trocada dentro de
+`[data-modal-body]` pelo `hx-swap="outerHTML"` do componente, e produz a imagem
 que a issue descreve: sucesso e falha indistinguíveis, com a pessoa sem resposta
-para se gravou ou não.
+para se gravou ou não. O 422 também é trocado, mas por opt-in explícito do
+`modal.js` (`htmx:beforeSwap`), e é por isso que ele serve de superfície de
+erro. Já 403/404/5xx **não** são trocados por padrão no htmx 2 — viram no-op
+silencioso, que é outro defeito e está registrado como tal em
+`apps/core/tests/contrato_modal.py`.
 """
 
 from decimal import Decimal
@@ -71,10 +77,13 @@ def _requisicao(request, estado: str, *, com_item: bool = True) -> Requisicao:
 def _le_requisicao(pk: int):
     """Snapshot da requisição — `None` quando o registro deixou de existir.
 
-    `filter(...).first()` e não `get(...)`: o descarte de rascunho sem número
-    público apaga a linha (`services/cancelamento.py`), e um `get` estouraria
-    `DoesNotExist` em vez de comparar. `None != ('rascunho', ...)` é exatamente
-    a diferença que se quer detectar.
+    `filter(...).first()` e não `get(...)`: é forma defensiva exigida pelo
+    contrato de `ler_estado`, porque o descarte de rascunho sem número público
+    apaga a linha (`services/cancelamento.py`) e um `get` estouraria
+    `DoesNotExist` em vez de comparar. Nenhum cenário deste arquivo percorre
+    esse caminho hoje — `cancelar` usa ATENDIDA, e `_requisicao` grava
+    `numero_publico=''`, enquanto o descarte exige `None`. A forma vale pelo
+    contrato, não pelo cenário atual.
     """
     from apps.estoque.models import SaldoEstoque
 
@@ -118,18 +127,19 @@ def _cenario_estado_recusado(
 
 
 def _cenario_autorizar(request) -> CenarioModal:
-    """Caminho feliz: a autorização acontece e responde 204 + `HX-Redirect`.
+    """Requisição já atendida: a transição é recusada, nada muda.
 
-    Os estados que `autorizar` recusa são recusados antes, pela policy (403),
-    e 403 não diz nada sobre o corpo do modal.
+    A policy de autorizar (`policies.py`, via `pode_recusar_requisicao`) só olha
+    `setor_chefiado_ativo_id` e não lê o estado, então o estado errado chega ao
+    service e vira erro de transição — não 403. Só `RASCUNHO` daria 404, por
+    não ser visível ao chefe.
     """
     return _cenario_estado_recusado(
         request,
         'requisicoes:autorizar',
-        EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+        EstadoRequisicao.ATENDIDA,
         'chefe_obras',
         modal_id='confirmar-autorizar',
-        muta=True,
     )
 
 
@@ -147,21 +157,22 @@ def _cenario_retornar_rascunho(request) -> CenarioModal:
 
 
 def _cenario_separar_retirada(request) -> CenarioModal:
-    # Caminho feliz, pelo mesmo motivo de `autorizar`: rascunho de terceiro nem
-    # é visível ao selector do almoxarifado, e a resposta seria 404 — que também
-    # não diz nada sobre o contrato do corpo do modal.
+    # Mesmo raciocínio de `autorizar`: `pode_separar_para_retirada` só checa
+    # papel, então o estado errado vira erro de transição no service. Rascunho
+    # daria 404 (invisível ao almoxarifado), e por isso não serve de cenário.
     return _cenario_estado_recusado(
         request,
         'requisicoes:separar_retirada',
-        EstadoRequisicao.AUTORIZADA,
+        EstadoRequisicao.ATENDIDA,
         'aux_almoxarifado',
         modal_id='confirmar-separar',
-        muta=True,
     )
 
 
 def _cenario_enviar_rascunho(request) -> CenarioModal:
-    # Rascunho sem item nenhum: o envio é recusado.
+    # Rascunho sem item nenhum. Não é recusa de transição: a transição é
+    # válida, e `enviar_para_autorizacao` levanta `DadosInvalidos(sem_itens)`
+    # depois dela.
     requisicao = _requisicao(request, EstadoRequisicao.RASCUNHO, com_item=False)
     return CenarioModal(
         url=reverse('requisicoes:enviar_rascunho', args=[requisicao.pk]),
@@ -231,8 +242,10 @@ def _cenario_registrar_devolucao(request) -> CenarioModal:
 def _cenario_confirmar_importacao_scpi(request) -> CenarioModal:
     """Sem pré-visualização na sessão — o pior caso descrito na issue.
 
-    É a segunda tentativa: a sessão do preview já foi limpa, e reapertar
-    renderizava "Nenhuma pré-visualização ativa" dentro da caixa do modal.
+    A sessão está vazia desde o início; o caminho realista que produz isso é a
+    segunda tentativa, depois de a primeira ter consumido o preview. O
+    encadeamento das duas está em `estoque/tests/test_views.py`
+    (`test_htmx_hash_duplicado_devolve_422`).
     """
     from apps.estoque.models import ImportacaoSCPI
 

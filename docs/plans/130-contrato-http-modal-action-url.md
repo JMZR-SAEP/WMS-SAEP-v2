@@ -122,7 +122,7 @@ Duas diferenças deliberadas em relação ao `_render_modal_erro` de hoje:
 
 ### Passo 2 — `_render_modal_erro` delega
 
-`apps/requisicoes/views.py:221` passa a chamar `render_modal_erro`. Como o core renderiza
+`_render_modal_erro` (`apps/requisicoes/views.py`) passa a chamar `render_modal_erro`. Como o core renderiza
 `components/_modal_body.html` direto, `requisicoes/partials/_modal_body_fragment.html` fica sem
 consumidor (é o único `{% include %}` de 7 linhas sobre o mesmo parcial) e é removido junto.
 Verificar a ausência de outra referência antes de apagar.
@@ -196,7 +196,7 @@ qual status sai dali. O ramo não-HTMX chama o redirect não-HTMX.
   `contexto_form={'form': form, 'item': item, 'entregue_liquida': …}`. O parcial lê
   `item.material.nome` e `entregue_liquida`, então a view precisa buscar o item e chamar
   `entregue_liquida_por_requisicao(requisicao_id=pk)` — o mesmo selector que `_detalhe_context`
-  (`views.py:143`) usa para montar o modal na primeira vez, já importado em `views.py:43`. A
+  (`_detalhe_context`) usa para montar o modal na primeira vez, e que a view já importa. A
   busca do item é `get_object_or_404(requisicao.itens.select_related('material'), pk=item_pk)`
   **dentro do ramo de erro**, e não no topo da view: fora dali ela mudaria o código de resposta
   de rotas que hoje não olham o item antes de chamar o service.
@@ -270,11 +270,15 @@ preview, estado que o service recusa) — é o ramo onde as violações desta is
 feliz das duas views corrigidas ganha teste próprio de 204 + `HX-Redirect` para o destino certo
 ao lado, no arquivo de views do app.
 
-**Sete das nove rotas de `requisicoes:` chegam ao ramo de erro; duas não.** `autorizar` e
-`separar_retirada` acabam no caminho feliz porque os estados que elas recusam ou não são
-visíveis ao ator (404) ou morrem antes na policy (403) — e nem 403 nem 404 dizem coisa alguma
-sobre o que cabe dentro da caixa do modal. Os três eixos continuam valendo para as duas: o
-contrato governa a resposta, não o ramo que a produziu.
+**As nove rotas de `requisicoes:` chegam ao ramo de erro.** Quatro terminam em 422; as outras
+cinco em 204 para o detalhe, com a transição recusada. Como essas cinco respondem o mesmo que o
+caminho feliz responderia, o campo `muta=False` do cenário faz o eixo HTMX conferir que nada foi
+gravado — sem isso elas seriam tautológicas.
+
+Nenhum cenário de `autorizar`/`separar_retirada` usa `RASCUNHO`, e não é descuido: rascunho de
+terceiro não é visível ao selector desses atores, e a resposta seria 404, que não exercita o
+corpo do modal. A policy dessas duas **não lê o estado** (só papel e setor chefiado), então
+qualquer outro estado recusado chega ao service e vira erro de transição, não 403.
 
 **Segundo eixo: sem autenticação.** A mesma parametrização roda anônima e espera 302 com
 `Location` igual a `f'{reverse("accounts:login")}?next={url}'` — o valor exato, pela mesma razão
@@ -348,7 +352,7 @@ saldo do material no estoque, e **Importação SCPI** é o registro da importaç
 
 **`ler_estado` nunca pode assumir que a linha sobreviveu.** O descarte de rascunho sem número
 público apaga a `Requisicao` (`services/cancelamento.py:44`), e é por isso que
-`cancelar_requisicao_view` testa `resultado_cancelamento.pk is None` (`views.py:970`). Um leitor
+`cancelar_requisicao_view` testa `resultado_cancelamento.pk is None`. Um leitor
 que fizesse `Requisicao.objects.get(pk=…)` estouraria `DoesNotExist` em vez de comparar. A forma
 é sempre `filter(pk=…).values_list(…).first()`, que devolve `None` quando o registro deixou de
 existir — e `None != ('rascunho', …)` é exatamente a diferença que se quer detectar. Isso vale
@@ -379,7 +383,7 @@ Camada **Views** — contrato HTTP. Nada aqui revalida timeline, saldo ou matriz
 Testes existentes que mudam de expectativa:
 
 - `estoque/tests/test_views.py:652-666` — asserta `action="…"` no `<dialog>`; segue válido.
-- `requisicoes/tests/test_views.py:3119` (`estornar sem justificativa`) — POST sem HTMX, assere
+- `test_estornar_view_sem_justificativa_exibe_warning` — POST sem HTMX, assere
   só o texto da mensagem; continua passando com `messages.error`.
 - Qualquer teste que dependa de `requisicoes/partials/_modal_body_fragment.html` por nome —
   verificar antes de apagar (hoje o único consumidor é `views.py:256`).
@@ -390,7 +394,7 @@ Testes existentes que mudam de expectativa:
   que a tela responde depois de gravar. Nenhum service é tocado, logo nenhuma invariante de
   estoque, reserva ou máquina de estados é exercida por este PR.
 - **Uma superfície de erro por tela.** `_modal_body.html` já obriga o uso de
-  `{% erros_do_formulario %}` — travado em `core/tests/test_components.py:1922-1934`. Passar o
+  `{% erros_do_formulario %}` — travado por `TELAS_DE_FORMULARIO` em `core/tests/test_components.py`. Passar o
   Form como fonte usa a mesma porta; não nasce uma quarta grafia de "o formulário falhou".
 - **PRG por `HX-Redirect`.** `htmx_redirect` (`core/http.py:23`) responde 204, e não 200 como o
   `HttpResponseClientRedirect` do `django_htmx`. As duas views corrigidas passam a usar o

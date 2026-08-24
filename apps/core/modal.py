@@ -1,11 +1,15 @@
 """Resposta de erro do modal: fragment do corpo com status 422.
 
-`components/modal.html` sempre emite `hx-post` com
-`hx-target="[data-modal-body='<id>']"` e `hx-swap="outerHTML"`. Toda resposta
-que não seja 204 + `HX-Redirect` (sucesso) ou 422 + fragment do corpo (erro) é
-injetada **dentro da caixa do modal** — e uma página completa ali produz app bar
-e navegação empilhados no diálogo, com a URL inalterada e o conteúdo de fundo
-ainda clicável.
+`components/modal.html` emite `hx-post` com
+`hx-target="[data-modal-body='<id>']"` e `hx-swap="outerHTML"` sempre que recebe
+`action_url` — que é o modo de todos os modais, menos o de confirmação de form
+externo (`submit_form_id`), onde o `<dialog>` não emite nada.
+
+Nesse modo, uma resposta **2xx** que não seja o 204 do PRG é trocada **dentro
+da caixa do modal** — uma página completa ali produz app bar e navegação
+empilhados no diálogo, com a URL inalterada e o conteúdo de fundo ainda
+clicável. O 422 também é trocado, mas por opt-in explícito do `modal.js` em
+`htmx:beforeSwap`, e é justamente por isso que ele serve de superfície de erro.
 
 Camada de infraestrutura HTTP, como `apps.core.http`: renderiza template e
 monta resposta. Não importa models nem services de domínio (ADR-0011). Fica
@@ -19,6 +23,7 @@ from typing import Any
 
 from django.core.exceptions import ImproperlyConfigured
 from django.forms import BaseForm, BaseFormSet
+from django.utils.functional import Promise
 from django.http import HttpResponse
 from django.shortcuts import render
 
@@ -28,7 +33,7 @@ def render_modal_erro(
     *,
     modal_id: str,
     titulo: str,
-    erro: str | BaseForm | BaseFormSet,
+    erro: str | Promise | BaseForm | BaseFormSet,
     descricao: str = '',
     form_body_template: str = '',
     confirm_label: str = 'Confirmar',
@@ -52,7 +57,7 @@ def render_modal_erro(
     asterisco de formatação de log.
 
     O tipo é fechado nessas três formas porque `coletar_erros` (`core_tags.py`)
-    despacha por `isinstance(str)` / `non_form_errors` / `errors` e **não tem
+    despacha por `isinstance(str, Promise)` / `non_form_errors` / `errors` e **não tem
     `else`**: uma fonte que ela não reconhece é descartada em silêncio, e o 422
     volta com a caixa de erro vazia. `erro=exc` em vez de `erro=str(exc)` é o
     engano de uma letra que produz exatamente isso.
@@ -62,7 +67,8 @@ def render_modal_erro(
     que passasse por aqui; quem sabe a severidade é a tela que abriu o modal, e
     o 422 tem de devolver o mesmo modal, não um parente.
 
-    Os parâmetros restantes espelham `components/modal.html`, porque o fragment
+    Os parâmetros restantes espelham `components/modal.html` e
+    `components/_modal_body.html` (de onde vem `acao_erro`), porque o fragment
     devolvido tem de reconstruir o mesmo cabeçalho e o mesmo rodapé.
     """
     contexto: dict[str, Any] = {
