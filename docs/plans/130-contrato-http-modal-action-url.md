@@ -245,7 +245,24 @@ a construtora não existir, o teste chama `pytest.fail` nomeando a rota. É esse
 critério 6: registrar a rota sem escrever o cenário não passa, e não registrar a rota não passa
 no passo 6.
 
-A construtora devolve `(url, payload, destino_esperado)`. Cada cenário faz um POST com
+A construtora devolve um `CenarioModal` — `NamedTuple` com quatro campos:
+
+```python
+class CenarioModal(NamedTuple):
+    url: str                       # reverse() com o pk do objeto criado
+    payload: dict                  # a carga do POST
+    destino_esperado: str | None   # None quando o cenário só pode terminar em 422
+    ler_estado: Callable[[], Any]  # snapshot comparável do que o POST poderia mudar
+```
+
+`ler_estado` é o campo que o eixo anônimo consome: uma função sem argumentos que relê do banco e
+devolve algo comparável por `==` — tipicamente uma tupla dos campos que a rota mutaria (estado da
+requisição, saldo do item, contagem de eventos da timeline). É a construtora que sabe o que a
+sua rota escreve, então é ela que decide o recorte; o teste anônimo só chama antes e depois e
+compara. Sem esse campo, o `(url, payload, destino_esperado)` de antes não daria à parametrização
+nem o objeto nem o snapshot, e a asserção de imobilidade não teria como ser genérica.
+
+Cada cenário faz um POST com
 `HTTP_HX_REQUEST='true'` como ator autorizado e passa a resposta por `assert_contrato_modal`. A
 carga escolhida é a que exercita o **ramo de erro** de cada rota (payload vazio, sessão sem
 preview, estado que o service recusa) — é o ramo onde as violações desta issue viviam; o caminho
@@ -275,7 +292,8 @@ sem objeto real não há estado para comparar, e com `pk` inventado o teste prov
 `@login_required` dispara antes da busca — que é comportamento do Django, não deste projeto. O
 cenário é construído, o estado do objeto é capturado antes do POST, e relido depois do 302. O
 custo de fixture é o mesmo do eixo autorizado porque a construtora é a mesma; o que muda é só o
-cliente não estar autenticado e a asserção ser de imobilidade.
+cliente não estar autenticado e a asserção ser `cenario.ler_estado()` antes == `cenario.ler_estado()`
+depois.
 
 ## Estratégia de testes (ADR-0010)
 
