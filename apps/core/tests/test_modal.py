@@ -158,3 +158,132 @@ def test_modo_submit_form_id_mantem_o_contrato_de_foco():
     html = _render_modal(submit_form_id='form-externo')
     assert atributo(_corpo(html), 'tabindex') == '-1'
     assert any(_tem(a, 'data-modal-dismiss') for a in _botoes(html))
+
+
+def _corpos_dos_moldes(html):
+    """Conteúdo de cada `<template data-modal-erro-transporte>`, sem a tag."""
+    corpos = []
+    for pedaco in html.split('<template data-modal-erro-transporte=')[1:]:
+        corpos.append(pedaco.split('</template>')[0])
+    assert corpos, 'modal renderizado sem molde de falha de transporte'
+    return corpos
+
+
+def _moldes_de_transporte(html):
+    """Atributos de cada `<template data-modal-erro-transporte>`, em ordem."""
+    return {
+        atributo(atributos, 'data-modal-erro-transporte'): atributos
+        for _, atributos, _ in elementos(html, 'template')
+        if atributo(atributos, 'data-modal-erro-transporte')
+    }
+
+
+def test_modal_traz_o_slot_e_os_dois_moldes_de_falha_de_transporte():
+    """5xx e queda de conexão têm superfície pronta no HTML (#133).
+
+    O JS não renderiza a caixa: ele clona o que o servidor deixou no
+    `<template>`. Sem o slot ou sem os moldes, `mostrarFalhaDeTransporte` vira
+    no-op e a falha volta a ser silenciosa — que é exatamente o defeito.
+    """
+    html = _render_modal(action_url='/confirmar/')
+
+    assert 'data-modal-erro-transporte-slot' in html
+    assert set(_moldes_de_transporte(html)) == {'conexao', 'servidor'}
+
+
+def test_moldes_de_transporte_valem_tambem_no_modo_submit_form_id():
+    """O corpo é fonte única: os moldes vêm nos dois modos.
+
+    Hoje eles não são alcançáveis neste modo — o `<dialog>` fica **dentro** do
+    formulário que confirma, e evento de htmx sobe a partir de quem emitiu, logo
+    nunca chega aos listeners do diálogo; e o único consumidor do modo
+    (`requisicoes/atender_retirada.html`) nem usa htmx. O que este teste guarda é
+    que `_modal_body.html` continua sendo uma grafia só: um `{% if %}` que
+    poupasse os moldes aqui é como o modo vira um componente paralelo, e é ele
+    que teria de ser desfeito no dia em que o modo ganhar `hx-post`.
+    """
+    html = _render_modal(submit_form_id='form-externo')
+
+    assert 'data-modal-erro-transporte-slot' in html
+    assert set(_moldes_de_transporte(html)) == {'conexao', 'servidor'}
+
+
+def test_falha_de_transporte_usa_a_caixa_canonica_de_erro():
+    """A caixa é a de `{% erros_do_formulario %}`, não uma terceira grafia.
+
+    `data-error-summary` e `role="alert"` são o que `error_summary.html` emite —
+    se a caixa passar a ser montada em `modal.js`, o mesmo erro volta a parecer
+    coisa diferente conforme a tela, e o anúncio depende de quem escreveu o JS.
+    """
+    html = _render_modal(action_url='/confirmar/', acao_erro='estornar a saída')
+
+    assert html.count('data-error-summary') == 2
+    assert html.count('role="alert"') == 2
+    # O verbo da tela chega à frase-líder das duas caixas.
+    assert html.count('Não foi possível estornar a saída:') == 2
+
+
+def test_texto_da_falha_de_transporte_e_copy_de_produto_em_pt_br():
+    """Nem status code cru, nem jargão de rede (#133).
+
+    A pessoa que vê isto acabou de confirmar uma operação irreversível: o texto
+    tem que dizer o que fazer para descobrir se ela foi registrada.
+    """
+    html = _render_modal(action_url='/confirmar/')
+
+    assert 'A conexão com o servidor caiu durante o envio.' in html
+    assert 'O servidor não concluiu esta ação.' in html
+    # A varredura é dos dois moldes, e não do modal inteiro: no dia em que um
+    # consumidor tiver um campo "Status" ou uma `action_url` com esquema, um
+    # teste de escopo aberto acusaria a tela errada.
+    for corpo in _corpos_dos_moldes(html):
+        for proibido in ('500', 'Internal Server Error', 'HTTP', 'XHR', 'status'):
+            assert proibido not in corpo, f'{proibido!r} vazou para a copy.'
+
+
+def test_moldes_de_transporte_nao_repetem_id_entre_si():
+    """Dois `<template>` no mesmo diálogo não podem carregar o mesmo id.
+
+    A caixa entra no documento por clone; ids iguais nos moldes viram ids
+    duplicados na página assim que os dois desfechos ocorrerem na mesma sessão,
+    e é por id que `aria-describedby` e as âncoras do sumário resolvem.
+    """
+    html = _render_modal(action_url='/confirmar/')
+
+    assert 'id="meu-modal-erro-conexao"' in html
+    assert 'id="meu-modal-erro-servidor"' in html
+
+
+def test_backdrop_ancora_o_fechamento_no_mousedown():
+    """Fechar por backdrop exige o par `mousedown` + `click` (#133).
+
+    Só com `@click`, uma seleção de texto que começa dentro da caixa e termina
+    fora chega com `target` no `<dialog>` e descarta a justificativa inteira.
+    """
+    dialogo = next(
+        atributos
+        for _, atributos, _ in elementos(
+            _render_modal(action_url='/confirmar/'), 'dialog'
+        )
+    )
+
+    assert atributo(dialogo, '@mousedown') == 'backdropMouseDown($event)'
+    assert atributo(dialogo, '@click') == 'backdropClick($event)'
+
+
+def test_form_do_modal_carrega_o_hx_post_de_que_a_trava_em_voo_depende():
+    """`fechar()` só trava em `form[data-submitting="1"][hx-post]` (#133).
+
+    O recorte por `hx-post` existe para não trancar o diálogo num POST clássico,
+    cuja marca de envio só é liberada pela navegação — mas ele também significa
+    que este `<form>` perder o `hx-post` mataria a trava em silêncio, e a
+    resposta voltaria a ser engolida por um `Esc` no meio do caminho.
+    """
+    formularios = [
+        atributos
+        for _, atributos, _ in elementos(
+            _render_modal(action_url='/confirmar/'), 'form'
+        )
+    ]
+    assert atributo(formularios[0], 'hx-post') == '/confirmar/'
+    assert _tem(formularios[0], 'data-prevent-double-submit')
