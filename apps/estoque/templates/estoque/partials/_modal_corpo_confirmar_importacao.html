@@ -12,6 +12,16 @@
   `_alert_divergencias_corpo.html`, que só aparecem quando a contagem é maior
   que zero; aqui as três linhas aparecem sempre, inclusive os zeros — "nenhum
   material novo" é informação para quem confere.
+
+  O nome do arquivo saiu daqui (#138): ele é a identidade do registro sendo
+  confirmado, e passou para a linha de identidade do cabeçalho, que é onde todo
+  modal do sistema a carrega. Repetido nos dois lugares, seria a segunda grafia
+  do mesmo dado dentro de uma caixa de 30 linhas.
+
+  A frase de irreversibilidade também não está aqui: é `consequencia`, e
+  `components/_modal_body.html` a renderiza logo abaixo deste corpo, com ênfase
+  maior que a das contagens. Antes ela era a `descricao` do cabeçalho, em
+  `text-sm text-text-secondary` — mais apagada que os números que qualifica.
 {% endcomment %}
 <dl class="space-y-2 text-sm">
   <div class="flex items-baseline justify-between gap-4">
@@ -28,8 +38,7 @@
   </div>
 </dl>
 
-<p class="mt-4 border-t border-border pt-3 text-sm text-text-secondary">
-  Arquivo <span class="font-mono text-text-primary">{{ nome_arquivo }}</span>.
+<p class="mt-4 text-sm text-text-secondary">
   Nenhum saldo do WMS é sobrescrito — divergência entra como alerta para
   conferência manual posterior no SCPI.
 </p>

@@ -232,7 +232,18 @@
       {% include "components/button.html" with variant="primary" label="Confirmar retirada" disabled=True aria_describedby="motivo-sem-itens" class="shrink-0" %}
     {% endif %}
 
-    {% include "components/modal.html" with id="confirmar-atender-retirada" titulo="Confirmar registro de retirada?" descricao="Esta ação baixa estoque das quantidades entregues e libera as reservas não entregues. Não pode ser desfeita." submit_form_id="form-atender-retirada" confirm_label="Confirmar retirada" icon_variant="warning" role="alertdialog" loading_label="Confirmando…" %}
+    {% comment %}
+      `form_body_template` (#138): o corpo repete as quantidades que vão ser
+      baixadas. A descrição perdeu a enumeração dos efeitos — quem os enumera
+      agora é o corpo, com os números — e a frase de irreversibilidade saiu para
+      `consequencia`, que o corpo renderiza com ênfase em vez de deixá-la mais
+      apagada que os dados.
+
+      `corpo_com_campo_focavel` continua ausente: o corpo é recapitulação, sem
+      controle nativamente focável, e é o `tabindex="0"` que o torna alcançável
+      por teclado em viewport curta — o mesmo caso do modal do SCPI.
+    {% endcomment %}
+    {% include "components/modal.html" with id="confirmar-atender-retirada" titulo="Confirmar registro de retirada?" descricao="Estas quantidades serão baixadas do saldo físico do estoque." consequencia="Esta ação não pode ser desfeita." registro=registro form_body_template="requisicoes/partials/_modal_corpo_atender_retirada.html" submit_form_id="form-atender-retirada" confirm_label="Confirmar retirada" icon_variant="warning" role="alertdialog" loading_label="Confirmando…" %}
   </div>
 </form>
 {% endblock %}

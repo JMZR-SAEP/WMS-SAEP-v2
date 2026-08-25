@@ -39,7 +39,7 @@ from apps.core.listagem import paginar, paginar_com_filtros
 from apps.core.modal import render_modal_erro
 from apps.core.presentation import traduz_erro_dominio
 from apps.requisicoes.presentation import MODAL_COPY
-from apps.requisicoes.presentation import cancelamento_copy
+from apps.requisicoes.presentation import cancelamento_copy, registro_requisicao
 from apps.core.quantidades import formatar as formatar_quantidade
 from apps.core.templatetags.core_tags import coletar_erros
 from apps.core.quantidades import normalizar
@@ -143,7 +143,12 @@ def _detalhe_context(
     acoes = acoes_disponiveis(papel, requisicao)
     itens = list(requisicao.itens.select_related('material').all())
     itens_devolviveis: list[ItemRequisicao] = []
-    if Operacao.REGISTRAR_DEVOLUCAO in acoes:
+    # A entregue líquida serve às duas operações e é uma consulta só: a
+    # devolução para dizer quanto ainda dá para devolver, o estorno para nomear
+    # no modal o que vai voltar ao saldo físico (#138). Ficava dentro do ramo da
+    # devolução, e o modal de estorno — que reverte exatamente estes números —
+    # não tinha acesso a nenhum deles.
+    if {Operacao.REGISTRAR_DEVOLUCAO, Operacao.ESTORNAR} & set(acoes):
         entregues = entregue_liquida_por_requisicao(requisicao_id=requisicao.pk)
         for item in itens:
             item.entregue_liquida = entregues.get(item.material_id, Decimal('0'))
@@ -152,7 +157,7 @@ def _detalhe_context(
                 itens_devolviveis.append(item)
     # A operação estar disponível não basta: com tudo já devolvido a seção não
     # teria linha nenhuma. A lista é que decide se o bloco existe.
-    pode_devolver = bool(itens_devolviveis)
+    pode_devolver = Operacao.REGISTRAR_DEVOLUCAO in acoes and bool(itens_devolviveis)
     eventos = list(
         requisicao.eventos.select_related('ator').order_by('-criado_em', '-id')
     )
@@ -171,6 +176,10 @@ def _detalhe_context(
         'requisicao': requisicao,
         'itens': itens,
         'eventos': eventos,
+        # Linha de identidade dos seis modais desta tela (#138). Uma chave só
+        # no contexto, passada explicitamente por cada `{% include %}` — a tela
+        # não escreve "qual requisição é esta" seis vezes.
+        'registro': registro_requisicao(requisicao),
         'voltar_url': _voltar_url(request),
         'pode_enviar': Operacao.ENVIAR_PARA_AUTORIZACAO in acoes,
         'pode_editar': Operacao.EDITAR_RASCUNHO in acoes,
@@ -212,6 +221,10 @@ def _detalhe_context(
         'devolucao_form': RegistrarDevolucaoForm(),
         'pode_estornar': Operacao.ESTORNAR in acoes,
         'estorno_form': EstornarRequisicaoForm(),
+        # Mesma lista da devolução: item com entregue líquida > 0. É o conjunto
+        # exato que o estorno devolve ao saldo físico, e o corpo do modal o
+        # repete item a item (#138).
+        'itens_a_estornar': itens_devolviveis,
     }
 
 
@@ -727,6 +740,7 @@ def registrar_atendimento_view(request, pk: int):
                 'cabecalho': cabecalho_form,
                 'formset': formset_form,
                 'linhas': linhas,
+                'registro': registro_requisicao(requisicao),
                 'voltar_url': _voltar_url(
                     request, default=reverse('requisicoes:detalhe', args=[pk])
                 ),
@@ -922,6 +936,7 @@ def cancelar_requisicao_view(request, pk: int):
                     modal_id='confirmar-cancelar',
                     titulo=copy['titulo'],
                     descricao=copy['descricao'],
+                    registro=registro_requisicao(requisicao),
                     erro=str(exc),
                     form_body_template=(
                         'requisicoes/partials/_modal_form_cancelar.html'
@@ -996,6 +1011,7 @@ def recusar_requisicao_view(request, pk: int):
                 modal_id='confirmar-recusar',
                 titulo=copy['titulo'],
                 descricao=copy['descricao'],
+                registro=registro_requisicao(requisicao),
                 erro=str(exc),
                 form_body_template='requisicoes/partials/_modal_form_recusar.html',
                 confirm_label=copy['confirm_label'],
@@ -1101,6 +1117,7 @@ def registrar_devolucao_view(request, pk: int, item_pk: int) -> HttpResponse:
                     request,
                     modal_id=f'devolver-{item_pk}',
                     titulo=copy['titulo'],
+                    registro=registro_requisicao(requisicao),
                     erro='Item não pertence à requisição informada.',
                     confirm_label=copy['confirm_label'],
                     icon_variant=copy['icon_variant'],
@@ -1112,6 +1129,7 @@ def registrar_devolucao_view(request, pk: int, item_pk: int) -> HttpResponse:
                 modal_id=f'devolver-{item_pk}',
                 titulo=copy['titulo'],
                 descricao=copy['descricao'],
+                registro=registro_requisicao(requisicao),
                 # O Form, e não um texto pré-formatado: `erros_do_formulario`
                 # achata as mensagens dele com âncora por campo, sem o asterisco
                 # de log que `form.errors.as_text()` produzia.
@@ -1150,24 +1168,39 @@ def registrar_devolucao_view(request, pk: int, item_pk: int) -> HttpResponse:
 @require_http_methods(['POST'])
 def estornar_requisicao_view(request, pk: int) -> HttpResponse:
     """Estorna requisição atendida (TR-021)."""
-    get_object_or_404(requisicoes_visiveis_para(request.user.pk), pk=pk)
+    requisicao = get_object_or_404(requisicoes_visiveis_para(request.user.pk), pk=pk)
     form = EstornarRequisicaoForm(request.POST)
     if not form.is_valid():
         if request.htmx:
             # Espelha detalhe.html:327 (via _confirmacao_acao.html).
             copy = MODAL_COPY['estornar']
+            # A lista de itens é parte do corpo (#138), e o 422 troca o corpo
+            # inteiro: sem recalculá-la aqui, o modal reaberto com erro perderia
+            # exatamente os números que o modal aberto mostrava. É o mesmo
+            # cálculo de `_detalhe_context`.
+            entregues = entregue_liquida_por_requisicao(requisicao_id=pk)
+            itens_a_estornar = []
+            for item in requisicao.itens.select_related('material').all():
+                item.entregue_liquida = entregues.get(item.material_id, Decimal('0'))
+                if item.entregue_liquida > 0:
+                    itens_a_estornar.append(item)
             return render_modal_erro(
                 request,
                 modal_id='estornar-modal',
                 titulo=copy['titulo'],
                 descricao=copy['descricao'],
+                consequencia=copy['consequencia'],
+                registro=registro_requisicao(requisicao),
                 erro=form,
                 form_body_template='requisicoes/partials/_modal_form_estorno.html',
                 confirm_label=copy['confirm_label'],
                 confirm_variant='danger',
                 icon_variant=copy['icon_variant'],
                 acao_erro='estornar a requisição',
-                contexto_form={'estorno_form': form},
+                contexto_form={
+                    'estorno_form': form,
+                    'itens_a_estornar': itens_a_estornar,
+                },
             )
         messages.error(request, _texto_dos_erros(form))
         return redirect('requisicoes:detalhe', pk=pk)
@@ -1215,6 +1248,7 @@ def confirmar_importacao_scpi_view(request):
         if request.htmx:
             # Espelha preview_importacao_scpi.html:313.
             from apps.estoque.presentation import MODAL_COPY as ESTOQUE_MODAL_COPY
+            from apps.estoque.presentation import registro_arquivo_scpi
 
             copy = ESTOQUE_MODAL_COPY['confirmar_importacao_scpi']
             return render_modal_erro(
@@ -1222,6 +1256,8 @@ def confirmar_importacao_scpi_view(request):
                 modal_id='confirmar-importacao-scpi',
                 titulo=copy['titulo'],
                 descricao=copy['descricao'],
+                consequencia=copy['consequencia'],
+                registro=registro_arquivo_scpi(arquivo_nome),
                 erro=mensagem,
                 confirm_label=copy['confirm_label'],
                 icon_variant=copy['icon_variant'],

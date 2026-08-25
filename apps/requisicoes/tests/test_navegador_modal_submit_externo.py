@@ -230,3 +230,84 @@ def test_validacao_nativa_reprovada_nao_trava_a_proxima_tentativa(
         '.dataset.submetendoExterno'
     )
     assert presa_apos_corrigir == '1'
+
+
+def test_resumo_do_modal_repete_a_quantidade_digitada_agora(pagina_de_atendimento):
+    """A recapitulação lê o campo, não o `initial` do formset (#138).
+
+    A pessoa digita quantidade item a item e só então abre o modal. O valor que
+    vai ser gravado só existe no `<input>` — o servidor renderizou a tela antes
+    da digitação. Imprimir o `initial` mostraria um número plausível e errado
+    numa confirmação que baixa estoque, que é pior que não mostrar nenhum.
+
+    Só o navegador prova isto: o HTML renderizado traz o traço de fallback nos
+    dois casos, o certo e o quebrado.
+    """
+    page = pagina_de_atendimento
+    campo = page.locator('#id_itens-0-quantidade_entregue')
+    celula = page.locator('#confirmar-atender-retirada [data-resumo-entregue-de]').first
+    gatilho = page.locator('[data-modal-trigger="confirmar-atender-retirada"]')
+
+    # `validarFormId` barra a abertura enquanto o form estiver inválido, e
+    # `retirante_nome` é obrigatório e nasce vazio — sem preencher, o modal não
+    # chega a abrir e o teste mediria a tela errada.
+    page.locator('#id_retirante_nome').fill('Carlos')
+
+    campo.fill('2')
+    gatilho.click()
+    page.wait_for_function(
+        "document.getElementById('confirmar-atender-retirada').matches(':modal')"
+    )
+    assert celula.inner_text().strip() == '2'
+
+    # Reabrir tem de reler: a pessoa volta, corrige e confirma de novo, e um
+    # resumo preenchido uma vez só mostraria o número da tentativa anterior —
+    # que é o pior desfecho possível aqui, porque o número anterior é plausível.
+    page.keyboard.press('Escape')
+    page.wait_for_function(
+        "!document.getElementById('confirmar-atender-retirada').open"
+    )
+
+    # Entrega parcial: o `x-bind:required` da linha liga a justificativa assim
+    # que o valor cai abaixo do autorizado, e sem ela o form volta a ser
+    # inválido e o modal não reabre.
+    campo.fill('1')
+    page.locator('#id_itens-0-justificativa').fill('Faltou material no estoque.')
+
+    gatilho.click()
+    page.wait_for_function(
+        "document.getElementById('confirmar-atender-retirada').matches(':modal')"
+    )
+    assert celula.inner_text().strip() == '1'
+
+
+def test_resumo_sem_o_campo_admite_que_nao_sabe_e_acusa(pagina_de_atendimento):
+    """Campo que o resumo não acha vira traço, e o traço vem acompanhado de erro.
+
+    O par é o ponto: a tela prefere admitir que não sabe a inventar um número
+    numa confirmação que baixa estoque, e o `console.error` é o que impede que
+    esse silêncio honesto passe por comportamento normal — foi assim que a #137
+    descobriu um `console.error` que disparava sempre e não dizia nada.
+    """
+    page = pagina_de_atendimento
+    mensagens_erro = []
+    page.on(
+        'console',
+        lambda msg: mensagens_erro.append(msg.text) if msg.type == 'error' else None,
+    )
+
+    # Remover o `<input>` (em vez de esvaziá-lo) é o que torna o ramo
+    # alcançável: com o campo vazio, `validarFormId` barra a abertura antes de
+    # o resumo ser lido, porque ele é `required`.
+    page.locator('#id_retirante_nome').fill('Carlos')
+    page.evaluate(
+        "() => document.getElementById('id_itens-0-quantidade_entregue').remove()"
+    )
+    page.locator('[data-modal-trigger="confirmar-atender-retirada"]').click()
+    page.wait_for_function(
+        "document.getElementById('confirmar-atender-retirada').matches(':modal')"
+    )
+
+    celula = page.locator('#confirmar-atender-retirada [data-resumo-entregue-de]').first
+    assert celula.inner_text().strip() == '—'
+    assert any('resumo' in m for m in mensagens_erro), mensagens_erro

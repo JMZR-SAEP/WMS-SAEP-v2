@@ -277,10 +277,11 @@ def validar_contrato_modal(
     abrir_ao_carregar=None,
     abrir_ao_carregar_expr=None,
     icon_variant=None,
+    registro=None,
 ):
     """Valida o contrato de components/modal.html no render, não em produção.
 
-    Três regras. A primeira é o XOR entre `action_url` e `submit_form_id`, que
+    Quatro regras. A primeira é o XOR entre `action_url` e `submit_form_id`, que
     são os dois modos do componente.
 
     A segunda é sobre `abrir_ao_carregar` (#134). O parâmetro passou a emitir
@@ -305,6 +306,23 @@ def validar_contrato_modal(
     de `_modal_icon.html` (falha alta, plausível); o que este contrato recusa é
     a ausência — um `icon_variant` esquecido não pode virar "nenhum ícone" em
     silêncio.
+
+    A quarta é `registro` obrigatório (#138): todo modal nomeia o registro que
+    está confirmando. Nenhum dos oito consumidores carregava número público,
+    e num bloco de decisão no desktop — a cena declarada do chefe de setor em
+    `PRODUCT.md` — a pessoa abre várias requisições em sequência e confirma sem
+    âncora nenhuma de qual está na frente. O sistema não tem desfazer.
+
+    Obrigatório em **todo** modal, e não só nos que escrevem movimentação de
+    estoque: um recorte por tipo de ação exigiria uma lista de ids "que
+    movimentam" mantida em sincronia com o domínio à mão, e deixaria de fora o
+    `confirmar-enviar`, que gera o número público. O que cada consumidor tem
+    para dizer varia; que ele diga alguma coisa, não.
+
+    A checagem exige `identificador` não vazio, e não só a presença do dict: o
+    `{{ registro.identificador }}` do template resolve chave ausente como
+    string vazia, então um dict incompleto renderizaria a linha de identidade
+    sem identidade — exatamente o defeito, agora com moldura.
     """
     if abrir_ao_carregar_expr:
         raise ImproperlyConfigured(
@@ -331,7 +349,37 @@ def validar_contrato_modal(
             f'{icon_variant!r}). Toda tela precisa declarar a severidade do '
             'modal — ver a tabela de variantes no {% comment %} deste componente.'
         )
+    validar_registro_modal(registro, origem='components/modal.html')
     return ''
+
+
+def validar_registro_modal(registro: object, *, origem: str) -> None:
+    """Exige o `registro` do modal (#138) — usado pelos dois pontos de render.
+
+    `components/modal.html` passa por `validar_contrato_modal`; o fragment 422
+    passa por `apps.core.modal.render_modal_erro`, que renderiza
+    `_modal_body.html` direto e nunca vê a tag. As duas portas chamam esta
+    função para que a mensagem de recusa seja a mesma, e para que o 422 não
+    possa devolver um modal anônimo depois de a tela ter aberto um nomeado.
+    """
+    if not registro:
+        raise ImproperlyConfigured(
+            f'{origem} exige registro (recebido: {registro!r}). Todo modal '
+            'nomeia o registro que está confirmando: passe um dict com '
+            "'rotulo', 'identificador' e 'contexto' (opcional)."
+        )
+    if not isinstance(registro, Mapping):
+        raise ImproperlyConfigured(
+            f'{origem} espera um mapa em registro e recebeu {type(registro).__name__} '
+            f'({registro!r}). As chaves lidas pelo template são "rotulo", '
+            '"identificador" e "contexto".'
+        )
+    if not registro.get('identificador'):
+        raise ImproperlyConfigured(
+            f'{origem} exige registro["identificador"] não vazio (recebido: '
+            f'{registro!r}). É ele que responde "qual documento?" — sem ele a '
+            'linha de identidade renderiza vazia em vez de falhar.'
+        )
 
 
 @register.simple_tag

@@ -355,7 +355,7 @@ Família `filter_*`, montada por composição explícita na tela chamadora.
 | Componente | Para quê |
 |---|---|
 | `table.html` | Chrome de listagem em cartões (`partialdef`). Não há renderização em tabela |
-| `modal.html` | `<dialog>` nativo: foco contido pelo top layer de `showModal()`, rolagem de fundo travada por `modal.js` — componente-assinatura |
+| `modal.html` | `<dialog>` nativo: foco contido pelo top layer de `showModal()`, rolagem de fundo travada por `modal.js`, e uma linha de identidade obrigatória que nomeia o registro sendo confirmado — componente-assinatura |
 | `_modal_body.html` | Corpo compartilhado do modal (header, erro, corpo, rodapé) |
 | `_modal_icon.html` | Ícone semântico do header de modal |
 | `_icone_nivel.html` | Glifo de severidade em `currentColor`, compartilhado pelo banner e pelo painel de decisão |
@@ -763,6 +763,107 @@ passthrough sintético do componente) e por
 dois casos, o bloqueio de duplo envio, a liberação por `pageshow`/bfcache, o
 retorno de foco ao fallback — comportamento em Chromium).
 
+### O modal nomeia o registro que está confirmando (#138)
+
+**`registro` é obrigatório em todo modal**, no mesmo molde de `icon_variant`:
+`validar_contrato_modal` recusa o render inicial sem ele e
+`apps.core.modal.render_modal_erro` recusa o 422, os dois pela mesma função
+(`validar_registro_modal`). É um mapa com `rotulo`, `identificador` e
+`contexto` (opcional), renderizado como **linha fixa entre o `<h2>` e a
+descrição** do cabeçalho.
+
+Nenhum dos oito consumidores carregava número público, estado ou quantidade.
+"Estornar requisição" — qual? "Confirmar recusa" — de quem? Em bloco de decisão
+no desktop, que é a cena declarada do chefe de setor no `PRODUCT.md`, a pessoa
+abre várias requisições em sequência e confirmava sem âncora nenhuma de qual
+estava na frente. É o vetor clássico de executar a ação certa no documento
+errado, e o sistema não tem desfazer.
+
+**Obrigatório em todo modal, não só nos que movimentam estoque.** Um recorte por
+tipo de ação exigiria uma lista de ids "que escrevem movimentação" mantida à mão
+em sincronia com o domínio, e deixaria de fora o `confirmar-enviar` — que é onde
+o número público nasce. O que cada consumidor tem a dizer varia; que ele diga
+alguma coisa, não.
+
+**O mapa é montado na apresentação de cada app, nunca no template.**
+`registro_requisicao` (`apps/requisicoes/presentation.py`),
+`registro_saida_excepcional` e `registro_arquivo_scpi`
+(`apps/estoque/presentation.py`). Seis modais da mesma tela de detalhe
+confirmam a mesma requisição: cada `{% include %}` redigindo a própria versão
+de "qual documento é este" é a divergência que a #135 fechou para título e
+descrição.
+
+> **`identificador` nunca sai do `__str__` do model.** `str(requisicao)` devolve
+> `Rascunho #<pk>`, e a P3-01 de `.design/detalhe-requisicao/DESIGN_BRIEF.md`
+> diz que PK interno não vaza para UI. O fallback é o literal `"Rascunho"`
+> (requisição) ou `"Sem número"` (saída excepcional), e quem responde "qual
+> documento?" nesse caso é o `contexto`. O `__str__` continua servindo admin e
+> log, que é para onde ele foi escrito.
+
+**O que cada consumidor mostra.** A linha de identidade responde "qual
+documento"; o corpo responde "quanto isto move":
+
+| Modal | Identidade | Corpo |
+|---|---|---|
+| `confirmar-autorizar`, `confirmar-recusar`, `confirmar-retornar`, `confirmar-cancelar`, `confirmar-enviar`, `confirmar-separar` | número público (ou "Rascunho") · beneficiário · setor | campo da ação, quando há |
+| `estornar-modal` | idem | material e entregue líquida de cada item que volta ao saldo físico |
+| `devolver-<item>` | idem | material e entregue líquida disponível (já existia) |
+| `confirmar-atender-retirada` | idem | material, quantidade autorizada e a **entregue digitada agora** |
+| `estornar-saida` | número da saída · estoque · quem registrou | justificativa |
+| `confirmar-importacao-scpi` | nome do arquivo | novos, divergências e linhas lidas (já existia) |
+
+**A quantidade da retirada é lida do campo, não do servidor.** Em
+`atender_retirada.html` a pessoa digita item a item num formulário de até 15
+linhas, e o modal dizia *"baixa estoque das quantidades entregues"* sem repetir
+uma única quantidade. O corpo
+(`requisicoes/partials/_modal_corpo_atender_retirada.html`) traz material e
+autorizada renderizadas pelo servidor, e cada célula de "entregue" declara o
+`id` do `<input>` de onde lê; `sincronizarResumo`, em `modal.js`, copia o valor
+antes do `showModal()`. Imprimir o `initial` do formset ali mostraria o valor com
+que a tela abriu — um número plausível e errado, que é pior que nenhum. Parear
+por `id` e não por posição é o que sobrevive a uma mudança de ordem entre as
+duas listas.
+
+**A identidade entra no `aria-describedby` do `<dialog>`**, antes da
+`descricao`. Sem isso, quem usa leitor de tela ouvia a ação e a consequência, e
+a única resposta a "qual requisição?" ficava na tela atrás — justamente a parte
+que `showModal()` torna inerte.
+
+**`consequencia` é a frase de irreversibilidade, e não mora mais na
+`descricao`.** Ela é renderizada no fim do corpo em `text-sm font-semibold
+text-text-primary`; a descrição continua em `text-sm text-text-secondary`. No
+cabeçalho a hierarquia estava invertida: no modal do SCPI, *"A gravação não pode
+ser desfeita"* era secundária enquanto as três contagens logo abaixo saíam em
+`text-base font-semibold` — a tipografia dizia que os números importavam mais
+que o aviso de que eles são definitivos. Continua dita **uma vez só**: quem
+ganhou `consequencia` teve a frase removida da `descricao`, e o painel de
+decisão que resume a ação antes de abrir o modal concatena as duas. Só recebe
+`consequencia` a ação que de fato não tem volta — retornar para rascunho e
+devolução não recebem.
+
+**O backdrop escurece e não desfoca.** `backdrop:bg-slate-900/60`, sem
+`backdrop-blur`. Era a única superfície embaçada do sistema, e o `DESIGN.md`
+recusa vidro fosco no north star; a exceção só se sustentava porque nada dentro
+do diálogo dizia sobre qual documento a pergunta era feita. Borrar a tela de
+origem apagava número público, beneficiário, itens e entregue líquida
+exatamente no instante em que serviriam de âncora. `/60` e não `/50` porque,
+sem o desfoque, o overlay sozinho responde por separar as duas camadas.
+
+> O nome da classe removida não aparece escrito em nenhum template: o scanner
+> do Tailwind lê o arquivo inteiro, comentário incluso, e recompilaria a regra
+> morta a partir da própria explicação de por que ela morreu. `DESIGN.md` está
+> na varredura pelo mesmo motivo — só `docs/` é excluído.
+
+Verificado por `apps/core/tests/test_modal.py` (obrigatoriedade, dict
+incompleto, tipo errado, ordem no cabeçalho, ênfase da consequência, backdrop
+sem desfoque), `apps/core/tests/test_modal_erro.py` (as mesmas regras no 422),
+`apps/core/tests/contrato_modal.py` (`assert_copy_nao_diverge` compara também a
+identidade entre render inicial e 422) e pelos testes por consumidor em
+`apps/requisicoes/tests/test_views.py` e `apps/estoque/tests/test_views.py`,
+que leem o texto **de dentro de cada `<dialog>`** — buscar no documento inteiro
+passaria só porque a tela atrás também mostra o número, que é exatamente a
+situação que esta seção existe para consertar.
+
 ### Painel de decisão de workflow
 
 `requisicoes/partials/_painel_decisao.html` é a superfície compartilhada das
@@ -988,7 +1089,7 @@ Confirmação de ação irreversível:
 ```django
 <div x-data="modalController({ id: 'confirmar-estorno' })">
   {% include "components/button.html" with variant="danger-outline" label="Estornar" data_modal_trigger="confirmar-estorno" %}
-  {% include "components/modal.html" with id="confirmar-estorno" titulo="Estornar requisição?" descricao="Esta operação é irreversível." action_url=url_estornar confirm_label="Confirmar estorno" confirm_variant="danger" icon_variant="danger" form_body_template="requisicoes/partials/_modal_form_estorno.html" %}
+  {% include "components/modal.html" with id="confirmar-estorno" titulo="Estornar requisição?" descricao="O estorno reverte toda a entregue líquida ao saldo físico do estoque e encerra a requisição." consequencia="Esta operação é irreversível." registro=registro action_url=url_estornar confirm_label="Confirmar estorno" confirm_variant="danger" icon_variant="danger" form_body_template="requisicoes/partials/_modal_form_estorno.html" %}
 </div>
 ```
 

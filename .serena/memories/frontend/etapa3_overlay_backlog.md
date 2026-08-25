@@ -46,7 +46,7 @@ Os 8 consumidores reais, que é por onde o componente foi julgado (o componente 
 | 135 | Fonte única da copy de cada modal (template × 422) | AFK | 130 | `/impeccable clarify` |
 | 136 | Vocabulário de severidade do ícone: obrigatório, falha alta, glifo correto, teal | **HITL** | 131 | `/impeccable polish` |
 | 137 | Polimento: rodapé (feedback de submit, safe-area) e corpo (rolagem por teclado) | AFK | 129, 130, 131 | `/impeccable polish` |
-| 138 | O modal nomeia o registro que está confirmando | **HITL** | 135, 136 | `/impeccable clarify` |
+| 138 | O modal nomeia o registro que está confirmando — **FEITA** | **HITL** | 135, 136 | `/impeccable clarify` |
 
 Ordem sugerida: **130 primeiro** — é o único P0 que não depende de decisão, é a correção de maior
 impacto (duas ações irreversíveis do chefe de almoxarifado), e destrava 133/135/137. **131** em
@@ -64,9 +64,51 @@ Três issues estão marcadas HITL porque têm pergunta aberta, não porque são 
 2. **#136** — qual glifo substitui a lixeira em `danger`? `icon_variant` vira obrigatório, e qual
    variante cada um dos 8 consumidores recebe? Entra variante `return` (teal) no ícone e teal
    preenchido em `button.html`?
-3. **#138** — forma da identidade no modal: linha fixa sob o título, slot `resumo_template`,
-   número público no `confirm_label`, ou combinação? O slot é obrigatório para ação que escreve
-   movimentação? O `backdrop-blur-sm` fica?
+3. ~~**#138**~~ — **decidido em 2026-08-25**, ver "O que a #138 fixou" abaixo.
+
+## O que a #138 fixou (2026-08-25)
+
+Decisões do dono do produto, todas as três pela opção recomendada:
+
+1. **Forma: linha fixa + slot de corpo.** `registro` (mapa `rotulo`/`identificador`/`contexto`)
+   vira linha fixa **entre o `<h2>` e a descrição**; o `form_body_template` segue sendo onde
+   entram os números da operação. Descartadas: só slot (8 redações divergentes), número no
+   `confirm_label` (estoura o rodapé mobile e não resolve a retirada).
+2. **`registro` obrigatório em TODO modal**, não só nos que movimentam estoque — recorte por tipo
+   de ação exigiria lista de ids mantida à mão e deixaria de fora `confirmar-enviar`. Recusado no
+   render pelas duas portas (`validar_contrato_modal` e `render_modal_erro`), via
+   `validar_registro_modal` em `core_tags.py`.
+3. **`backdrop-blur-sm` removido**, `bg-slate-900/50` → `/60`. `DESIGN.md:295` e `:371`
+   atualizados.
+
+Decidido junto, sem precisar de HITL:
+
+- **`consequencia` é parâmetro novo** do componente, opcional, renderizado no fim do corpo em
+  `font-semibold text-text-primary`. A frase de irreversibilidade **saiu da `descricao`** nos
+  quatro modais que a tinham (estorno de requisição, estorno de saída, SCPI, atender retirada).
+  Continua dita uma vez só; o painel de decisão concatena `descricao + consequencia + painel_extra`.
+- **`identificador` NUNCA sai do `__str__` do model.** `str(requisicao)` é `Rascunho #<pk>` e a
+  P3-01 de `.design/detalhe-requisicao/DESIGN_BRIEF.md` proíbe PK interno em UI — há teste
+  (`test_detalhe_titulo_rascunho_sem_pk`) que pegou isso na primeira tentativa. Fallbacks:
+  `"Rascunho"` e `"Sem número"`.
+- **A quantidade da retirada é lida do DOM, não do servidor.** `_modal_corpo_atender_retirada.html`
+  marca cada célula com `data-resumo-entregue-de="<id do input>"`, e `sincronizarResumo()` em
+  `modal.js` copia antes do `showModal()`. Pareamento por `id`, não por índice.
+- **`registro` ganhou `id="{{ id }}-registro"`**: entra no `aria-describedby` do `<dialog>` (antes
+  da descrição) e é comparado por `assert_copy_nao_diverge` entre render inicial e 422.
+
+### Dois efeitos colaterais que a issue não previa
+
+- **O `<dialog>` tinha dois tetos de altura que nunca coincidiam.** O wrapper interno usava
+  `max-h-[calc(100dvh-2rem)]` e o diálogo ficava com o default do UA
+  (`calc(100% - 6px - 2em)`); a diferença bastava para o **diálogo** rolar em vez da caixa do
+  corpo. Latente desde sempre, invisível porque o conteúdo não chegava ao teto — a linha de
+  identidade alcançou. Corrigido pondo o teto **só no `<dialog>`**, que virou coluna flex por
+  `open:flex` (`flex` incondicional venceria `dialog:not([open]) { display: none }` por origem de
+  autor e abriria todo modal da página), com o wrapper em `min-h-0 flex-1`.
+- **O scanner do Tailwind lê `{% comment %}` e `DESIGN.md`.** Escrever o nome da classe removida na
+  explicação de por que ela morreu recompilava a regra. `docs/` está em `@source not`; a raiz do
+  repo, não.
 
 ## Fatos medidos que não precisam ser remedidos
 

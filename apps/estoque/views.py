@@ -22,7 +22,11 @@ from apps.core.modal import render_modal_erro
 from apps.core.presentation import traduz_erro_dominio
 from apps.core.templatetags.core_tags import formatar_quantidade
 from apps.estoque.forms import ItemSaidaExcepcionalFormSet, SaidaExcepcionalForm
-from apps.estoque.presentation import MODAL_COPY
+from apps.estoque.presentation import (
+    MODAL_COPY,
+    registro_arquivo_scpi,
+    registro_saida_excepcional,
+)
 from apps.estoque.models import Estoque, SaldoEstoque, TipoMovimentacaoEstoque
 from apps.estoque.policies import (
     exigir_pode_consultar_movimentacoes_estoque,
@@ -373,6 +377,7 @@ def detalhe_saida_excepcional_view(request, pk: int):
         {
             'saida': saida,
             'pode_estornar': pode_estornar,
+            'registro': registro_saida_excepcional(saida),
         },
     )
 
@@ -426,6 +431,8 @@ def estornar_saida_excepcional_view(request, pk: int):
                 modal_id='estornar-saida',
                 titulo=copy['titulo'],
                 descricao=copy['descricao'],
+                consequencia=copy['consequencia'],
+                registro=registro_saida_excepcional(saida),
                 erro=str(exc),
                 form_body_template=('estoque/partials/_modal_form_estorno_saida.html'),
                 confirm_label=copy['confirm_label'],
@@ -536,6 +543,7 @@ def preview_importacao_scpi_view(request):
             'divergencias': divergencias,
             'novos': novos,
             'nome_arquivo': arquivo.name,
+            'registro': registro_arquivo_scpi(arquivo.name),
             'pode_confirmar': True,
         },
     )

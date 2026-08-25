@@ -665,6 +665,26 @@ class TestDetalheSaidaExcepcionalView:
         assert 'required' in dialog_html
         assert f'action="{self._estornar_url(saida_registrada.pk)}"' in dialog_html
 
+    def test_modal_de_estorno_nomeia_a_saida_e_a_consequencia(
+        self, client, chefe_almoxarifado, saida_registrada
+    ):
+        """ "Estornar saída excepcional" — qual? (#138)
+
+        O modal devolve todos os itens ao saldo físico e não carregava número
+        público nenhum. A frase de irreversibilidade saiu da descrição para o
+        corpo, com ênfase maior que a dos dados que ela qualifica.
+        """
+        client.force_login(chefe_almoxarifado)
+        response = client.get(self._url(saida_registrada.pk))
+        html = response.content.decode('utf-8')
+        inicio = html.index('id="estornar-saida"')
+        dialog_html = html[inicio : html.index('</dialog>', inicio)]
+
+        assert 'data-modal-registro' in dialog_html
+        assert saida_registrada.numero_publico in dialog_html
+        assert saida_registrada.estoque.nome in dialog_html
+        assert 'Esta ação é irreversível.' in dialog_html
+
     def _estornar_url(self, pk):
         return reverse('estoque:estornar_saida_excepcional', args=[pk])
 
@@ -1175,7 +1195,54 @@ class TestPreviewImportacaoScpiView:
         assert 'Divergências a registrar' in conteudo
         assert 'Linhas lidas do arquivo' in conteudo
         assert 'Nenhum saldo do WMS é sobrescrito' in conteudo
-        assert 'teste.csv' in conteudo
+
+    def test_modal_do_scpi_nomeia_o_arquivo_na_linha_de_identidade(
+        self, client, superuser, estoque_principal, material_scpi
+    ):
+        """O registro aqui é o arquivo, e confirmar o errado grava saldo errado.
+
+        O nome saiu do corpo e virou a linha de identidade do cabeçalho (#138) —
+        é onde todo modal do sistema carrega o documento que está confirmando.
+        Nos dois lugares seria a segunda grafia do mesmo dado.
+        """
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        client.force_login(superuser)
+        csv_bytes = self._csv_valido(material_scpi.codigo, '150.000')
+        arquivo = SimpleUploadedFile('teste.csv', csv_bytes, content_type='text/csv')
+        conteudo = client.post(self.URL, {'arquivo': arquivo}).content.decode()
+        dialogo = self._dialogo(conteudo, 'confirmar-importacao-scpi')
+
+        assert 'data-modal-registro' in dialogo
+        assert 'teste.csv' in dialogo
+        assert dialogo.count('teste.csv') == 1
+
+    def test_modal_do_scpi_nao_deixa_a_gravacao_definitiva_mais_apagada(
+        self, client, superuser, estoque_principal, material_scpi
+    ):
+        """A consequência irreversível não pode pesar menos que os números (#138).
+
+        "A gravação não pode ser desfeita" era a `descricao` do cabeçalho, em
+        `text-sm text-text-secondary`, enquanto as três contagens logo abaixo
+        saíam em `text-base font-semibold`.
+        """
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        client.force_login(superuser)
+        csv_bytes = self._csv_valido(material_scpi.codigo, '150.000')
+        arquivo = SimpleUploadedFile('teste.csv', csv_bytes, content_type='text/csv')
+        conteudo = client.post(self.URL, {'arquivo': arquivo}).content.decode()
+        dialogo = self._dialogo(conteudo, 'confirmar-importacao-scpi')
+
+        (classes,) = re.findall(r'<p data-modal-consequencia class="([^"]*)"', dialogo)
+        assert 'font-semibold' in classes
+        assert 'text-text-primary' in classes
+        assert 'A gravação não pode ser desfeita.' in dialogo
+
+    @staticmethod
+    def _dialogo(html, modal_id):
+        inicio = html.index(f'id="{modal_id}"')
+        return html[inicio : html.index('</dialog>', inicio)]
 
     def test_preview_ordena_divergencia_e_novo_antes_de_ok(
         self, client, superuser, estoque_principal, material_scpi, material_scpi_critico

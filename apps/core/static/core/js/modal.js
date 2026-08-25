@@ -300,6 +300,39 @@
         slot.replaceChildren(molde.content.cloneNode(true));
       },
 
+      // Copia para dentro do diálogo o valor que está nos campos do formulário
+      // agora (#138). Só o modo `submit_form_id` usa isto hoje: o modal
+      // confirma um formulário da própria tela, e é o único caso em que o dado
+      // a repetir ainda não existia no servidor quando a página foi renderizada
+      // — a pessoa digitou item a item depois do render.
+      //
+      // Cada célula declara o `id` do <input> de onde lê, e não a posição na
+      // lista: parear por índice funciona enquanto as duas ordens coincidirem e
+      // cala no dia em que não coincidirem. Campo ausente deixa o "—" do
+      // servidor no lugar — a tela prefere admitir que não sabe a inventar um
+      // número numa confirmação que baixa estoque.
+      sincronizarResumo() {
+        const dialog = this.$refs.dialog;
+        if (!dialog) {
+          return;
+        }
+        dialog.querySelectorAll('[data-resumo-entregue-de]').forEach((celula) => {
+          const campo = document.getElementById(
+            celula.getAttribute('data-resumo-entregue-de')
+          );
+          if (!campo) {
+            console.error(
+              `modal ${this.id}: campo ${celula.getAttribute(
+                'data-resumo-entregue-de'
+              )} do resumo nao encontrado`
+            );
+            return;
+          }
+          const valor = campo.value.trim();
+          celula.textContent = valor === '' ? '—' : valor;
+        });
+      },
+
       limparFalhaDeTransporte() {
         const slot = this.slotDeFalhaDeTransporte();
         if (slot) {
@@ -339,6 +372,10 @@
         // até lá a mensagem velha fica na tela por cima de um formulário
         // intocado.
         this.limparFalhaDeTransporte();
+        // Antes do `showModal()`: a recapitulação tem de estar preenchida no
+        // primeiro quadro em que o diálogo aparece. Depois, o número apareceria
+        // trocando de "—" para o valor com a caixa já na tela.
+        this.sincronizarResumo();
         dialog.showModal();
         // Só agora o diálogo é modal de verdade. O template emite
         // `aria-modal="false"` quando entrega `open`, porque até esta linha o
