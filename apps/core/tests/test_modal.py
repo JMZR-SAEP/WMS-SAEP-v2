@@ -17,6 +17,7 @@ def _render_modal(**ctx):
     """
     ctx.setdefault('id', 'meu-modal')
     ctx.setdefault('titulo', 'Título')
+    ctx.setdefault('icon_variant', 'info')
     contexto, literais = {}, []
     for chave, valor in ctx.items():
         if isinstance(valor, str):
@@ -530,3 +531,24 @@ def test_nome_antigo_do_parametro_de_abertura_falha_no_render():
     """
     with pytest.raises(ImproperlyConfigured):
         _render_modal(action_url='/confirmar/', abrir_ao_carregar_expr='true')
+
+
+def test_icon_variant_ausente_falha_no_render():
+    """`icon_variant` é obrigatório (#136).
+
+    Era opcional, e o resultado era ruído: três dos oito consumidores reais
+    esqueciam o parâmetro e o modal ficava sem nenhum sinal de severidade — o
+    canal parava de informar bem na vez em que o aviso importava.
+    """
+    with pytest.raises(ImproperlyConfigured):
+        _render_modal(action_url='/confirmar/', icon_variant=None)
+
+
+def test_icon_variant_desconhecida_nao_falha_no_render():
+    """Variante desconhecida grita (Decisão A-1), mas o modal continua no ar.
+
+    Só a *ausência* de icon_variant é recusada no render — um valor presente,
+    mesmo que errado, cai no fallback visível de `_modal_icon.html`.
+    """
+    html = _render_modal(action_url='/confirmar/', icon_variant='dangre')
+    assert 'data-modal-icon-variant="dangre"' in html

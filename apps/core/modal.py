@@ -67,10 +67,25 @@ def render_modal_erro(
     que passasse por aqui; quem sabe a severidade é a tela que abriu o modal, e
     o 422 tem de devolver o mesmo modal, não um parente.
 
+    `icon_variant` é obrigatório (#136), e a checagem vive aqui e não só em
+    `validar_contrato_modal`: este helper renderiza `_modal_body.html`
+    diretamente, sem passar por `components/modal.html` — logo sem passar
+    pela tag que valida o contrato no render inicial. Sem esta checagem, um
+    consumidor novo do 422 podia esquecer o parâmetro e receber em silêncio o
+    fallback de variante desconhecida, em vez de falhar no render como o
+    resto do contrato.
+
     Os parâmetros restantes espelham `components/modal.html` e
     `components/_modal_body.html` (de onde vem `acao_erro`), porque o fragment
     devolvido tem de reconstruir o mesmo cabeçalho e o mesmo rodapé.
     """
+    if not icon_variant:
+        raise ImproperlyConfigured(
+            f'render_modal_erro exige icon_variant (recebido: {icon_variant!r}). '
+            'O 422 tem que devolver o mesmo icon_variant que a tela usou para '
+            'abrir o modal — ver a obrigatoriedade em validar_contrato_modal '
+            '(components/modal.html).'
+        )
     contexto: dict[str, Any] = {
         'id': modal_id,
         'titulo': titulo,

@@ -17,7 +17,11 @@
                        para o `if` do template, e `validar_contrato_modal`
                        recusa o render se ela chegar.
     form_body_template -> caminho de template incluído dentro do form (campos)
-    icon_variant    -> "warning" | "info" | "danger" | None
+    icon_variant    -> obrigatório (#136). "info" | "warning" | "danger" |
+                       "descarte" | "return" — vocabulário completo e o motivo
+                       de cada um em components/_modal_icon.html. Variante fora
+                       do catálogo cai na Decisão A-1 (falha alta, plausível);
+                       o que este componente recusa no render é a ausência.
     hidden_inputs   -> dict de hidden inputs adicionais (ex: {"next": voltar_url})
     role            -> default "dialog". "alertdialog" nos modais que confirmam
                        operação irreversível (WAI-ARIA APG).
@@ -38,7 +42,7 @@
        action_url=recusar_url
        confirm_label="Confirmar recusa"
        confirm_variant="danger"
-       icon_variant="danger"
+       icon_variant=recusar_copy.icon_variant
        form_body_template="requisicoes/partials/_modal_form_recusar.html"
        abrir_ao_carregar=recusa_erro
        erro=recusa_erro
@@ -59,7 +63,7 @@
 {% endcomment %}
 
 {% load static core_tags %}
-{% validar_contrato_modal action_url submit_form_id abrir_ao_carregar abrir_ao_carregar_expr %}
+{% validar_contrato_modal action_url submit_form_id abrir_ao_carregar abrir_ao_carregar_expr icon_variant %}
 
 <dialog
   id="{{ id }}"

@@ -318,6 +318,7 @@ def test_a_composicao_monta_painel_e_modal_no_mesmo_escopo_alpine():
             'action_url': '/requisicoes/1/autorizar/',
             'confirm_label': 'Confirmar autorização',
             'confirm_variant': 'primary',
+            'icon_variant': 'info',
         },
     )
 

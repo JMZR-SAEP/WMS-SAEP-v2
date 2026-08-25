@@ -430,6 +430,7 @@ def estornar_saida_excepcional_view(request, pk: int):
                 form_body_template=('estoque/partials/_modal_form_estorno_saida.html'),
                 confirm_label=copy['confirm_label'],
                 confirm_variant='danger',
+                icon_variant=copy['icon_variant'],
                 acao_erro='estornar a saída',
                 contexto_form={'justificativa': justificativa},
             )

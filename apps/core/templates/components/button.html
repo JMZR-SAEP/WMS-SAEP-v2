@@ -11,9 +11,12 @@ já tinham divergido.
 Parâmetros:
   variant            (opcional, default=primary) primary, secondary, neutral,
                      danger, danger-outline, warning-outline, return-outline,
-                     ghost, link
-                     `return-outline` é teal: devolução e reversão operacional
-                     nunca usam vermelho (Regra da Reversão Não é Erro).
+                     return, ghost, link
+                     `return-outline` e `return` são teal: devolução e
+                     reversão operacional nunca usam vermelho (Regra da
+                     Reversão Não é Erro). `return` é a versão preenchida,
+                     usada como `confirm_variant` do modal que registra a
+                     devolução — o rodapé confirma no mesmo tom do trigger.
                      `neutral` é grafite preenchido — confirmação de ação que
                      não é destrutiva nem é o caminho primário da tela (ex.
                      "Confirmar retorno" no modal de retornar para rascunho).

@@ -423,6 +423,58 @@ desconhecida.
 templates renderizados **e** com a expectativa aprovada no próprio teste. As
 três pontas precisam concordar: mudar tabela e templates juntos não passa.
 
+### Vocabulário de severidade do ícone de modal
+
+`_modal_icon.html` tem cinco variantes, todas obrigatórias em `icon_variant`
+(#136). O parâmetro deixou de ser opcional: era opcional e o resultado era
+ruído — a severidade de cada modal saía ao acaso de quem lembrou de passar o
+parâmetro, e três dos oito consumidores reais não passavam nada.
+
+| Variante | Glifo | Cor | Quando usar |
+|---|---|---|---|
+| `info` | círculo de informação | azul | ação neutra, sem consequência a destacar |
+| `warning` | triângulo de atenção | âmbar | pede cuidado redobrado antes de confirmar |
+| `danger` | círculo de alerta | vermelho | recusar/cancelar/estornar: encerram ou revertem, mas a trilha é append-only |
+| `descarte` | lixeira | vermelho | reservada à única operação que remove um registro sem rastro (descarte de rascunho sem número público) |
+| `return` | seta de devolução | teal | devolução operacional — Regra da Reversão Não é Erro |
+
+Todos os cinco glifos saem do registry `{% icon %}` (`core_tags.py`), nunca de
+SVG inline — era assim que `_modal_icon.html` tinha dois mecanismos de ícone
+no mesmo arquivo (`danger` no registry, `warning`/`info` inline).
+
+Mapa por consumidor (os 8 reais, não o componente isolado):
+
+| Modal | Variante | Por quê |
+|---|---|---|
+| descartar rascunho | `descarte` | única remoção sem rastro do sistema |
+| cancelar rascunho/requisição | `danger` | encerra, preserva o número público |
+| recusar requisição | `danger` | encerra, não reserva nem baixa estoque |
+| estornar requisição / estornar saída excepcional | `danger` | reverte, grava movimentação reversora |
+| registrar devolução | `return` | reversão operacional, nunca vermelho |
+| enviar / separar para retirada / autorizar | `info` | fluxo neutro, sem consequência a destacar |
+| retornar para rascunho | `warning` | pede ajuste, atenção redobrada |
+| confirmar registro de retirada | `warning` | baixa estoque físico, "não pode ser desfeita" |
+| confirmar importação SCPI | `danger` | única escrita irreversível declarada do sistema, sem aprovação humana depois |
+
+Duas coisas que a tabela corrige em relação ao que existia antes da #136:
+
+- **A lixeira não é mais o glifo de `danger` inteiro.** Cancelar, recusar e
+  estornar diziam "isto vai para o lixo" sem que nenhuma das três apagasse
+  algo — `CONTEXT.md` é explícito que cancelamento preserva o número público,
+  estorno grava movimentação reversora e a trilha é append-only. A lixeira
+  ficou só com o descarte, a única operação que de fato remove sem rastro.
+- **O fio teal não morre mais na porta do modal.** O trigger de "Registrar
+  devolução" já era `return-outline` (teal, pela Regra da Reversão Não é
+  Erro); o modal confirmava em azul (`primary`) e sem ícone. `confirm_variant`
+  da devolução passou a `return` (variante preenchida nova em
+  `button.html`/`core_tags.py`), no mesmo tom do trigger.
+
+Variante fora do catálogo cai na Decisão A-1, como em `alert.html` e
+`badge.html`: fundo cheio de grito (`bg-danger`, não a lavagem `-muted`),
+`role="alert"` e o valor cru em `data-modal-icon-variant`.
+
+Verificado por `apps/core/tests/test_modal_icon.py`.
+
 ### Foco inicial do modal de confirmação
 
 `modal.js` decide para onde o foco vai quando o `<dialog>` abre, e a ordem é

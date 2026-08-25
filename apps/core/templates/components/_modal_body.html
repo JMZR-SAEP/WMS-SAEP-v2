@@ -36,9 +36,7 @@
 <div data-modal-body="{{ id }}" tabindex="-1" class="flex min-h-0 flex-1 flex-col">
   <header class="border-b border-border px-6 py-5">
     <div class="flex items-start gap-4">
-      {% if icon_variant %}
-        {% include "components/_modal_icon.html" with variant=icon_variant %}
-      {% endif %}
+      {% include "components/_modal_icon.html" with variant=icon_variant %}
       <div class="min-w-0 flex-1">
         <h2 id="{{ id }}-titulo" class="text-lg font-semibold leading-tight text-text-primary">
           {{ titulo }}

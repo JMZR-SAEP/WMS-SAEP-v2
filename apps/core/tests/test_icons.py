@@ -152,6 +152,45 @@ def test_icon_confirmar_check_renderiza_path_original():
     assert 'aria-hidden="true"' in html
 
 
+def test_icon_informacao_renderiza_path_original():
+    html = _render('{% icon "informacao" class="h-5 w-5" %}')
+    assert (
+        'd="M18 10A8 8 0 1 1 2 10a8 8 0 0 1 16 0Zm-8.75-4.25a.75.75 0 0 1 1.5 0v.5a.75.75 '
+        '0 0 1-1.5 0v-.5Zm.75 3a.75.75 0 0 0-.75.75v4a.75.75 0 0 0 1.5 0v-4a.75.75 0 0 '
+        '0-.75-.75Z"' in html
+    )
+    assert 'viewBox="0 0 20 20"' in html
+    assert 'class="h-5 w-5"' in html
+
+
+def test_icon_atencao_renderiza_path_original_variante_modal_warning():
+    html = _render('{% icon "atencao" class="h-5 w-5" %}')
+    assert (
+        'd="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 '
+        '2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495ZM10 5a.75.75 '
+        '0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 5Zm0 9a1 1 0 1 0 0-2 1 1 '
+        '0 0 0 0 2Z"' in html
+    )
+    assert 'viewBox="0 0 20 20"' in html
+
+
+def test_icon_alerta_renderiza_path_original_variante_modal_danger():
+    """#136: `danger` deixou de ser a lixeira e passou a ser este glifo."""
+    html = _render('{% icon "alerta" class="h-5 w-5" %}')
+    assert (
+        'd="M18 10A8 8 0 1 1 2 10a8 8 0 0 1 16 0Zm-7-4a1 1 0 1 0-2 0v4a1 1 0 1 0 2 0V6Zm-1 '
+        '8a1.2 1.2 0 1 1 0-2.4 1.2 1.2 0 0 1 0 2.4Z"' in html
+    )
+    assert 'viewBox="0 0 20 20"' in html
+
+
+def test_icon_devolver_usa_size_para_width_height_mas_viewbox_fixo_em_24():
+    html = _render('{% icon "devolver" %}')
+    assert 'width="20"' in html
+    assert 'height="20"' in html
+    assert 'viewBox="0 0 24 24"' in html
+
+
 def test_icon_estornar_renderiza_path_original():
     html = _render('{% icon "estornar" class="h-4 w-4" %}')
     assert (
