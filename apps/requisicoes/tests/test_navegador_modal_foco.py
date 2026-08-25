@@ -316,3 +316,37 @@ def test_abrir_sem_trigger_sem_alvo_no_dom_devolve_foco_ao_fallback_declarado(
         ' classe: document.activeElement.className })'
     )
     assert alvo['tag'] != 'BODY', f'O foco caiu no <body> — sem alvo declarado. {alvo}'
+
+
+def test_trigger_removido_com_modal_ja_aberto_tambem_devolve_ao_fallback(
+    abrir_pagina, chefe_obras, req_para_decisao
+):
+    """`devolverFoco` cai no fallback mesmo com abertura por trigger real (#137, CodeRabbit).
+
+    Diferente do teste anterior — onde `abrirSemTrigger` já não achava
+    nenhum trigger na abertura —, aqui o modal abre normalmente por clique
+    num trigger real, e é só *depois*, com o modal já aberto, que o trigger
+    some do DOM (mesma ação de workflow ficando indisponível, descoberta um
+    passo mais tarde). Sem resolver o fallback de novo em `devolverFoco`,
+    `document.contains(lastTrigger)` falha e o método vira no-op — o foco
+    fica onde o fechamento nativo o deixar, tipicamente o `<body>`.
+    """
+    page = abrir_pagina(
+        chefe_obras, reverse('requisicoes:detalhe', kwargs={'pk': req_para_decisao.pk})
+    )
+    _abrir_modal(page, 'confirmar-recusar')
+
+    page.evaluate(
+        '() => document.querySelector(\'[data-modal-trigger="confirmar-recusar"]\').remove()'
+    )
+
+    page.locator('dialog#confirmar-recusar [data-modal-dismiss]').click()
+    page.wait_for_function("!document.getElementById('confirmar-recusar').open")
+    page.wait_for_function(
+        "() => document.activeElement.classList.contains('app-bar__title')"
+    )
+
+    alvo = page.evaluate('() => document.activeElement.tagName')
+    assert alvo != 'BODY', (
+        'O foco caiu no <body> — o trigger sumiu e o fallback não assumiu.'
+    )

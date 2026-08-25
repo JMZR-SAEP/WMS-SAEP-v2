@@ -488,9 +488,18 @@
         }
       },
 
+      // Cai no fallback também quando `lastTrigger` era um trigger real que
+      // desapareceu do DOM enquanto o modal estava aberto (CodeRabbit) — não
+      // só quando `abrirSemTrigger` já não achou nenhum na abertura. Mesma
+      // ação de workflow que ficou indisponível, só que descoberta um passo
+      // depois: entre o clique que abriu e o fechamento.
       devolverFoco() {
-        if (this.lastTrigger && document.contains(this.lastTrigger)) {
-          this.lastTrigger.focus({ preventScroll: true });
+        const alvo =
+          this.lastTrigger && document.contains(this.lastTrigger)
+            ? this.lastTrigger
+            : this.focoFallbackAlvo();
+        if (alvo) {
+          alvo.focus({ preventScroll: true });
         }
       },
 
