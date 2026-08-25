@@ -134,6 +134,15 @@ def test_modal_aberto_por_trigger_trava_a_rolagem_do_fundo(pagina_de_decisao):
     pagina.wait_for_function("!document.getElementById('confirmar-autorizar').open")
     pagina.wait_for_function(f"{_OVERFLOW} !== 'hidden'")
 
+    # A trava e o diálogo são um par com invariante — travado se, e só se,
+    # aberto. Um ciclo completo é o que separa "destrava" de "destrava uma vez":
+    # se `abertoComoModal` e a trava saírem de sincronia, é na segunda abertura
+    # que aparece, e a essa altura a página inteira estaria sem rolagem.
+    _abrir_por_trigger(pagina, 'confirmar-autorizar')
+    pagina.wait_for_function(f"{_OVERFLOW} === 'hidden'")
+    pagina.keyboard.press('Escape')
+    pagina.wait_for_function(f"{_OVERFLOW} !== 'hidden'")
+
 
 def test_dialogo_entregue_aberto_pelo_servidor_vira_modal_com_o_erro_a_vista(
     live_server, pagina_de_decisao, req_para_decisao
@@ -160,6 +169,13 @@ def test_dialogo_entregue_aberto_pelo_servidor_vira_modal_com_o_erro_a_vista(
         "document.getElementById('confirmar-recusar').matches(':modal')"
     )
     pagina.wait_for_function(f"{_OVERFLOW} === 'hidden'")
+
+    # O servidor entrega `aria-modal="false"`, porque até a promoção o resto da
+    # página está mesmo operável. Depois dela a afirmação passa a ser verdadeira,
+    # e quem a atualiza é o mesmo passo que chama `showModal()`.
+    assert dialogo.get_attribute('aria-modal') == 'true', (
+        'O diálogo virou modal e continuou se anunciando como não-modal.'
+    )
 
     # Promovido, não duplicado: fechar tem que devolver a página ao estado
     # normal. Um diálogo que ficasse com o atributo `open` do servidor além do

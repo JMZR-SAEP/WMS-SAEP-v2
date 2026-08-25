@@ -576,6 +576,11 @@ foco, que continua governando o menu da barra de aplicação — e desfaz no eve
 enquanto o modal pergunta se pode executar algo irreversível tira da tela o
 registro sobre o qual a pergunta é feita.
 
+> O valor global é um só, e tem dois donos sem contagem: esta trava e o
+> `x-trap.noscroll` do menu da barra de aplicação. Desfazer em LIFO funciona;
+> intercalar, não. Quem garante o LIFO hoje é o próprio menu, que fecha no
+> `@click.outside` antes de qualquer trigger de modal ficar clicável.
+
 **`overscroll-contain` mora na caixa que rola**, que é a região do corpo em
 `_modal_body.html`, e não no `<dialog>` — o diálogo tem `max-h` e nunca ganha
 barra própria, então lá o atributo não tinha o que conter.
@@ -587,6 +592,17 @@ fluxo da página, com a caixa de erro legível; com Alpine vivo o init o promove
 modal por `showModal()`. Antes, a abertura só existia no Alpine e o re-render
 com erro voltava numa tela aparentemente intacta, com a recusa escondida dentro
 de um diálogo `display: none`.
+
+**`aria-modal` acompanha o que o diálogo é**, e não o que ele vai virar. O
+template emite `false` junto com `open`, porque até a promoção o resto da página
+está mesmo operável e o "Voltar" do rodapé (`@click="fechar()"`) está morto sem
+Alpine — anunciar "modal" ali prenderia o leitor de tela num diálogo sem saída.
+`modal.js` sobe o valor para `true` no mesmo passo do `showModal()`.
+
+> Este não é o único caminho de erro sem JS do sistema, e os dois são válidos:
+> requisições re-renderizam a página inteira com o modal aberto; o estorno de
+> saída excepcional em `estoque` usa PRG com a mensagem no banner de topo. A
+> escolha segue o que a view já faz com o desfecho, não o componente.
 
 > O parâmetro exige **bool do contexto**. `erro|yesno:"true,false"` era o idioma
 > certo enquanto o destino era uma expressão JavaScript e é veneno agora: a

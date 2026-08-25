@@ -267,6 +267,11 @@
         // intocado.
         this.limparFalhaDeTransporte();
         dialog.showModal();
+        // Só agora o diálogo é modal de verdade. O template emite
+        // `aria-modal="false"` quando entrega `open`, porque até esta linha o
+        // resto da página está operável — e um "modal" anunciado sobre uma
+        // página viva é pior do que nenhum.
+        dialog.setAttribute('aria-modal', 'true');
         this.abertoComoModal = true;
         this.travarRolagemDeFundo();
         this.$nextTick(() => this.focarPrimeiroCampo());
@@ -282,7 +287,14 @@
       // o menu da barra de aplicação: `overflow: hidden` no `<html>` mais a
       // compensação da barra de rolagem, para a página não pular de largura ao
       // abrir. Onde o navegador já reserva a calha (`scrollbar-gutter`), a
-      // compensação sairia dobrada e por isso é dispensada.
+      // compensação sairia dobrada e por isso é dispensada — a folha do projeto
+      // não declara a propriedade hoje, e este ramo existe para o dia em que
+      // declarar.
+      //
+      // São dois donos do mesmo valor global, sem contagem: este e o
+      // `x-trap.noscroll` do menu. Aninhamento em LIFO se desfaz certo; um
+      // intercalado, não. O que garante o LIFO hoje é o próprio menu, que fecha
+      // no `@click.outside` antes de qualquer trigger de modal ser clicável.
       travarRolagemDeFundo() {
         if (this.liberarRolagemDeFundo) {
           return;
@@ -305,6 +317,17 @@
           raiz.style.overflow = overflowAnterior;
           raiz.style.paddingRight = paddingAnterior;
         };
+      },
+
+      // Alpine chama no teardown do componente. Tirar o `<dialog>` do documento
+      // enquanto ele está aberto **não** emite `close` — a especificação só o
+      // remove do top layer —, e sem esta porta a página ficaria com
+      // `overflow: hidden` gravado e sem rolagem até um reload. Hoje nenhum
+      // caminho chega aí (o único alvo de swap é `[data-modal-body]`, e
+      // `HX-Redirect` é navegação de verdade), e é justamente por ser barato
+      // que não vale depender dessa coincidência.
+      destroy() {
+        this.destravarRolagemDeFundo();
       },
 
       destravarRolagemDeFundo() {

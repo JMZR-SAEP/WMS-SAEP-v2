@@ -383,3 +383,29 @@ def test_modal_nao_declara_x_trap():
         _render_modal(submit_form_id='form-externo'),
     ):
         assert 'x-trap' not in html
+
+
+def test_dialogo_entregue_aberto_nao_se_anuncia_como_modal():
+    """`aria-modal` acompanha o que o diálogo é, não o que ele vai virar (#134).
+
+    Aberto pelo atributo `open`, o `<dialog>` é não-modal: o resto da página
+    continua operável e o "Voltar" do rodapé — que é `@click="fechar()"` — está
+    morto sem Alpine. Anunciar "modal" ali prende o leitor de tela num diálogo
+    sem saída. Quem sobe o valor para "true" é `modal.js`, no mesmo passo do
+    `showModal()`.
+    """
+    aberto = _render_modal(action_url='/confirmar/', abrir_ao_carregar=True)
+    fechado = _render_modal(action_url='/confirmar/')
+
+    assert atributo(_dialogo(aberto), 'aria-modal') == 'false'
+    assert atributo(_dialogo(fechado), 'aria-modal') == 'true'
+
+
+def test_nome_antigo_do_parametro_de_abertura_falha_no_render():
+    """`abrir_ao_carregar_expr` morreu na #134 e não pode voltar em silêncio.
+
+    Um chamador que ressuscite o nome antigo não abre modal nenhum — que é
+    exatamente o defeito que a issue fechou, de volta e mudo.
+    """
+    with pytest.raises(ImproperlyConfigured):
+        _render_modal(action_url='/confirmar/', abrir_ao_carregar_expr='true')

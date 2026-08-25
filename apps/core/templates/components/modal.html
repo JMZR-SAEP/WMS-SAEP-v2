@@ -49,7 +49,7 @@
 {% endcomment %}
 
 {% load static core_tags %}
-{% validar_contrato_modal action_url submit_form_id abrir_ao_carregar %}
+{% validar_contrato_modal action_url submit_form_id abrir_ao_carregar abrir_ao_carregar_expr %}
 
 <dialog
   id="{{ id }}"
@@ -68,7 +68,14 @@
   {% endcomment %}
   {% if abrir_ao_carregar %}open{% endif %}
   role="dialog"
-  aria-modal="true"
+  {% comment %}
+    `aria-modal` acompanha o que o diálogo de fato é. Aberto pelo atributo
+    `open`, ele é não-modal: o resto da página continua operável, e anunciar
+    "modal" ali prenderia o leitor de tela num diálogo cujo "Voltar" — que é
+    `@click="fechar()"` — está morto sem Alpine. `modalController` sobe o valor
+    para "true" no mesmo passo em que chama `showModal()`.
+  {% endcomment %}
+  aria-modal="{% if abrir_ao_carregar %}false{% else %}true{% endif %}"
   aria-labelledby="{{ id }}-titulo"
   {% if descricao %}aria-describedby="{{ id }}-descricao"{% endif %}
   {% comment %}

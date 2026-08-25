@@ -2053,7 +2053,10 @@ _FUGAS_DO_ESCOPO_ALPINE = ('$refs', '$el', '$root', 'document.', 'window.')
 # Busca por atributo e não por elemento: `x-trap` não pertence a nenhuma tag em
 # particular, e um guarda com lista de tags fechada é cego para a tag de fora
 # da lista — que é exatamente a forma como o defeito volta.
-_X_TRAP = re.compile(r"""x-trap[\w.]*\s*=\s*(["'])(.*?)\1""", re.S)
+_X_TRAP = re.compile(
+    r"""x-trap[\w.]*\s*=\s*(?:(["'])(?P<citado>.*?)\1|(?P<cru>[^\s"'>]+))""",
+    re.S,
+)
 
 
 def _x_trap_sem_reatividade(caminho: str, texto: str) -> list[str]:
@@ -2061,7 +2064,11 @@ def _x_trap_sem_reatividade(caminho: str, texto: str) -> list[str]:
     infratores: list[str] = []
     limpo = _sem_comentarios(texto)
     for encontro in _X_TRAP.finditer(limpo):
-        valor = encontro.group(2)
+        # Valor sem aspas é HTML válido, e um guarda que só enxerga o citado é
+        # cego para a única grafia que ninguém pensa em escrever de propósito.
+        valor = encontro.group('citado')
+        if valor is None:
+            valor = encontro.group('cru')
         fuga = next((f for f in _FUGAS_DO_ESCOPO_ALPINE if f in valor), None)
         if fuga:
             linha = limpo.count('\n', 0, encontro.start()) + 1
@@ -2112,6 +2119,11 @@ class TestMecanismoDoGuardaDeXTrap:
     def test_modificadores_nao_escondem_a_fuga(self):
         assert _x_trap_sem_reatividade(
             'sintetico.html', '<div x-trap="document.body.dataset.aberto"></div>'
+        )
+
+    def test_valor_sem_aspas_nao_escapa_do_guarda(self):
+        assert _x_trap_sem_reatividade(
+            'sintetico.html', '<div x-trap.noscroll=$refs.dialog.open></div>'
         )
 
     def test_exemplo_dentro_de_comment_nao_e_markup(self):
