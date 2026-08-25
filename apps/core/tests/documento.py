@@ -38,6 +38,19 @@ class NomeDeDialogo(NamedTuple):
     ids_de_titulo: list[str]
 
 
+def _primeiro(attrs: list[tuple[str, str | None]], nome: str) -> str | None:
+    """Primeiro valor do atributo, que é o que o navegador resolve.
+
+    Atributo repetido no mesmo elemento vale pela primeira ocorrência; um
+    `dict(attrs)` devolveria a última. É também o que `marcacao.atributo`, o
+    irmão que lê template, já faz — os dois módulos respondem igual.
+    """
+    for chave, valor in attrs:
+        if chave == nome:
+            return valor
+    return None
+
+
 class _ColetorDeIds(HTMLParser):
     """Todos os `id` do documento, na ordem em que aparecem."""
 
@@ -46,44 +59,61 @@ class _ColetorDeIds(HTMLParser):
         self.ids: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        for nome, valor in attrs:
-            if nome == 'id' and valor:
-                self.ids.append(valor)
+        valor = _primeiro(attrs, 'id')
+        if valor:
+            self.ids.append(valor)
 
 
 def ids_do_documento(html: str) -> list[str]:
-    """Os `id` do documento, na ordem de emissão e com as repetições."""
+    """Os `id` do documento, na ordem de emissão e com as repetições.
+
+    Inclui o que está dentro de `<template>` — os moldes que `modal.js` clona,
+    por exemplo. Um id ali vive num `DocumentFragment` e não colide com o
+    documento real, então esta leitura é mais estrita que o navegador. Hoje não
+    dá falso positivo, porque nenhum molde repete um id de elemento vivo; no dia
+    em que der, o recorte é aqui.
+    """
     coletor = _ColetorDeIds()
     coletor.feed(html)
     return coletor.ids
 
 
 class _NomesDeDialogo(HTMLParser):
-    """Para cada `<dialog>`, o `aria-labelledby` e os ids dos `<h2>` internos."""
+    """Para cada `<dialog>`, o `aria-labelledby` e os ids dos `<h2>` internos.
+
+    A pilha de diálogos abertos é contada, e não uma bandeira booleana: com
+    `<dialog>` aninhado — HTML válido —, uma bandeira devolveria os `<h2>` do
+    resto do documento como se fossem do diálogo, depois que o interno fechasse.
+    O `<h2>` do interno conta para o externo também, porque está dentro dele.
+    """
 
     def __init__(self) -> None:
         super().__init__()
-        self.dialogos: list[NomeDeDialogo] = []
-        self._dentro = False
+        self.dialogos: list[tuple[str | None, list[str]]] = []
+        self._abertos: list[int] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        atributos = dict(attrs)
         if tag == 'dialog':
-            self.dialogos.append(NomeDeDialogo(atributos.get('aria-labelledby'), []))
-            self._dentro = True
-        elif self._dentro and tag == 'h2' and atributos.get('id'):
-            self.dialogos[-1].ids_de_titulo.append(atributos['id'])
+            self.dialogos.append((_primeiro(attrs, 'aria-labelledby'), []))
+            self._abertos.append(len(self.dialogos) - 1)
+            return
+        if tag != 'h2' or not self._abertos:
+            return
+        valor = _primeiro(attrs, 'id')
+        if valor:
+            for indice in self._abertos:
+                self.dialogos[indice][1].append(valor)
 
     def handle_endtag(self, tag: str) -> None:
-        if tag == 'dialog':
-            self._dentro = False
+        if tag == 'dialog' and self._abertos:
+            self._abertos.pop()
 
 
 def dialogos(html: str) -> list[NomeDeDialogo]:
     """Um `NomeDeDialogo` por `<dialog>` do documento, na ordem de emissão."""
     parser = _NomesDeDialogo()
     parser.feed(html)
-    return parser.dialogos
+    return [NomeDeDialogo(*dialogo) for dialogo in parser.dialogos]
 
 
 def ids_duplicados(html: str) -> list[str]:

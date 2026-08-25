@@ -31,6 +31,34 @@ def test_h2_de_fora_do_dialogo_nao_entra_nos_candidatos():
     assert dialogos(html) == [('m-titulo', [])]
 
 
+def test_dialogo_aninhado_nao_captura_h2_do_resto_do_documento():
+    """Uma bandeira booleana atribuiria ao diálogo tudo o que vem depois.
+
+    Fechado o interno, o externo segue aberto; fechado o externo, nenhum `<h2>`
+    do documento entra. E o `<h2>` do interno conta para os dois, porque está
+    dentro dos dois.
+    """
+    html = (
+        '<dialog aria-labelledby="externo-titulo">'
+        '<h2 id="externo-titulo"></h2>'
+        '<dialog aria-labelledby="interno-titulo"><h2 id="interno-titulo"></h2></dialog>'
+        '</dialog>'
+        '<h2 id="de-fora"></h2>'
+    )
+    assert dialogos(html) == [
+        ('externo-titulo', ['externo-titulo', 'interno-titulo']),
+        ('interno-titulo', ['interno-titulo']),
+    ]
+
+
+def test_atributo_repetido_vale_pela_primeira_ocorrencia():
+    """É como o navegador resolve; `dict(attrs)` devolveria a última."""
+    assert ids_do_documento('<div id="primeiro" id="segundo"></div>') == ['primeiro']
+    assert dialogos('<dialog aria-labelledby="a" aria-labelledby="b"></dialog>') == [
+        ('a', [])
+    ]
+
+
 def test_dialogo_sem_aria_labelledby_vem_com_none():
     assert dialogos('<dialog><h2 id="m-titulo"></h2></dialog>') == [
         (None, ['m-titulo'])
