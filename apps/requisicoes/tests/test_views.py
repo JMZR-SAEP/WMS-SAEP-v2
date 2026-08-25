@@ -1895,8 +1895,13 @@ def test_detalhe_exibe_descartar_rascunho_para_criador_em_rascunho(
         response.context['cancelamento_info'].variante == CancelamentoVariant.DESCARTE
     )
     assert response.context['cancelamento_requer_justificativa'] is False
-    assert 'role="dialog"' in html
+    assert 'role="alertdialog"' in html
     assert 'Descartar rascunho' in html
+    # `cancelamento_requer_justificativa=False`: o corpo não tem campo, então
+    # a região rolável (quando existir) ainda pode precisar de `tabindex="0"`.
+    # Aqui ela nem renderiza (sem `erro`), então o atributo não aparece de
+    # qualquer forma — o que importa é que não foi suprimido por engano.
+    assert 'data-submit-loading-label="Cancelando…"' in html
 
 
 @pytest.mark.django_db
@@ -1918,6 +1923,10 @@ def test_detalhe_exibe_cancelar_com_justificativa_para_autorizada(
     assert response.context['cancelamento_requer_justificativa'] is True
     assert 'Justificativa do cancelamento' in html
     assert 'role="alertdialog"' in html
+    assert 'data-submit-loading-label="Cancelando…"' in html
+    # `cancelamento_requer_justificativa=True` aqui: o corpo já tem a
+    # textarea, então a região rolável não pode ganhar `tabindex="0"` extra.
+    assert 'tabindex="0"' not in html
 
 
 @pytest.mark.django_db
@@ -2444,7 +2453,8 @@ def test_atender_get_dialog_confirmar_usa_modal_componente(
     html = response.content.decode('utf-8')
     assert 'data-modal-trigger="confirmar-atender-retirada"' in html
     assert 'data-modal-confirm' in html
-    assert "submeterFormExterno('form-atender-retirada', $event)" in html
+    assert "submeterFormExterno('form-atender-retirada')" in html
+    assert 'data-submit-loading-label="Confirmando…"' in html
     dialog_inicio = html.index('id="confirmar-atender-retirada"')
     dialog_fim = html.index('</dialog>', dialog_inicio)
     dialog_html = html[dialog_inicio:dialog_fim]

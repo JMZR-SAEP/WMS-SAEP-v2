@@ -24,6 +24,11 @@
     loading_label   -> repassado ao botão de confirmar como `loading_label`
                        (ver components/button.html) — troca o rótulo durante o
                        envio, nos dois modos.
+    corpo_com_campo_focavel -> bool. Passe True quando form_body_template já
+                       renderiza um campo nativamente focável (a maioria dos
+                       consumidores) — suprime o tabindex="0" da região
+                       rolável, que existe só para o caso sem campo nenhum
+                       (ex: confirmar-importacao-scpi).
 
   Uso típico (no template chamador):
     {% include "components/modal.html" with

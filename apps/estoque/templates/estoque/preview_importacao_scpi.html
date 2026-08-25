@@ -311,7 +311,7 @@
 
         {% modal_copy "confirmar_importacao_scpi" as confirmar_importacao_scpi_copy %}
         {% url 'requisicoes:confirmar_importacao_scpi' as url_confirmar_importacao %}
-        {% include "components/modal.html" with id="confirmar-importacao-scpi" titulo=confirmar_importacao_scpi_copy.titulo descricao=confirmar_importacao_scpi_copy.descricao action_url=url_confirmar_importacao confirm_label=confirmar_importacao_scpi_copy.confirm_label icon_variant=confirmar_importacao_scpi_copy.icon_variant form_body_template="estoque/partials/_modal_corpo_confirmar_importacao.html" %}
+        {% include "components/modal.html" with id="confirmar-importacao-scpi" titulo=confirmar_importacao_scpi_copy.titulo descricao=confirmar_importacao_scpi_copy.descricao action_url=url_confirmar_importacao confirm_label=confirmar_importacao_scpi_copy.confirm_label icon_variant=confirmar_importacao_scpi_copy.icon_variant form_body_template="estoque/partials/_modal_corpo_confirmar_importacao.html" role="alertdialog" loading_label="Confirmando…" %}
       </div>
       {# Compensa a altura da barra fixa abaixo de sm, para o último cartão não ficar embaixo dela. #}
       <div class="h-20 sm:hidden" aria-hidden="true"></div>

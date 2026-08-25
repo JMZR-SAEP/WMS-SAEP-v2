@@ -42,10 +42,6 @@
       // fica onde o `close()` o encontrar, tipicamente o `<body>` (#137).
       // Ausente = mantém o comportamento anterior (no-op).
       focoFallbackSeletor: options.focoFallbackSeletor || null,
-      // Bloqueio de duplo envio próprio do modo `submit_form_id` (#137): antes
-      // dependia por acaso do form externo ter `data-prevent-double-submit`.
-      // Ver `submeterFormExterno`.
-      submeterFormExternoEmVoo: false,
       lastTrigger: null,
       // Ancoragem do clique de backdrop: `true` só quando o `mousedown`
       // daquele clique caiu fora da caixa. Ver `backdropClick`.
@@ -194,29 +190,30 @@
       // `getElementById(...)?.requestSubmit() ?? console.error(...)` disparava
       // o `console.error` sempre, porque `requestSubmit()` devolve `undefined`
       // e `undefined ?? X` avalia `X`. Aqui os dois casos são distintos de
-      // verdade, e o método também é dono do bloqueio de duplo envio deste
-      // modo — que antes só existia por acaso, herdado do `<form>` externo ter
-      // `data-prevent-double-submit`.
-      submeterFormExterno(formId, event) {
-        if (this.submeterFormExternoEmVoo) {
-          return;
-        }
+      // verdade.
+      //
+      // Não mexe em `aria-busy`/rótulo: o botão de confirmar tem
+      // `data-modal-confirm`, que já está no seletor de `alvosDoForm` de
+      // `form-submit.js`, e `requestSubmit()` dispara o `submit` nativo que
+      // aquele listener escuta em `document`. Duplicar a troca aqui faria os
+      // dois donos brigarem pelo mesmo atributo — o `travar()` de lá capturaria
+      // `aria-busy="true"` (já escrito por este método) como o valor "antes",
+      // e `liberar()` devolveria o botão nesse estado errado.
+      //
+      // A trava de duplo envio é gravada no próprio `<form>`
+      // (`data-submetendo-externo`), não numa propriedade deste componente —
+      // é o que permite ao `pageshow`/bfcache no fim do arquivo desfazê-la sem
+      // precisar de uma referência a cada instância do controller.
+      submeterFormExterno(formId) {
         const form = document.getElementById(formId);
         if (!form) {
           console.error(`modal ${this.id}: submit_form_id ${formId} nao encontrado`);
           return;
         }
-        this.submeterFormExternoEmVoo = true;
-        const btn = event && event.currentTarget;
-        if (btn) {
-          btn.setAttribute('aria-busy', 'true');
-          const loading = btn.dataset.submitLoadingLabel;
-          if (loading) {
-            btn.querySelectorAll('[data-submit-text]').forEach((node) => {
-              node.textContent = loading;
-            });
-          }
+        if (form.dataset.submetendoExterno === '1') {
+          return;
         }
+        form.dataset.submetendoExterno = '1';
         form.requestSubmit();
       },
 
@@ -561,5 +558,19 @@
 
   document.addEventListener('alpine:init', () => {
     window.Alpine.data('modalController', controller);
+  });
+
+  // Mesmo tratamento que `form-submit.js` dá ao bfcache: Firefox e Safari
+  // podem restaurar a página como estava no momento da navegação, com
+  // `data-submetendo-externo="1"` preso no `<form>` — sem isto, uma nova
+  // tentativa de `submeterFormExterno` ficaria bloqueada para sempre depois
+  // do botão "voltar" do navegador.
+  window.addEventListener('pageshow', (event) => {
+    if (!event.persisted) {
+      return;
+    }
+    document.querySelectorAll('[data-submetendo-externo]').forEach((form) => {
+      delete form.dataset.submetendoExterno;
+    });
   });
 })();

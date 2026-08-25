@@ -486,6 +486,28 @@ def test_corpo_rolavel_e_focavel_por_teclado_e_tem_nome_acessivel():
         assert atributo(atributos, 'aria-labelledby') == 'meu-modal-titulo'
 
 
+def test_corpo_com_campo_focavel_nao_ganha_parada_de_tabulacao_extra():
+    """Onde já existe campo, `tabindex="0"` seria redundante (#137).
+
+    A maioria dos consumidores tem `<textarea>`/`<input>` no corpo — recusar,
+    cancelar, estornar, devolver. Sem `corpo_com_campo_focavel=True`, quem
+    navega por teclado teria uma parada a mais antes de chegar no campo de
+    verdade, todo modal em que o corpo já era alcançável.
+    """
+    html = _render_modal(
+        action_url='/confirmar/', erro='falhou', corpo_com_campo_focavel=True
+    )
+    rolaveis = [
+        atributos
+        for _, atributos, _ in elementos(html, 'div')
+        if 'overflow-y-auto' in (atributo(atributos, 'class') or '')
+    ]
+    assert rolaveis, 'modal com corpo renderizado sem região rolável'
+    for atributos in rolaveis:
+        assert atributo(atributos, 'tabindex') is None
+        assert atributo(atributos, 'aria-labelledby') is None
+
+
 def test_expressao_de_submit_externo_vira_metodo_do_controller():
     """O `console.error` só pode disparar quando o form realmente não existe (#137).
 
@@ -496,9 +518,7 @@ def test_expressao_de_submit_externo_vira_metodo_do_controller():
     """
     html = _render_modal(submit_form_id='form-externo')
     confirmar = _botao_de_confirmacao(html)
-    assert (
-        atributo(confirmar, '@click') == "submeterFormExterno('form-externo', $event)"
-    )
+    assert atributo(confirmar, '@click') == "submeterFormExterno('form-externo')"
     assert '?? console.error' not in html
 
 
