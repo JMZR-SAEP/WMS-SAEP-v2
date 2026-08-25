@@ -603,7 +603,7 @@ Alpine — anunciar "modal" ali prenderia o leitor de tela num diálogo sem saí
 > requisições re-renderizam a página inteira com o modal aberto; o estorno de
 > saída excepcional em `estoque` usa PRG com a mensagem no banner de topo. A
 > escolha segue o que a view já faz com o desfecho, não o componente.
-
+>
 > O parâmetro exige **bool do contexto**. `erro|yesno:"true,false"` era o idioma
 > certo enquanto o destino era uma expressão JavaScript e é veneno agora: a
 > string `"false"` é verdadeira para o `{% if %}` e abriria todo modal, em
