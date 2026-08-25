@@ -211,10 +211,10 @@
         <div class="flex shrink-0 flex-col-reverse gap-2 sm:flex-row sm:items-center">
           {% if pode_cancelar and cancelamento_inline %}
             {% cancelamento_copy cancelamento_info requisicao.estado as cancelamento_copy_texto %}
-            <div x-data="modalController({ id: 'confirmar-cancelar' })">
+            <div x-data="modalController({ id: 'confirmar-cancelar', focoFallbackSeletor: '.app-bar__title' })">
               {% include "components/button.html" with variant="danger-outline" label=cancelamento_copy_texto.trigger data_modal_trigger="confirmar-cancelar" icon_template="components/icons/lixeira.svg" full_width_mobile=True class="whitespace-nowrap" %}
               {% url 'requisicoes:cancelar' requisicao.pk as cancelar_url %}
-              {% include "components/modal.html" with id="confirmar-cancelar" titulo=cancelamento_copy_texto.titulo descricao=cancelamento_copy_texto.descricao action_url=cancelar_url confirm_label=cancelamento_copy_texto.confirmar confirm_variant="danger" icon_variant=cancelamento_copy_texto.icon_variant form_body_template="requisicoes/partials/_modal_form_cancelar.html" erro=cancelamento_erro hidden_inputs=cancelamento_hidden_inputs abrir_ao_carregar=cancelamento_modal_aberto %}
+              {% include "components/modal.html" with id="confirmar-cancelar" titulo=cancelamento_copy_texto.titulo descricao=cancelamento_copy_texto.descricao action_url=cancelar_url confirm_label=cancelamento_copy_texto.confirmar confirm_variant="danger" icon_variant=cancelamento_copy_texto.icon_variant form_body_template="requisicoes/partials/_modal_form_cancelar.html" erro=cancelamento_erro hidden_inputs=cancelamento_hidden_inputs abrir_ao_carregar=cancelamento_modal_aberto role="alertdialog" %}
             </div>
           {% endif %}
           {% if pode_editar %}
@@ -269,7 +269,7 @@
         {% if pode_recusar %}
           {% modal_copy "recusar" as recusar_copy %}
           {% url 'requisicoes:recusar' requisicao.pk as recusar_url %}
-          {% include "requisicoes/partials/_confirmacao_acao.html" with layout="card" variant_token="danger" modal_id="confirmar-recusar" abrir_ao_carregar=recusa_erro titulo="Recusar requisição" conteudo="Recuse informando o motivo. Nenhum saldo é reservado ou baixado." botao_label="Recusar" botao_variant="danger-outline" modal_titulo=recusar_copy.titulo modal_descricao=recusar_copy.descricao action_url=recusar_url confirm_label=recusar_copy.confirm_label confirm_variant="danger" icon_variant=recusar_copy.icon_variant form_body_template="requisicoes/partials/_modal_form_recusar.html" erro=recusa_erro motivo_recusa=motivo_recusa hidden_inputs=recusar_hidden_inputs %}
+          {% include "requisicoes/partials/_confirmacao_acao.html" with layout="card" variant_token="danger" modal_id="confirmar-recusar" abrir_ao_carregar=recusa_erro titulo="Recusar requisição" conteudo="Recuse informando o motivo. Nenhum saldo é reservado ou baixado." botao_label="Recusar" botao_variant="danger-outline" modal_titulo=recusar_copy.titulo modal_descricao=recusar_copy.descricao action_url=recusar_url confirm_label=recusar_copy.confirm_label confirm_variant="danger" icon_variant=recusar_copy.icon_variant form_body_template="requisicoes/partials/_modal_form_recusar.html" erro=recusa_erro motivo_recusa=motivo_recusa hidden_inputs=recusar_hidden_inputs role="alertdialog" %}
         {% endif %}
       </div>
     </section>
@@ -299,7 +299,7 @@
   {% if pode_cancelar and not cancelamento_inline %}
     {% cancelamento_copy cancelamento_info requisicao.estado as cancelamento_copy_texto %}
     {% url 'requisicoes:cancelar' requisicao.pk as cancelar_url %}
-    {% include "requisicoes/partials/_confirmacao_acao.html" with layout="banner" variant_token="danger" heading_id="cancelamento-titulo" modal_id="confirmar-cancelar" abrir_ao_carregar=cancelamento_modal_aberto titulo=cancelamento_copy_texto.titulo conteudo=cancelamento_copy_texto.descricao botao_label=cancelamento_copy_texto.trigger botao_variant="danger-outline" botao_icon="components/icons/lixeira.svg" modal_titulo=cancelamento_copy_texto.titulo modal_descricao=cancelamento_copy_texto.descricao action_url=cancelar_url confirm_label=cancelamento_copy_texto.confirmar confirm_variant="danger" icon_variant=cancelamento_copy_texto.icon_variant form_body_template="requisicoes/partials/_modal_form_cancelar.html" erro=cancelamento_erro hidden_inputs=cancelamento_hidden_inputs %}
+    {% include "requisicoes/partials/_confirmacao_acao.html" with layout="banner" variant_token="danger" heading_id="cancelamento-titulo" modal_id="confirmar-cancelar" abrir_ao_carregar=cancelamento_modal_aberto titulo=cancelamento_copy_texto.titulo conteudo=cancelamento_copy_texto.descricao botao_label=cancelamento_copy_texto.trigger botao_variant="danger-outline" botao_icon="components/icons/lixeira.svg" modal_titulo=cancelamento_copy_texto.titulo modal_descricao=cancelamento_copy_texto.descricao action_url=cancelar_url confirm_label=cancelamento_copy_texto.confirmar confirm_variant="danger" icon_variant=cancelamento_copy_texto.icon_variant form_body_template="requisicoes/partials/_modal_form_cancelar.html" erro=cancelamento_erro hidden_inputs=cancelamento_hidden_inputs role="alertdialog" %}
   {% endif %}
 
   {% if pode_separar_retirada %}
@@ -327,7 +327,7 @@
   {% if pode_estornar %}
     {% modal_copy "estornar" as estornar_copy %}
     {% url 'requisicoes:estornar' requisicao.pk as estornar_url %}
-    {% include "requisicoes/partials/_confirmacao_acao.html" with layout="banner" variant_token="danger" heading_id="estornar-titulo" modal_id="estornar-modal" titulo=estornar_copy.titulo conteudo=estornar_copy.descricao|add:" "|add:estornar_copy.painel_extra botao_label="Estornar requisição" botao_variant="danger-outline" botao_icon="components/icons/estornar.svg" modal_titulo=estornar_copy.titulo modal_descricao=estornar_copy.descricao action_url=estornar_url confirm_label=estornar_copy.confirm_label confirm_variant="danger" form=estorno_form form_body_template="requisicoes/partials/_modal_form_estorno.html" %}
+    {% include "requisicoes/partials/_confirmacao_acao.html" with layout="banner" variant_token="danger" heading_id="estornar-titulo" modal_id="estornar-modal" titulo=estornar_copy.titulo conteudo=estornar_copy.descricao|add:" "|add:estornar_copy.painel_extra botao_label="Estornar requisição" botao_variant="danger-outline" botao_icon="components/icons/estornar.svg" modal_titulo=estornar_copy.titulo modal_descricao=estornar_copy.descricao action_url=estornar_url confirm_label=estornar_copy.confirm_label confirm_variant="danger" form=estorno_form form_body_template="requisicoes/partials/_modal_form_estorno.html" role="alertdialog" %}
   {% endif %}
 
   {% if pode_copiar %}

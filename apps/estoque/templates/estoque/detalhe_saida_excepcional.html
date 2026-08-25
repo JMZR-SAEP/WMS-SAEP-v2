@@ -175,7 +175,7 @@
   {% if saida.estado == 'registrada' and pode_estornar %}
     {% modal_copy "estornar_saida" as estornar_saida_copy %}
     {% url 'estoque:estornar_saida_excepcional' saida.pk as estornar_url %}
-    {% include "components/modal.html" with id="estornar-saida" titulo=estornar_saida_copy.titulo descricao=estornar_saida_copy.descricao action_url=estornar_url confirm_label=estornar_saida_copy.confirm_label confirm_variant="danger" form_body_template="estoque/partials/_modal_form_estorno_saida.html" %}
+    {% include "components/modal.html" with id="estornar-saida" titulo=estornar_saida_copy.titulo descricao=estornar_saida_copy.descricao action_url=estornar_url confirm_label=estornar_saida_copy.confirm_label confirm_variant="danger" form_body_template="estoque/partials/_modal_form_estorno_saida.html" role="alertdialog" %}
   {% endif %}
 </div>
 

@@ -393,12 +393,113 @@ def test_dialogo_entregue_aberto_nao_se_anuncia_como_modal():
     morto sem Alpine. Anunciar "modal" ali prende o leitor de tela num diálogo
     sem saída. Quem sobe o valor para "true" é `modal.js`, no mesmo passo do
     `showModal()`.
+
+    Medido (#137): a exposição implícita de `<dialog>` não se reflete no
+    atributo HTML — `getAttribute('aria-modal')` continua `null` mesmo depois
+    de `showModal()` —, então escrever o valor à mão não é redundante.
     """
     aberto = _render_modal(action_url='/confirmar/', abrir_ao_carregar=True)
     fechado = _render_modal(action_url='/confirmar/')
 
     assert atributo(_dialogo(aberto), 'aria-modal') == 'false'
     assert atributo(_dialogo(fechado), 'aria-modal') == 'true'
+
+
+def test_role_default_e_dialog():
+    """Sem `role` explícito, o diálogo continua `role="dialog"` (#137)."""
+    assert (
+        atributo(_dialogo(_render_modal(action_url='/confirmar/')), 'role') == 'dialog'
+    )
+
+
+def test_role_e_parametrizavel_para_alertdialog():
+    """Modal de confirmação de operação irreversível pede `alertdialog` (#137).
+
+    É o que faz o leitor de tela anunciar o corpo como alerta na abertura, e
+    não só o título — o APG prescreve `alertdialog` para diálogos que exigem
+    resposta imediata a algo importante, que é a família de todo modal deste
+    sistema com corpo de confirmação pura.
+    """
+    html = _render_modal(action_url='/confirmar/', role='alertdialog')
+    assert atributo(_dialogo(html), 'role') == 'alertdialog'
+
+
+def test_rodape_respeita_a_area_segura_do_home_indicator():
+    """O botão de confirmar não pode ficar sob a barra do sistema (#137).
+
+    Mesma grafia de `atender_retirada.html:218` e da `.app-bar`:
+    `pb-[calc(<base>+env(safe-area-inset-bottom))]`. Sem isso, um modal na
+    altura máxima (estorno com justificativa, teclado aberto) deixa o botão de
+    confirmar embaixo do home indicator do iPhone.
+    """
+    html = _render_modal(action_url='/confirmar/')
+    rodapes = [atributos for _, atributos, _ in elementos(html, 'footer')]
+    assert rodapes, 'modal renderizado sem <footer>'
+    classe_rodape = atributo(rodapes[0], 'class') or ''
+    assert 'env(safe-area-inset-bottom)' in classe_rodape
+
+
+def _botao_de_confirmacao(html):
+    """Atributos do botão que carrega `data-modal-confirm`."""
+    for atributos in _botoes(html):
+        if _tem(atributos, 'data-modal-confirm'):
+            return atributos
+    raise AssertionError('modal renderizado sem botão de confirmação')
+
+
+def test_loading_label_chega_ao_botao_de_confirmar_no_modo_action_url():
+    """O único mecanismo de feedback de submit do design system chega ao rodapé (#137).
+
+    `loading_label` + `form-submit.js` é como o sistema inteiro mostra que um
+    POST está em andamento. Sem repassar o parâmetro a `components/button.html`,
+    o feedback visível de uma ação irreversível era um botão que só escurecia.
+    """
+    html = _render_modal(action_url='/confirmar/', loading_label='Confirmando…')
+    confirmar = _botao_de_confirmacao(html)
+    assert atributo(confirmar, 'data-submit-loading-label') == 'Confirmando…'
+
+
+def test_loading_label_chega_ao_botao_de_confirmar_no_modo_submit_form_id():
+    """A mesma troca de rótulo vale no modo sem `<form>` próprio (#137)."""
+    html = _render_modal(submit_form_id='form-externo', loading_label='Confirmando…')
+    confirmar = _botao_de_confirmacao(html)
+    assert atributo(confirmar, 'data-submit-loading-label') == 'Confirmando…'
+
+
+def test_corpo_rolavel_e_focavel_por_teclado_e_tem_nome_acessivel():
+    """WCAG 2.1.1: uma região que rola tem que ser alcançável pelo teclado (#137).
+
+    `confirmar-importacao-scpi` não tem nenhum campo no corpo — em viewport
+    curta (celular com teclado aberto, landscape) o recap da importação ficava
+    inalcançável pelas setas. `aria-labelledby` reaproveita o `<h2>` que o
+    diálogo já tem, em vez de duplicar texto num `aria-label` novo.
+    """
+    html = _render_modal(action_url='/confirmar/', erro='falhou')
+    rolaveis = [
+        atributos
+        for _, atributos, _ in elementos(html, 'div')
+        if 'overflow-y-auto' in (atributo(atributos, 'class') or '')
+    ]
+    assert rolaveis, 'modal com corpo renderizado sem região rolável'
+    for atributos in rolaveis:
+        assert atributo(atributos, 'tabindex') == '0'
+        assert atributo(atributos, 'aria-labelledby') == 'meu-modal-titulo'
+
+
+def test_expressao_de_submit_externo_vira_metodo_do_controller():
+    """O `console.error` só pode disparar quando o form realmente não existe (#137).
+
+    `getElementById(...)?.requestSubmit() ?? console.error(...)` disparava
+    sempre: `requestSubmit()` devolve `undefined`, e `undefined ?? X` avalia
+    `X`. A expressão sai do template — que não tem como distinguir os dois
+    casos — e vira método do `modalController`, como `validarFormId` já é.
+    """
+    html = _render_modal(submit_form_id='form-externo')
+    confirmar = _botao_de_confirmacao(html)
+    assert (
+        atributo(confirmar, '@click') == "submeterFormExterno('form-externo', $event)"
+    )
+    assert '?? console.error' not in html
 
 
 def test_nome_antigo_do_parametro_de_abertura_falha_no_render():

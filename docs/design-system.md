@@ -617,6 +617,73 @@ forma morta de voltar em qualquer template) e por
 `apps/requisicoes/tests/test_navegador_modal_scroll.py` (comportamento em
 Chromium).
 
+### Rodapé, corpo rolável e retorno de foco (#137)
+
+**`role` do `<dialog>` é parametrizável**, default `"dialog"`. Cinco dos onze
+consumidores reais recebem `role="alertdialog"` — cancelar, recusar, estornar
+de requisição, estornar de saída excepcional e atender retirada —, que é o que
+faz o leitor de tela anunciar o corpo como alerta na abertura, não só o
+título. O critério usado para escolher o conjunto: `confirm_variant="danger"`
+na tela, ou copy que já nomeia a irreversibilidade ("Não pode ser desfeita",
+caso de `atender_retirada.html`). Ficam de fora `enviar`, `separar`, `devolver`,
+`autorizar` e `importacao-scpi` (sem nenhum dos dois sinais) e `retornar` —
+que é reversão de workflow, não confirmação de dano, e a Regra da Reversão Não
+é Erro já trata esse caminho como tom neutro em todo o resto do componente.
+Conjunto revisável: é leitura de sinal existente no código, não decisão do
+dono do produto.
+
+**`aria-modal` continua escrito à mão.** Uma tentativa de removê-lo (a
+exposição implícita de `<dialog>` bastaria) quebrou dois testes da camada
+Navegador que liam `getAttribute('aria-modal')` depois de `showModal()`: o
+valor computado não se reflete no atributo HTML. Medido, não suposto — ver
+`apps/requisicoes/tests/test_navegador_modal_scroll.py`.
+
+**`loading_label` chega ao rodapé nos dois modos.** É o único mecanismo de
+feedback de submit do design system (`components/button.html` +
+`form-submit.js`), e antes não estava disponível a nenhum consumidor do modal:
+o rótulo trocava por acaso, via herança de contexto do `{% include %}`, nunca
+como parâmetro documentado. `modal.html`/`_modal_body.html` agora o declaram e
+repassam explicitamente.
+
+**O rodapé respeita `env(safe-area-inset-bottom)`**, mesma grafia de
+`atender_retirada.html` e da `.app-bar`
+(`pb-[calc(1rem+env(safe-area-inset-bottom))]`). Sem isso, um modal na altura
+máxima — estorno com justificativa, teclado do celular aberto — deixava o
+botão de confirmar embaixo do home indicator do iPhone.
+
+**A região rolável do corpo tem `tabindex="0"` e `aria-labelledby`** apontando
+para o `<h2>` do próprio diálogo (WCAG 2.1.1). `confirmar-importacao-scpi` não
+tem nenhum campo no corpo; sem o atributo, o recap da importação ficava
+inalcançável pelas setas em viewport curta.
+
+**A expressão de submit do modo `submit_form_id` virou método do
+`modalController`** (`submeterFormExterno`), não mais uma string montada no
+template. `getElementById(...)?.requestSubmit() ?? console.error(...)`
+disparava o `console.error` sempre — `requestSubmit()` devolve `undefined`, e
+`undefined ?? X` avalia `X` — e toda confirmação de retirada bem-sucedida
+gravava um erro falso no console. O método também é dono do bloqueio de duplo
+envio deste modo: antes ele só existia por acaso, herdado do `<form>` externo
+ter `data-prevent-double-submit`; hoje uma trava própria (`this.
+submeterFormExternoEmVoo`) vale mesmo que o form externo não declare nada.
+
+**`abrirSemTrigger` sem trigger no DOM não devolve o foco ao `<body>`.**
+`modalController` aceita `focoFallbackSeletor` (opcional) — um seletor CSS de
+alvo declarado da tela, promovido a `tabindex="-1"` se ainda não for focável —
+usado quando `[data-modal-trigger]` não existe mais no documento (ação de
+workflow que deixou de ser permitida entre a submissão que abriu o modal com
+erro e o re-render). `requisicoes/partials/_confirmacao_acao.html` e o
+`x-data` inline de `confirmar-cancelar` declaram `.app-bar__title`.
+
+**Todo `.focus()` de `modal.js` usa `{ preventScroll: true }`** — sem isso,
+focar um campo abaixo da dobra saltava o corpo do diálogo.
+
+Verificado por `apps/core/tests/test_modal.py` (role, safe-area, `loading_label`,
+`tabindex`/`aria-labelledby` do corpo, ausência da expressão antiga) e por
+`apps/requisicoes/tests/test_navegador_modal_foco.py` e
+`test_navegador_modal_submit_externo.py` (o `console.error` distinguindo os
+dois casos, o bloqueio de duplo envio, o retorno de foco ao fallback —
+comportamento em Chromium).
+
 ### Painel de decisão de workflow
 
 `requisicoes/partials/_painel_decisao.html` é a superfície compartilhada das

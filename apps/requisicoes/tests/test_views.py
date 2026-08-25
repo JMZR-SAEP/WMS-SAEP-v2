@@ -1917,7 +1917,7 @@ def test_detalhe_exibe_cancelar_com_justificativa_para_autorizada(
     )
     assert response.context['cancelamento_requer_justificativa'] is True
     assert 'Justificativa do cancelamento' in html
-    assert 'role="dialog"' in html
+    assert 'role="alertdialog"' in html
 
 
 @pytest.mark.django_db
@@ -2444,7 +2444,7 @@ def test_atender_get_dialog_confirmar_usa_modal_componente(
     html = response.content.decode('utf-8')
     assert 'data-modal-trigger="confirmar-atender-retirada"' in html
     assert 'data-modal-confirm' in html
-    assert "getElementById('form-atender-retirada')" in html
+    assert "submeterFormExterno('form-atender-retirada', $event)" in html
     dialog_inicio = html.index('id="confirmar-atender-retirada"')
     dialog_fim = html.index('</dialog>', dialog_inicio)
     dialog_html = html[dialog_inicio:dialog_fim]

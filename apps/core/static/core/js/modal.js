@@ -35,6 +35,17 @@
       // Id do <form> a validar antes de abrir. Ausente = abre direto (modal que
       // não confirma submit de formulário da própria tela).
       validarFormId: options.validarFormId || null,
+      // Seletor CSS de um alvo declarado da tela para receber o foco quando
+      // `abrirSemTrigger` não encontra `[data-modal-trigger]` no documento —
+      // por exemplo, uma ação de workflow que deixou de ser permitida pelo
+      // servidor entre a submissão que falhou e o re-render. Sem isto o foco
+      // fica onde o `close()` o encontrar, tipicamente o `<body>` (#137).
+      // Ausente = mantém o comportamento anterior (no-op).
+      focoFallbackSeletor: options.focoFallbackSeletor || null,
+      // Bloqueio de duplo envio próprio do modo `submit_form_id` (#137): antes
+      // dependia por acaso do form externo ter `data-prevent-double-submit`.
+      // Ver `submeterFormExterno`.
+      submeterFormExternoEmVoo: false,
       lastTrigger: null,
       // Ancoragem do clique de backdrop: `true` só quando o `mousedown`
       // daquele clique caiu fora da caixa. Ver `backdropClick`.
@@ -156,8 +167,57 @@
         );
         if (trigger) {
           this.lastTrigger = trigger;
+        } else {
+          this.lastTrigger = this.focoFallbackAlvo();
         }
         this.openModal();
+      },
+
+      // Alvo declarado da tela para `devolverFoco` quando não há trigger no
+      // documento (#137). `tabindex="-1"` é aplicado só se o alvo ainda não
+      // for focável — o mesmo recurso que `_modal_body.html` já usa no corpo.
+      focoFallbackAlvo() {
+        if (!this.focoFallbackSeletor) {
+          return null;
+        }
+        const alvo = document.querySelector(this.focoFallbackSeletor);
+        if (!alvo) {
+          return null;
+        }
+        if (!alvo.hasAttribute('tabindex')) {
+          alvo.setAttribute('tabindex', '-1');
+        }
+        return alvo;
+      },
+
+      // Substitui a expressão que vivia em `_modal_body.html` (#137):
+      // `getElementById(...)?.requestSubmit() ?? console.error(...)` disparava
+      // o `console.error` sempre, porque `requestSubmit()` devolve `undefined`
+      // e `undefined ?? X` avalia `X`. Aqui os dois casos são distintos de
+      // verdade, e o método também é dono do bloqueio de duplo envio deste
+      // modo — que antes só existia por acaso, herdado do `<form>` externo ter
+      // `data-prevent-double-submit`.
+      submeterFormExterno(formId, event) {
+        if (this.submeterFormExternoEmVoo) {
+          return;
+        }
+        const form = document.getElementById(formId);
+        if (!form) {
+          console.error(`modal ${this.id}: submit_form_id ${formId} nao encontrado`);
+          return;
+        }
+        this.submeterFormExternoEmVoo = true;
+        const btn = event && event.currentTarget;
+        if (btn) {
+          btn.setAttribute('aria-busy', 'true');
+          const loading = btn.dataset.submitLoadingLabel;
+          if (loading) {
+            btn.querySelectorAll('[data-submit-text]').forEach((node) => {
+              node.textContent = loading;
+            });
+          }
+        }
+        form.requestSubmit();
       },
 
       // Fechar com o POST em voo engole a resposta (#133): o modal some, o XHR
@@ -351,14 +411,14 @@
         // `aria-invalid` do próprio campo.
         const invalido = dialog.querySelector('[aria-invalid="true"]');
         if (invalido) {
-          invalido.focus();
+          invalido.focus({ preventScroll: true });
           return;
         }
         const primeiroCampo = dialog.querySelector(
           'textarea, input:not([type="hidden"]):not([type="submit"]):not([type="button"]), select'
         );
         if (primeiroCampo) {
-          primeiroCampo.focus();
+          primeiroCampo.focus({ preventScroll: true });
           return;
         }
         // Modal sem campo visível é confirmação pura, e no sistema inteiro
@@ -382,7 +442,7 @@
         const dialog = this.$refs.dialog;
         const dispensar = dialog && dialog.querySelector('[data-modal-dismiss]');
         if (dispensar) {
-          dispensar.focus();
+          dispensar.focus({ preventScroll: true });
         }
       },
 
@@ -417,7 +477,7 @@
 
       devolverFoco() {
         if (this.lastTrigger && document.contains(this.lastTrigger)) {
-          this.lastTrigger.focus();
+          this.lastTrigger.focus({ preventScroll: true });
         }
       },
 
