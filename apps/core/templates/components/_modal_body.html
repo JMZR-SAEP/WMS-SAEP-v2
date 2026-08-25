@@ -81,7 +81,14 @@
   </template>
 
   {% if form_body_template or erro %}
-    <div class="flex-1 overflow-y-auto px-6 py-5">
+    {% comment %}
+      `overscroll-contain` mora aqui, e não no `<dialog>` (#134): quem rola é
+      esta caixa, e a contenção só existe para quem rola. No diálogo — que tem
+      `max-h` e nunca ganha barra própria — o atributo não tinha nada que
+      conter, e chegar ao fim da justificativa continuava passando a rolagem
+      para a tela de detalhe atrás.
+    {% endcomment %}
+    <div class="flex-1 overflow-y-auto overscroll-contain px-6 py-5">
       {% comment %}
         A caixa de erro do modal é a mesma dos formulários da aplicação. Aqui
         vivia uma terceira grafia — desenhada à mão, com ícone e tokens próprios

@@ -355,7 +355,7 @@ Família `filter_*`, montada por composição explícita na tela chamadora.
 | Componente | Para quê |
 |---|---|
 | `table.html` | Chrome de listagem em cartões (`partialdef`). Não há renderização em tabela |
-| `modal.html` | `<dialog>` nativo com foco preso — componente-assinatura |
+| `modal.html` | `<dialog>` nativo: foco contido pelo top layer de `showModal()`, rolagem de fundo travada por `modal.js` — componente-assinatura |
 | `_modal_body.html` | Corpo compartilhado do modal (header, erro, corpo, rodapé) |
 | `_modal_icon.html` | Ícone semântico do header de modal |
 | `_icone_nivel.html` | Glifo de severidade em `currentColor`, compartilhado pelo banner e pelo painel de decisão |
@@ -554,6 +554,51 @@ navegador por cima de um `<dialog>`.
 
 Verificado por `apps/core/tests/test_modal.py` (slot, moldes, copy, `@mousedown`)
 e por `apps/requisicoes/tests/test_navegador_modal_em_voo.py` (comportamento em
+Chromium).
+
+### O que o modal faz com a página atrás dele
+
+**Nada em volta do diálogo é operável, e nada disso é feito à mão.**
+`showModal()` põe o `<dialog>` no top layer e torna o resto do documento inerte
+nativamente: o foco não sai, o clique não alcança, o leitor de tela não navega
+para fora. O componente já teve `x-trap.inert.noscroll` declarado nos dois modos
+e o diretivo **nunca ativou** — a expressão era `$refs.dialog.open`, que o
+`effect` do Alpine não consegue rastrear (`$refs` é `mergeProxies`, não
+`reactive()`, e `.open` é propriedade IDL nativa). Foi removido: os dois efeitos
+que ele prometia sobre foco já vêm do navegador, e `aria-hidden` espalhado à mão
+convive mal com o inert nativo (#134).
+
+**A rolagem do fundo trava, e essa parte é explícita.** É o único efeito do
+diretivo morto que fazia falta de verdade. `modal.js` grava `overflow: hidden`
+no `<html>` com a compensação da barra de rolagem — o mesmo gesto do plugin de
+foco, que continua governando o menu da barra de aplicação — e desfaz no evento
+`close`, que cobre todas as saídas, inclusive o `Esc` nativo. Rolar o fundo
+enquanto o modal pergunta se pode executar algo irreversível tira da tela o
+registro sobre o qual a pergunta é feita.
+
+**`overscroll-contain` mora na caixa que rola**, que é a região do corpo em
+`_modal_body.html`, e não no `<dialog>` — o diálogo tem `max-h` e nunca ganha
+barra própria, então lá o atributo não tinha o que conter.
+
+**`abrir_ao_carregar` é server-side de verdade**: o template emite `open` no
+`<dialog>`, e é essa marcação — não uma opção do `modalController` — a fonte
+única de "este modal abre ao carregar". Sem JS o diálogo abre não-modal, no
+fluxo da página, com a caixa de erro legível; com Alpine vivo o init o promove a
+modal por `showModal()`. Antes, a abertura só existia no Alpine e o re-render
+com erro voltava numa tela aparentemente intacta, com a recusa escondida dentro
+de um diálogo `display: none`.
+
+> O parâmetro exige **bool do contexto**. `erro|yesno:"true,false"` era o idioma
+> certo enquanto o destino era uma expressão JavaScript e é veneno agora: a
+> string `"false"` é verdadeira para o `{% if %}` e abriria todo modal, em
+> silêncio. `validar_contrato_modal` recusa o render se ela chegar.
+
+Verificado por `apps/core/tests/test_modal.py` (o atributo `open`, a recusa do
+`|yesno`, o lugar do `overscroll-contain`), por
+`apps/core/tests/test_components.py`
+(`test_nenhum_x_trap_liga_a_propriedade_fora_do_escopo_alpine`, que impede a
+forma morta de voltar em qualquer template) e por
+`apps/requisicoes/tests/test_navegador_modal_scroll.py` (comportamento em
 Chromium).
 
 ### Painel de decisão de workflow

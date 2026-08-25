@@ -2042,3 +2042,80 @@ class TestAncoraDosErrosSemCampo:
             f'{tela}: alvo "{alvo}" não é focável — o teclado chega ao destino '
             f'com o foco ainda no sumário'
         )
+
+
+# Portas de saída do escopo Alpine para o DOM cru. Nenhuma delas produz valor
+# rastreável: `$refs` é `mergeProxies` e não `reactive()`, e `document`/`window`
+# nunca foram proxy de nada.
+_FUGAS_DO_ESCOPO_ALPINE = ('$refs', '$el', '$root', 'document.', 'window.')
+
+
+# Busca por atributo e não por elemento: `x-trap` não pertence a nenhuma tag em
+# particular, e um guarda com lista de tags fechada é cego para a tag de fora
+# da lista — que é exatamente a forma como o defeito volta.
+_X_TRAP = re.compile(r"""x-trap[\w.]*\s*=\s*(["'])(.*?)\1""", re.S)
+
+
+def _x_trap_sem_reatividade(caminho: str, texto: str) -> list[str]:
+    """Acha `x-trap` cuja expressão o `effect` do Alpine não consegue rastrear."""
+    infratores: list[str] = []
+    limpo = _sem_comentarios(texto)
+    for encontro in _X_TRAP.finditer(limpo):
+        valor = encontro.group(2)
+        fuga = next((f for f in _FUGAS_DO_ESCOPO_ALPINE if f in valor), None)
+        if fuga:
+            linha = limpo.count('\n', 0, encontro.start()) + 1
+            infratores.append(f'{caminho}:{linha} x-trap="{valor}" usa {fuga}')
+    return infratores
+
+
+def test_nenhum_x_trap_liga_a_propriedade_fora_do_escopo_alpine():
+    """`x-trap` só ativa se a expressão for dado reativo do Alpine (#134).
+
+    `x-trap.inert.noscroll="$refs.dialog.open"` viveu meses em
+    `components/modal.html` sem nunca ativar: `$refs` é `mergeProxies`, não
+    `reactive()`, e `.open` é propriedade IDL nativa de `HTMLDialogElement` — o
+    `effect` do plugin não rastreava nada, rodava uma vez no init com o diálogo
+    fechado e não voltava mais.
+
+    É a classe de defeito mais cara que este front tem: nada quebra, o atributo
+    está lá, a documentação descreve o comportamento, e o efeito simplesmente
+    não existe. Nenhuma asserção sobre HTML renderizado o alcança, porque o
+    HTML renderizado está correto — o que está errado é o que ele significa.
+    """
+    raiz = Path(__file__).resolve().parents[3]
+    infratores: list[str] = []
+    for caminho in sorted((raiz / 'apps').rglob('*.html')):
+        infratores.extend(
+            _x_trap_sem_reatividade(str(caminho.relative_to(raiz)), caminho.read_text())
+        )
+
+    assert not infratores, (
+        'x-trap ligado a valor não rastreável — o diretivo nunca reavalia e o '
+        f'efeito inteiro é código morto: {infratores}'
+    )
+
+
+class TestMecanismoDoGuardaDeXTrap:
+    """O guarda tem que provar que detecta, e não que a árvore está limpa hoje."""
+
+    def test_expressao_com_refs_e_detectada(self):
+        assert _x_trap_sem_reatividade(
+            'sintetico.html', '<div x-trap.noscroll="$refs.dialog.open"></div>'
+        )
+
+    def test_dado_alpine_passa(self):
+        assert not _x_trap_sem_reatividade(
+            'sintetico.html', '<div x-trap.inert.noscroll="menuOpen"></div>'
+        )
+
+    def test_modificadores_nao_escondem_a_fuga(self):
+        assert _x_trap_sem_reatividade(
+            'sintetico.html', '<div x-trap="document.body.dataset.aberto"></div>'
+        )
+
+    def test_exemplo_dentro_de_comment_nao_e_markup(self):
+        assert not _x_trap_sem_reatividade(
+            'sintetico.html',
+            '{% comment %}<div x-trap="$refs.d.open"></div>{% endcomment %}',
+        )

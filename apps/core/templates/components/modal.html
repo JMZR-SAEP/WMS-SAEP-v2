@@ -10,7 +10,12 @@
     confirm_variant -> repassado literalmente a components/button.html como `variant`
                        (default "primary"). Em uso: "primary", "danger", "neutral".
     cancel_label    -> default "Voltar"
-    abrir_ao_carregar -> bool (server-side, ex: re-render com erro)
+    abrir_ao_carregar -> bool de verdade do contexto (ex: re-render com erro).
+                       Emite `open` no <dialog>, e é essa marcação que o
+                       modalController lê para reabrir como modal. Nunca passe
+                       `|yesno:"true,false"` aqui: a string "false" é verdadeira
+                       para o `if` do template, e `validar_contrato_modal`
+                       recusa o render se ela chegar.
     form_body_template -> caminho de template incluído dentro do form (campos)
     icon_variant    -> "warning" | "info" | "danger" | None
     hidden_inputs   -> dict de hidden inputs adicionais (ex: {"next": voltar_url})
@@ -25,7 +30,7 @@
        confirm_variant="danger"
        icon_variant="danger"
        form_body_template="requisicoes/partials/_modal_form_recusar.html"
-       abrir_ao_carregar=recusa_erro|yesno:"True,False"
+       abrir_ao_carregar=recusa_erro
        erro=recusa_erro
     %}
 
@@ -35,19 +40,33 @@
             @click="abrir($event)"
             class="... cursor-pointer ...">Recusar</button>
 
-    Wrap o trigger E o modal no mesmo x-data:
-    <div x-data="modalController({ id: 'confirmar-recusar', abrirAoCarregar: {{ ... }} })">
+    Wrap o trigger E o modal no mesmo x-data (a abertura ao carregar não entra
+    aqui — quem a declara é o `open` do <dialog>, ver abrir_ao_carregar acima):
+    <div x-data="modalController({ id: 'confirmar-recusar' })">
       ...trigger...
       {% include "components/modal.html" with ... %}
     </div>
 {% endcomment %}
 
 {% load static core_tags %}
-{% validar_contrato_modal action_url submit_form_id %}
+{% validar_contrato_modal action_url submit_form_id abrir_ao_carregar %}
 
 <dialog
   id="{{ id }}"
   x-ref="dialog"
+  {% comment %}
+    `open` é a fonte única de "este modal abre ao carregar" (#134). Antes a
+    abertura era só do Alpine (`abrirAoCarregar` no x-data), e a documentação
+    acima já a chamava de server-side sem que o template emitisse nada: com o
+    JS fora do ar — rede institucional, bloqueio de asset —, o re-render com
+    erro voltava numa tela aparentemente intacta e a recusa passava despercebida.
+
+    Sem JS, o diálogo abre não-modal: aparece no fluxo, com a caixa de erro
+    legível, sem top layer nem backdrop. Com Alpine vivo, `modalController`
+    reabre este mesmo diálogo por `showModal()` no init, e daí em diante é um
+    modal normal.
+  {% endcomment %}
+  {% if abrir_ao_carregar %}open{% endif %}
   role="dialog"
   aria-modal="true"
   aria-labelledby="{{ id }}-titulo"
@@ -61,7 +80,7 @@
   @mousedown="backdropMouseDown($event)"
   @click="backdropClick($event)"
   @keydown.escape.prevent="fechar()"
-  class="m-auto w-full max-w-xl overscroll-contain rounded-2xl border border-border bg-surface p-0 text-left text-text-primary shadow-2xl backdrop:bg-slate-900/50 backdrop:backdrop-blur-sm sm:max-w-2xl"
+  class="m-auto w-full max-w-xl rounded-2xl border border-border bg-surface p-0 text-left text-text-primary shadow-2xl backdrop:bg-slate-900/50 backdrop:backdrop-blur-sm sm:max-w-2xl"
 >
   {% if submit_form_id %}
     {% comment %}
@@ -72,9 +91,27 @@
       Enter o submeteria sem passar pelo rodapé. Hoje nenhum consumidor deste
       modo tem campo no corpo, e é para continuar seguro quando um tiver.
     {% endcomment %}
+      {% comment %}
+        Aqui e no `<form>` do outro modo vivia
+        `x-trap.inert.noscroll="$refs.dialog.open"`, e os três efeitos do
+        diretivo eram nulos ou redundantes (#134).
+
+        A expressão nunca reavaliava: `$refs` é `mergeProxies`, não
+        `reactive()`, e `.open` é propriedade IDL nativa de `HTMLDialogElement`
+        — o `effect` do plugin não rastreava nada, rodava uma vez no init com o
+        diálogo fechado e não voltava. Medido lado a lado com o menu de
+        `base_auth.html`, que liga a um dado Alpine e funciona.
+
+        Mesmo reativo, sobrava pouco: `showModal()` já põe o diálogo no top
+        layer e torna o resto da página inerte nativamente, então o trap de foco
+        e o `.inert` (que espalha `aria-hidden` pelos irmãos) só repetiriam por
+        JS o que o navegador faz sozinho — e `aria-hidden` à mão convive mal com
+        o inert nativo. O único efeito que faltava de verdade era o `.noscroll`,
+        e ele agora é explícito em `modal.js`, preso ao par
+        `showModal()`/evento `close`, que é o ciclo real do diálogo.
+      {% endcomment %}
     <div
       @keydown.enter="bloquearSubmitImplicito($event)"
-      x-trap.inert.noscroll="$refs.dialog.open"
       class="flex max-h-[calc(100dvh-2rem)] flex-col"
     >
       {% include "components/_modal_body.html" %}
@@ -109,7 +146,6 @@
         a operação é confirmada por uma tecla apertada antes da leitura.
       {% endcomment %}
       @keydown.enter="bloquearSubmitImplicito($event)"
-      x-trap.inert.noscroll="$refs.dialog.open"
       class="flex max-h-[calc(100dvh-2rem)] flex-col"
     >
       {% csrf_token %}

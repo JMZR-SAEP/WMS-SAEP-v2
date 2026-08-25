@@ -122,6 +122,26 @@ def _dialogos(html):
     return parser.dialogos
 
 
+class _AberturaDosDialogos(HTMLParser):
+    """Para cada `<dialog>`, se ele veio com o atributo `open` (#134)."""
+
+    def __init__(self):
+        super().__init__()
+        self.abertura = {}
+
+    def handle_starttag(self, tag, attrs):
+        if tag != 'dialog':
+            return
+        atributos = dict(attrs)
+        self.abertura[atributos.get('id')] = 'open' in atributos
+
+
+def _dialogos_abertos(html):
+    parser = _AberturaDosDialogos()
+    parser.feed(html)
+    return parser.abertura
+
+
 def _formset_post(material_id, quantidade='5', extra=None):
     data = {
         'observacao_geral': '',
@@ -1529,6 +1549,50 @@ def test_recusar_requisicao_sem_motivo_retorna_erro_inline(
     assert 'modal-recusar-motivo' in html
     assert 'aria-invalid="true"' in html
     assert 'Informe o motivo da recusa.' in html
+
+
+@pytest.mark.django_db
+def test_recusar_sem_motivo_sem_htmx_devolve_o_dialogo_ja_aberto(
+    client, chefe_obras, req_enviada_solicitante
+):
+    """Sem htmx a resposta é a página inteira, e o modal tem que vir com `open`.
+
+    É o caminho de quem está sem JS ou com o Alpine fora do ar (#134): a caixa
+    de erro já vinha no HTML, mas dentro de um `<dialog>` fechado — ou seja,
+    `display: none`. A tela voltava aparentemente intacta e a pessoa não ficava
+    sabendo que a recusa tinha sido rejeitada.
+
+    Os outros diálogos da mesma página continuam fechados: `open` é a marca de
+    qual modal falhou, e abrir todos diria a coisa errada.
+    """
+    _login(client, chefe_obras)
+    response = client.post(
+        reverse('requisicoes:recusar', kwargs={'pk': req_enviada_solicitante.pk}),
+        {'motivo': ' '},
+    )
+
+    abertura = _dialogos_abertos(response.content.decode('utf-8'))
+    assert abertura.get('confirmar-recusar') is True, (
+        'O modal que falhou voltou fechado — a recusa some da tela sem aviso.'
+    )
+    assert [modal for modal, aberto in abertura.items() if aberto] == [
+        'confirmar-recusar'
+    ]
+
+
+@pytest.mark.django_db
+def test_detalhe_sem_erro_nao_abre_nenhum_dialogo(
+    client, chefe_obras, req_enviada_solicitante
+):
+    """`open` é exceção: um GET normal não pode chegar com modal aberto (#134)."""
+    _login(client, chefe_obras)
+    response = client.get(
+        reverse('requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk})
+    )
+
+    abertura = _dialogos_abertos(response.content.decode('utf-8'))
+    assert abertura, 'página de detalhe renderizada sem nenhum <dialog>'
+    assert not any(abertura.values())
 
 
 @pytest.mark.django_db
