@@ -1,14 +1,13 @@
 {% comment %}
   Fragment do corpo do modal de estorno (TR-021).
   Params: estorno_form, requisicao
+
+  Sem parágrafo próprio repetindo a consequência do estorno (#135): o
+  cabeçalho do modal (`descricao`, vindo de `MODAL_COPY['estornar']`) já diz
+  isso, e repetir aqui era a terceira redação da mesma frase.
 {% endcomment %}
 
 <div class="space-y-4">
-  <p class="text-sm text-text-secondary">
-    O estorno reverte toda a entregue líquida atual de volta ao saldo físico do estoque.
-    Esta operação é irreversível e encerra definitivamente a requisição.
-  </p>
-
   <div>
     <label for="modal-estornar-justificativa"
            class="block text-sm font-medium text-text-primary">

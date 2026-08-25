@@ -1,63 +1,31 @@
 from django import template
 
-from apps.requisicoes.models import CancelamentoVariant, EstadoRequisicao
+from apps.requisicoes.presentation import MODAL_COPY
+from apps.requisicoes.presentation import cancelamento_copy as _cancelamento_copy
 
 register = template.Library()
-
-_CANCELAMENTO_COPY = {
-    (CancelamentoVariant.DESCARTE, EstadoRequisicao.RASCUNHO): {
-        'titulo': 'Descartar rascunho',
-        'descricao': (
-            'Este rascunho ainda não foi enviado. O descarte remove o registro '
-            'definitivamente e não consome número público nem reserva de estoque.'
-        ),
-        'trigger': 'Descartar rascunho',
-        'confirmar': 'Descartar',
-    },
-    (CancelamentoVariant.CANCELAMENTO, EstadoRequisicao.RASCUNHO): {
-        'titulo': 'Cancelar rascunho',
-        'descricao': (
-            'Este rascunho já foi enviado alguma vez. O cancelamento encerra '
-            'a requisição sem nova reserva e preserva o número público.'
-        ),
-        'trigger': 'Cancelar rascunho',
-        'confirmar': 'Confirmar cancelamento',
-    },
-    (CancelamentoVariant.CANCELAMENTO, EstadoRequisicao.AGUARDANDO_AUTORIZACAO): {
-        'titulo': 'Cancelar requisição',
-        'descricao': (
-            'A requisição será encerrada antes da autorização. Não há reserva '
-            'de estoque a liberar e a justificativa é opcional.'
-        ),
-        'trigger': 'Cancelar requisição',
-        'confirmar': 'Confirmar cancelamento',
-    },
-    (CancelamentoVariant.CANCELAMENTO, EstadoRequisicao.AUTORIZADA): {
-        'titulo': 'Cancelar requisição',
-        'descricao': (
-            'A requisição será encerrada e as reservas voltam ao saldo '
-            'disponível. O saldo físico permanece inalterado.'
-        ),
-        'trigger': 'Cancelar requisição',
-        'confirmar': 'Confirmar cancelamento',
-    },
-}
-_CANCELAMENTO_COPY[
-    (CancelamentoVariant.CANCELAMENTO, EstadoRequisicao.PRONTA_PARA_RETIRADA)
-] = _CANCELAMENTO_COPY[(CancelamentoVariant.CANCELAMENTO, EstadoRequisicao.AUTORIZADA)]
 
 
 @register.simple_tag
 def cancelamento_copy(info, estado):
     """Lookup de copy do modal de cancelamento por (variante, estado) — presentation-only.
 
-    `info` é `CancelamentoInfo | None`; `estado` é `requisicao.estado`. Não
-    reimplementa regra de domínio — só projeta a classificação já feita por
-    `apps.requisicoes.transitions.cancelamento_info` em texto de UI.
+    `info` é `CancelamentoInfo | None`; `estado` é `requisicao.estado`. A fonte
+    é `apps.requisicoes.presentation` (#135) — mesmo dicionário que o re-render
+    422 usa via `render_modal_erro`; este tag só expõe ao template.
     """
-    if info is None:
-        return {}
-    return _CANCELAMENTO_COPY[(info.variante, estado)]
+    return _cancelamento_copy(info, estado)
+
+
+@register.simple_tag
+def modal_copy(nome):
+    """Copy (`titulo`/`descricao`/`confirm_label`/`icon_variant`) de um modal estático.
+
+    Fonte única com o re-render 422 (#135): mesmo dicionário dos dois lados,
+    para que o modal reaberto com erro não possa dizer algo diferente do que
+    disse ao abrir.
+    """
+    return MODAL_COPY[nome]
 
 
 @register.filter

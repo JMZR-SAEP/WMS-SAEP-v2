@@ -17,6 +17,7 @@ from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
+from apps.core.tests.contrato_modal import assert_copy_nao_diverge
 from apps.requisicoes import views
 from apps.requisicoes.models import (
     CancelamentoVariant,
@@ -1981,6 +1982,29 @@ def test_cancelar_requisicao_sem_justificativa_via_htmx_retorna_422_fragment(
 
 
 @pytest.mark.django_db
+def test_cancelar_copy_do_422_nao_diverge_do_render_inicial(
+    client, solicitante, req_autorizada_view
+):
+    """Título e descrição do modal de cancelamento não podem mudar no 422 (#135)."""
+    _login(client, solicitante)
+    detalhe_url = reverse('requisicoes:detalhe', kwargs={'pk': req_autorizada_view.pk})
+    inicial = client.get(detalhe_url)
+
+    erro = client.post(
+        reverse('requisicoes:cancelar', kwargs={'pk': req_autorizada_view.pk}),
+        {'justificativa': ' '},
+        HTTP_HX_REQUEST='true',
+    )
+
+    assert erro.status_code == 422
+    assert_copy_nao_diverge(
+        erro,
+        html_inicial=inicial.content.decode('utf-8'),
+        modal_id='confirmar-cancelar',
+    )
+
+
+@pytest.mark.django_db
 def test_cancelar_requisicao_post_autorizada_403_para_nao_autorizado(
     client, chefe_obras, req_autorizada_view
 ):
@@ -3221,6 +3245,30 @@ def test_registrar_devolucao_htmx_form_invalido_devolve_422_do_modal(
     # O texto vem do Form, sem o asterisco de `as_text()`.
     assert 'obrigat' in conteudo.lower()
     assert '* quantidade' not in conteudo
+
+
+@pytest.mark.django_db
+def test_registrar_devolucao_copy_do_422_nao_diverge_do_render_inicial(
+    client, aux_almoxarifado, req_atendida_view
+):
+    """Título e descrição do modal de devolução não podem mudar no 422 (#135)."""
+    _login(client, aux_almoxarifado)
+    item = req_atendida_view.itens.first()
+    detalhe_url = reverse('requisicoes:detalhe', kwargs={'pk': req_atendida_view.pk})
+    inicial = client.get(detalhe_url)
+
+    url = reverse(
+        'requisicoes:registrar_devolucao',
+        kwargs={'pk': req_atendida_view.pk, 'item_pk': item.pk},
+    )
+    erro = client.post(url, {'quantidade': ''}, HTTP_HX_REQUEST='true')
+
+    assert erro.status_code == 422
+    assert_copy_nao_diverge(
+        erro,
+        html_inicial=inicial.content.decode('utf-8'),
+        modal_id=f'devolver-{item.pk}',
+    )
 
 
 @pytest.mark.django_db

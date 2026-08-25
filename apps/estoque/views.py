@@ -22,6 +22,7 @@ from apps.core.modal import render_modal_erro
 from apps.core.presentation import traduz_erro_dominio
 from apps.core.templatetags.core_tags import formatar_quantidade
 from apps.estoque.forms import ItemSaidaExcepcionalFormSet, SaidaExcepcionalForm
+from apps.estoque.presentation import MODAL_COPY
 from apps.estoque.models import Estoque, SaldoEstoque, TipoMovimentacaoEstoque
 from apps.estoque.policies import (
     exigir_pode_consultar_movimentacoes_estoque,
@@ -417,19 +418,17 @@ def estornar_saida_excepcional_view(request, pk: int):
         raise PermissionDenied(str(exc))
     except ErroDominio as exc:
         if request.htmx:
-            # Título, descrição e rótulos vêm de detalhe_saida_excepcional.html:177:
-            # o modal que reabre com erro tem de ser o mesmo modal, não um parente.
+            # Título, descrição e rótulos vêm de MODAL_COPY (#135): o modal que
+            # reabre com erro tem de ser o mesmo modal, não um parente.
+            copy = MODAL_COPY['estornar_saida']
             return render_modal_erro(
                 request,
                 modal_id='estornar-saida',
-                titulo='Estornar saída excepcional',
-                descricao=(
-                    'Esta ação é irreversível. Todos os itens serão devolvidos '
-                    'ao saldo físico do estoque.'
-                ),
+                titulo=copy['titulo'],
+                descricao=copy['descricao'],
                 erro=str(exc),
                 form_body_template=('estoque/partials/_modal_form_estorno_saida.html'),
-                confirm_label='Confirmar estorno',
+                confirm_label=copy['confirm_label'],
                 confirm_variant='danger',
                 acao_erro='estornar a saída',
                 contexto_form={'justificativa': justificativa},
