@@ -15,7 +15,7 @@ Parâmetros repassados ao painel:
 Os parâmetros abaixo são repassados diretamente a components/modal.html:
   modal_titulo, modal_descricao, action_url, confirm_label, confirm_variant,
   icon_variant, form_body_template, hidden_inputs, erro, motivo_recusa, form,
-  abrir_ao_carregar
+  abrir_ao_carregar, role, corpo_com_campo_focavel
 
   `abrir_ao_carregar` é bool do contexto (`erro`, `modal_aberto`), e não a
   expressão JS que este arquivo repassava ao x-data até a #134. Quem abre o
@@ -40,9 +40,10 @@ Uso (banner):
      modal_titulo="Estornar requisição" modal_descricao="..."
      action_url=estornar_url confirm_label="Confirmar estorno"
      confirm_variant="danger" icon_variant="danger" form=estorno_form
-     form_body_template="requisicoes/partials/_modal_form_estorno.html" %}
+     form_body_template="requisicoes/partials/_modal_form_estorno.html"
+     role="alertdialog" corpo_com_campo_focavel=True %}
 {% endcomment %}
-<div x-data="modalController({ id: '{{ modal_id }}' })">
+<div x-data="modalController({ id: '{{ modal_id }}', focoFallbackSeletor: '.app-bar__title' })">
   {% include "requisicoes/partials/_painel_decisao.html" %}
-  {% include "components/modal.html" with id=modal_id titulo=modal_titulo descricao=modal_descricao action_url=action_url confirm_label=confirm_label confirm_variant=confirm_variant icon_variant=icon_variant form_body_template=form_body_template hidden_inputs=hidden_inputs erro=erro motivo_recusa=motivo_recusa form=form abrir_ao_carregar=abrir_ao_carregar %}
+  {% include "components/modal.html" with id=modal_id titulo=modal_titulo descricao=modal_descricao action_url=action_url confirm_label=confirm_label confirm_variant=confirm_variant icon_variant=icon_variant form_body_template=form_body_template hidden_inputs=hidden_inputs erro=erro motivo_recusa=motivo_recusa form=form abrir_ao_carregar=abrir_ao_carregar role=role corpo_com_campo_focavel=corpo_com_campo_focavel %}
 </div>

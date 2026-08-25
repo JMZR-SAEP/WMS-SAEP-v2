@@ -232,7 +232,7 @@
       {% include "components/button.html" with variant="primary" label="Confirmar retirada" disabled=True aria_describedby="motivo-sem-itens" class="shrink-0" %}
     {% endif %}
 
-    {% include "components/modal.html" with id="confirmar-atender-retirada" titulo="Confirmar registro de retirada?" descricao="Esta ação baixa estoque das quantidades entregues e libera as reservas não entregues. Não pode ser desfeita." submit_form_id="form-atender-retirada" confirm_label="Confirmar retirada" icon_variant="warning" %}
+    {% include "components/modal.html" with id="confirmar-atender-retirada" titulo="Confirmar registro de retirada?" descricao="Esta ação baixa estoque das quantidades entregues e libera as reservas não entregues. Não pode ser desfeita." submit_form_id="form-atender-retirada" confirm_label="Confirmar retirada" icon_variant="warning" role="alertdialog" loading_label="Confirmando…" %}
   </div>
 </form>
 {% endblock %}

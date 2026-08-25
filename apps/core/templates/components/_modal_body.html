@@ -5,7 +5,10 @@
 
   Params: id, titulo, descricao, erro, form_body_template, icon_variant,
   cancel_label, confirm_label, confirm_variant, submit_form_id (modo
-  "confirmação de form externo" — ver components/modal.html), acao_erro.
+  "confirmação de form externo" — ver components/modal.html), acao_erro,
+  loading_label, corpo_com_campo_focavel (bool — presente quando
+  form_body_template já renderiza campo nativamente focável; suprime o
+  `tabindex="0"` da região rolável).
 
   `acao_erro` (opcional, default "concluir") é o verbo da frase-líder da caixa
   de erro: acao_erro="recusar a requisição" produz "Não foi possível recusar a
@@ -86,7 +89,22 @@
       conter, e chegar ao fim da justificativa continuava passando a rolagem
       para a tela de detalhe atrás.
     {% endcomment %}
-    <div class="flex-1 overflow-y-auto overscroll-contain px-6 py-5">
+    {% comment %}
+      `tabindex="0"` é o que garante alcance por teclado (WCAG 2.1.1) só
+      **quando o corpo não tem nenhum controle nativamente focável** —
+      `confirmar-importacao-scpi` é o caso: sem campo nenhum, o recap da
+      importação ficava inalcançável pelas setas em viewport curta (celular
+      com teclado aberto, landscape). Onde já existe `<textarea>`/`<input>`
+      (a maioria dos consumidores), o atributo seria uma parada de tabulação
+      extra e redundante antes do campo de verdade — por isso
+      `corpo_com_campo_focavel` (passado pelo chamador) suprime os dois
+      atributos. `aria-labelledby` reaproveita o `<h2>` do diálogo em vez de
+      duplicar texto num `aria-label` novo.
+    {% endcomment %}
+    <div
+      {% if not corpo_com_campo_focavel %}tabindex="0" aria-labelledby="{{ id }}-titulo"{% endif %}
+      class="flex-1 overflow-y-auto overscroll-contain px-6 py-5"
+    >
       {% comment %}
         A caixa de erro do modal é a mesma dos formulários da aplicação. Aqui
         vivia uma terceira grafia — desenhada à mão, com ícone e tokens próprios
@@ -114,7 +132,13 @@
     </div>
   {% endif %}
 
-  <footer class="flex flex-col-reverse gap-2 border-t border-border bg-bg-page px-6 py-4 sm:flex-row sm:justify-end">
+  {% comment %}
+    `pb-[calc(1rem+env(safe-area-inset-bottom))]` respeita o home indicator do
+    iPhone (#137) — mesma grafia de `atender_retirada.html` e da `.app-bar`.
+    Sem isso, um modal na altura máxima (estorno com justificativa, teclado
+    aberto) deixa o botão de confirmar embaixo da barra do sistema.
+  {% endcomment %}
+  <footer class="flex flex-col-reverse gap-2 border-t border-border bg-bg-page px-6 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:flex-row sm:justify-end">
     {% comment %}
       Rodapé usa components/button.html como qualquer outra ação do sistema, e
       `confirm_variant` é repassado direto: o modal não traduz vocabulário. Ele
@@ -130,11 +154,18 @@
     {% endcomment %}
     {% include "components/button.html" with variant="secondary" label=cancel_label|default:"Voltar" x_click="fechar()" data_modal_dismiss=True %}
     {% if submit_form_id %}
-      {% with expressao_submit="document.getElementById('"|add:submit_form_id|add:"')?.requestSubmit() ?? console.error('modal "|add:id|add:": submit_form_id "|add:submit_form_id|add:" nao encontrado')" %}
-        {% include "components/button.html" with variant=confirm_variant|default:"primary" label=confirm_label|default:"Confirmar" data_modal_confirm=True x_click=expressao_submit %}
-      {% endwith %}
+      {% comment %}
+        `submeterFormExterno` é método do `modalController` (#137), não mais
+        uma expressão escrita aqui: `getElementById(...)?.requestSubmit() ??
+        console.error(...)` disparava o `console.error` sempre, porque
+        `requestSubmit()` devolve `undefined` e `undefined ?? X` avalia `X`. O
+        método distingue de verdade "form não encontrado" de "form encontrado
+        e submetido", e é dono também do bloqueio de duplo envio próprio deste
+        modo — que antes só existia por acaso, herdado do form externo.
+      {% endcomment %}
+      {% include "components/button.html" with variant=confirm_variant|default:"primary" label=confirm_label|default:"Confirmar" data_modal_confirm=True x_click="submeterFormExterno('"|add:submit_form_id|add:"')" loading_label=loading_label %}
     {% else %}
-      {% include "components/button.html" with variant=confirm_variant|default:"primary" type="submit" label=confirm_label|default:"Confirmar" data_modal_confirm=True %}
+      {% include "components/button.html" with variant=confirm_variant|default:"primary" type="submit" label=confirm_label|default:"Confirmar" data_modal_confirm=True loading_label=loading_label %}
     {% endif %}
   </footer>
 </div>

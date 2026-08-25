@@ -266,3 +266,87 @@ def test_enter_no_campo_numerico_nao_confirma_a_devolucao(
     assert page.locator(f'dialog#{modal_id}').evaluate('(d) => d.open'), (
         'O diálogo deveria continuar aberto, com a decisão ainda na tela.'
     )
+
+
+def test_abrir_sem_trigger_sem_alvo_no_dom_devolve_foco_ao_fallback_declarado(
+    abrir_pagina, chefe_obras, req_para_decisao
+):
+    """`abrirSemTrigger` sem trigger no DOM não pode devolver o foco ao `<body>` (#137).
+
+    Cenário real: uma ação de workflow deixou de ser permitida pelo servidor
+    entre a submissão que abriu o modal com erro e o re-render — o botão
+    trigger que `abrirSemTrigger` procura não está mais na página. Sem
+    trigger, `lastTrigger` ficava `null` e `devolverFoco()` — que roda no
+    fechamento — virava no-op: quem navega por teclado volta ao topo do
+    documento. `requisicoes/partials/_confirmacao_acao.html` declara
+    `.app-bar__title` (o `<h1>` da barra de aplicação, presente em toda
+    subtela) como o alvo do fallback.
+    """
+    page = abrir_pagina(
+        chefe_obras, reverse('requisicoes:detalhe', kwargs={'pk': req_para_decisao.pk})
+    )
+    page.evaluate(
+        '() => document.querySelector(\'[data-modal-trigger="confirmar-recusar"]\').remove()'
+    )
+
+    page.evaluate(
+        "() => Alpine.$data(document.getElementById('confirmar-recusar')"
+        ".closest('[x-data]')).abrirSemTrigger()"
+    )
+    page.wait_for_function("document.getElementById('confirmar-recusar').open")
+    # Espera o `$nextTick` de `focarPrimeiroCampo` assentar antes de fechar —
+    # senão o fechamento corre com ele e o foco pousado depois vence.
+    page.wait_for_function(_FOCO_ASSENTOU, arg='confirmar-recusar')
+
+    # `Esc` é a via real do achado ("quem navega por teclado volta ao topo do
+    # documento") — é no fechamento que `devolverFoco()` roda e o defeito
+    # aparece.
+    page.keyboard.press('Escape')
+    page.wait_for_function("!document.getElementById('confirmar-recusar').open")
+
+    # O foco final é aguardado, não lido uma vez só: `close()` do `<dialog>`
+    # tem um passo nativo de restauração de foco que corre depois do evento
+    # `close` (onde `devolverFoco()` roda), e as duas escritas podem
+    # intercalar. O que importa é onde o foco assenta.
+    page.wait_for_function(
+        "() => document.activeElement.classList.contains('app-bar__title')"
+    )
+    alvo = page.evaluate(
+        '() => ({ tag: document.activeElement.tagName,'
+        ' classe: document.activeElement.className })'
+    )
+    assert alvo['tag'] != 'BODY', f'O foco caiu no <body> — sem alvo declarado. {alvo}'
+
+
+def test_trigger_removido_com_modal_ja_aberto_tambem_devolve_ao_fallback(
+    abrir_pagina, chefe_obras, req_para_decisao
+):
+    """`devolverFoco` cai no fallback mesmo com abertura por trigger real (#137, CodeRabbit).
+
+    Diferente do teste anterior — onde `abrirSemTrigger` já não achava
+    nenhum trigger na abertura —, aqui o modal abre normalmente por clique
+    num trigger real, e é só *depois*, com o modal já aberto, que o trigger
+    some do DOM (mesma ação de workflow ficando indisponível, descoberta um
+    passo mais tarde). Sem resolver o fallback de novo em `devolverFoco`,
+    `document.contains(lastTrigger)` falha e o método vira no-op — o foco
+    fica onde o fechamento nativo o deixar, tipicamente o `<body>`.
+    """
+    page = abrir_pagina(
+        chefe_obras, reverse('requisicoes:detalhe', kwargs={'pk': req_para_decisao.pk})
+    )
+    _abrir_modal(page, 'confirmar-recusar')
+
+    page.evaluate(
+        '() => document.querySelector(\'[data-modal-trigger="confirmar-recusar"]\').remove()'
+    )
+
+    page.locator('dialog#confirmar-recusar [data-modal-dismiss]').click()
+    page.wait_for_function("!document.getElementById('confirmar-recusar').open")
+    page.wait_for_function(
+        "() => document.activeElement.classList.contains('app-bar__title')"
+    )
+
+    alvo = page.evaluate('() => document.activeElement.tagName')
+    assert alvo != 'BODY', (
+        'O foco caiu no <body> — o trigger sumiu e o fallback não assumiu.'
+    )

@@ -669,6 +669,100 @@ forma morta de voltar em qualquer template) e por
 `apps/requisicoes/tests/test_navegador_modal_scroll.py` (comportamento em
 Chromium).
 
+### Rodapé, corpo rolável e retorno de foco (#137)
+
+**`role` do `<dialog>` é parametrizável**, default `"dialog"`. Todo consumidor
+real recebe `role="alertdialog"`, exceto `confirmar-retornar` e `devolver` —
+os dois caminhos que a Regra da Reversão Não é Erro trata como reversão de
+workflow, tom neutro, não confirmação de dano. A #136 tornou essa distinção
+explícita no vocabulário de ícone: `devolucao_copy['icon_variant']` é
+`'return'` (teal), o mesmo fio do trigger `return-outline` — o modal não pode
+confirmar essa ação em tom de alerta se o resto da tela já a trata como
+operação normal. `alertdialog` é o que faz o leitor de tela anunciar o corpo
+como alerta na abertura, não só o título; a APG recomenda o papel para todo
+diálogo que notifica algo importante e pede uma decisão antes de prosseguir —
+que é a descrição de qualquer outro modal deste componente.
+
+**`aria-modal` continua escrito à mão**, e uma tentativa de removê-lo foi
+revertida no mesmo PR que a introduziu. A exposição implícita de `<dialog>`
+não bastaria: `getAttribute('aria-modal')` continua `null` mesmo depois de
+`showModal()` — medido quebrando dois testes da camada Navegador que liam o
+atributo para provar a promoção a modal
+(`apps/requisicoes/tests/test_navegador_modal_scroll.py`). Sem o valor escrito
+à mão, nada no HTML renderizado ou no DOM prova que o diálogo é modal.
+
+**`loading_label` chega ao rodapé nos dois modos, e todo consumidor real
+passa um valor.** Antes o parâmetro não existia no contrato do componente — o
+rótulo só trocaria por acidente, via herança de contexto do `{% include %}`,
+nunca de propósito. Hoje `modal.html`/`_modal_body.html` declaram o parâmetro
+e os onze consumidores passam um verbo no gerúndio ("Cancelando…",
+"Recusando…", "Estornando…" etc).
+
+**O rodapé respeita `env(safe-area-inset-bottom)`**, mesma grafia de
+`atender_retirada.html` e da `.app-bar`
+(`pb-[calc(1rem+env(safe-area-inset-bottom))]`). Sem isso, um modal na altura
+máxima — estorno com justificativa, teclado do celular aberto — deixava o
+botão de confirmar embaixo do home indicator do iPhone.
+
+> **`app.css` é versionado, e toda classe Tailwind nova no template precisa
+> de `make css-build`** antes do commit — regra já registrada mais acima
+> neste doc, e que esta issue violou na primeira volta: a classe do
+> safe-area chegou ao template sem o build correspondente, e o padding não
+> existia em produção até o build rodar.
+
+**A região rolável do corpo tem `tabindex="0"` e `aria-labelledby` só quando
+não há nenhum controle nativamente focável no corpo.**
+`confirmar-importacao-scpi` é o único consumidor sem campo nenhum — sem o
+atributo, o recap da importação ficava inalcançável pelas setas em viewport
+curta (WCAG 2.1.1). Nos outros dez, que já têm `<textarea>`/`<input>` no
+`form_body_template`, os dois atributos são suprimidos por
+`corpo_com_campo_focavel=True` no chamador: escrevê-los ali seria uma parada
+de tabulação extra e redundante antes do campo de verdade. `confirmar-cancelar`
+é o caso dinâmico — a justificativa só renderiza quando
+`cancelamento_requer_justificativa` é verdadeiro, e o parâmetro repassa essa
+mesma variável em vez de um `True` fixo.
+
+**A expressão de submit do modo `submit_form_id` virou método do
+`modalController`** (`submeterFormExterno`), não mais uma string montada no
+template. `getElementById(...)?.requestSubmit() ?? console.error(...)`
+disparava o `console.error` sempre — `requestSubmit()` devolve `undefined`, e
+`undefined ?? X` avalia `X` — e toda confirmação de retirada bem-sucedida
+gravava um erro falso no console. O método não mexe em `aria-busy` nem no
+rótulo: o botão de confirmar já tem `data-modal-confirm`, que está no seletor
+de `alvosDoForm` de `form-submit.js`, e `requestSubmit()` dispara o `submit`
+nativo que aquele listener escuta — duplicar a troca ali fazia os dois donos
+brigarem pelo mesmo atributo (a primeira versão gravava `aria-busy="true"`
+antes de `form-submit.js` capturar o valor "antes" para restaurar depois).
+
+O bloqueio de duplo envio deste modo é próprio — antes só existia por acaso,
+herdado do `<form>` externo ter `data-prevent-double-submit`. A trava vive no
+próprio `<form>` (`data-submetendo-externo`), não numa propriedade do
+componente Alpine: é o que permite ao listener de `pageshow`/`persisted` no
+fim de `modal.js` desfazê-la depois de uma volta pelo bfcache sem precisar de
+referência a cada instância — mesmo tratamento que `form-submit.js` já dá ao
+`data-submitting` dele.
+
+**`abrirSemTrigger` sem trigger no DOM não devolve o foco ao `<body>`.**
+`modalController` aceita `focoFallbackSeletor` (opcional) — um seletor CSS de
+alvo declarado da tela, promovido a `tabindex="-1"` se ainda não for focável —
+usado quando `[data-modal-trigger]` não existe mais no documento (ação de
+workflow que deixou de ser permitida entre a submissão que abriu o modal com
+erro e o re-render). `requisicoes/partials/_confirmacao_acao.html` e o
+`x-data` inline de `confirmar-cancelar` declaram `.app-bar__title`.
+
+**Todo `.focus()` de `modal.js` usa `{ preventScroll: true }`** — sem isso,
+focar um campo abaixo da dobra saltava o corpo do diálogo.
+
+Verificado por `apps/core/tests/test_modal.py` (role, safe-area,
+`loading_label`, `tabindex`/`aria-labelledby` condicional do corpo, ausência
+da expressão antiga), por `apps/requisicoes/tests/test_views.py` (role,
+`loading_label` e supressão do `tabindex` em consumidores reais — não só o
+passthrough sintético do componente) e por
+`apps/requisicoes/tests/test_navegador_modal_foco.py` e
+`test_navegador_modal_submit_externo.py` (o `console.error` distinguindo os
+dois casos, o bloqueio de duplo envio, a liberação por `pageshow`/bfcache, o
+retorno de foco ao fallback — comportamento em Chromium).
+
 ### Painel de decisão de workflow
 
 `requisicoes/partials/_painel_decisao.html` é a superfície compartilhada das

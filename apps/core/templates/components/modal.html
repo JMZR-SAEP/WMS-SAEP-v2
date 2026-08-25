@@ -23,6 +23,16 @@
                        do catálogo cai na Decisão A-1 (falha alta, plausível);
                        o que este componente recusa no render é a ausência.
     hidden_inputs   -> dict de hidden inputs adicionais (ex: {"next": voltar_url})
+    role            -> default "dialog". "alertdialog" nos modais que confirmam
+                       operação irreversível (WAI-ARIA APG).
+    loading_label   -> repassado ao botão de confirmar como `loading_label`
+                       (ver components/button.html) — troca o rótulo durante o
+                       envio, nos dois modos.
+    corpo_com_campo_focavel -> bool. Passe True quando form_body_template já
+                       renderiza um campo nativamente focável (a maioria dos
+                       consumidores) — suprime o tabindex="0" da região
+                       rolável, que existe só para o caso sem campo nenhum
+                       (ex: confirmar-importacao-scpi).
 
   Uso típico (no template chamador):
     {% include "components/modal.html" with
@@ -71,13 +81,24 @@
     modal normal.
   {% endcomment %}
   {% if abrir_ao_carregar %}open{% endif %}
-  role="dialog"
+  {% comment %}
+    `role` é parametrizável (#137): `alertdialog` nos modais que confirmam
+    operação irreversível, para que o leitor de tela anuncie o corpo como
+    alerta na abertura, não só o título.
+  {% endcomment %}
+  role="{{ role|default:'dialog' }}"
   {% comment %}
     `aria-modal` acompanha o que o diálogo de fato é. Aberto pelo atributo
     `open`, ele é não-modal: o resto da página continua operável, e anunciar
     "modal" ali prenderia o leitor de tela num diálogo cujo "Voltar" — que é
     `@click="fechar()"` — está morto sem Alpine. `modalController` sobe o valor
     para "true" no mesmo passo em que chama `showModal()`.
+
+    Medido (#137): a exposição implícita de `<dialog>` não se reflete no
+    atributo HTML `aria-modal` — `getAttribute('aria-modal')` continua `null`
+    mesmo depois de `showModal()` — e a suíte Navegador já dependia do valor
+    escrito à mão para provar a promoção a modal
+    (`test_navegador_modal_scroll.py`). Escrever à mão não é redundante aqui.
   {% endcomment %}
   aria-modal="{% if abrir_ao_carregar %}false{% else %}true{% endif %}"
   aria-labelledby="{{ id }}-titulo"

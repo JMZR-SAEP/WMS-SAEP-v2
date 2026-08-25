@@ -35,6 +35,13 @@
       // Id do <form> a validar antes de abrir. Ausente = abre direto (modal que
       // não confirma submit de formulário da própria tela).
       validarFormId: options.validarFormId || null,
+      // Seletor CSS de um alvo declarado da tela para receber o foco quando
+      // `abrirSemTrigger` não encontra `[data-modal-trigger]` no documento —
+      // por exemplo, uma ação de workflow que deixou de ser permitida pelo
+      // servidor entre a submissão que falhou e o re-render. Sem isto o foco
+      // fica onde o `close()` o encontrar, tipicamente o `<body>` (#137).
+      // Ausente = mantém o comportamento anterior (no-op).
+      focoFallbackSeletor: options.focoFallbackSeletor || null,
       lastTrigger: null,
       // Ancoragem do clique de backdrop: `true` só quando o `mousedown`
       // daquele clique caiu fora da caixa. Ver `backdropClick`.
@@ -156,8 +163,74 @@
         );
         if (trigger) {
           this.lastTrigger = trigger;
+        } else {
+          this.lastTrigger = this.focoFallbackAlvo();
         }
         this.openModal();
+      },
+
+      // Alvo declarado da tela para `devolverFoco` quando não há trigger no
+      // documento (#137). `tabindex="-1"` é aplicado só se o alvo ainda não
+      // for focável — o mesmo recurso que `_modal_body.html` já usa no corpo.
+      focoFallbackAlvo() {
+        if (!this.focoFallbackSeletor) {
+          return null;
+        }
+        const alvo = document.querySelector(this.focoFallbackSeletor);
+        if (!alvo) {
+          return null;
+        }
+        if (!alvo.hasAttribute('tabindex')) {
+          alvo.setAttribute('tabindex', '-1');
+        }
+        return alvo;
+      },
+
+      // Substitui a expressão que vivia em `_modal_body.html` (#137):
+      // `getElementById(...)?.requestSubmit() ?? console.error(...)` disparava
+      // o `console.error` sempre, porque `requestSubmit()` devolve `undefined`
+      // e `undefined ?? X` avalia `X`. Aqui os dois casos são distintos de
+      // verdade.
+      //
+      // Não mexe em `aria-busy`/rótulo: o botão de confirmar tem
+      // `data-modal-confirm`, que já está no seletor de `alvosDoForm` de
+      // `form-submit.js`, e `requestSubmit()` dispara o `submit` nativo que
+      // aquele listener escuta em `document`. Duplicar a troca aqui faria os
+      // dois donos brigarem pelo mesmo atributo — o `travar()` de lá capturaria
+      // `aria-busy="true"` (já escrito por este método) como o valor "antes",
+      // e `liberar()` devolveria o botão nesse estado errado.
+      //
+      // A trava de duplo envio é gravada no próprio `<form>`
+      // (`data-submetendo-externo`), não numa propriedade deste componente —
+      // é o que permite ao `pageshow`/bfcache no fim do arquivo desfazê-la sem
+      // precisar de uma referência a cada instância do controller.
+      submeterFormExterno(formId) {
+        const form = document.getElementById(formId);
+        if (!form) {
+          console.error(`modal ${this.id}: submit_form_id ${formId} nao encontrado`);
+          return;
+        }
+        if (form.dataset.submetendoExterno === '1') {
+          return;
+        }
+        // Só trava se a submissão vai mesmo prosseguir. `form.noValidate` é
+        // quem decide isso: com `novalidate`, `requestSubmit()` dispara
+        // `submit` sempre, mesmo com campo inválido — `checkValidity()` é
+        // constatação pura, indiferente ao atributo, e tratá-la sozinha como
+        // "não vai prosseguir" travaria em falso o único consumidor real
+        // (`form-atender-retirada` tem `novalidate`). Sem `novalidate`, um
+        // campo inválido faz `requestSubmit()` barrar por dentro (nenhum
+        // `submit` chega a disparar) — sem a checagem, a trava, já gravada
+        // antes dessa chamada, ficava presa para sempre: a pessoa corrigia o
+        // campo e o botão continuava recusando o clique. Este método também
+        // não chama `reportValidity()`: quem decide se a bolha nativa aparece
+        // é o `requestSubmit()` do próprio navegador, via `novalidate`.
+        if (!form.noValidate && !form.checkValidity()) {
+          form.requestSubmit();
+          return;
+        }
+        form.dataset.submetendoExterno = '1';
+        form.requestSubmit();
       },
 
       // Fechar com o POST em voo engole a resposta (#133): o modal some, o XHR
@@ -351,14 +424,14 @@
         // `aria-invalid` do próprio campo.
         const invalido = dialog.querySelector('[aria-invalid="true"]');
         if (invalido) {
-          invalido.focus();
+          invalido.focus({ preventScroll: true });
           return;
         }
         const primeiroCampo = dialog.querySelector(
           'textarea, input:not([type="hidden"]):not([type="submit"]):not([type="button"]), select'
         );
         if (primeiroCampo) {
-          primeiroCampo.focus();
+          primeiroCampo.focus({ preventScroll: true });
           return;
         }
         // Modal sem campo visível é confirmação pura, e no sistema inteiro
@@ -382,7 +455,7 @@
         const dialog = this.$refs.dialog;
         const dispensar = dialog && dialog.querySelector('[data-modal-dismiss]');
         if (dispensar) {
-          dispensar.focus();
+          dispensar.focus({ preventScroll: true });
         }
       },
 
@@ -415,9 +488,18 @@
         }
       },
 
+      // Cai no fallback também quando `lastTrigger` era um trigger real que
+      // desapareceu do DOM enquanto o modal estava aberto (CodeRabbit) — não
+      // só quando `abrirSemTrigger` já não achou nenhum na abertura. Mesma
+      // ação de workflow que ficou indisponível, só que descoberta um passo
+      // depois: entre o clique que abriu e o fechamento.
       devolverFoco() {
-        if (this.lastTrigger && document.contains(this.lastTrigger)) {
-          this.lastTrigger.focus();
+        const alvo =
+          this.lastTrigger && document.contains(this.lastTrigger)
+            ? this.lastTrigger
+            : this.focoFallbackAlvo();
+        if (alvo) {
+          alvo.focus({ preventScroll: true });
         }
       },
 
@@ -501,5 +583,19 @@
 
   document.addEventListener('alpine:init', () => {
     window.Alpine.data('modalController', controller);
+  });
+
+  // Mesmo tratamento que `form-submit.js` dá ao bfcache: Firefox e Safari
+  // podem restaurar a página como estava no momento da navegação, com
+  // `data-submetendo-externo="1"` preso no `<form>` — sem isto, uma nova
+  // tentativa de `submeterFormExterno` ficaria bloqueada para sempre depois
+  // do botão "voltar" do navegador.
+  window.addEventListener('pageshow', (event) => {
+    if (!event.persisted) {
+      return;
+    }
+    document.querySelectorAll('[data-submetendo-externo]').forEach((form) => {
+      delete form.dataset.submetendoExterno;
+    });
   });
 })();
