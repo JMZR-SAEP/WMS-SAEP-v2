@@ -81,6 +81,8 @@
 
   /* return = devolução operacional, reversão não-negativa */
   --color-return:            var(--color-teal-600);
+  --color-return-hover:      var(--color-teal-700);
+  --color-return-active:     var(--color-teal-800);
   --color-return-subtle:     var(--color-teal-50);
   --color-return-muted:      var(--color-teal-100);
   --color-return-border:     var(--color-teal-200);

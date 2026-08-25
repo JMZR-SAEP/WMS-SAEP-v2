@@ -50,6 +50,10 @@ ICONES_CATALOGO = frozenset(
         'confirmar',
         'confirmar_check',
         'estornar',
+        'informacao',
+        'atencao',
+        'alerta',
+        'devolver',
     }
 )
 
@@ -167,6 +171,10 @@ _VARIANTES_BOTAO: dict[str, str] = {
         'bg-surface text-return-text-strong border border-return-border '
         'hover:bg-return-subtle focus-visible:ring-return'
     ),
+    'return': (
+        'bg-return text-text-on-primary hover:bg-return-hover '
+        'active:bg-return-active focus-visible:ring-return'
+    ),
     'ghost': (
         'bg-transparent text-text-secondary hover:bg-bg-subtle '
         'focus-visible:ring-border-focus'
@@ -264,11 +272,15 @@ _ABERTURA_MODAL_LITERAL = frozenset({'true', 'false', 'True', 'False'})
 
 @register.simple_tag
 def validar_contrato_modal(
-    action_url, submit_form_id, abrir_ao_carregar=None, abrir_ao_carregar_expr=None
+    action_url,
+    submit_form_id,
+    abrir_ao_carregar=None,
+    abrir_ao_carregar_expr=None,
+    icon_variant=None,
 ):
     """Valida o contrato de components/modal.html no render, não em produção.
 
-    Duas regras. A primeira é o XOR entre `action_url` e `submit_form_id`, que
+    Três regras. A primeira é o XOR entre `action_url` e `submit_form_id`, que
     são os dois modos do componente.
 
     A segunda é sobre `abrir_ao_carregar` (#134). O parâmetro passou a emitir
@@ -283,6 +295,16 @@ def validar_contrato_modal(
     nome antigo — de um branch paralelo, de um copiar e colar — não abriria
     modal nenhum, e um modal que **não** abre é justamente o defeito que a #134
     fechou. O nome morto é recusado em vez de ignorado.
+
+    A terceira é `icon_variant` obrigatório (#136). Antes ele era opcional e o
+    resultado era ruído: a severidade de cada modal saía ao acaso de quem
+    lembrou de passar o parâmetro, e três dos oito consumidores reais não
+    passavam nada — o canal parava de informar bem na vez em que o aviso
+    importava (estorno de requisição, estorno de saída excepcional, devolução).
+    Uma variante *desconhecida* continua permitida e cai na Decisão A-1 dentro
+    de `_modal_icon.html` (falha alta, plausível); o que este contrato recusa é
+    a ausência — um `icon_variant` esquecido não pode virar "nenhum ícone" em
+    silêncio.
     """
     if abrir_ao_carregar_expr:
         raise ImproperlyConfigured(
@@ -302,6 +324,12 @@ def validar_contrato_modal(
             f'recebeu a string {abrir_ao_carregar!r} — provavelmente de um '
             '|yesno. Passe o valor do contexto direto: a string "false" é '
             'verdadeira para o template e abriria o modal sempre.'
+        )
+    if not icon_variant:
+        raise ImproperlyConfigured(
+            'components/modal.html exige icon_variant (recebido: '
+            f'{icon_variant!r}). Toda tela precisa declarar a severidade do '
+            'modal — ver a tabela de variantes no {% comment %} deste componente.'
         )
     return ''
 

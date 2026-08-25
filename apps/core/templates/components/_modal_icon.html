@@ -1,23 +1,55 @@
 {% load core_tags %}
 {% comment %}
   Ícone semântico para header de modal.
-  Params: variant -> "info" | "warning" | "danger"
+
+  Parâmetro: variant: "info" | "warning" | "danger" | "descarte" | "return"
+  (obrigatório em components/modal.html — ver o {% comment %} de lá).
+
+  Vocabulário (docs/design-system.md):
+    info      círculo azul de informação — ação neutra, sem consequência a
+              destacar (ex. autorizar, enviar, separar para retirada).
+    warning   triângulo âmbar de atenção — pede cuidado redobrado antes de
+              confirmar (ex. retornar para rascunho, atender retirada, que
+              baixa estoque físico).
+    danger    círculo vermelho de alerta — recusar/cancelar/estornar. Encerram
+              ou revertem, mas a trilha é append-only: nenhuma delas apaga um
+              registro (CONTEXT.md).
+    descarte  lixeira vermelha — reservada à única operação que remove um
+              registro sem rastro: o descarte de rascunho sem número público.
+              Antes do #136, `danger` inteiro usava este glifo, e cancelar/
+              recusar/estornar diziam "isto vai para o lixo" sem que nenhuma
+              delas apagasse nada.
+    return    seta teal de devolução — Regra da Reversão Não é Erro: reversão
+              operacional nunca usa o vocabulário visual de erro/perigo.
+
+  Variante fora do catálogo cai na Decisão A-1 (docs/design-system.md): fundo
+  cheio de grito (não a lavagem `-muted` das variantes conhecidas), `role`
+  que anuncia falha e o valor cru em `data-modal-icon-variant` para depuração.
 {% endcomment %}
 
-{% if variant == "danger" %}
-  <span aria-hidden="true" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-danger-muted text-danger-text">
-    {% icon "lixeira" class="h-5 w-5" %}
+{% if variant == "info" %}
+  <span aria-hidden="true" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-muted text-primary-text">
+    {% icon "informacao" class="h-5 w-5" %}
   </span>
 {% elif variant == "warning" %}
   <span aria-hidden="true" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-warning-muted text-warning-text">
-    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-      <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.515 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495ZM10 6a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 6Zm0 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clip-rule="evenodd"/>
-    </svg>
+    {% icon "atencao" class="h-5 w-5" %}
+  </span>
+{% elif variant == "danger" %}
+  <span aria-hidden="true" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-danger-muted text-danger-text">
+    {% icon "alerta" class="h-5 w-5" %}
+  </span>
+{% elif variant == "descarte" %}
+  <span aria-hidden="true" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-danger-muted text-danger-text">
+    {% icon "lixeira" class="h-5 w-5" %}
+  </span>
+{% elif variant == "return" %}
+  <span aria-hidden="true" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-return-muted text-return-text">
+    {% icon "devolver" class="h-5 w-5" %}
   </span>
 {% else %}
-  <span aria-hidden="true" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-muted text-primary-text">
-    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-      <path fill-rule="evenodd" d="M18 10A8 8 0 1 1 2 10a8 8 0 0 1 16 0Zm-7-4a1 1 0 1 0-2 0v4a1 1 0 1 0 2 0V6Zm-1 8a1.2 1.2 0 1 1 0-2.4 1.2 1.2 0 0 1 0 2.4Z" clip-rule="evenodd"/>
-    </svg>
+  <span role="alert" data-modal-icon-variant="{{ variant }}" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-danger text-text-on-primary">
+    <span aria-hidden="true">{% icon "alerta" class="h-5 w-5" %}</span>
+    <span class="sr-only">Variante de ícone de modal desconhecida</span>
   </span>
 {% endif %}

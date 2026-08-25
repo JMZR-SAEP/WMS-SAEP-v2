@@ -25,7 +25,10 @@ _CANCELAMENTO_COPY = {
         ),
         'trigger': 'Descartar rascunho',
         'confirmar': 'Descartar',
-        'icon_variant': 'danger',
+        # 'descarte', não 'danger' (#136): é a única operação do vocabulário de
+        # modal que remove um registro sem rastro. Cancelamento, logo abaixo,
+        # encerra sem apagar — a distinção é o próprio ponto da issue.
+        'icon_variant': 'descarte',
     },
     (CancelamentoVariant.CANCELAMENTO, EstadoRequisicao.RASCUNHO): {
         'titulo': 'Cancelar rascunho',
@@ -95,10 +98,15 @@ MODAL_COPY: dict[str, dict[str, str]] = {
         # justificativa que só fazia sentido *antes* de abrir o modal.
         'painel_extra': 'A justificativa é obrigatória e fica registrada na timeline.',
         'confirm_label': 'Confirmar estorno',
+        'icon_variant': 'danger',
     },
     'devolucao': {
         'titulo': 'Registrar devolução',
         'descricao': 'Informe a quantidade a devolver ao estoque.',
         'confirm_label': 'Registrar devolução',
+        # 'return', não 'info' (#136): fecha o fio teal que a issue nomeia —
+        # o trigger já é 'return-outline' (Regra da Reversão Não é Erro), e o
+        # modal não pode confirmar essa mesma ação em azul.
+        'icon_variant': 'return',
     },
 }

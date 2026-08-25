@@ -16,11 +16,15 @@ MODAL_COPY: dict[str, dict[str, str]] = {
             'saldo físico do estoque.'
         ),
         'confirm_label': 'Confirmar estorno',
+        'icon_variant': 'danger',
     },
     'confirmar_importacao_scpi': {
         'titulo': 'Confirmar importação do SCPI?',
         'descricao': 'A gravação não pode ser desfeita.',
         'confirm_label': 'Confirmar importação',
-        'icon_variant': 'warning',
+        # 'danger', não 'warning' (#136): é a única escrita irreversível
+        # declarada do sistema — grava direto, sem passar por aprovação humana
+        # depois.
+        'icon_variant': 'danger',
     },
 }

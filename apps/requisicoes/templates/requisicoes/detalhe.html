@@ -174,7 +174,7 @@
               {% modal_copy "devolucao" as devolucao_copy %}
               {% include "components/button.html" with variant="return-outline" label=devolucao_copy.titulo aria_label="Registrar devolução de "|add:item.material.nome data_modal_trigger=item.modal_devolver_id aria_haspopup="dialog" full_width_mobile=True %}
               {% url 'requisicoes:registrar_devolucao' requisicao.pk item.pk as devolver_url %}
-              {% include "components/modal.html" with id=item.modal_devolver_id titulo=devolucao_copy.titulo descricao=devolucao_copy.descricao action_url=devolver_url confirm_label=devolucao_copy.confirm_label confirm_variant="primary" form=devolucao_form item=item entregue_liquida=item.entregue_liquida form_body_template="requisicoes/partials/_modal_form_devolucao.html" %}
+              {% include "components/modal.html" with id=item.modal_devolver_id titulo=devolucao_copy.titulo descricao=devolucao_copy.descricao action_url=devolver_url confirm_label=devolucao_copy.confirm_label confirm_variant="return" icon_variant=devolucao_copy.icon_variant form=devolucao_form item=item entregue_liquida=item.entregue_liquida form_body_template="requisicoes/partials/_modal_form_devolucao.html" %}
             </div>
           </li>
         {% endfor %}
@@ -327,7 +327,7 @@
   {% if pode_estornar %}
     {% modal_copy "estornar" as estornar_copy %}
     {% url 'requisicoes:estornar' requisicao.pk as estornar_url %}
-    {% include "requisicoes/partials/_confirmacao_acao.html" with layout="banner" variant_token="danger" heading_id="estornar-titulo" modal_id="estornar-modal" titulo=estornar_copy.titulo conteudo=estornar_copy.descricao|add:" "|add:estornar_copy.painel_extra botao_label="Estornar requisição" botao_variant="danger-outline" botao_icon="components/icons/estornar.svg" modal_titulo=estornar_copy.titulo modal_descricao=estornar_copy.descricao action_url=estornar_url confirm_label=estornar_copy.confirm_label confirm_variant="danger" form=estorno_form form_body_template="requisicoes/partials/_modal_form_estorno.html" %}
+    {% include "requisicoes/partials/_confirmacao_acao.html" with layout="banner" variant_token="danger" heading_id="estornar-titulo" modal_id="estornar-modal" titulo=estornar_copy.titulo conteudo=estornar_copy.descricao|add:" "|add:estornar_copy.painel_extra botao_label="Estornar requisição" botao_variant="danger-outline" botao_icon="components/icons/estornar.svg" modal_titulo=estornar_copy.titulo modal_descricao=estornar_copy.descricao action_url=estornar_url confirm_label=estornar_copy.confirm_label confirm_variant="danger" icon_variant=estornar_copy.icon_variant form=estorno_form form_body_template="requisicoes/partials/_modal_form_estorno.html" %}
   {% endif %}
 
   {% if pode_copiar %}

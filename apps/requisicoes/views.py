@@ -1103,6 +1103,7 @@ def registrar_devolucao_view(request, pk: int, item_pk: int) -> HttpResponse:
                     titulo=copy['titulo'],
                     erro='Item não pertence à requisição informada.',
                     confirm_label=copy['confirm_label'],
+                    icon_variant=copy['icon_variant'],
                     acao_erro='registrar a devolução',
                 )
             entregues = entregue_liquida_por_requisicao(requisicao_id=pk)
@@ -1117,6 +1118,7 @@ def registrar_devolucao_view(request, pk: int, item_pk: int) -> HttpResponse:
                 erro=form,
                 form_body_template=('requisicoes/partials/_modal_form_devolucao.html'),
                 confirm_label=copy['confirm_label'],
+                icon_variant=copy['icon_variant'],
                 acao_erro='registrar a devolução',
                 contexto_form={
                     'form': form,
@@ -1163,6 +1165,7 @@ def estornar_requisicao_view(request, pk: int) -> HttpResponse:
                 form_body_template='requisicoes/partials/_modal_form_estorno.html',
                 confirm_label=copy['confirm_label'],
                 confirm_variant='danger',
+                icon_variant=copy['icon_variant'],
                 acao_erro='estornar a requisição',
                 contexto_form={'estorno_form': form},
             )
