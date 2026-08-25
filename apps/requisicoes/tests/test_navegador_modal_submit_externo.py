@@ -173,3 +173,60 @@ def test_pageshow_persisted_desfaz_a_trava_de_duplo_envio(pagina_de_atendimento)
         '.dataset.submetendoExterno'
     )
     assert preso is None, 'A trava sobreviveu ao pageshow persistido.'
+
+
+def test_validacao_nativa_reprovada_nao_trava_a_proxima_tentativa(
+    pagina_de_atendimento,
+):
+    """Reprovação na validação nativa não pode prender o botão para sempre (#137).
+
+    `form-atender-retirada` tem `novalidate`, então `requestSubmit()` nunca
+    barra por validação nativa nele — este teste força o cenário construindo
+    um campo obrigatório vazio e desligando `novalidate` por fora, o que
+    qualquer consumidor futuro do modo `submit_form_id` sem esse atributo
+    reproduziria de verdade. Sem a checagem de `checkValidity()` antes de
+    gravar `data-submetendo-externo`, a trava ficava presa: o navegador barra
+    o `requestSubmit()` internamente (nenhum `submit` chega a disparar), mas
+    o método já tinha marcado a tentativa como em andamento.
+    """
+    page = pagina_de_atendimento
+    # `retirante_nome` é campo real e obrigatório do form, vazio por padrão —
+    # o cenário não precisa de um campo sintético. Só `novalidate` sai, para
+    # que a reprovação de verdade chegue ao `requestSubmit()`.
+    page.evaluate(
+        """
+        () => {
+          document.getElementById('form-atender-retirada').removeAttribute('novalidate');
+          window.__ctrl = Alpine.$data(
+            document.getElementById('confirmar-atender-retirada').closest('[x-data]')
+          );
+        }
+        """
+    )
+
+    # Primeira tentativa: `retirante_nome` vazio, o navegador barra o
+    # `requestSubmit()` por dentro. Se a trava tivesse sido gravada mesmo
+    # assim, `submits` continuaria em 0 e o form ficaria preso.
+    page.evaluate("() => window.__ctrl.submeterFormExterno('form-atender-retirada')")
+    presa_apos_reprovar = page.evaluate(
+        "() => document.getElementById('form-atender-retirada')"
+        '.dataset.submetendoExterno'
+    )
+    assert presa_apos_reprovar is None, (
+        'A trava foi gravada mesmo com o requestSubmit() barrado pela validação nativa.'
+    )
+    assert page.evaluate('() => window.__submits') == 0, (
+        'O submit não deveria ter chegado a disparar com o campo inválido.'
+    )
+
+    # Preenche o campo e tenta de novo: agora tem que passar e travar.
+    page.locator('#id_retirante_nome').fill('Carlos')
+    page.evaluate("() => window.__ctrl.submeterFormExterno('form-atender-retirada')")
+    assert page.evaluate('() => window.__submits') == 1, (
+        'A segunda tentativa, com o campo corrigido, tinha que submeter.'
+    )
+    presa_apos_corrigir = page.evaluate(
+        "() => document.getElementById('form-atender-retirada')"
+        '.dataset.submetendoExterno'
+    )
+    assert presa_apos_corrigir == '1'

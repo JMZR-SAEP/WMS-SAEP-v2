@@ -213,6 +213,22 @@
         if (form.dataset.submetendoExterno === '1') {
           return;
         }
+        // Só trava se a submissão vai mesmo prosseguir. `form.noValidate` é
+        // quem decide isso: com `novalidate`, `requestSubmit()` dispara
+        // `submit` sempre, mesmo com campo inválido — `checkValidity()` é
+        // constatação pura, indiferente ao atributo, e tratá-la sozinha como
+        // "não vai prosseguir" travaria em falso o único consumidor real
+        // (`form-atender-retirada` tem `novalidate`). Sem `novalidate`, um
+        // campo inválido faz `requestSubmit()` barrar por dentro (nenhum
+        // `submit` chega a disparar) — sem a checagem, a trava, já gravada
+        // antes dessa chamada, ficava presa para sempre: a pessoa corrigia o
+        // campo e o botão continuava recusando o clique. Este método também
+        // não chama `reportValidity()`: quem decide se a bolha nativa aparece
+        // é o `requestSubmit()` do próprio navegador, via `novalidate`.
+        if (!form.noValidate && !form.checkValidity()) {
+          form.requestSubmit();
+          return;
+        }
         form.dataset.submetendoExterno = '1';
         form.requestSubmit();
       },
