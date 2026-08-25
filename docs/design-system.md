@@ -672,13 +672,16 @@ Chromium).
 ### Rodapé, corpo rolável e retorno de foco (#137)
 
 **`role` do `<dialog>` é parametrizável**, default `"dialog"`. Todo consumidor
-real recebe `role="alertdialog"`, exceto `confirmar-retornar` — que é reversão
-de workflow, não confirmação de dano, e a Regra da Reversão Não é Erro já
-trata esse caminho como tom neutro em todo o resto do componente.
-`alertdialog` é o que faz o leitor de tela anunciar o corpo como alerta na
-abertura, não só o título; a APG recomenda o papel para todo diálogo que
-notifica algo importante e pede uma decisão antes de prosseguir — que é a
-descrição de qualquer modal deste componente.
+real recebe `role="alertdialog"`, exceto `confirmar-retornar` e `devolver` —
+os dois caminhos que a Regra da Reversão Não é Erro trata como reversão de
+workflow, tom neutro, não confirmação de dano. A #136 tornou essa distinção
+explícita no vocabulário de ícone: `devolucao_copy['icon_variant']` é
+`'return'` (teal), o mesmo fio do trigger `return-outline` — o modal não pode
+confirmar essa ação em tom de alerta se o resto da tela já a trata como
+operação normal. `alertdialog` é o que faz o leitor de tela anunciar o corpo
+como alerta na abertura, não só o título; a APG recomenda o papel para todo
+diálogo que notifica algo importante e pede uma decisão antes de prosseguir —
+que é a descrição de qualquer outro modal deste componente.
 
 **`aria-modal` continua escrito à mão**, e uma tentativa de removê-lo foi
 revertida no mesmo PR que a introduziu. A exposição implícita de `<dialog>`
