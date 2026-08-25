@@ -35,6 +35,7 @@ from apps.core.tests.contrato_modal import (
     REGISTRO_CONTRATO_MODAL,
     CenarioModal,
     assert_contrato_modal,
+    assert_copy_nao_diverge,
     assert_fallback_sem_htmx,
     snapshot,
 )
@@ -206,6 +207,7 @@ def _cenario_recusar(request) -> CenarioModal:
         ler_estado=lambda: _le_requisicao(requisicao.pk),
         ator=request.getfixturevalue('chefe_obras'),
         modal_id='confirmar-recusar',
+        url_render_inicial=_detalhe(requisicao.pk),
     )
 
 
@@ -219,11 +221,20 @@ def _cenario_estornar(request) -> CenarioModal:
         ler_estado=lambda: _le_requisicao(requisicao.pk),
         ator=request.getfixturevalue('chefe_almoxarifado'),
         modal_id='estornar-modal',
+        url_render_inicial=_detalhe(requisicao.pk),
     )
 
 
 def _cenario_registrar_devolucao(request) -> CenarioModal:
-    """Quantidade vazia: Form inválido → 422."""
+    """Quantidade vazia: Form inválido → 422.
+
+    Sem `url_render_inicial`: a requisição desta fábrica não tem entregue
+    líquida registrada, então o item não entra em `itens_devolviveis` e o
+    modal não aparece no detalhe — comparar seria falso positivo de
+    divergência. A cobertura de copy deste modal fica em
+    `test_registrar_devolucao_copy_do_422_nao_diverge_do_render_inicial`
+    (`test_views.py`), que usa `req_atendida_view`.
+    """
     requisicao = _requisicao(request, EstadoRequisicao.ATENDIDA)
     item = requisicao.itens.first()
     return CenarioModal(
@@ -295,6 +306,13 @@ def test_resposta_htmx_cabe_na_caixa_do_modal(db, request, client, rota):
         destino_esperado=cenario.destino_esperado,
         modal_id=cenario.modal_id,
     )
+    if resposta.status_code == 422 and cenario.url_render_inicial:
+        inicial = client.get(cenario.url_render_inicial)
+        assert_copy_nao_diverge(
+            resposta,
+            html_inicial=inicial.content.decode('utf-8'),
+            modal_id=cenario.modal_id,
+        )
     if not cenario.muta:
         # `cancelar` em ATENDIDA, `retornar_rascunho` em RASCUNHO e
         # `enviar_rascunho` sem item respondem 204 para o detalhe — igual ao

@@ -1237,12 +1237,12 @@ class TestConfirmarImportacaoScpiView:
             'utf-8'
         )
 
-    def _seed_session(self, client, superuser, csv_bytes: bytes) -> None:
+    def _seed_session(self, client, superuser, csv_bytes: bytes):
         from django.core.files.uploadedfile import SimpleUploadedFile
 
         client.force_login(superuser)
         arquivo = SimpleUploadedFile('seed.csv', csv_bytes, content_type='text/csv')
-        client.post(self.URL_PREVIEW, {'arquivo': arquivo})
+        return client.post(self.URL_PREVIEW, {'arquivo': arquivo})
 
     def test_nao_autenticado_redireciona_para_login(self, client):
         resp = client.post(self.URL, {})
@@ -1366,6 +1366,31 @@ class TestConfirmarImportacaoScpiView:
         assert 'data-modal-body="confirmar-importacao-scpi"' in conteudo
         assert 'duplicad' in conteudo.lower() or 'já' in conteudo.lower()
         assert '<html' not in conteudo
+
+    def test_copy_do_422_nao_diverge_do_render_inicial(
+        self, client, superuser, estoque_principal
+    ):
+        """Título e descrição do modal não podem mudar no 422 (#135).
+
+        O render inicial do modal é a própria resposta do POST de upload em
+        `URL_PREVIEW` — é ali, com `linhas` no contexto, que
+        `components/modal.html` é incluído pela primeira vez.
+        """
+        from apps.core.tests.contrato_modal import assert_copy_nao_diverge
+
+        csv_bytes = self._csv('000.888.090')
+        inicial = self._seed_session(client, superuser, csv_bytes)
+        client.post(self.URL, {})
+
+        self._seed_session(client, superuser, csv_bytes)
+        resp = client.post(self.URL, {}, HTTP_HX_REQUEST='true')
+
+        assert resp.status_code == 422
+        assert_copy_nao_diverge(
+            resp,
+            html_inicial=inicial.content.decode(),
+            modal_id='confirmar-importacao-scpi',
+        )
 
     def test_htmx_sem_estoque_ativo_devolve_422(
         self, client, superuser, estoque_principal

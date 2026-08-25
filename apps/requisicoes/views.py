@@ -38,6 +38,8 @@ from apps.core.http import htmx_redirect, parse_data_iso
 from apps.core.listagem import paginar, paginar_com_filtros
 from apps.core.modal import render_modal_erro
 from apps.core.presentation import traduz_erro_dominio
+from apps.requisicoes.presentation import MODAL_COPY
+from apps.requisicoes.presentation import cancelamento_copy
 from apps.core.quantidades import formatar as formatar_quantidade
 from apps.core.templatetags.core_tags import coletar_erros
 from apps.core.quantidades import normalizar
@@ -914,21 +916,19 @@ def cancelar_requisicao_view(request, pk: int):
     except DadosInvalidos as exc:
         if exc.code == 'justificativa_cancelamento_obrigatoria':
             if request.htmx:
+                copy = cancelamento_copy(cancelamento_info(requisicao), estado_origem)
                 return render_modal_erro(
                     request,
                     modal_id='confirmar-cancelar',
-                    titulo='Cancelar requisição',
-                    descricao=(
-                        'A requisição será encerrada e as reservas voltam '
-                        'ao saldo disponível.'
-                    ),
+                    titulo=copy['titulo'],
+                    descricao=copy['descricao'],
                     erro=str(exc),
                     form_body_template=(
                         'requisicoes/partials/_modal_form_cancelar.html'
                     ),
-                    confirm_label='Confirmar cancelamento',
+                    confirm_label=copy['confirmar'],
                     confirm_variant='danger',
-                    icon_variant='danger',
+                    icon_variant=copy['icon_variant'],
                     contexto_form={
                         'justificativa_cancelamento': justificativa,
                         'cancelamento_requer_justificativa': True,
@@ -990,18 +990,17 @@ def recusar_requisicao_view(request, pk: int):
             pk=pk,
         )
         if request.htmx:
+            copy = MODAL_COPY['recusar']
             return render_modal_erro(
                 request,
                 modal_id='confirmar-recusar',
-                titulo='Recusar requisição',
-                descricao=(
-                    'A recusa encerra a requisição sem reservar ou baixar estoque.'
-                ),
+                titulo=copy['titulo'],
+                descricao=copy['descricao'],
                 erro=str(exc),
                 form_body_template='requisicoes/partials/_modal_form_recusar.html',
-                confirm_label='Confirmar recusa',
+                confirm_label=copy['confirm_label'],
                 confirm_variant='danger',
-                icon_variant='danger',
+                icon_variant=copy['icon_variant'],
                 contexto_form={'motivo_recusa': motivo},
             )
         return _render_detalhe(
@@ -1096,27 +1095,28 @@ def registrar_devolucao_view(request, pk: int, item_pk: int) -> HttpResponse:
             item = (
                 requisicao.itens.select_related('material').filter(pk=item_pk).first()
             )
+            copy = MODAL_COPY['devolucao']
             if item is None:
                 return render_modal_erro(
                     request,
                     modal_id=f'devolver-{item_pk}',
-                    titulo='Registrar devolução',
+                    titulo=copy['titulo'],
                     erro='Item não pertence à requisição informada.',
-                    confirm_label='Registrar devolução',
+                    confirm_label=copy['confirm_label'],
                     acao_erro='registrar a devolução',
                 )
             entregues = entregue_liquida_por_requisicao(requisicao_id=pk)
             return render_modal_erro(
                 request,
                 modal_id=f'devolver-{item_pk}',
-                titulo='Registrar devolução',
-                descricao='Informe a quantidade a devolver ao estoque.',
+                titulo=copy['titulo'],
+                descricao=copy['descricao'],
                 # O Form, e não um texto pré-formatado: `erros_do_formulario`
                 # achata as mensagens dele com âncora por campo, sem o asterisco
                 # de log que `form.errors.as_text()` produzia.
                 erro=form,
                 form_body_template=('requisicoes/partials/_modal_form_devolucao.html'),
-                confirm_label='Registrar devolução',
+                confirm_label=copy['confirm_label'],
                 acao_erro='registrar a devolução',
                 contexto_form={
                     'form': form,
@@ -1153,18 +1153,15 @@ def estornar_requisicao_view(request, pk: int) -> HttpResponse:
     if not form.is_valid():
         if request.htmx:
             # Espelha detalhe.html:327 (via _confirmacao_acao.html).
+            copy = MODAL_COPY['estornar']
             return render_modal_erro(
                 request,
                 modal_id='estornar-modal',
-                titulo='Estornar requisição',
-                descricao=(
-                    'O estorno reverte toda a entregue líquida ao saldo físico '
-                    'e encerra definitivamente a requisição. Esta operação é '
-                    'irreversível.'
-                ),
+                titulo=copy['titulo'],
+                descricao=copy['descricao'],
                 erro=form,
                 form_body_template='requisicoes/partials/_modal_form_estorno.html',
-                confirm_label='Confirmar estorno',
+                confirm_label=copy['confirm_label'],
                 confirm_variant='danger',
                 acao_erro='estornar a requisição',
                 contexto_form={'estorno_form': form},
@@ -1214,14 +1211,17 @@ def confirmar_importacao_scpi_view(request):
         """
         if request.htmx:
             # Espelha preview_importacao_scpi.html:313.
+            from apps.estoque.presentation import MODAL_COPY as ESTOQUE_MODAL_COPY
+
+            copy = ESTOQUE_MODAL_COPY['confirmar_importacao_scpi']
             return render_modal_erro(
                 request,
                 modal_id='confirmar-importacao-scpi',
-                titulo='Confirmar importação do SCPI?',
-                descricao='A gravação não pode ser desfeita.',
+                titulo=copy['titulo'],
+                descricao=copy['descricao'],
                 erro=mensagem,
-                confirm_label='Confirmar importação',
-                icon_variant='warning',
+                confirm_label=copy['confirm_label'],
+                icon_variant=copy['icon_variant'],
                 acao_erro='confirmar a importação',
             )
         return render(

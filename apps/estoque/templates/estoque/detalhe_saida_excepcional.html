@@ -1,5 +1,5 @@
 {% extends "base_auth.html" %}
-{% load core_tags %}
+{% load core_tags estoque_tags %}
 
 {% block title %}{{ saida.numero_publico|default:"Saída excepcional" }} — WMS-SAEP{% endblock %}
 
@@ -173,8 +173,9 @@
 
   {# Modal de estorno #}
   {% if saida.estado == 'registrada' and pode_estornar %}
+    {% modal_copy "estornar_saida" as estornar_saida_copy %}
     {% url 'estoque:estornar_saida_excepcional' saida.pk as estornar_url %}
-    {% include "components/modal.html" with id="estornar-saida" titulo="Estornar saída excepcional" descricao="Esta ação é irreversível. Todos os itens serão devolvidos ao saldo físico do estoque." action_url=estornar_url confirm_label="Confirmar estorno" confirm_variant="danger" form_body_template="estoque/partials/_modal_form_estorno_saida.html" %}
+    {% include "components/modal.html" with id="estornar-saida" titulo=estornar_saida_copy.titulo descricao=estornar_saida_copy.descricao action_url=estornar_url confirm_label=estornar_saida_copy.confirm_label confirm_variant="danger" form_body_template="estoque/partials/_modal_form_estorno_saida.html" %}
   {% endif %}
 </div>
 

@@ -13,6 +13,7 @@ from apps.core.tests.contrato_modal import (
     REGISTRO_CONTRATO_MODAL,
     CenarioModal,
     assert_contrato_modal,
+    assert_copy_nao_diverge,
     assert_fallback_sem_htmx,
     snapshot,
 )
@@ -48,6 +49,9 @@ def _cenario_estornar_saida(request) -> CenarioModal:
         ator=chefe,
         modal_id='estornar-saida',
         muta=False,
+        url_render_inicial=reverse(
+            'estoque:detalhe_saida_excepcional', args=[saida.pk]
+        ),
     )
 
 
@@ -78,6 +82,13 @@ def test_resposta_htmx_cabe_na_caixa_do_modal(db, request, client, rota):
         destino_esperado=cenario.destino_esperado,
         modal_id=cenario.modal_id,
     )
+    if resposta.status_code == 422 and cenario.url_render_inicial:
+        inicial = client.get(cenario.url_render_inicial)
+        assert_copy_nao_diverge(
+            resposta,
+            html_inicial=inicial.content.decode('utf-8'),
+            modal_id=cenario.modal_id,
+        )
     if not cenario.muta:
         # Sem isto, um cenário de erro e um de caminho feliz asseveram a mesma
         # resposta e nada distingue os dois.

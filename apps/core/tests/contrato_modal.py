@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -77,6 +78,12 @@ class CenarioModal(NamedTuple):
     ator: Any
     modal_id: str
     muta: bool = False
+    # GET que mostra o mesmo modal em render inicial — usado por
+    # `assert_copy_nao_diverge` (#135) para comparar título/descrição contra o
+    # 422. `None` pula a checagem: nem todo cenário tem um GET barato que
+    # reproduza o mesmo modal (ex.: sessão de preview que o próprio cenário
+    # esvazia de propósito).
+    url_render_inicial: str | None = None
 
 
 COMPONENTE_MODAL = 'components/modal.html'
@@ -253,6 +260,57 @@ def assert_contrato_modal(
         '422 com [data-modal-erro] vazio: o modal reabriu sem dizer o que '
         'falhou. Fonte de erro que a tag não reconhece some assim, sem barulho.'
     )
+
+
+class _TextoPorId(HTMLParser):
+    """Texto (concatenado) de cada elemento com `id`, indexado pelo id."""
+
+    def __init__(self):
+        super().__init__()
+        self.textos: dict[str, str] = {}
+        self._pilha: list[str | None] = []
+
+    def handle_starttag(self, tag, attrs):
+        id_ = dict(attrs).get('id')
+        self._pilha.append(id_)
+        if id_ is not None:
+            self.textos.setdefault(id_, '')
+
+    def handle_endtag(self, tag):
+        if self._pilha:
+            self._pilha.pop()
+
+    def handle_data(self, data):
+        for id_ in self._pilha:
+            if id_ is not None:
+                self.textos[id_] += data
+
+
+def _texto_por_id(html: str, elemento_id: str) -> str:
+    parser = _TextoPorId()
+    parser.feed(html)
+    return ' '.join(parser.textos.get(elemento_id, '').split())
+
+
+def assert_copy_nao_diverge(resposta_422, *, html_inicial: str, modal_id: str) -> None:
+    """Título e descrição do 422 não podem divergir do render inicial (#135).
+
+    O 422 e o render inicial são o mesmo modal, só que reaberto com erro —
+    `components/_modal_body.html` é a fonte HTML dos dois. Duas fontes de
+    copy independentes (template × view) já divergiram no passado sem que
+    nada acusasse; esta asserção lê o texto renderizado dos dois lados em vez
+    de comparar string contra string, então pega divergência tanto de copy
+    hardcoded quanto de lookup errado no dicionário de apresentação.
+    """
+    html_422 = resposta_422.content.decode('utf-8')
+    for sufixo in ('titulo', 'descricao'):
+        elemento_id = f'{modal_id}-{sufixo}'
+        texto_inicial = _texto_por_id(html_inicial, elemento_id)
+        texto_422 = _texto_por_id(html_422, elemento_id)
+        assert texto_422 == texto_inicial, (
+            f'{modal_id}: {sufixo} do 422 diverge do render inicial — '
+            f'{texto_422!r} != {texto_inicial!r}.'
+        )
 
 
 def assert_fallback_sem_htmx(resposta) -> None:
