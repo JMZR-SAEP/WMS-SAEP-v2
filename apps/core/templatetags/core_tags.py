@@ -259,14 +259,49 @@ def classes_painel_decisao(variant: str = '') -> dict[str, Any]:
     }
 
 
+_ABERTURA_MODAL_LITERAL = frozenset({'true', 'false', 'True', 'False'})
+
+
 @register.simple_tag
-def validar_contrato_modal(action_url, submit_form_id):
-    """Exige exatamente um entre action_url e submit_form_id em components/modal.html."""
+def validar_contrato_modal(
+    action_url, submit_form_id, abrir_ao_carregar=None, abrir_ao_carregar_expr=None
+):
+    """Valida o contrato de components/modal.html no render, não em produção.
+
+    Duas regras. A primeira é o XOR entre `action_url` e `submit_form_id`, que
+    são os dois modos do componente.
+
+    A segunda é sobre `abrir_ao_carregar` (#134). O parâmetro passou a emitir
+    `open` no `<dialog>`, e a abertura é decidida por um `{% if %}` — para o
+    qual a string "false" é verdadeira. Enquanto a abertura era só do Alpine, o
+    idioma da casa era `erro|yesno:"true,false"`, porque o destino era uma
+    expressão JavaScript; o mesmo filtro chegando aqui abriria **todo** modal,
+    inclusive os que não deviam abrir, e sem quebrar nada visível no render.
+
+    `abrir_ao_carregar_expr` era o nome desse parâmetro no partial de
+    confirmação e deixou de existir na mesma issue. Um chamador que ressuscite o
+    nome antigo — de um branch paralelo, de um copiar e colar — não abriria
+    modal nenhum, e um modal que **não** abre é justamente o defeito que a #134
+    fechou. O nome morto é recusado em vez de ignorado.
+    """
+    if abrir_ao_carregar_expr:
+        raise ImproperlyConfigured(
+            'components/modal.html não conhece abrir_ao_carregar_expr (recebido: '
+            f'{abrir_ao_carregar_expr!r}). O parâmetro é abrir_ao_carregar, e '
+            'espera o bool do contexto.'
+        )
     if bool(action_url) == bool(submit_form_id):
         raise ImproperlyConfigured(
             'components/modal.html exige exatamente um entre action_url e '
             'submit_form_id (recebido: '
             f'action_url={action_url!r}, submit_form_id={submit_form_id!r}).'
+        )
+    if abrir_ao_carregar in _ABERTURA_MODAL_LITERAL:
+        raise ImproperlyConfigured(
+            'components/modal.html espera um bool em abrir_ao_carregar e '
+            f'recebeu a string {abrir_ao_carregar!r} — provavelmente de um '
+            '|yesno. Passe o valor do contexto direto: a string "false" é '
+            'verdadeira para o template e abriria o modal sempre.'
         )
     return ''
 

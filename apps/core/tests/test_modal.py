@@ -8,13 +8,33 @@ from apps.core.tests.marcacao import atributo, elementos, pares
 
 
 def _render_modal(**ctx):
+    """Renderiza o componente. Valor não-string vai pelo contexto, não literal.
+
+    `{% include ... with x="True" %}` entrega a **string** "True", que é
+    verdadeira para qualquer `{% if %}` — inclusive quando o teste quis dizer
+    `False`. Bool e None viram variável de contexto para que o template receba
+    o mesmo tipo que uma view lhe entregaria.
+    """
     ctx.setdefault('id', 'meu-modal')
     ctx.setdefault('titulo', 'Título')
-    include_with = ' '.join(f'{chave}="{valor}"' for chave, valor in ctx.items())
+    contexto, literais = {}, []
+    for chave, valor in ctx.items():
+        if isinstance(valor, str):
+            literais.append(f'{chave}="{valor}"')
+        else:
+            contexto[chave] = valor
+            literais.append(f'{chave}={chave}')
     template = Template(
-        '{% include "components/modal.html" with ' + include_with + ' %}'
+        '{% include "components/modal.html" with ' + ' '.join(literais) + ' %}'
     )
-    return template.render(Context({}))
+    return template.render(Context(contexto))
+
+
+def _dialogo(html):
+    """Atributos do `<dialog>`, lidos com parser e não por índice."""
+    for _, atributos, _ in elementos(html, 'dialog'):
+        return atributos
+    raise AssertionError('modal renderizado sem <dialog>')
 
 
 def test_action_url_sozinho_renderiza_form_com_action():
@@ -148,7 +168,7 @@ def test_modo_submit_form_id_tambem_barra_submissao_implicita():
     envolvente = next(
         atributos
         for _, atributos, _ in elementos(html, 'div')
-        if atributo(atributos, 'x-trap.inert.noscroll')
+        if atributo(atributos, '@keydown.enter')
     )
     assert atributo(envolvente, '@keydown.enter') == 'bloquearSubmitImplicito($event)'
 
@@ -287,3 +307,105 @@ def test_form_do_modal_carrega_o_hx_post_de_que_a_trava_em_voo_depende():
     ]
     assert atributo(formularios[0], 'hx-post') == '/confirmar/'
     assert _tem(formularios[0], 'data-prevent-double-submit')
+
+
+def test_abrir_ao_carregar_emite_open_no_dialog():
+    """A abertura ao carregar é do servidor, não só do Alpine (#134).
+
+    Antes, `abrir_ao_carregar` só existia como opção do `modalController`: o
+    template documentava o parâmetro como server-side e não emitia nada. Com o
+    JS fora do ar, o re-render com erro devolvia a tela aparentemente intacta e
+    a caixa de erro ficava dentro de um `<dialog>` invisível — a ação
+    irreversível tinha sido recusada e ninguém era avisado.
+    """
+    dialogo = _dialogo(_render_modal(action_url='/confirmar/', abrir_ao_carregar=True))
+    assert _tem(dialogo, 'open')
+
+
+def test_modal_comum_nao_emite_open():
+    """O caso normal continua fechado — `open` é a exceção, não o default."""
+    for html in (
+        _render_modal(action_url='/confirmar/'),
+        _render_modal(action_url='/confirmar/', abrir_ao_carregar=False),
+        _render_modal(action_url='/confirmar/', abrir_ao_carregar=''),
+    ):
+        assert not _tem(_dialogo(html), 'open')
+
+
+@pytest.mark.parametrize('literal', ['true', 'false', 'True', 'False'])
+def test_abrir_ao_carregar_com_yesno_falha_no_render(literal):
+    """`|yesno` em `abrir_ao_carregar` abriria todo modal, em silêncio (#134).
+
+    O idioma anterior era `erro|yesno:"true,false"`, porque o destino era uma
+    expressão JavaScript. O mesmo filtro apontado ao parâmetro de hoje entrega
+    a string "false" a um `{% if %}`, que a considera verdadeira. O erro é mudo
+    por natureza — o modal abre e nada quebra —, então o render é o único lugar
+    onde ele pode gritar.
+    """
+    with pytest.raises(ImproperlyConfigured):
+        _render_modal(action_url='/confirmar/', abrir_ao_carregar=literal)
+
+
+def test_dialogo_nao_declara_contencao_de_rolagem_que_nao_governa():
+    """`overscroll-contain` não pertence ao `<dialog>` (#134).
+
+    O diálogo tem `max-h` e nunca ganha barra de rolagem própria; a contenção
+    ali não tinha nada que conter, e a rolagem que chegava ao fim do corpo
+    continuava passando para a tela atrás.
+    """
+    assert 'overscroll-contain' not in atributo(
+        _dialogo(_render_modal(action_url='/confirmar/', erro='falhou')), 'class'
+    )
+
+
+def test_corpo_rolavel_contem_a_propria_rolagem():
+    """Quem rola é a caixa do corpo, e é ela que declara a contenção (#134)."""
+    html = _render_modal(action_url='/confirmar/', erro='falhou')
+    rolaveis = [
+        atributo(atributos, 'class')
+        for _, atributos, _ in elementos(html, 'div')
+        if 'overflow-y-auto' in (atributo(atributos, 'class') or '')
+    ]
+    assert rolaveis, 'modal com corpo renderizado sem região rolável'
+    for classes in rolaveis:
+        assert 'overscroll-contain' in classes
+
+
+def test_modal_nao_declara_x_trap():
+    """`x-trap` saiu do componente inteiro (#134).
+
+    Os três efeitos eram nulos ou redundantes: a expressão nunca reavaliava, e
+    trap de foco e `.inert` repetem por JS o que `showModal()` já faz pelo top
+    layer. O que faltava — a trava de rolagem — é explícito em `modal.js`.
+    """
+    for html in (
+        _render_modal(action_url='/confirmar/'),
+        _render_modal(submit_form_id='form-externo'),
+    ):
+        assert 'x-trap' not in html
+
+
+def test_dialogo_entregue_aberto_nao_se_anuncia_como_modal():
+    """`aria-modal` acompanha o que o diálogo é, não o que ele vai virar (#134).
+
+    Aberto pelo atributo `open`, o `<dialog>` é não-modal: o resto da página
+    continua operável e o "Voltar" do rodapé — que é `@click="fechar()"` — está
+    morto sem Alpine. Anunciar "modal" ali prende o leitor de tela num diálogo
+    sem saída. Quem sobe o valor para "true" é `modal.js`, no mesmo passo do
+    `showModal()`.
+    """
+    aberto = _render_modal(action_url='/confirmar/', abrir_ao_carregar=True)
+    fechado = _render_modal(action_url='/confirmar/')
+
+    assert atributo(_dialogo(aberto), 'aria-modal') == 'false'
+    assert atributo(_dialogo(fechado), 'aria-modal') == 'true'
+
+
+def test_nome_antigo_do_parametro_de_abertura_falha_no_render():
+    """`abrir_ao_carregar_expr` morreu na #134 e não pode voltar em silêncio.
+
+    Um chamador que ressuscite o nome antigo não abre modal nenhum — que é
+    exatamente o defeito que a issue fechou, de volta e mudo.
+    """
+    with pytest.raises(ImproperlyConfigured):
+        _render_modal(action_url='/confirmar/', abrir_ao_carregar_expr='true')

@@ -7,9 +7,15 @@
  * - 5xx/403/404 e queda de conexão não trocam nada, então o controller injeta a
  *   caixa de erro que o servidor deixou pronta em `_modal_body.html`.
  * - Nenhuma via de fechamento vale enquanto a requisição está em voo.
+ * - A rolagem do fundo fica travada enquanto o diálogo está aberto.
+ *
+ * Abrir ao carregar não é opção do controller: quem declara isso é o `open`
+ * que `components/modal.html` emite quando `abrir_ao_carregar` é verdadeiro.
+ * O init encontra o diálogo já aberto (não-modal, como o servidor o entregou)
+ * e o reabre por `showModal()`.
  *
  * Uso no template:
- *   <div x-data="modalController({ id: 'confirmar-x', abrirAoCarregar: false })">
+ *   <div x-data="modalController({ id: 'confirmar-x' })">
  *
  * `validarFormId` (opcional) exige que o <form> daquele id esteja válido antes
  * de abrir — use sempre que o modal confirmar uma ação irreversível disparada
@@ -26,7 +32,6 @@
   function controller(options = {}) {
     return {
       id: options.id,
-      abrirAoCarregar: Boolean(options.abrirAoCarregar),
       // Id do <form> a validar antes de abrir. Ausente = abre direto (modal que
       // não confirma submit de formulário da própria tela).
       validarFormId: options.validarFormId || null,
@@ -34,6 +39,13 @@
       // Ancoragem do clique de backdrop: `true` só quando o `mousedown`
       // daquele clique caiu fora da caixa. Ver `backdropClick`.
       pressionouNoBackdrop: false,
+      // `true` entre o `showModal()` deste controller e o evento `close`. Não é
+      // o mesmo que `dialog.open`: o diálogo também está aberto quando o
+      // servidor mandou o atributo `open` e ninguém o promoveu a modal ainda.
+      abertoComoModal: false,
+      // Desfaz a trava de rolagem do fundo. `null` quando não há trava ativa.
+      // Ver `travarRolagemDeFundo`.
+      liberarRolagemDeFundo: null,
 
       init() {
         const dialog = this.$refs.dialog;
@@ -41,11 +53,17 @@
           return;
         }
 
-        if (this.abrirAoCarregar) {
+        // O servidor já entregou o diálogo aberto (`abrir_ao_carregar`), e
+        // aberto assim ele é **não-modal**: sem top layer, sem backdrop, sem
+        // inerte em volta. É o estado certo para quem está sem JS, e o errado
+        // para quem tem — daí a promoção a modal aqui.
+        if (dialog.open) {
           this.$nextTick(() => this.abrirSemTrigger());
         }
 
         dialog.addEventListener('close', () => {
+          this.abertoComoModal = false;
+          this.destravarRolagemDeFundo();
           this.devolverFoco();
         });
 
@@ -225,8 +243,21 @@
 
       openModal() {
         const dialog = this.$refs.dialog;
-        if (!dialog || dialog.open) {
+        if (!dialog) {
           return;
+        }
+        if (dialog.open) {
+          // Já está no top layer: nada a fazer. Reabrir daria
+          // `InvalidStateError` em `showModal()`.
+          if (this.abertoComoModal) {
+            return;
+          }
+          // Aberto pelo atributo `open` do servidor, ou seja, não-modal.
+          // `removeAttribute` e não `close()`: `close()` roda os passos de
+          // fechamento e enfileira o evento `close`, que devolveria o foco ao
+          // trigger e destravaria a rolagem **depois** desta abertura —
+          // desfazendo em uma tarefa futura o que estamos fazendo agora.
+          dialog.removeAttribute('open');
         }
         // A caixa de falha de transporte descreve a tentativa anterior, e o
         // modal reabre justamente para tentar de novo: deixá-la ali faria a
@@ -236,7 +267,76 @@
         // intocado.
         this.limparFalhaDeTransporte();
         dialog.showModal();
+        // Só agora o diálogo é modal de verdade. O template emite
+        // `aria-modal="false"` quando entrega `open`, porque até esta linha o
+        // resto da página está operável — e um "modal" anunciado sobre uma
+        // página viva é pior do que nenhum.
+        dialog.setAttribute('aria-modal', 'true');
+        this.abertoComoModal = true;
+        this.travarRolagemDeFundo();
         this.$nextTick(() => this.focarPrimeiroCampo());
+      },
+
+      // A trava de rolagem do fundo é explícita porque a do Alpine nunca rodou
+      // aqui (#134): `x-trap.noscroll` dependia de uma expressão que o `effect`
+      // não conseguia rastrear. O ciclo agora é o do próprio diálogo —
+      // `showModal()` trava, o evento `close` destrava —, e `close` cobre todas
+      // as saídas, inclusive o `Esc` nativo e o submit clássico.
+      //
+      // O gesto é o mesmo do plugin de foco do Alpine, que continua governando
+      // o menu da barra de aplicação: `overflow: hidden` no `<html>` mais a
+      // compensação da barra de rolagem, para a página não pular de largura ao
+      // abrir. Onde o navegador já reserva a calha (`scrollbar-gutter`), a
+      // compensação sairia dobrada e por isso é dispensada — a folha do projeto
+      // não declara a propriedade hoje, e este ramo existe para o dia em que
+      // declarar.
+      //
+      // São dois donos do mesmo valor global, sem contagem: este e o
+      // `x-trap.noscroll` do menu. Aninhamento em LIFO se desfaz certo; um
+      // intercalado, não. O que garante o LIFO hoje é o próprio menu, que fecha
+      // no `@click.outside` antes de qualquer trigger de modal ser clicável.
+      travarRolagemDeFundo() {
+        if (this.liberarRolagemDeFundo) {
+          return;
+        }
+        const raiz = document.documentElement;
+        const overflowAnterior = raiz.style.overflow;
+        const paddingAnterior = raiz.style.paddingRight;
+        const larguraDaBarra = window.innerWidth - raiz.clientWidth;
+        const calha = window.getComputedStyle(raiz).scrollbarGutter;
+
+        raiz.style.overflow = 'hidden';
+        if (calha && calha !== 'auto') {
+          this.liberarRolagemDeFundo = () => {
+            raiz.style.overflow = overflowAnterior;
+          };
+          return;
+        }
+        raiz.style.paddingRight = `${larguraDaBarra}px`;
+        this.liberarRolagemDeFundo = () => {
+          raiz.style.overflow = overflowAnterior;
+          raiz.style.paddingRight = paddingAnterior;
+        };
+      },
+
+      // Alpine chama no teardown do componente. Tirar o `<dialog>` do documento
+      // enquanto ele está aberto **não** emite `close` — a especificação só o
+      // remove do top layer —, e sem esta porta a página ficaria com
+      // `overflow: hidden` gravado e sem rolagem até um reload. Hoje nenhum
+      // caminho chega aí (o único alvo de swap é `[data-modal-body]`, e
+      // `HX-Redirect` é navegação de verdade), e é justamente por ser barato
+      // que não vale depender dessa coincidência.
+      destroy() {
+        this.destravarRolagemDeFundo();
+      },
+
+      destravarRolagemDeFundo() {
+        if (!this.liberarRolagemDeFundo) {
+          return;
+        }
+        const liberar = this.liberarRolagemDeFundo;
+        this.liberarRolagemDeFundo = null;
+        liberar();
       },
 
       focarPrimeiroCampo() {
