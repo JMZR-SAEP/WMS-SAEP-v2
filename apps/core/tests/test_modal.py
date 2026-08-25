@@ -262,7 +262,9 @@ def test_backdrop_ancora_o_fechamento_no_mousedown():
     """
     dialogo = next(
         atributos
-        for _, atributos, _ in elementos(_render_modal(action_url='/x/'), 'dialog')
+        for _, atributos, _ in elementos(
+            _render_modal(action_url='/confirmar/'), 'dialog'
+        )
     )
 
     assert atributo(dialogo, '@mousedown') == 'backdropMouseDown($event)'

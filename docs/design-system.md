@@ -503,10 +503,17 @@ existe para fechar; e o texto é copy de produto em PT-BR, nunca o status code.
 O slot fica **fora** da região rolável, entre cabeçalho e corpo, para estar na
 tela mesmo com o formulário rolado.
 
-**Nenhuma via de fechamento vale com a requisição em voo.** `Esc`, backdrop e
-"Voltar" passam todos por `fechar()`, que desiste enquanto existe
-`form[data-submitting="1"][hx-post]` dentro do diálogo — ou envolvendo-o, no
-modo `submit_form_id`.
+**Nenhuma via de fechamento vale com a requisição em voo.** Fechar ali trocaria
+o corpo de um `<dialog>` já fechado: a recusa não seria vista, e o `role="alert"`
+da caixa de erro seria anunciado num nó que não está renderizado.
+
+As vias não entram pela mesma porta, e a diferença importa para quem for mexer
+nisto. Backdrop e "Voltar" passam por `fechar()`, que desiste enquanto existe
+`form[data-submitting="1"][hx-post]` dentro do diálogo — ou envolvendo-o, no modo
+`submit_form_id`. `Esc` passa por `fechar()` **só** quando o foco está dentro do
+diálogo, que é quando o `@keydown.escape` de `modal.html` roda; fora disso quem
+fecha é o caminho nativo, e a trava dele é o listener de `cancel`, que dá
+`preventDefault()` sob a mesma condição.
 
 O recorte por `hx-post` é deliberado, e as duas razões apontam para o mesmo
 lugar. O dano que a trava evita é a resposta ser trocada dentro de um diálogo
@@ -516,20 +523,16 @@ dispara em form clássico, então lá o `data-submitting` só cai com a navegaç
 se ela for abortada, sem o recorte o diálogo ficaria trancado sem saída.
 `requisicoes/atender_retirada.html` é exatamente esse form.
 
-`Esc` tem uma segunda rota e precisa da segunda trava: o `@keydown.escape` está
-no `<dialog>` e só roda com o foco dentro dele, e depois do clique em confirmar
-o foco não está mais lá — `form-submit.js` desabilita o botão acionado e o
-navegador o solta. O fechamento nativo continua valendo dali, então `modal.js`
-também escuta `cancel` e o cancela em voo.
+A segunda rota do `Esc` não é hipótese: é a que ocorre depois do clique em
+confirmar. `form-submit.js` desabilita o botão acionado, o navegador solta o
+foco dele, e o `keydown` deixa de ter alvo dentro do diálogo — sem o listener de
+`cancel`, a trava não alcançaria o `Esc` no exato instante em que ela existe
+para valer.
 
 **A caixa de falha de transporte é limpa na abertura**, e não só no
 `htmx:beforeRequest`. Reabrir o modal é tentar de novo; a mensagem descreve a
 tentativa anterior, e deixá-la ali faria a abertura acusar um erro que ainda não
-aconteceu. Fechar ali trocaria o corpo de um `<dialog>` já fechado: a
-recusa não seria vista e o `role="alert"` seria anunciado num nó não
-renderizado. A marca é gravada e apagada por `form-submit.js`, e o
-`htmx:afterRequest` que a apaga dispara em qualquer desfecho — não há caminho em
-que o diálogo fique preso.
+aconteceu.
 
 **Fechar por backdrop exige `mousedown` e `mouseup` fora da caixa.** Só com
 `@click`, uma seleção de texto que começa dentro do modal e termina fora chega
