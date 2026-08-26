@@ -293,7 +293,7 @@ def _texto_por_id(html: str, elemento_id: str) -> str:
 
 
 def assert_copy_nao_diverge(resposta_422, *, html_inicial: str, modal_id: str) -> None:
-    """Título, descrição e identidade do 422 não divergem do render inicial (#135).
+    """Título, descrição, identidade e consequência não divergem no 422 (#135).
 
     O 422 e o render inicial são o mesmo modal, só que reaberto com erro —
     `components/_modal_body.html` é a fonte HTML dos dois. Duas fontes de
@@ -308,7 +308,7 @@ def assert_copy_nao_diverge(resposta_422, *, html_inicial: str, modal_id: str) -
     reabre com erro nomeando outro documento é pior que um modal anônimo.
     """
     html_422 = resposta_422.content.decode('utf-8')
-    for sufixo in ('titulo', 'descricao', 'registro'):
+    for sufixo in ('titulo', 'descricao', 'registro', 'consequencia'):
         elemento_id = f'{modal_id}-{sufixo}'
         texto_inicial = _texto_por_id(html_inicial, elemento_id)
         texto_422 = _texto_por_id(html_422, elemento_id)

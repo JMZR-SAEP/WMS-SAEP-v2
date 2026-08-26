@@ -182,7 +182,7 @@
         decisão que resume a ação antes de abrir o modal concatena as duas.
       {% endcomment %}
       {% if consequencia %}
-        <p data-modal-consequencia class="text-sm font-semibold text-text-primary{% if form_body_template or erro %} mt-5 border-t border-border pt-4{% endif %}">
+<p id="{{ id }}-consequencia" data-modal-consequencia class="text-sm font-semibold text-text-primary{% if form_body_template or erro %} mt-5 border-t border-border pt-4{% endif %}">
           {{ consequencia }}
         </p>
       {% endif %}

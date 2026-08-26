@@ -1234,7 +1234,10 @@ class TestPreviewImportacaoScpiView:
         conteudo = client.post(self.URL, {'arquivo': arquivo}).content.decode()
         dialogo = self._dialogo(conteudo, 'confirmar-importacao-scpi')
 
-        (classes,) = re.findall(r'<p data-modal-consequencia class="([^"]*)"', dialogo)
+        (classes,) = re.findall(
+            r'<p(?=[^>]*data-modal-consequencia)(?=[^>]*class="([^"]*)")[^>]*>',
+            dialogo,
+        )
         assert 'font-semibold' in classes
         assert 'text-text-primary' in classes
         assert 'A gravação não pode ser desfeita.' in dialogo

@@ -347,7 +347,7 @@ Borda é estrutural, não decorativa: 1px sólido em toda superfície de papel c
 - **Popover mobile:** 16rem, papel branco, raio 0.5rem, elevação 8dp, overlay `surface-overlay` (preto 40%), foco preso (`x-trap.inert.noscroll`). Item ativo pinta fundo azul suave e texto azul; "Sair" é o único item em vermelho.
 
 ### Modal (componente-assinatura)
-`<dialog>` nativo com `role="dialog"`, `aria-modal`, `aria-labelledby` e foco preso. Raio 1rem, largura máxima de 36rem (42rem a partir de `sm`), altura limitada a `calc(100dvh - 2rem)` com o corpo rolando por dentro. Backdrop escuro com desfoque. Entrada de 180ms com `cubic-bezier(0.16, 1, 0.3, 1)` a partir de `translateY(12px) scale(0.96)`, envelopada em `prefers-reduced-motion: no-preference`. O envio é POST real com HTMX por cima; o erro re-renderiza o corpo do modal em vez de fechar a tela.
+`<dialog>` nativo com `role="dialog"`, `aria-modal`, `aria-labelledby` e foco preso. Raio 1rem, largura máxima de 36rem (42rem a partir de `sm`), altura limitada a `calc(100dvh - 2rem)` com o corpo rolando por dentro. Sob o título, uma linha fixa nomeia o registro; o backdrop escurece sem desfoque para preservar o contexto visual da tela de origem. Entrada de 180ms com `cubic-bezier(0.16, 1, 0.3, 1)` a partir de `translateY(12px) scale(0.96)`, envelopada em `prefers-reduced-motion: no-preference`. O envio é POST real com HTMX por cima; o erro re-renderiza o corpo do modal em vez de fechar a tela.
 
 ### Estado vazio
 Papel branco com **borda tracejada** `border-strong`, raio 0.75rem, `px-6 py-12`, ícone de 2.5rem em cinza apagado, título 16px medium, descrição 14px em cinza de metadado e, opcionalmente, um botão primário com a próxima ação. É o único uso de traço no sistema.

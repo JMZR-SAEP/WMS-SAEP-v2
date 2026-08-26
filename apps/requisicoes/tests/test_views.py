@@ -2327,6 +2327,10 @@ def test_detalhe_exibe_botao_separar_para_aux_almox(
     assert response.status_code == 200
     html = response.content.decode('utf-8')
     assert 'Separar para retirada' in html
+    textos = _texto_dos_dialogos(html)
+    assert 'confirmar-separar' in textos
+    assert req_autorizada_view.numero_publico in textos['confirmar-separar']
+    assert req_autorizada_view.beneficiario.nome in textos['confirmar-separar']
     assert response.context['pode_separar_retirada'] is True
 
 

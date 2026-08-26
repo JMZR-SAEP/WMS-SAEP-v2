@@ -653,6 +653,26 @@ def test_consequencia_sai_do_corpo_com_mais_enfase_que_a_descricao():
     assert 'text-text-secondary' not in classes
 
 
+def test_consequencia_compoe_a_descricao_acessivel_do_dialogo():
+    """A irreversibilidade precisa ser anunciada quando o diálogo abre."""
+    html = _render_modal(
+        action_url='/confirmar/',
+        descricao='Descrição do modal.',
+        consequencia='Esta operação é irreversível.',
+    )
+    dialogo = next(atributos for _, atributos, _ in elementos(html, 'dialog'))
+    consequencia = next(
+        atributos
+        for _, atributos, _ in elementos(html, 'p')
+        if _tem(atributos, 'data-modal-consequencia')
+    )
+
+    assert atributo(consequencia, 'id') == 'meu-modal-consequencia'
+    assert atributo(dialogo, 'aria-describedby') == (
+        'meu-modal-registro meu-modal-descricao meu-modal-consequencia'
+    )
+
+
 def test_consequencia_ausente_nao_deixa_paragrafo_vazio():
     """Retornar para rascunho e devolução têm volta — e não passam `consequencia`."""
     html = _render_modal(action_url='/confirmar/', descricao='Descrição do modal.')

@@ -126,7 +126,7 @@
     `-descricao` continua condicional, e a ordem dos ids é a ordem em que o
     leitor lê — a mesma ordem visual do cabeçalho.
   {% endcomment %}
-  aria-describedby="{{ id }}-registro{% if descricao %} {{ id }}-descricao{% endif %}"
+        aria-describedby="{{ id }}-registro{% if descricao %} {{ id }}-descricao{% endif %}{% if consequencia %} {{ id }}-consequencia{% endif %}"
   {% comment %}
     O par `mousedown` + `click` é o que separa clique de arrasto no backdrop
     (#133). O `click` sozinho também chega com `target` no `<dialog>` quando uma
