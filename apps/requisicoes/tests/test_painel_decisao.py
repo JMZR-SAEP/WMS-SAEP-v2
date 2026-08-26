@@ -319,6 +319,11 @@ def test_a_composicao_monta_painel_e_modal_no_mesmo_escopo_alpine():
             'confirm_label': 'Confirmar autorização',
             'confirm_variant': 'primary',
             'icon_variant': 'info',
+            'registro': {
+                'rotulo': 'Requisição',
+                'identificador': 'REQ-2026-000123',
+                'contexto': 'Maria Silva · Obras',
+            },
         },
     )
 

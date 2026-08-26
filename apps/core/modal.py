@@ -19,6 +19,7 @@ Django/templates.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from django.core.exceptions import ImproperlyConfigured
@@ -27,6 +28,8 @@ from django.utils.functional import Promise
 from django.http import HttpResponse
 from django.shortcuts import render
 
+from apps.core.templatetags.core_tags import validar_registro_modal
+
 
 def render_modal_erro(
     request,
@@ -34,7 +37,9 @@ def render_modal_erro(
     modal_id: str,
     titulo: str,
     erro: str | Promise | BaseForm | BaseFormSet,
+    registro: Mapping[str, str] | None = None,
     descricao: str = '',
+    consequencia: str = '',
     form_body_template: str = '',
     confirm_label: str = 'Confirmar',
     confirm_variant: str = 'primary',
@@ -75,10 +80,23 @@ def render_modal_erro(
     fallback de variante desconhecida, em vez de falhar no render como o
     resto do contrato.
 
+    `registro` é obrigatório pela mesma razão e pelo mesmo caminho (#138): a
+    linha de identidade é parte do cabeçalho, e o 422 reconstrói o cabeçalho
+    inteiro. Um 422 sem `registro` devolveria um modal anônimo no lugar do
+    modal nomeado que a tela abriu — e é justamente no re-render com erro, com
+    a pessoa já tendo confirmado uma vez, que saber qual documento está na
+    frente importa mais. A checagem é `validar_registro_modal`, a mesma que
+    `validar_contrato_modal` usa no render inicial.
+
+    `consequencia` é a frase de irreversibilidade, separada da `descricao` para
+    que a hierarquia tipográfica não a deixe mais apagada que os dados que ela
+    qualifica — ver `components/_modal_body.html`.
+
     Os parâmetros restantes espelham `components/modal.html` e
     `components/_modal_body.html` (de onde vem `acao_erro`), porque o fragment
     devolvido tem de reconstruir o mesmo cabeçalho e o mesmo rodapé.
     """
+    validar_registro_modal(registro, origem='render_modal_erro')
     if not icon_variant:
         raise ImproperlyConfigured(
             f'render_modal_erro exige icon_variant (recebido: {icon_variant!r}). '
@@ -90,6 +108,8 @@ def render_modal_erro(
         'id': modal_id,
         'titulo': titulo,
         'descricao': descricao,
+        'consequencia': consequencia,
+        'registro': registro,
         'erro': erro,
         'form_body_template': form_body_template,
         'confirm_label': confirm_label,

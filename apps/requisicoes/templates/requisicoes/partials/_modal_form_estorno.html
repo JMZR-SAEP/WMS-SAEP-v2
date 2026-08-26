@@ -1,13 +1,41 @@
 {% comment %}
   Fragment do corpo do modal de estorno (TR-021).
-  Params: estorno_form, requisicao
+  Params: estorno_form, requisicao, itens_a_estornar
 
   Sem parágrafo próprio repetindo a consequência do estorno (#135): o
   cabeçalho do modal (`descricao`, vindo de `MODAL_COPY['estornar']`) já diz
   isso, e repetir aqui era a terceira redação da mesma frase.
+
+  A lista de itens é a entregue líquida que volta ao saldo físico (#138). A
+  descrição diz "toda a entregue líquida"; a lista diz quanto é. O estorno é
+  banner de tela cheia numa requisição já atendida, e a tela atrás mostra as
+  quantidades — mas o modal era a única superfície do sistema que confirmava
+  uma reversão de estoque sem nomear um número sequer.
+
+  `itens_a_estornar` pode chegar vazio: requisição atendida cuja entregue
+  líquida já foi devolvida por inteiro. Nesse caso a lista some em vez de
+  renderizar uma caixa vazia — o estorno segue sendo a operação que encerra a
+  requisição, e é isso que a descrição do cabeçalho diz.
 {% endcomment %}
+{% load core_tags %}
 
 <div class="space-y-4">
+  {% if itens_a_estornar %}
+    <dl class="divide-y divide-border rounded-lg border border-border text-sm">
+      {% for item in itens_a_estornar %}
+        <div class="flex items-baseline justify-between gap-4 px-3 py-2">
+          <dt class="min-w-0 text-text-secondary">{{ item.material.nome }}</dt>
+          <dd class="shrink-0 text-right tabular-nums" translate="no">
+            <span class="text-base font-semibold text-text-primary">
+              {{ item.entregue_liquida|formatar_quantidade:item.material.unidade }}
+            </span>
+            <span class="text-text-tertiary">{{ item.material.get_unidade_display }}</span>
+          </dd>
+        </div>
+      {% endfor %}
+    </dl>
+  {% endif %}
+
   <div>
     <label for="modal-estornar-justificativa"
            class="block text-sm font-medium text-text-primary">

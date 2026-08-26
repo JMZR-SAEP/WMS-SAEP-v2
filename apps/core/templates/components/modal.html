@@ -4,7 +4,19 @@
   Params (todos opcionais, exceto id/titulo/action_url):
     id              -> id único do modal (string sem espaços)
     titulo          -> string PT-BR
-    descricao       -> string curta (1-2 linhas)
+    descricao       -> string curta (1-2 linhas). **Sem** a frase de
+                       irreversibilidade — essa é `consequencia`.
+    registro        -> obrigatório (#138). Mapa com `rotulo`, `identificador` e
+                       `contexto` (opcional) que nomeia o documento sendo
+                       confirmado. Montado na apresentação de cada app
+                       (`registro_requisicao`, `registro_saida_excepcional`,
+                       `registro_arquivo_scpi`), nunca escrito no template:
+                       seis modais da mesma tela têm de dizer a mesma coisa.
+                       `validar_contrato_modal` recusa o render sem ele.
+    consequencia    -> opcional. Frase de irreversibilidade, renderizada no fim
+                       do corpo com ênfase (ver components/_modal_body.html).
+                       Só para ação que de fato não tem volta: retornar para
+                       rascunho e devolução não têm, e não passam nada.
     action_url      -> URL para POST (form action)
     confirm_label   -> default "Confirmar"
     confirm_variant -> repassado literalmente a components/button.html como `variant`
@@ -39,6 +51,7 @@
        id="confirmar-recusar"
        titulo="Recusar requisição?"
        descricao="A recusa encerra a requisição sem reservar ou baixar estoque."
+       registro=registro
        action_url=recusar_url
        confirm_label="Confirmar recusa"
        confirm_variant="danger"
@@ -63,7 +76,7 @@
 {% endcomment %}
 
 {% load static core_tags %}
-{% validar_contrato_modal action_url submit_form_id abrir_ao_carregar abrir_ao_carregar_expr icon_variant %}
+{% validar_contrato_modal action_url submit_form_id abrir_ao_carregar abrir_ao_carregar_expr icon_variant registro %}
 
 <dialog
   id="{{ id }}"
@@ -102,7 +115,18 @@
   {% endcomment %}
   aria-modal="{% if abrir_ao_carregar %}false{% else %}true{% endif %}"
   aria-labelledby="{{ id }}-titulo"
-  {% if descricao %}aria-describedby="{{ id }}-descricao"{% endif %}
+  {% comment %}
+    A identidade entra na descrição acessível, antes da `descricao` (#138). Sem
+    isso, quem usa leitor de tela ouvia "Estornar requisição?" e a consequência,
+    e a única resposta a "qual requisição?" ficava na tela atrás — que é
+    justamente a parte que `showModal()` torna inerte. `role="dialog"` anuncia
+    label e description na abertura, e é aí que a âncora precisa estar.
+
+    `{{ id }}-registro` é incondicional porque `registro` é obrigatório;
+    `-descricao` continua condicional, e a ordem dos ids é a ordem em que o
+    leitor lê — a mesma ordem visual do cabeçalho.
+  {% endcomment %}
+        aria-describedby="{{ id }}-registro{% if descricao %} {{ id }}-descricao{% endif %}{% if consequencia %} {{ id }}-consequencia{% endif %}"
   {% comment %}
     O par `mousedown` + `click` é o que separa clique de arrasto no backdrop
     (#133). O `click` sozinho também chega com `target` no `<dialog>` quando uma
@@ -112,7 +136,43 @@
   @mousedown="backdropMouseDown($event)"
   @click="backdropClick($event)"
   @keydown.escape.prevent="fechar()"
-  class="m-auto w-full max-w-xl rounded-2xl border border-border bg-surface p-0 text-left text-text-primary shadow-2xl backdrop:bg-slate-900/50 backdrop:backdrop-blur-sm sm:max-w-2xl"
+  {% comment %}
+    O backdrop escurece e **não desfoca** (#138). O desfoque que vivia aqui, no
+    `::backdrop`, era a única superfície embaçada do sistema, e o DESIGN.md
+    recusa vidro fosco no north star — a exceção só se sustentava porque nada
+    dentro do diálogo dizia sobre qual documento a pergunta era feita. Borrar a
+    tela de origem apagava número público, beneficiário, itens e entregue
+    líquida exatamente no instante em que serviriam de âncora.
+
+    `/60` e não `/50`: sem o desfoque, o overlay sozinho responde por separar as
+    duas camadas, e um degrau a mais de escurecimento mantém o fundo legível
+    como contexto sem que ele dispute leitura com a caixa.
+
+    O nome da classe removida não está escrito aqui de propósito: o scanner do
+    Tailwind lê o template inteiro, comentário incluso, e recompilaria a regra
+    morta a partir da própria explicação de por que ela morreu.
+  {% endcomment %}
+  {% comment %}
+    **O teto de altura é um só, e é este.** O wrapper interno tinha o seu próprio
+    `max-h` derivado da viewport, e o `<dialog>` ficava com o default do agente
+    de usuário (`max-height: calc(100% - 6px - 2em)`) — dois tetos para a mesma
+    caixa, que nunca coincidiam. A diferença bastava para o `<dialog>` ganhar
+    barra de rolagem própria, e aí quem rolava era o diálogo inteiro, cabeçalho
+    e rodapé junto, em vez da caixa do corpo — a única com `overscroll-contain`,
+    e a única que o desenho prevê que role. O descompasso existia desde sempre e
+    só ficava invisível porque o conteúdo não chegava ao teto; a linha de
+    identidade da #138 o alcançou, e `test_navegador_modal_scroll.py` acusou.
+
+    Hoje o `<dialog>` é a coluna flex, e o wrapper é `flex-1 min-h-0` dentro
+    dela: não há segundo teto para divergir do primeiro.
+
+    `open:flex` e não `flex`: a regra do agente de usuário que esconde diálogo
+    fechado é `dialog:not([open]) { display: none }`, e um `display` de autor
+    incondicional a vence por origem — todo modal da página apareceria aberto. A
+    variante só casa quando o atributo `open` está lá, que é exatamente quando o
+    diálogo deve ser coluna.
+  {% endcomment %}
+  class="m-auto max-h-[calc(100dvh-2rem)] w-full max-w-xl flex-col rounded-2xl border border-border bg-surface p-0 text-left text-text-primary shadow-2xl backdrop:bg-slate-900/60 open:flex sm:max-w-2xl"
 >
   {% if submit_form_id %}
     {% comment %}
@@ -144,7 +204,7 @@
       {% endcomment %}
     <div
       @keydown.enter="bloquearSubmitImplicito($event)"
-      class="flex max-h-[calc(100dvh-2rem)] flex-col"
+      class="flex min-h-0 flex-1 flex-col"
     >
       {% include "components/_modal_body.html" %}
     </div>
@@ -178,7 +238,7 @@
         a operação é confirmada por uma tecla apertada antes da leitura.
       {% endcomment %}
       @keydown.enter="bloquearSubmitImplicito($event)"
-      class="flex max-h-[calc(100dvh-2rem)] flex-col"
+      class="flex min-h-0 flex-1 flex-col"
     >
       {% csrf_token %}
       {% for nome, valor in hidden_inputs.items %}

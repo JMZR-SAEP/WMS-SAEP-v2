@@ -18,6 +18,17 @@ def _render_modal(**ctx):
     ctx.setdefault('id', 'meu-modal')
     ctx.setdefault('titulo', 'Título')
     ctx.setdefault('icon_variant', 'info')
+    # `registro` é obrigatório no contrato (#138), como `icon_variant`. Fica no
+    # default do helper porque nenhum teste **deste** arquivo é sobre a
+    # identidade — os que são passam o seu próprio e estão logo abaixo.
+    ctx.setdefault(
+        'registro',
+        {
+            'rotulo': 'Requisição',
+            'identificador': 'REQ-2026-000123',
+            'contexto': 'Maria Silva · Obras',
+        },
+    )
     contexto, literais = {}, []
     for chave, valor in ctx.items():
         if isinstance(valor, str):
@@ -552,3 +563,142 @@ def test_icon_variant_desconhecida_nao_falha_no_render():
     """
     html = _render_modal(action_url='/confirmar/', icon_variant='dangre')
     assert 'data-modal-icon-variant="dangre"' in html
+
+
+def test_registro_ausente_falha_no_render():
+    """`registro` é obrigatório (#138): todo modal nomeia o que está confirmando.
+
+    Nenhum dos oito consumidores carregava número público. Num bloco de decisão
+    no desktop — a cena do chefe de setor em `PRODUCT.md` — a pessoa abre várias
+    requisições em sequência e confirma sem âncora nenhuma de qual está na
+    frente, numa operação que o sistema não sabe desfazer.
+    """
+    with pytest.raises(ImproperlyConfigured):
+        _render_modal(action_url='/confirmar/', registro=None)
+
+
+def test_registro_sem_identificador_falha_no_render():
+    """Dict incompleto é recusado, não renderizado vazio.
+
+    `{{ registro.identificador }}` resolve chave ausente como string vazia. Sem
+    esta regra, a linha sairia com rótulo e sem identidade — o defeito da #138
+    de volta, agora com moldura.
+    """
+    with pytest.raises(ImproperlyConfigured):
+        _render_modal(action_url='/confirmar/', registro={'rotulo': 'Requisição'})
+
+
+def test_registro_nao_mapa_falha_no_render():
+    """String no lugar do mapa não vira linha de identidade em silêncio.
+
+    `{{ registro.identificador }}` numa string resolve para vazio: o modal
+    renderizaria, e renderizaria anônimo.
+    """
+    with pytest.raises(ImproperlyConfigured):
+        _render_modal(action_url='/confirmar/', registro='REQ-2026-000123')
+
+
+def test_registro_chega_ao_cabecalho_com_as_tres_partes():
+    html = _render_modal(action_url='/confirmar/')
+    assert 'data-modal-registro' in html
+    assert 'Requisição' in html
+    assert 'REQ-2026-000123' in html
+    assert 'Maria Silva · Obras' in html
+
+
+def test_identidade_vem_antes_da_descricao_no_cabecalho():
+    """Ordem de leitura: o que a ação faz, sobre qual documento, e só então por quê.
+
+    Debaixo da descrição, a identidade chegaria depois da frase que ela
+    qualifica — e é a descrição que descreve a consequência.
+    """
+    html = _render_modal(action_url='/confirmar/', descricao='Descrição do modal.')
+    # `id=` e não o id cru: o primeiro `meu-modal-descricao` do documento é o
+    # `aria-describedby` do <dialog>, que fica acima de tudo e não diz nada
+    # sobre a ordem dentro do cabeçalho.
+    assert html.index('data-modal-registro') < html.index('id="meu-modal-descricao"')
+
+
+def test_contexto_do_registro_e_opcional():
+    """Nem todo registro tem segunda linha — o arquivo do SCPI não tem."""
+    html = _render_modal(
+        action_url='/confirmar/',
+        registro={'rotulo': 'Arquivo', 'identificador': 'estoque.csv'},
+    )
+    assert 'estoque.csv' in html
+    assert 'None' not in html
+
+
+def test_consequencia_sai_do_corpo_com_mais_enfase_que_a_descricao():
+    """A consequência irreversível não pode ser mais apagada que o dado (#138).
+
+    No modal do SCPI ela era a `descricao` do cabeçalho, em `text-sm
+    text-text-secondary`, enquanto as três contagens logo abaixo saíam em
+    `text-base font-semibold`: a hierarquia dizia que os números importavam mais
+    que o aviso de que eles são definitivos.
+    """
+    html = _render_modal(
+        action_url='/confirmar/',
+        descricao='Descrição do modal.',
+        consequencia='Esta operação é irreversível.',
+    )
+    consequencia = next(
+        atributos
+        for _, atributos, _ in elementos(html, 'p')
+        if _tem(atributos, 'data-modal-consequencia')
+    )
+    classes = atributo(consequencia, 'class')
+    assert 'font-semibold' in classes
+    assert 'text-text-primary' in classes
+    assert 'text-text-secondary' not in classes
+
+
+def test_consequencia_compoe_a_descricao_acessivel_do_dialogo():
+    """A irreversibilidade precisa ser anunciada quando o diálogo abre."""
+    html = _render_modal(
+        action_url='/confirmar/',
+        descricao='Descrição do modal.',
+        consequencia='Esta operação é irreversível.',
+    )
+    dialogo = next(atributos for _, atributos, _ in elementos(html, 'dialog'))
+    consequencia = next(
+        atributos
+        for _, atributos, _ in elementos(html, 'p')
+        if _tem(atributos, 'data-modal-consequencia')
+    )
+
+    assert atributo(consequencia, 'id') == 'meu-modal-consequencia'
+    assert atributo(dialogo, 'aria-describedby') == (
+        'meu-modal-registro meu-modal-descricao meu-modal-consequencia'
+    )
+
+
+def test_consequencia_ausente_nao_deixa_paragrafo_vazio():
+    """Retornar para rascunho e devolução têm volta — e não passam `consequencia`."""
+    html = _render_modal(action_url='/confirmar/', descricao='Descrição do modal.')
+    assert 'data-modal-consequencia' not in html
+
+
+def test_consequencia_sozinha_abre_a_regiao_do_corpo():
+    """Modal sem `form_body_template` e sem erro ainda tem onde pousar a frase.
+
+    O gate da região rolável era `form_body_template or erro`; um modal que só
+    tem consequência a dizer perderia a frase inteira, calado.
+    """
+    html = _render_modal(
+        action_url='/confirmar/', consequencia='Esta ação não pode ser desfeita.'
+    )
+    assert 'Esta ação não pode ser desfeita.' in html
+
+
+def test_backdrop_escurece_e_nao_desfoca():
+    """O desfoque saiu (#138), e o overlay ganhou um degrau de escurecimento.
+
+    `backdrop-blur-sm` era a única superfície com desfoque do sistema — o
+    `DESIGN.md` recusa vidro fosco no north star — e borrava número público,
+    beneficiário e itens exatamente no instante em que serviriam de âncora.
+    """
+    atributos = _dialogo(_render_modal(action_url='/confirmar/'))
+    classes = atributo(atributos, 'class')
+    assert 'backdrop:backdrop-blur' not in classes
+    assert 'backdrop:bg-slate-900/60' in classes

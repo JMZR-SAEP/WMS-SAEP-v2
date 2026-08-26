@@ -1,0 +1,52 @@
+{% comment %}
+  Recapitulação das quantidades que a confirmação vai baixar do estoque, dentro
+  do modal de `atender_retirada.html` (#138).
+
+  Existe pela mesma razão que `_modal_corpo_confirmar_importacao.html`: no
+  momento de confirmar, a lista já saiu da tela. Aqui era pior — a pessoa acaba
+  de digitar quantidade item a item num formulário de até 15 linhas, e o modal
+  dizia "baixa estoque das quantidades entregues" sem repetir uma única
+  quantidade. Ela confirmava de memória, e a operação não tem desfazer.
+
+  Params: linhas (pares item/form, o mesmo `zip` que o formulário percorre).
+
+  A quantidade entregue **não** é renderizada pelo servidor. Ela é o valor que
+  está no campo agora, e o campo é editado pelo Alpine da linha (`x-model`)
+  depois do render — imprimir o `initial` do formset aqui mostraria o valor com
+  que a tela abriu, não o que vai ser gravado. É a mesma classe de defeito que a
+  recapitulação existe para fechar, só que mais traiçoeira: um número plausível
+  e errado.
+
+  Por isso cada célula declara de qual `<input>` ela lê, pelo `id` real do campo
+  (`auto_id`), e `modal.js` copia o valor no instante em que o diálogo abre —
+  ver `sincronizarResumo`. Pelo `id`, e não por posição na lista: parear por
+  índice sobrevive enquanto a ordem das duas listas for a mesma, e cala no dia
+  em que não for.
+
+  `aria-hidden` no fallback "—" não cabe: se o JS não rodar, o traço é a
+  informação honesta ("esta tela não sabe dizer"), e o rodapé continua
+  descrevendo a consequência.
+{% endcomment %}
+{% load core_tags %}
+
+<dl class="divide-y divide-border rounded-lg border border-border text-sm">
+  {% for item, form in linhas %}
+    <div class="flex items-baseline justify-between gap-4 px-3 py-2">
+      <dt class="min-w-0 text-text-secondary">{{ item.material.nome }}</dt>
+      <dd class="shrink-0 text-right tabular-nums" translate="no">
+        <span
+          data-resumo-entregue-de="{{ form.quantidade_entregue.auto_id }}"
+          class="text-base font-semibold text-text-primary"
+        >—</span>
+        <span class="text-text-tertiary">{{ item.material.get_unidade_display }}</span>
+        <span class="block text-xs text-text-tertiary">
+          de {{ item.quantidade_autorizada|formatar_quantidade:item.material.unidade }} autorizada
+        </span>
+      </dd>
+    </div>
+  {% endfor %}
+</dl>
+
+<p class="mt-4 text-sm text-text-secondary">
+  A reserva não entregue de cada item é liberada de volta ao saldo disponível.
+</p>

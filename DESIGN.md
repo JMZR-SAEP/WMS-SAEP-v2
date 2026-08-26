@@ -292,7 +292,7 @@ O sistema adota a escala Material Design 2 explicitamente, com quatro degraus e 
 - **1dp — papel** (`box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05)`, `shadow-sm`): card de listagem, wrapper de tabela, painel de decisão de workflow. É borda óptica, não elevação real — a borda de 1px continua sendo obrigatória.
 - **4dp — barra de aplicação** (`0 2px 4px -1px rgb(0 0 0 / .20), 0 4px 5px 0 rgb(0 0 0 / .14), 0 1px 10px 0 rgb(0 0 0 / .12)`): exclusivo da `.app-bar` fixa.
 - **8dp — menu** (`0 5px 5px -3px rgb(0 0 0 / .20), 0 8px 10px 1px rgb(0 0 0 / .14), 0 3px 14px 2px rgb(0 0 0 / .12)`): popover do hamburger.
-- **24dp — modal** (`shadow-2xl` + `backdrop:bg-slate-900/50 backdrop:backdrop-blur-sm`): `<dialog>`. É o único lugar do sistema com desfoque, e ele está no backdrop, não na superfície.
+- **24dp — modal** (`shadow-2xl` + `backdrop:bg-slate-900/60`): `<dialog>`. O backdrop **escurece e não desfoca**. O desfoque saiu na #138: era a única superfície embaçada do sistema, contradizendo o north star, e apagava o registro sobre o qual a pergunta estava sendo feita — número público, beneficiário, itens, entregue líquida — exatamente no instante em que ele serviria de âncora. O que responde "qual documento?" hoje é a linha de identidade dentro do próprio diálogo; o fundo continua atrás, legível, como contexto.
 
 ### Named Rules
 
@@ -347,7 +347,7 @@ Borda é estrutural, não decorativa: 1px sólido em toda superfície de papel c
 - **Popover mobile:** 16rem, papel branco, raio 0.5rem, elevação 8dp, overlay `surface-overlay` (preto 40%), foco preso (`x-trap.inert.noscroll`). Item ativo pinta fundo azul suave e texto azul; "Sair" é o único item em vermelho.
 
 ### Modal (componente-assinatura)
-`<dialog>` nativo com `role="dialog"`, `aria-modal`, `aria-labelledby` e foco preso. Raio 1rem, largura máxima de 36rem (42rem a partir de `sm`), altura limitada a `calc(100dvh - 2rem)` com o corpo rolando por dentro. Backdrop escuro com desfoque. Entrada de 180ms com `cubic-bezier(0.16, 1, 0.3, 1)` a partir de `translateY(12px) scale(0.96)`, envelopada em `prefers-reduced-motion: no-preference`. O envio é POST real com HTMX por cima; o erro re-renderiza o corpo do modal em vez de fechar a tela.
+`<dialog>` nativo com `role="dialog"`, `aria-modal`, `aria-labelledby` e foco preso. Raio 1rem, largura máxima de 36rem (42rem a partir de `sm`), altura limitada a `calc(100dvh - 2rem)` com o corpo rolando por dentro. Sob o título, uma linha fixa nomeia o registro; o backdrop escurece sem desfoque para preservar o contexto visual da tela de origem. Entrada de 180ms com `cubic-bezier(0.16, 1, 0.3, 1)` a partir de `translateY(12px) scale(0.96)`, envelopada em `prefers-reduced-motion: no-preference`. O envio é POST real com HTMX por cima; o erro re-renderiza o corpo do modal em vez de fechar a tela.
 
 ### Estado vazio
 Papel branco com **borda tracejada** `border-strong`, raio 0.75rem, `px-6 py-12`, ícone de 2.5rem em cinza apagado, título 16px medium, descrição 14px em cinza de metadado e, opcionalmente, um botão primário com a próxima ação. É o único uso de traço no sistema.
@@ -368,7 +368,7 @@ Três durações (`--duration-fast` 150ms, `--duration-normal` 250ms, `--duratio
 - **Do** deixar o texto de erro vir do Form/serviço e passar por `role="alert"` + `aria-describedby`.
 
 ### Don't:
-- **Don't** introduzir gradiente, vidro fosco (`backdrop-blur` fora do backdrop do modal) ou sombra colorida.
+- **Don't** introduzir gradiente, vidro fosco em qualquer superfície — inclusive o backdrop do modal — ou sombra colorida.
 - **Don't** criar um raio intermediário fora da escala 0.375 / 0.5 / 0.75 / 1rem / pill.
 - **Don't** subir o corpo do sistema de 0.875rem para 1rem — a densidade das filas depende disso.
 - **Don't** colocar conteúdo de domínio em caixa alta; maiúscula é só para rótulo estrutural.

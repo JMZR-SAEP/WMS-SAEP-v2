@@ -3,12 +3,12 @@
   Fonte única usada por components/modal.html (render inicial, dentro do <form>)
   e pelo fragment HTMX devolvido em respostas 422 (troca via hx-swap="outerHTML").
 
-  Params: id, titulo, descricao, erro, form_body_template, icon_variant,
-  cancel_label, confirm_label, confirm_variant, submit_form_id (modo
-  "confirmação de form externo" — ver components/modal.html), acao_erro,
-  loading_label, corpo_com_campo_focavel (bool — presente quando
-  form_body_template já renderiza campo nativamente focável; suprime o
-  `tabindex="0"` da região rolável).
+  Params: id, titulo, descricao, registro, consequencia, erro,
+  form_body_template, icon_variant, cancel_label, confirm_label,
+  confirm_variant, submit_form_id (modo "confirmação de form externo" — ver
+  components/modal.html), acao_erro, loading_label, corpo_com_campo_focavel
+  (bool — presente quando form_body_template já renderiza campo nativamente
+  focável; suprime o `tabindex="0"` da região rolável).
 
   `acao_erro` (opcional, default "concluir") é o verbo da frase-líder da caixa
   de erro: acao_erro="recusar a requisição" produz "Não foi possível recusar a
@@ -41,6 +41,43 @@
         <h2 id="{{ id }}-titulo" class="text-lg font-semibold leading-tight text-text-primary">
           {{ titulo }}
         </h2>
+        {% comment %}
+          Linha de identidade (#138): o modal nomeia o registro que está
+          confirmando. `registro` é um mapa com `rotulo`, `identificador` e
+          `contexto` (opcional), montado na camada de apresentação de cada app
+          — `registro_requisicao`, `registro_saida_excepcional`,
+          `registro_arquivo_scpi`.
+
+          Renderiza **sem `{% templatetag openblock %} if
+          {% templatetag closeblock %}`** de propósito: `registro` é
+          obrigatório nas duas portas de render (`validar_contrato_modal` e
+          `render_modal_erro`, ambas via `validar_registro_modal`), e um guarda
+          aqui abriria uma terceira via, silenciosa, em que o modal volta a ser
+          anônimo sem ninguém reclamar.
+
+          Entre o `<h2>` e a descrição, não depois: a ordem de leitura é o que
+          a ação faz, sobre qual documento, e só então a consequência. Debaixo
+          da descrição, a identidade chegaria depois da frase que ela qualifica.
+
+          `translate="no"` no identificador pelo mesmo motivo das quantidades em
+          `atender_retirada.html` — tradutor automático reescreve número
+          público, e o número é a âncora inteira.
+
+          O `id` existe por dois motivos, nenhum decorativo: ele entra no
+          `aria-describedby` do `<dialog>` (a identidade é anunciada na abertura,
+          não só vista), e é por id que `assert_copy_nao_diverge` compara o 422
+          contra o render inicial — o mesmo mecanismo que a #135 montou para
+          título e descrição.
+        {% endcomment %}
+        <p id="{{ id }}-registro" data-modal-registro class="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm leading-snug">
+          {% if registro.rotulo %}
+            <span class="text-xs font-semibold uppercase tracking-wide text-text-tertiary">{{ registro.rotulo }}</span>
+          {% endif %}
+          <span class="font-semibold tabular-nums text-text-primary" translate="no">{{ registro.identificador }}</span>
+          {% if registro.contexto %}
+            <span class="min-w-0 text-text-secondary">{{ registro.contexto }}</span>
+          {% endif %}
+        </p>
         {% if descricao %}
           <p id="{{ id }}-descricao" class="mt-1.5 text-sm leading-relaxed text-text-secondary">
             {{ descricao }}
@@ -81,7 +118,7 @@
     </div>
   </template>
 
-  {% if form_body_template or erro %}
+  {% if form_body_template or erro or consequencia %}
     {% comment %}
       `overscroll-contain` mora aqui, e não no `<dialog>` (#134): quem rola é
       esta caixa, e a contenção só existe para quem rola. No diálogo — que tem
@@ -128,6 +165,26 @@
       {% endif %}
       {% if form_body_template %}
         {% include form_body_template %}
+      {% endif %}
+      {% comment %}
+        `consequencia` é a frase de irreversibilidade, e ela vive aqui — no
+        fim do corpo, em `font-semibold text-text-primary` — em vez de dentro
+        da `descricao` do cabeçalho (#138).
+
+        No cabeçalho ela saía em `text-sm text-text-secondary`, ou seja, mais
+        apagada que os dados que qualifica: no modal do SCPI, "A gravação não
+        pode ser desfeita" era secundária enquanto as três contagens logo
+        abaixo eram `text-base font-semibold`. A hierarquia dizia que os
+        números importavam mais que o aviso de que eles são definitivos.
+
+        Continua dita **uma vez só**, que é a regra que a #135 fixou: quem tem
+        `consequencia` teve a frase removida da `descricao`, e o painel de
+        decisão que resume a ação antes de abrir o modal concatena as duas.
+      {% endcomment %}
+      {% if consequencia %}
+<p id="{{ id }}-consequencia" data-modal-consequencia class="text-sm font-semibold text-text-primary{% if form_body_template or erro %} mt-5 border-t border-border pt-4{% endif %}">
+          {{ consequencia }}
+        </p>
       {% endif %}
     </div>
   {% endif %}

@@ -2268,6 +2268,10 @@ def test_detalhe_exibe_botao_separar_para_aux_almox(
     assert response.status_code == 200
     html = response.content.decode('utf-8')
     assert 'Separar para retirada' in html
+    textos = _texto_dos_dialogos(html)
+    assert 'confirmar-separar' in textos
+    assert req_autorizada_view.numero_publico in textos['confirmar-separar']
+    assert req_autorizada_view.beneficiario.nome in textos['confirmar-separar']
     assert response.context['pode_separar_retirada'] is True
 
 
@@ -5127,3 +5131,168 @@ def test_atender_erro_de_formset_aparece_uma_vez_so(
     sumario = re.search(r'<div\s+id="sumario-erros".*?</div>', html, re.S).group(0)
     assert sumario.count('Item duplicado no atendimento.') == 1
     assert html.count('Item duplicado no atendimento.') == 1
+
+
+# ---------------------------------------------------------------------------
+# O modal nomeia o registro que está confirmando (#138)
+# ---------------------------------------------------------------------------
+
+
+class _TextoDosDialogos(HTMLParser):
+    """Texto visível de dentro de cada `<dialog>`, indexado pelo id do diálogo.
+
+    Estrutural e não por fatia de string: a asserção é "este número chegou
+    **dentro** desta caixa", e uma busca no documento inteiro passaria só
+    porque a tela atrás do modal também mostra o número — que é exatamente a
+    situação que a #138 existe para consertar.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.texto = {}
+        self._atual = None
+
+    def handle_starttag(self, tag, attrs):
+        if tag == 'dialog':
+            self._atual = dict(attrs).get('id')
+            self.texto[self._atual] = []
+
+    def handle_endtag(self, tag):
+        if tag == 'dialog':
+            self._atual = None
+
+    def handle_data(self, data):
+        if self._atual is not None:
+            self.texto[self._atual].append(data)
+
+
+def _texto_dos_dialogos(html):
+    parser = _TextoDosDialogos()
+    parser.feed(html)
+    return {
+        modal_id: ' '.join(' '.join(partes).split())
+        for modal_id, partes in parser.texto.items()
+    }
+
+
+@pytest.mark.django_db
+def test_todo_modal_do_detalhe_carrega_o_numero_publico(
+    client, chefe_obras, req_enviada_solicitante
+):
+    """Autorizar, recusar, retornar e cancelar confirmam sobre um documento nomeado.
+
+    Em bloco de decisão no desktop a pessoa abre várias requisições em sequência
+    e confirmava sem nenhuma âncora de qual estava na frente — o vetor clássico
+    de executar a ação certa no documento errado, num sistema sem desfazer.
+    """
+    _login(client, chefe_obras)
+    response = client.get(
+        reverse('requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk})
+    )
+    textos = _texto_dos_dialogos(response.content.decode('utf-8'))
+
+    assert textos, 'tela de decisão renderizada sem nenhum <dialog>'
+    for modal_id, texto in textos.items():
+        assert req_enviada_solicitante.numero_publico in texto, modal_id
+        assert req_enviada_solicitante.beneficiario.nome in texto, modal_id
+
+
+@pytest.mark.django_db
+def test_modal_de_rascunho_diz_rascunho_e_nao_vaza_o_pk(
+    client, solicitante, req_rascunho_solicitante
+):
+    """O rascunho tem modal e não tem número — e o fallback não é o `__str__`.
+
+    `str(requisicao)` devolve `Rascunho #<pk>`, e a P3-01 de
+    `.design/detalhe-requisicao/DESIGN_BRIEF.md` diz que PK interno não vaza
+    para UI. Quem responde "qual documento?" aqui é o beneficiário e o setor.
+    """
+    _login(client, solicitante)
+    response = client.get(
+        reverse('requisicoes:detalhe', kwargs={'pk': req_rascunho_solicitante.pk})
+    )
+    textos = _texto_dos_dialogos(response.content.decode('utf-8'))
+
+    assert textos
+    for modal_id, texto in textos.items():
+        assert 'Rascunho' in texto, modal_id
+        assert f'Rascunho #{req_rascunho_solicitante.pk}' not in texto, modal_id
+        assert req_rascunho_solicitante.beneficiario.nome in texto, modal_id
+
+
+@pytest.mark.django_db
+def test_modal_de_retirada_repete_as_quantidades_que_serao_baixadas(
+    client, aux_almoxarifado, req_pronta_view_com_itens
+):
+    """A pessoa digitou quantidade item a item; o modal repetia nenhuma delas.
+
+    O corpo lista material e quantidade autorizada pelo servidor, e declara de
+    qual `<input>` cada célula lê a quantidade entregue — o valor vivo, que só
+    existe no campo. Parear por `id` e não por posição é o que sobrevive a uma
+    mudança de ordem entre as duas listas.
+    """
+    _login(client, aux_almoxarifado)
+    response = client.get(
+        reverse(
+            'requisicoes:registrar_atendimento',
+            kwargs={'pk': req_pronta_view_com_itens.pk},
+        )
+    )
+    html = response.content.decode('utf-8')
+    texto = _texto_dos_dialogos(html)['confirmar-atender-retirada']
+
+    item = req_pronta_view_com_itens.itens.first()
+    assert req_pronta_view_com_itens.numero_publico in texto
+    assert item.material.nome in texto
+    assert 'de 2 autorizada' in texto
+    assert 'Esta ação não pode ser desfeita.' in texto
+    # O gancho aponta para um `id` que existe de verdade no formulário.
+    ganchos = re.findall(r'data-resumo-entregue-de="([^"]+)"', html)
+    assert ganchos
+    for gancho in ganchos:
+        assert f'id="{gancho}"' in html
+
+
+@pytest.mark.django_db
+def test_modal_de_estorno_repete_a_entregue_liquida_que_volta_ao_saldo(
+    client, chefe_almoxarifado, req_atendida_view
+):
+    """ "Estornar requisição" — qual, e quanto volta?
+
+    A descrição diz "toda a entregue líquida"; a lista diz quanto é. Era a única
+    superfície do sistema que confirmava uma reversão de estoque sem nomear um
+    número sequer.
+    """
+    _login(client, chefe_almoxarifado)
+    response = client.get(
+        reverse('requisicoes:detalhe', kwargs={'pk': req_atendida_view.pk})
+    )
+    texto = _texto_dos_dialogos(response.content.decode('utf-8'))['estornar-modal']
+
+    item = req_atendida_view.itens.first()
+    assert req_atendida_view.numero_publico in texto
+    assert item.material.nome in texto
+    assert 'Esta operação é irreversível.' in texto
+
+
+@pytest.mark.django_db
+def test_estorno_422_devolve_o_modal_ainda_nomeado(
+    client, chefe_almoxarifado, req_atendida_view
+):
+    """O 422 troca o corpo inteiro — inclusive o cabeçalho que carrega a identidade.
+
+    É no re-render com erro, com a pessoa já tendo confirmado uma vez, que saber
+    qual documento está na frente importa mais.
+    """
+    _login(client, chefe_almoxarifado)
+    response = client.post(
+        reverse('requisicoes:estornar', kwargs={'pk': req_atendida_view.pk}),
+        data={'justificativa': ''},
+        HTTP_HX_REQUEST='true',
+    )
+    assert response.status_code == 422
+    html = response.content.decode('utf-8')
+    assert req_atendida_view.numero_publico in html
+    assert 'data-modal-registro' in html
+    assert 'Esta operação é irreversível.' in html
+    assert req_atendida_view.itens.first().material.nome in html
