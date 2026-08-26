@@ -2727,6 +2727,40 @@ class TestHistoricoMovimentacoesResponsivo:
 
         assert '2 movimentações encontradas.' in html
 
+    def test_contagem_visivel_na_pagina_completa(
+        self, client, superuser, requisicao_autorizada
+    ):
+        """Issue #144: com a contagem só em `hx-swap-oob`, carga de página
+        completa não mostrava nada pra quem enxerga — `resumo-movimentacoes`
+        nasce vazio. A contagem visível fica na mesma linha do controle de
+        ordenação, e precisa aparecer mesmo com resultado único (sem
+        paginação, que só renderiza com mais de uma página).
+        """
+        client.force_login(superuser)
+        response = client.get(URL_MOVIMENTACOES)
+        assert response.context['page_obj'].paginator.num_pages == 1
+        html = response.content.decode()
+
+        idx_ordenacao = html.index('Mais recentes primeiro')
+        linha = html.rindex('<div', 0, idx_ordenacao)
+        trecho = html[linha:idx_ordenacao]
+        assert 'tabular-nums">1</span>' in trecho
+        assert 'movimentação' in trecho
+
+    def test_contagem_visivel_em_resposta_htmx(
+        self, client, superuser, requisicao_autorizada
+    ):
+        """A mesma contagem visível também na resposta parcial HTMX — não só
+        a sr-only via swap out-of-band."""
+        client.force_login(superuser)
+        html = client.get(URL_MOVIMENTACOES, HTTP_HX_REQUEST='true').content.decode()
+
+        idx_ordenacao = html.index('Mais recentes primeiro')
+        linha = html.rindex('<div', 0, idx_ordenacao)
+        trecho = html[linha:idx_ordenacao]
+        assert 'tabular-nums">1</span>' in trecho
+        assert 'movimentação' in trecho
+
 
 class TestHistoricoMovimentacoesFiltrosResponsivo:
     """Paridade estrutural da barra de filtros extraída (issue #88)."""

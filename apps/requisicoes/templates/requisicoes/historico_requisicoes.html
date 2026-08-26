@@ -61,7 +61,7 @@
   {% partialdef resultados %}
   {% if page_obj.object_list %}
 
-    {% include "components/ordenacao_data.html" with url_ordenacao=url_ordenacao ordem=ordem target_id="resultados-historico-requisicoes" %}
+    {% include "components/ordenacao_data.html" with url_ordenacao=url_ordenacao ordem=ordem target_id="resultados-historico-requisicoes" contagem=page_obj.paginator.count rotulo_contagem="requisição,requisições" %}
 
     {% include "components/table.html#cards_abertura" %}
       {% for req in page_obj.object_list %}

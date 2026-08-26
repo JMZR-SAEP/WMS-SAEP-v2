@@ -6,14 +6,28 @@ tabela. Sem tabela, o controle precisa de casa própria — e visível em toda
 largura, não só no mobile, senão ordenar deixa de existir no desktop.
 
 Parâmetros:
-  url_ordenacao (obrigatório) URL que inverte a ordem, já montada pela view
-  ordem         (obrigatório) 'asc' ou 'desc' — ordem corrente
-  target_id     (obrigatório) id do wrapper alvo do swap HTMX (sem #)
+  url_ordenacao   (obrigatório) URL que inverte a ordem, já montada pela view
+  ordem           (obrigatório) 'asc' ou 'desc' — ordem corrente
+  target_id       (obrigatório) id do wrapper alvo do swap HTMX (sem #)
+  contagem        (obrigatório) page_obj.paginator.count do recorte atual
+  rotulo_contagem (obrigatório) par "singular,plural" pro filtro `pluralize`,
+                  ex. "requisição,requisições"
 
 Uso:
-  {% include "components/ordenacao_data.html" with url_ordenacao=url_ordenacao ordem=ordem target_id="resultados-x" %}
+  {% include "components/ordenacao_data.html" with url_ordenacao=url_ordenacao ordem=ordem target_id="resultados-x" contagem=page_obj.paginator.count rotulo_contagem="item,itens" %}
 {% endcomment %}
-<div class="mb-3 flex justify-end">
+{% comment %}
+  Issue #144: a contagem do recorte só existia via `hx-swap-oob` na região
+  sr-only — nada em carga de página completa, e `components/pagination.html`
+  só renderiza com mais de uma página. Esta é a linha visível, nos dois
+  caminhos (página completa e partial HTMX), já que este include roda dentro
+  do bloco `{% if page_obj.object_list %}` das duas telas de histórico. A
+  região sr-only continua como está, para o anúncio do swap.
+{% endcomment %}
+<div class="mb-3 flex items-center justify-between gap-3">
+  <p class="text-sm text-text-secondary">
+    <span class="font-medium tabular-nums">{{ contagem }}</span> {{ contagem|pluralize:rotulo_contagem }}
+  </p>
   {% with seletor_alvo="#"|add:target_id %}
     {% if ordem == 'asc' %}
       {% include "components/button.html" with variant="secondary" label="Mais antigas primeiro ↑" href=url_ordenacao hx_get=url_ordenacao hx_target=seletor_alvo hx_push_url="true" aria_label="Ordenar por data/hora, atualmente crescente" %}
