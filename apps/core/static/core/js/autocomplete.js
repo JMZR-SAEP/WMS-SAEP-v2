@@ -173,6 +173,7 @@
       },
 
       limpar() {
+        this._abortController?.abort();
         this.query = '';
         this.resultados = [];
         this.erro = false;
