@@ -2444,6 +2444,44 @@ class TestHistoricoMovimentacoesFiltrosPartials:
         assert b'hx-swap-oob="true"' in parcial
         assert b'Limpar filtros' in parcial
 
+    def test_limpar_filtros_e_link_navegavel_tambem_no_reemite_htmx(
+        self, client, superuser, requisicao_autorizada
+    ):
+        """Bug-regressão: "Limpar filtros" saía inerte na resposta HTMX.
+
+        O `{% url ... as url_movimentacoes %}` fica no topo da tela, fora do
+        `{% partialdef resultados %}`, e não roda quando o fragmento é
+        renderizado sozinho. Com `action_url` vazio o components/button.html
+        caía no ramo `<button>`: sem href e sem hx-get, um controle que não
+        fazia nada — logo depois de aplicar um filtro.
+        """
+        client.force_login(superuser)
+        parcial = client.get(
+            URL_MOVIMENTACOES, {'material': 'MAT001'}, HTTP_HX_REQUEST='true'
+        ).content.decode()
+        marca = 'id="filtro-acoes-movimentacoes"'
+        trecho = parcial[parcial.index(marca) :]
+        trecho = trecho[: trecho.index('</span>')]
+        assert f'href="{URL_MOVIMENTACOES}"' in trecho, (
+            f'"Limpar filtros" precisa navegar de verdade; veio: {trecho}'
+        )
+
+    def test_submit_fica_fora_do_wrapper_reemitido_via_oob(
+        self, client, superuser, requisicao_autorizada
+    ):
+        """O swap OOB não pode destruir o botão que disparou a requisição."""
+        client.force_login(superuser)
+        parcial = client.get(
+            URL_MOVIMENTACOES, {'material': 'MAT001'}, HTTP_HX_REQUEST='true'
+        ).content.decode()
+        marca = 'id="filtro-acoes-movimentacoes"'
+        trecho = parcial[parcial.index(marca) :]
+        trecho = trecho[: trecho.index('</span>')]
+        assert 'hx-swap-oob="true"' in trecho
+        assert 'Aplicar filtros' not in trecho, (
+            f'O submit não pode ser reemitido no OOB: {trecho}'
+        )
+
     def test_limpar_filtros_sem_oob_na_pagina_completa(
         self, client, superuser, requisicao_autorizada
     ):

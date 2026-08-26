@@ -83,8 +83,22 @@
     {% if com_erro %}aria-invalid="true"{% if erro_id %} aria-describedby="{{ erro_id }}"{% endif %}{% endif %}
     :aria-controls="idBase + '-listbox'"
     :aria-expanded="aberto"
-    :aria-activedescendant="ativo >= 0 ? (idBase + '-opt-' + ativo) : null"
+    {% comment %}
+      `aberto &&` no activedescendant: a referência só pode apontar para uma
+      opção visível. Com o popup fechado o <ul> é `display:none`, e apontar
+      para dentro dele deixa o foco virtual do leitor de tela numa opção que
+      ninguém vê nem consegue acionar.
+    {% endcomment %}
+    :aria-activedescendant="aberto && ativo >= 0 ? (idBase + '-opt-' + ativo) : null"
+    :aria-busy="buscando"
   />
+  {% comment %}
+    Região live da contagem. O spinner é `aria-hidden` e abrir o listbox não
+    anuncia nada por si só — sem isto, uma busca com resultados era silenciosa
+    para leitor de tela, e só o caso "nenhum resultado" falava. Fica fora de
+    qualquer `x-show`: região escondida não anuncia.
+  {% endcomment %}
+  <span class="sr-only" role="status" aria-live="polite" x-text="anuncioResultados()"></span>
   <span x-show="buscando" x-cloak class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" aria-hidden="true">
     <svg class="h-4 w-4 animate-spin motion-reduce:animate-none text-text-disabled" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
       <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -100,6 +114,24 @@
     class="absolute z-20 mt-1 w-full overflow-y-auto rounded-lg border border-border bg-surface text-sm shadow-lg"
     style="max-height: 14rem"
   >
+    {% comment %}
+      Duas correções na <li>, ambas medidas:
+
+      - `py-3` + `min-h-11`: a linha tinha 36px (`py-2` sobre uma linha de
+        20px). É o alvo de toque do auxiliar de almoxarifado, em pé no galpão,
+        e o piso de 44px do design system foi escrito exatamente para essa
+        cena. Era o único controle da superfície abaixo do piso — o teste que
+        varre o piso só olha <a> e <button>. `py-3` fecha os 44px no caso de
+        uma linha; `min-h-11` garante o piso se o item_template encolher.
+        A <li> continua sendo bloco: virar contêiner flex transformava cada
+        <span> do item_template em item de flex, e o rótulo de material longo
+        quebrava numa coluna de 144px de altura.
+      - `ring-2 ring-inset ring-primary` no item ativo: `bg-primary-subtle`
+        sozinho separa a opção ativa do fundo branco por 1.09:1, longe dos
+        3:1 que a WCAG 1.4.11 pede para identificar estado. Como é o único
+        indicador de onde as setas do teclado estão, o anel entra para
+        carregar o estado (5.25:1) e o fundo fica como reforço.
+    {% endcomment %}
     <template x-for="(item, idx) in resultados" :key="item.id">
       <li
         :id="idBase + '-opt-' + idx"
@@ -107,13 +139,36 @@
         :aria-selected="ativo === idx"
         @mousedown.prevent="selecionar(item)"
         @mouseover="ativo = idx"
-        :class="ativo === idx ? 'bg-primary-subtle' : 'hover:bg-bg-page'"
-        class="cursor-pointer px-3 py-2"
+        :class="ativo === idx ? 'bg-primary-subtle ring-2 ring-inset ring-primary' : 'hover:bg-bg-page'"
+        class="min-h-11 cursor-pointer px-3 py-3"
       >
         {% include item_template %}
       </li>
     </template>
   </ul>
+  {% comment %}
+    Estado de erro, separado de "zero resultados". `role="alert"` porque é
+    interrupção: a busca não aconteceu, e insistir na mesma tecla não resolve.
+    A cópia não repete o status HTTP — quem opera não age diferente diante de
+    403 ou 500; age diante de "não deu, tente de novo".
+  {% endcomment %}
+  <p
+    x-show="aberto && erro"
+    x-cloak
+    class="absolute z-20 mt-1 w-full rounded-lg border border-danger-border bg-surface px-3 py-2 text-sm text-danger-text shadow-lg"
+    role="alert"
+    {% comment %}
+      `data-erro-busca` marca isto como falha da REQUISIÇÃO de busca, não erro
+      de validação do campo — o guard de components/field_error.html varre
+      justamente `<p role="alert">` com `text-danger-text` e precisa saber
+      distinguir os dois. Erro de campo vem do Form, sobrevive ao POST e
+      ancora o sumário de erros; este some assim que a próxima tecla dispara
+      uma busca nova, e é do dropdown, não do formulário.
+    {% endcomment %}
+    data-erro-busca
+  >
+    Não foi possível buscar agora. Verifique a conexão e tente de novo.
+  </p>
   <p
     x-show="aberto && mensagemVaziaVisivel()"
     x-cloak

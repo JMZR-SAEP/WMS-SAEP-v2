@@ -29,7 +29,7 @@
   {# Preserva ordenação corrente ao submeter os filtros #}
   {% if ordem == 'asc' %}<input type="hidden" name="ordem" value="asc">{% endif %}
 
-  {% include "components/filter_acoes.html" with id="filtro-acoes-historico-requisicoes" action_url=url_historico target_id="resultados-historico-requisicoes" tem_filtro_ativo=tem_filtro_ativo %}
+  {% include "components/filter_acoes.html" with id="filtro-acoes-historico-requisicoes" action_url=url_historico tem_filtro_ativo=tem_filtro_ativo %}
 </form>
   </div>
 </details>
@@ -116,8 +116,17 @@
   {% endif %}
 
   {% if is_htmx %}
-    {# filter_acoes.html vive fora de #resultados-historico-requisicoes (dentro do <form>); reemite via out-of-band pra refletir tem_filtro_ativo após um swap HTMX. #}
-    {% include "components/filter_acoes.html" with id="filtro-acoes-historico-requisicoes" action_url=url_historico target_id="resultados-historico-requisicoes" tem_filtro_ativo=tem_filtro_ativo oob=True %}
+    {% comment %}
+      O `{% templatetag openblock %} url ... as url_historico {% templatetag closeblock %}`
+      do topo da tela fica FORA deste partialdef e não roda quando o fragmento
+      é renderizado sozinho (`...html#resultados`, caminho HTMX). Sem resolver a
+      URL aqui, `action_url` chegava vazio no reemite e o "Limpar filtros" saía
+      como `<button>` inerte — sem href, sem ação — logo depois de aplicar um
+      filtro, que é exatamente quando ele é necessário.
+    {% endcomment %}
+    {% url 'requisicoes:historico' as url_historico %}
+    {# O slot do "Limpar" vive fora de #resultados-historico-requisicoes (dentro do <form>); reemite via out-of-band pra refletir tem_filtro_ativo após um swap HTMX. #}
+    {% include "components/filter_acoes.html#limpar" with id="filtro-acoes-historico-requisicoes" action_url=url_historico tem_filtro_ativo=tem_filtro_ativo oob=True %}
     {# Só o conteúdo da live region é trocado; o elemento com role="status" permanece no DOM. #}
     <span hx-swap-oob="innerHTML:#resumo-historico-requisicoes">{% if page_obj.paginator.count %}{{ page_obj.paginator.count }} requisiç{{ page_obj.paginator.count|pluralize:"ão,ões" }} encontrad{{ page_obj.paginator.count|pluralize:"a,as" }}.{% else %}Nenhuma requisição encontrada.{% endif %}</span>
   {% endif %}

@@ -29,26 +29,76 @@ Uso canônico:
 
     {% if ordem == 'asc' %}<input type="hidden" name="ordem" value="asc">{% endif %}
 
-    {% include "components/filter_acoes.html" with action_url=url_x target_id="resultados-x" tem_filtro_ativo=tem_filtro_ativo %}
+    {% include "components/filter_acoes.html" with id="filtro-acoes-x" action_url=url_x tem_filtro_ativo=tem_filtro_ativo %}
   </form>
   </div>
   </details>
 {% endcomment %}
 {% partialdef abertura %}
-<details class="mb-6" open>
+{% comment %}
+  `x-init` reabre o disclosure ao cruzar o breakpoint `sm`.
+
+  O `sm:block!` do wrapper abaixo não dá conta sozinho, e não tem como dar:
+  um `<details>` fechado esconde o conteúdo pelo slot interno do próprio
+  elemento, não por um `display` no filho — `display:block!important` no
+  wrapper não alcança isso. Como o `<summary>` é `sm:hidden`, quem fechasse
+  os filtros no celular e chegasse a >=640px (girar o aparelho, alargar a
+  janela) perdia o formulário inteiro E o único controle capaz de reabri-lo:
+  12 campos inalcançáveis até recarregar a página.
+
+  Sincronizar o atributo `open` resolve na fonte, porque `open` é o estado
+  real do disclosure. Sem JS o `<details>` já nasce `open` no HTML, então a
+  degradação é o formulário visível — nunca o inverso.
+
+  Escuta os dois sinais de propósito: `change` da media query é o correto e
+  suficiente num navegador de verdade; `resize` cobre ambientes que mudam a
+  viewport sem notificar a media query (a emulação de viewport por CDP, usada
+  pelos testes de navegador, é um deles). O handler só lê `matches` e atribui
+  um booleano — repetir em cada resize não custa nada.
+{% endcomment %}
+<details
+  class="group mb-6"
+  open
+  x-data
+  x-init="
+    const consultaDesktop = window.matchMedia('(min-width: 40rem)');
+    const manterAbertoNoDesktop = () => { if (consultaDesktop.matches) $el.open = true; };
+    manterAbertoNoDesktop();
+    consultaDesktop.addEventListener('change', manterAbertoNoDesktop);
+    window.addEventListener('resize', manterAbertoNoDesktop);
+  "
+>
   <summary
     class="sm:hidden mb-4 flex min-h-11 cursor-pointer list-none items-center justify-between rounded-xl border border-border bg-surface px-4 py-2 text-sm font-medium text-text-secondary shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
   >
     Filtros
-    <span aria-hidden="true" class="ml-2 text-text-disabled">▼</span>
+    {% comment %}
+      O glifo acompanha o estado. Parado, ele apontava para baixo com o painel
+      aberto e com o painel fechado — uma seta que não informa nada é pior que
+      seta nenhuma. `text-text-tertiary` (4.76:1) porque, decorativo ou não, é
+      a única pista visual de que o cabeçalho abre e fecha; `text-text-disabled`
+      dava 2.63:1.
+    {% endcomment %}
+    <span
+      aria-hidden="true"
+      class="ml-2 text-text-tertiary transition-transform group-open:rotate-180 motion-reduce:transition-none"
+    >▼</span>
   </summary>
   <div class="sm:block!">
+  {% comment %}
+    `data-prevent-double-submit` liga o form ao apps/core/static/core/js/form-submit.js,
+    que já existe: marca `aria-busy` e desabilita o submit enquanto a
+    requisição está em voo, e libera em `htmx:afterRequest` (qualquer
+    desfecho). Sem isso, aplicar filtro não devolvia sinal nenhum — em rede
+    de galpão, a leitura honesta de silêncio é "não registrou, clica de novo".
+  {% endcomment %}
   <form
     method="get"
     action="{{ action_url }}"
     hx-get="{{ action_url }}"
     hx-target="#{{ target_id }}"
     hx-push-url="true"
+    data-prevent-double-submit
     class="rounded-xl border border-border bg-surface p-4 shadow-sm"
   >
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

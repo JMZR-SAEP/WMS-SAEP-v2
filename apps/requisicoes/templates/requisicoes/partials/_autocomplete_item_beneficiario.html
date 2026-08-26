@@ -1,7 +1,14 @@
 {% comment %}
   Item de resultado do autocomplete de beneficiário: nome + matrícula + setor.
   Incluído por `components/autocomplete.html` dentro do escopo Alpine `item`/`idx`.
+
+  Piso de cor dentro de `role="option"`: `text-text-secondary`. O setor vinha
+  em `text-text-disabled` (2.63:1 no branco, 2.42:1 no fundo da opção ativa) e
+  a matrícula em `text-text-tertiary`, que passa em repouso (4.76:1) mas cai
+  para 4.38:1 sobre o fundo da opção ativa — ambos abaixo do 4.5:1 da WCAG AA
+  no estado em que a pessoa está justamente decidindo. São os dois dados que
+  desambiguam homônimos; nenhum deles é enfeite.
 {% endcomment %}
 <span class="font-medium text-text-primary" x-text="item.nome"></span>
-<span class="ml-1 text-xs text-text-tertiary" x-text="'(' + item.matricula + ')'"></span>
-<span x-show="item.setor" class="ml-1 text-xs text-text-disabled" x-text="'· ' + item.setor"></span>
+<span class="ml-1 text-xs text-text-secondary" x-text="'(' + item.matricula + ')'"></span>
+<span x-show="item.setor" class="ml-1 text-xs text-text-secondary" x-text="'· ' + item.setor"></span>

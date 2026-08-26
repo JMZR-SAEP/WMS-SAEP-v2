@@ -3841,6 +3841,83 @@ class TestHistoricoRequisicoesFiltrosPartials:
         assert conteudo.count(b'id="filtro-acoes-historico-requisicoes"') == 1
         assert b'hx-swap-oob' not in conteudo
 
+    def test_limpar_filtros_e_link_navegavel_tambem_no_reemite_htmx(
+        self, client, superuser
+    ):
+        """Bug-regressão: "Limpar filtros" saía inerte na resposta HTMX.
+
+        O `{% url ... as url_historico %}` fica no topo da tela, fora do
+        `{% partialdef resultados %}`, e não roda quando o fragmento é
+        renderizado sozinho. Com `action_url` vazio o components/button.html cai
+        no ramo `<button>`: um controle sem href e sem hx-get, que não fazia
+        absolutamente nada — logo depois de aplicar um filtro, que é o momento
+        em que limpar é necessário.
+        """
+        _login(client, superuser)
+        parcial = client.get(
+            URL_HISTORICO_REQUISICOES, {'texto': 'x'}, HTTP_HX_REQUEST='true'
+        ).content.decode()
+        marca = 'id="filtro-acoes-historico-requisicoes"'
+        trecho = parcial[parcial.index(marca) :]
+        trecho = trecho[: trecho.index('</span>')]
+        assert f'href="{URL_HISTORICO_REQUISICOES}"' in trecho, (
+            f'"Limpar filtros" precisa navegar de verdade; veio: {trecho}'
+        )
+
+    def test_limpar_filtros_navega_sem_htmx_para_ressincronizar_os_campos(
+        self, client, superuser
+    ):
+        """Limpar por HTMX trocava só os resultados e deixava os campos sujos.
+
+        Os campos do filtro vivem no `<form>`, fora do alvo do swap. Limpando
+        por HTMX a URL ficava limpa e a listagem voltava sem filtro, mas o
+        campo seguia exibindo o texto e o checkbox seguia marcado — e o
+        "Aplicar filtros" seguinte reenviava, em silêncio, o filtro que a
+        pessoa acabara de limpar. A navegação nativa rerenderiza o formulário
+        inteiro pelo servidor, deixando campos, resultados e URL coerentes.
+        """
+        _login(client, superuser)
+        pagina = client.get(URL_HISTORICO_REQUISICOES, {'texto': 'x'}).content.decode()
+        marca = 'id="filtro-acoes-historico-requisicoes"'
+        trecho = pagina[pagina.index(marca) :]
+        trecho = trecho[: trecho.index('</span>')]
+        assert 'Limpar filtros' in trecho
+        assert 'hx-get' not in trecho, (
+            f'Limpar precisa ser navegação nativa, não swap HTMX: {trecho}'
+        )
+
+    def test_submit_fica_fora_do_wrapper_reemitido_via_oob(self, client, superuser):
+        """O swap OOB não pode destruir o botão que disparou a requisição.
+
+        O wrapper reemitido já foi a linha inteira, "Aplicar filtros" incluído.
+        Como `hx-swap-oob` substitui o elemento, o submit era removido do DOM
+        pelo swap que ele mesmo disparou: o foco caía no `<body>` e o próximo
+        Tab recomeçava a página inteira.
+        """
+        _login(client, superuser)
+        parcial = client.get(
+            URL_HISTORICO_REQUISICOES, {'texto': 'x'}, HTTP_HX_REQUEST='true'
+        ).content.decode()
+        marca = 'id="filtro-acoes-historico-requisicoes"'
+        trecho = parcial[parcial.index(marca) :]
+        trecho = trecho[: trecho.index('</span>')]
+        assert 'hx-swap-oob="true"' in trecho
+        assert 'Aplicar filtros' not in trecho, (
+            f'O submit não pode ser reemitido no OOB: {trecho}'
+        )
+
+    def test_form_de_filtros_sinaliza_envio_em_andamento(self, client, superuser):
+        """Aplicar filtro não devolvia sinal nenhum até o swap chegar."""
+        _login(client, superuser)
+        conteudo = client.get(URL_HISTORICO_REQUISICOES).content.decode()
+        # A partir do <details> — o primeiro <form> da página é o de logout.
+        barra = conteudo[conteudo.index('<details') :]
+        barra = barra[: barra.index('</details>')]
+        assert (
+            'data-prevent-double-submit'
+            in barra[: barra.index('>', barra.index('<form'))]
+        )
+
     def test_todos_os_campos_esperados_presentes(self, client, chefe_almoxarifado):
         _login(client, chefe_almoxarifado)
         content = client.get(URL_HISTORICO_REQUISICOES).content.decode()

@@ -87,7 +87,17 @@
         });
       }
 
-      return { btn, desabilitadoAntes: btn.disabled, ariaBusyAntes };
+      return {
+        btn,
+        desabilitadoAntes: btn.disabled,
+        ariaBusyAntes,
+        // Desabilitar o botão que está com o foco joga o foco no <body>: quem
+        // navega por teclado perde o lugar e o próximo Tab recomeça a página
+        // no "Pular para o conteúdo". `liberar()` devolve o foco a quem o
+        // tinha. Ver o filtro de histórico, onde o submit é o alvo natural
+        // de vários envios seguidos (ajusta filtro, aplica, ajusta de novo).
+        tinhaFoco: document.activeElement === btn,
+      };
     });
 
     emVoo.set(form, { botoes, rotulos });
@@ -110,12 +120,24 @@
     estado.rotulos.forEach(([node, texto]) => {
       node.textContent = texto;
     });
-    estado.botoes.forEach(({ btn, desabilitadoAntes, ariaBusyAntes }) => {
+    estado.botoes.forEach(({ btn, desabilitadoAntes, ariaBusyAntes, tinhaFoco }) => {
       btn.disabled = desabilitadoAntes;
       if (ariaBusyAntes === null) {
         btn.removeAttribute('aria-busy');
       } else {
         btn.setAttribute('aria-busy', ariaBusyAntes);
+      }
+      // Só devolve o foco se ele continua no <body>, isto é, se ninguém o
+      // reivindicou desde o envio — um `focus()` cego roubaria o foco de um
+      // diálogo aberto pela resposta ou de um campo que a pessoa já escolheu.
+      // Botão trocado por swap sai do documento e `focus()` vira no-op.
+      if (
+        tinhaFoco &&
+        !btn.disabled &&
+        btn.isConnected &&
+        document.activeElement === document.body
+      ) {
+        btn.focus();
       }
     });
   }

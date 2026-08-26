@@ -33,7 +33,7 @@
     {# Preserva ordenação corrente ao submeter os filtros #}
     {% if ordem == 'asc' %}<input type="hidden" name="ordem" value="asc">{% endif %}
 
-    {% include "components/filter_acoes.html" with id="filtro-acoes-movimentacoes" action_url=url_movimentacoes target_id="resultados-movimentacoes" tem_filtro_ativo=tem_filtro_ativo %}
+    {% include "components/filter_acoes.html" with id="filtro-acoes-movimentacoes" action_url=url_movimentacoes tem_filtro_ativo=tem_filtro_ativo %}
   </form>
     </div>
   </details>
@@ -111,8 +111,17 @@
     {% endcomment %}
     {% if is_htmx %}{% include 'estoque/partials/_chip_so_saidas.html' with oob_chip=True %}{% endif %}
 
-    {# filter_acoes.html vive fora de #resultados-movimentacoes (dentro do <form>); reemite via out-of-band pra refletir tem_filtro_ativo após um swap HTMX. #}
-    {% if is_htmx %}{% include "components/filter_acoes.html" with id="filtro-acoes-movimentacoes" action_url=url_movimentacoes target_id="resultados-movimentacoes" tem_filtro_ativo=tem_filtro_ativo oob=True %}{% endif %}
+    {% comment %}
+      O `{% templatetag openblock %} url ... as url_movimentacoes {% templatetag closeblock %}`
+      do topo da tela fica FORA deste partialdef e não roda quando o fragmento
+      é renderizado sozinho (`...html#resultados`, caminho HTMX). Sem resolver a
+      URL aqui, `action_url` chegava vazio no reemite e o "Limpar filtros" saía
+      como `<button>` inerte — sem href, sem ação — logo depois de aplicar um
+      filtro, que é exatamente quando ele é necessário.
+    {% endcomment %}
+    {% url 'estoque:historico_movimentacoes' as url_movimentacoes %}
+    {# O slot do "Limpar" vive fora de #resultados-movimentacoes (dentro do <form>); reemite via out-of-band pra refletir tem_filtro_ativo após um swap HTMX. #}
+    {% if is_htmx %}{% include "components/filter_acoes.html#limpar" with id="filtro-acoes-movimentacoes" action_url=url_movimentacoes tem_filtro_ativo=tem_filtro_ativo oob=True %}{% endif %}
     {% if is_htmx %}
     {# Só o conteúdo da live region é trocado; o elemento com role="status" permanece no DOM. #}
     <span hx-swap-oob="innerHTML:#resumo-movimentacoes">{% if page_obj.paginator.count %}{{ page_obj.paginator.count }} movimenta{{ page_obj.paginator.count|pluralize:"ção,ções" }} encontrada{{ page_obj.paginator.count|pluralize }}.{% else %}Nenhuma movimentação encontrada.{% endif %}</span>

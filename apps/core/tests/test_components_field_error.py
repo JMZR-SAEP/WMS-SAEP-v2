@@ -46,6 +46,13 @@ def test_nenhum_template_escreve_erro_de_campo_a_mao():
     componente e nas linhas de item, `mb-3` numa variante do rascunho, e um
     `<div class="mt-2 text-sm">` com um `<p>` por erro no login. Três tamanhos
     de texto para dizer a mesma coisa não é decisão de tela.
+
+    `data-erro-busca` é a única saída, e não é uma brecha: marca falha da
+    requisição de busca do autocomplete, que não é erro de campo. Erro de
+    campo vem do Form, sobrevive ao POST e é ancorado pelo sumário de erros;
+    a falha de busca vive no dropdown e some na tecla seguinte. Unificar os
+    dois na mesma voz seria dizer que a rede caiu do mesmo jeito que se diz
+    que o campo é obrigatório.
     """
     raiz = Path(__file__).resolve().parents[3]
     infratores: list[str] = []
@@ -54,6 +61,10 @@ def test_nenhum_template_escreve_erro_de_campo_a_mao():
             continue
         texto = caminho.read_text()
         for _, atributos, numero in elementos(texto, 'p'):
+            # Atributo sem valor: `atributo()` devolve None tanto para ausente
+            # quanto para vazio, então quem decide aqui é a presença no texto.
+            if 'data-erro-busca' in atributos:
+                continue
             if atributo(atributos, 'role') == 'alert' and 'text-danger-text' in classes(
                 atributos
             ):
