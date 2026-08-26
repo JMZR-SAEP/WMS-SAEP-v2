@@ -9,12 +9,14 @@ Parâmetros:
   url_ordenacao   (obrigatório) URL que inverte a ordem, já montada pela view
   ordem           (obrigatório) 'asc' ou 'desc' — ordem corrente
   target_id       (obrigatório) id do wrapper alvo do swap HTMX (sem #)
+  page_obj        (obrigatório) page_obj da listagem, pra decidir se mostra
+                  a contagem aqui (só quando não há paginação visível)
   contagem        (obrigatório) page_obj.paginator.count do recorte atual
   rotulo_contagem (obrigatório) par "singular,plural" pro filtro `pluralize`,
                   ex. "requisição,requisições"
 
 Uso:
-  {% include "components/ordenacao_data.html" with url_ordenacao=url_ordenacao ordem=ordem target_id="resultados-x" contagem=page_obj.paginator.count rotulo_contagem="item,itens" %}
+  {% include "components/ordenacao_data.html" with url_ordenacao=url_ordenacao ordem=ordem target_id="resultados-x" page_obj=page_obj contagem=page_obj.paginator.count rotulo_contagem="item,itens" %}
 {% endcomment %}
 {% comment %}
   Issue #144: a contagem do recorte só existia via `hx-swap-oob` na região
@@ -23,11 +25,19 @@ Uso:
   caminhos (página completa e partial HTMX), já que este include roda dentro
   do bloco `{% if page_obj.object_list %}` das duas telas de histórico. A
   região sr-only continua como está, para o anúncio do swap.
+
+  Só aparece aqui quando `pagination.html` não vai mostrar a mesma contagem
+  (num_pages > 1 já tem "Página X de Y · N itens" lá embaixo) — senão o
+  número se repete na tela com rótulos quase iguais.
 {% endcomment %}
 <div class="mb-3 flex items-center justify-between gap-3">
-  <p class="text-sm text-text-secondary">
-    <span class="font-medium tabular-nums">{{ contagem }}</span> {{ contagem|pluralize:rotulo_contagem }}
-  </p>
+  {% if page_obj.paginator.num_pages == 1 %}
+    <p class="text-sm text-text-secondary">
+      <span class="font-medium tabular-nums">{{ contagem }}</span> {{ contagem|pluralize:rotulo_contagem }}
+    </p>
+  {% else %}
+    <span></span>
+  {% endif %}
   {% with seletor_alvo="#"|add:target_id %}
     {% if ordem == 'asc' %}
       {% include "components/button.html" with variant="secondary" label="Mais antigas primeiro ↑" href=url_ordenacao hx_get=url_ordenacao hx_target=seletor_alvo hx_push_url="true" aria_label="Ordenar por data/hora, atualmente crescente" %}
