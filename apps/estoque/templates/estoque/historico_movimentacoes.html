@@ -16,7 +16,7 @@
 
   {% include 'estoque/partials/_chip_so_saidas.html' %}
 
-  {% include "components/filter_shell.html#abertura" with action_url=url_movimentacoes target_id="resultados-movimentacoes" %}
+  {% include "components/filter_shell.html#abertura" with action_url=url_movimentacoes target_id="resultados-movimentacoes" tem_filtro_ativo=tem_filtro_ativo qtd_filtros_ativos=qtd_filtros_ativos %}
   {% comment %}
     Campos do filtro + fieldset de checkbox, com id estável pra reemite via
     hx-swap-oob no partial `resultados` (issue #143): eles vivem fora de
@@ -65,7 +65,7 @@
     {% partialdef resultados %}
     {% if page_obj.object_list %}
 
-      {% include "components/ordenacao_data.html" with url_ordenacao=url_ordenacao ordem=ordem target_id="resultados-movimentacoes" page_obj=page_obj contagem=page_obj.paginator.count rotulo_contagem="movimentação,movimentações" %}
+      {% include "components/ordenacao_data.html" with url_ordenacao=url_ordenacao ordem=ordem target_id="resultados-movimentacoes" page_obj=page_obj rotulo_contagem="movimentação,movimentações" %}
       {% include "components/table.html#cards_abertura" %}
         {% for mov in page_obj.object_list %}
           {% include "components/table.html#card_abertura" %}
@@ -144,6 +144,8 @@
     {% url 'estoque:historico_movimentacoes' as url_movimentacoes %}
     {# O slot do "Limpar" vive fora de #resultados-movimentacoes (dentro do <form>); reemite via out-of-band pra refletir tem_filtro_ativo após um swap HTMX. #}
     {% if is_htmx %}{% include "components/filter_acoes.html#limpar" with id="filtro-acoes-movimentacoes" action_url=url_movimentacoes tem_filtro_ativo=tem_filtro_ativo oob=True %}{% endif %}
+    {# Idem: reemite o resumo em <summary>, fora do alvo do swap, pra refletir a contagem de filtros após HTMX. #}
+    {% if is_htmx %}{% include "components/filter_shell.html#resumo" with target_id="resultados-movimentacoes" tem_filtro_ativo=tem_filtro_ativo qtd_filtros_ativos=qtd_filtros_ativos oob_resumo=True %}{% endif %}
     {% if is_htmx %}
     {# Só o conteúdo da live region é trocado; o elemento com role="status" permanece no DOM. #}
     <span hx-swap-oob="innerHTML:#resumo-movimentacoes">{% if page_obj.paginator.count %}{{ page_obj.paginator.count }} movimenta{{ page_obj.paginator.count|pluralize:"ção,ções" }} encontrada{{ page_obj.paginator.count|pluralize }}.{% else %}Nenhuma movimentação encontrada.{% endif %}</span>

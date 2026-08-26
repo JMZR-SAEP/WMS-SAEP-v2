@@ -10,13 +10,13 @@ Parâmetros:
   ordem           (obrigatório) 'asc' ou 'desc' — ordem corrente
   target_id       (obrigatório) id do wrapper alvo do swap HTMX (sem #)
   page_obj        (obrigatório) page_obj da listagem, pra decidir se mostra
-                  a contagem aqui (só quando não há paginação visível)
-  contagem        (obrigatório) page_obj.paginator.count do recorte atual
+                  a contagem aqui (só quando não há paginação visível) e pra
+                  fonte da contagem em si (`page_obj.paginator.count`)
   rotulo_contagem (obrigatório) par "singular,plural" pro filtro `pluralize`,
                   ex. "requisição,requisições"
 
 Uso:
-  {% include "components/ordenacao_data.html" with url_ordenacao=url_ordenacao ordem=ordem target_id="resultados-x" page_obj=page_obj contagem=page_obj.paginator.count rotulo_contagem="item,itens" %}
+  {% include "components/ordenacao_data.html" with url_ordenacao=url_ordenacao ordem=ordem target_id="resultados-x" page_obj=page_obj rotulo_contagem="item,itens" %}
 {% endcomment %}
 {% comment %}
   Issue #144: a contagem do recorte só existia via `hx-swap-oob` na região
@@ -33,7 +33,7 @@ Uso:
 <div class="mb-3 flex items-center justify-between gap-3">
   {% if page_obj.paginator.num_pages == 1 %}
     <p class="text-sm text-text-secondary">
-      <span class="font-medium tabular-nums">{{ contagem }}</span> {{ contagem|pluralize:rotulo_contagem }}
+      <span class="font-medium tabular-nums">{{ page_obj.paginator.count }}</span> {{ page_obj.paginator.count|pluralize:rotulo_contagem }}
     </p>
   {% else %}
     <span></span>

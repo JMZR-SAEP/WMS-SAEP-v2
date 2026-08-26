@@ -12,7 +12,7 @@
 
 {% url 'requisicoes:historico' as url_historico %}
 
-{% include "components/filter_shell.html#abertura" with action_url=url_historico target_id="resultados-historico-requisicoes" %}
+{% include "components/filter_shell.html#abertura" with action_url=url_historico target_id="resultados-historico-requisicoes" tem_filtro_ativo=tem_filtro_ativo qtd_filtros_ativos=qtd_filtros_ativos %}
 {% comment %}
   Campos do filtro + fieldset de checkbox, com id estável pra reemite via
   hx-swap-oob no partial `resultados` (issue #143): eles vivem fora de
@@ -61,7 +61,7 @@
   {% partialdef resultados %}
   {% if page_obj.object_list %}
 
-    {% include "components/ordenacao_data.html" with url_ordenacao=url_ordenacao ordem=ordem target_id="resultados-historico-requisicoes" page_obj=page_obj contagem=page_obj.paginator.count rotulo_contagem="requisição,requisições" %}
+    {% include "components/ordenacao_data.html" with url_ordenacao=url_ordenacao ordem=ordem target_id="resultados-historico-requisicoes" page_obj=page_obj rotulo_contagem="requisição,requisições" %}
 
     {% include "components/table.html#cards_abertura" %}
       {% for req in page_obj.object_list %}
@@ -149,6 +149,8 @@
     {% url 'requisicoes:historico' as url_historico %}
     {# O slot do "Limpar" vive fora de #resultados-historico-requisicoes (dentro do <form>); reemite via out-of-band pra refletir tem_filtro_ativo após um swap HTMX. #}
     {% include "components/filter_acoes.html#limpar" with id="filtro-acoes-historico-requisicoes" action_url=url_historico tem_filtro_ativo=tem_filtro_ativo oob=True %}
+    {# Idem: reemite o resumo em <summary>, fora do alvo do swap, pra refletir a contagem de filtros após HTMX. #}
+    {% include "components/filter_shell.html#resumo" with target_id="resultados-historico-requisicoes" tem_filtro_ativo=tem_filtro_ativo qtd_filtros_ativos=qtd_filtros_ativos oob_resumo=True %}
     {# Só o conteúdo da live region é trocado; o elemento com role="status" permanece no DOM. #}
     <span hx-swap-oob="innerHTML:#resumo-historico-requisicoes">{% if page_obj.paginator.count %}{{ page_obj.paginator.count }} requisiç{{ page_obj.paginator.count|pluralize:"ão,ões" }} encontrad{{ page_obj.paginator.count|pluralize:"a,as" }}.{% else %}Nenhuma requisição encontrada.{% endif %}</span>
   {% endif %}
