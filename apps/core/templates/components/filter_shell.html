@@ -5,7 +5,7 @@ nativo do Django 6 (mesmo padrão "abertura" de components/table.html,
 issue #83). Não conhece campos de domínio — só a moldura HTMX/disclosure.
 
 Fragmento (só abertura — fechamento fica literal na tela chamadora):
-  abertura        <details open><summary>Filtros...(sm:hidden)</summary>
+  abertura        <details open><summary>Filtros...</summary>
                   <div class="sm:block!"><form method=get hx-get hx-target
                   hx-push-url>
   campos_abertura <div id="{{ target_id }}-campos"><div class="grid ...">
@@ -29,15 +29,27 @@ reemitido (definição + fields + fechamento) é a tela chamadora, no mesmo
 padrão de `{% partialdef resultados %}` — ver historico_movimentacoes.html.
 
 Parâmetros:
-  action_url  (obrigatório, só `abertura`) URL da tela (action/hx-get do form)
-  target_id   (obrigatório) id do wrapper HTMX alvo do swap (sem #); também
-              raiz do id `{{ target_id }}-campos` gerado por `campos_abertura`
-  oob_campos  (opcional, só `campos_abertura`) adiciona hx-swap-oob="true" —
-              usar só no reemite dentro do partial de resultados em
-              respostas HTMX (is_htmx)
+  action_url         (obrigatório, só `abertura`) URL da tela (action/hx-get
+                     do form)
+  target_id          (obrigatório) id do wrapper HTMX alvo do swap (sem #);
+                     também raiz do id `{{ target_id }}-campos` (via
+                     `campos_abertura`) e `{{ target_id }}-resumo` (via
+                     `resumo`)
+  tem_filtro_ativo   (opcional, só `abertura`/`resumo`) controla o estado
+                     inicial do disclosure no mobile (fechado por padrão,
+                     aberto quando não há filtro ativo — issue #145) e o
+                     texto do resumo em `<summary>`
+  qtd_filtros_ativos (opcional, só `abertura`/`resumo`) quantidade de filtros
+                     ativos, exibida no resumo em `<summary>` ("Filtros · N
+                     ativos") — sem isso só o texto "Filtros" aparece
+  oob_campos         (opcional, só `campos_abertura`) adiciona
+                     hx-swap-oob="true" — usar só no reemite dentro do
+                     partial de resultados em respostas HTMX (is_htmx)
+  oob_resumo         (opcional, só `resumo`) adiciona hx-swap-oob="true" —
+                     mesmo uso de `oob_campos`, pro resumo em `<summary>`
 
 Uso canônico:
-  {% include "components/filter_shell.html#abertura" with action_url=url_x target_id="resultados-x" %}
+  {% include "components/filter_shell.html#abertura" with action_url=url_x target_id="resultados-x" tem_filtro_ativo=tem_filtro_ativo qtd_filtros_ativos=qtd_filtros_ativos %}
   {% partialdef campos %}
     {% include "components/filter_shell.html#campos_abertura" with target_id="resultados-x" %}
       {% include "components/filter_busca.html" with ... %}
@@ -58,6 +70,7 @@ Uso canônico:
 
   {# dentro de {% partialdef resultados %}, só quando is_htmx: #}
   {% with oob_campos=True %}{% partial campos %}{% endwith %}
+  {% include "components/filter_shell.html#resumo" with target_id="resultados-x" tem_filtro_ativo=tem_filtro_ativo qtd_filtros_ativos=qtd_filtros_ativos oob_resumo=True %}
 {% endcomment %}
 {% partialdef abertura %}
 {% comment %}
@@ -66,14 +79,19 @@ Uso canônico:
   O `sm:block!` do wrapper abaixo não dá conta sozinho, e não tem como dar:
   um `<details>` fechado esconde o conteúdo pelo slot interno do próprio
   elemento, não por um `display` no filho — `display:block!important` no
-  wrapper não alcança isso. Como o `<summary>` é `sm:hidden`, quem fechasse
-  os filtros no celular e chegasse a >=640px (girar o aparelho, alargar a
-  janela) perdia o formulário inteiro E o único controle capaz de reabri-lo:
-  12 campos inalcançáveis até recarregar a página.
+  wrapper não alcança isso. Sem o `x-init`, quem fechasse os filtros no
+  celular e chegasse a >=640px (girar o aparelho, alargar a janela) via o
+  painel continuar fechado até clicar de novo no `<summary>` — o `<summary>`
+  fica sempre visível (não é `sm:hidden`) justamente pra sobrar esse controle
+  manual se o JS falhar ao carregar.
 
   Sincronizar o atributo `open` resolve na fonte, porque `open` é o estado
-  real do disclosure. Sem JS o `<details>` já nasce `open` no HTML, então a
-  degradação é o formulário visível — nunca o inverso.
+  real do disclosure. `x-init` roda de qualquer forma no load — inclusive no
+  desktop — então o HTML nasce fechado no mobile com filtro ativo (issue
+  #145: painel aberto por padrão empurrava o primeiro resultado ~1 viewport
+  abaixo da dobra) e o próprio `x-init` reabre no desktop antes da primeira
+  pintura visível. Sem filtro ativo, nasce aberto — não há custo de espaço
+  a evitar.
 
   Escuta os dois sinais de propósito: `change` da media query é o correto e
   suficiente num navegador de verdade; `resize` cobre ambientes que mudam a
@@ -83,7 +101,7 @@ Uso canônico:
 {% endcomment %}
 <details
   class="group mb-6"
-  open
+  {% if not tem_filtro_ativo %}open{% endif %}
   x-data
   x-init="
     const consultaDesktop = window.matchMedia('(min-width: 40rem)');
@@ -94,9 +112,9 @@ Uso canônico:
   "
 >
   <summary
-    class="sm:hidden mb-4 flex min-h-11 cursor-pointer list-none items-center justify-between rounded-xl border border-border bg-surface px-4 py-2 text-sm font-medium text-text-secondary shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
+    class="mb-4 flex min-h-11 cursor-pointer list-none items-center justify-between rounded-xl border border-border bg-surface px-4 py-2 text-sm font-medium text-text-secondary shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
   >
-    Filtros
+    {% include "components/filter_shell.html#resumo" with target_id=target_id tem_filtro_ativo=tem_filtro_ativo qtd_filtros_ativos=qtd_filtros_ativos %}
     {% comment %}
       O glifo acompanha o estado. Parado, ele apontava para baixo com o painel
       aberto e com o painel fechado — uma seta que não informa nada é pior que
@@ -134,4 +152,16 @@ Uso canônico:
 {% partialdef campos_abertura %}
     <div id="{{ target_id }}-campos"{% if oob_campos %} hx-swap-oob="true"{% endif %}>
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+{% endpartialdef %}
+{% comment %}
+  Resumo em `<summary>`: sinaliza filtro ativo mesmo com o painel fechado no
+  mobile (issue #145) — sem isso, "Limpar filtros" (escondido junto do resto
+  do painel) era o único sinal de que a lista estava filtrada. Vive fora de
+  `#{{ target_id }}`, igual `campos_abertura`, então precisa do mesmo reemite
+  `hx-swap-oob="true"` dentro do partial de resultados em respostas HTMX.
+{% endcomment %}
+{% partialdef resumo %}
+<span id="{{ target_id }}-resumo"{% if oob_resumo %} hx-swap-oob="true"{% endif %}>
+  Filtros{% if tem_filtro_ativo and qtd_filtros_ativos %} · {{ qtd_filtros_ativos }} ativo{{ qtd_filtros_ativos|pluralize }}{% endif %}
+</span>
 {% endpartialdef %}
