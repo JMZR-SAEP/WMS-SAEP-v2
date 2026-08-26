@@ -6,6 +6,12 @@ from pathlib import Path
 
 from django.urls import reverse
 
+from apps.core.tests.documento import (
+    assert_dialogo_nomeado_pelo_proprio_titulo,
+    assert_sem_id_duplicado,
+    ids_do_documento,
+)
+
 
 URL = reverse('estoque:listar_saidas_excepcionais')
 
@@ -685,6 +691,34 @@ class TestDetalheSaidaExcepcionalView:
         assert saida_registrada.estoque.nome in dialog_html
         assert 'Esta ação é irreversível.' in dialog_html
 
+    def test_detalhe_com_modal_de_estorno_nao_repete_nenhum_id(
+        self, client, chefe_almoxarifado, saida_registrada
+    ):
+        """A tela herda o contrato de id de `components/modal.html` (#139).
+
+        A #131 pegou o id duplicado nas telas de `requisicoes`, onde o painel de
+        decisão derivava o mesmo `{{ id }}-titulo` do `<h2>` do modal. Aqui não
+        há painel, então o que falta é a guarda genérica: id repetido é HTML
+        inválido e torna qualquer `getElementById` imprevisível.
+        """
+        client.force_login(chefe_almoxarifado)
+        response = client.get(self._url(saida_registrada.pk))
+        html = response.content.decode('utf-8')
+
+        assert 'id="estornar-saida"' in html
+        assert_sem_id_duplicado(html)
+
+    def test_dialog_de_estorno_e_nomeado_pelo_titulo_do_proprio_modal(
+        self, client, chefe_almoxarifado, saida_registrada
+    ):
+        """O nome acessível do `<dialog>` é o `<h2>` do corpo do modal (#139)."""
+        client.force_login(chefe_almoxarifado)
+        response = client.get(self._url(saida_registrada.pk))
+        html = response.content.decode('utf-8')
+
+        assert 'estornar-saida-titulo' in ids_do_documento(html)
+        assert_dialogo_nomeado_pelo_proprio_titulo(html)
+
     def _estornar_url(self, pk):
         return reverse('estoque:estornar_saida_excepcional', args=[pk])
 
@@ -1170,6 +1204,38 @@ class TestPreviewImportacaoScpiView:
         assert '<dialog' in conteudo
         assert 'id="confirmar-importacao-scpi"' in conteudo
         assert 'Confirmar importação do SCPI?' in conteudo
+
+    def test_preview_com_modal_de_confirmacao_nao_repete_nenhum_id(
+        self, client, superuser, estoque_principal, material_scpi
+    ):
+        """A tela herda o contrato de id de `components/modal.html` (#139).
+
+        O estado sondado é o que emite o modal — preview com `pode_confirmar` —,
+        e não o GET vazio, onde o `<dialog>` nem chega a ser renderizado.
+        """
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        client.force_login(superuser)
+        csv_bytes = self._csv_valido(material_scpi.codigo, '150.000')
+        arquivo = SimpleUploadedFile('teste.csv', csv_bytes, content_type='text/csv')
+        conteudo = client.post(self.URL, {'arquivo': arquivo}).content.decode()
+
+        assert 'id="confirmar-importacao-scpi"' in conteudo
+        assert_sem_id_duplicado(conteudo)
+
+    def test_dialog_do_scpi_e_nomeado_pelo_titulo_do_proprio_modal(
+        self, client, superuser, estoque_principal, material_scpi
+    ):
+        """O nome acessível do `<dialog>` é o `<h2>` do corpo do modal (#139)."""
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        client.force_login(superuser)
+        csv_bytes = self._csv_valido(material_scpi.codigo, '150.000')
+        arquivo = SimpleUploadedFile('teste.csv', csv_bytes, content_type='text/csv')
+        conteudo = client.post(self.URL, {'arquivo': arquivo}).content.decode()
+
+        assert 'confirmar-importacao-scpi-titulo' in ids_do_documento(conteudo)
+        assert_dialogo_nomeado_pelo_proprio_titulo(conteudo)
 
     def test_modal_de_confirmacao_recapitula_os_numeros_a_gravar(
         self, client, superuser, estoque_principal, material_scpi
