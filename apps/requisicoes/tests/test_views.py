@@ -4380,6 +4380,46 @@ def test_historico_swap_htmx_anuncia_resultado_vazio(client, superuser):
 
 
 @pytest.mark.django_db
+def test_historico_contagem_visivel_na_pagina_completa(
+    client, superuser, req_historico_obras
+):
+    """Issue #144: com a contagem só em `hx-swap-oob`, carga de página
+    completa não mostrava nada pra quem enxerga — `resumo-historico-
+    requisicoes` nasce vazio. A contagem visível fica na mesma linha do
+    controle de ordenação, e precisa aparecer mesmo com resultado único (sem
+    paginação, que só renderiza com mais de uma página).
+    """
+    _login(client, superuser)
+    response = client.get(reverse('requisicoes:historico'))
+    assert response.context['page_obj'].paginator.num_pages == 1
+    html = response.content.decode()
+
+    idx_ordenacao = html.index('Mais recentes primeiro')
+    linha = html.rindex('<div', 0, idx_ordenacao)
+    trecho = html[linha:idx_ordenacao]
+    assert 'tabular-nums">1</span>' in trecho
+    assert 'requisição' in trecho
+
+
+@pytest.mark.django_db
+def test_historico_contagem_visivel_em_resposta_htmx(
+    client, superuser, req_historico_obras
+):
+    """A mesma contagem visível também na resposta parcial HTMX — não só a
+    sr-only via swap out-of-band."""
+    _login(client, superuser)
+    html = client.get(
+        reverse('requisicoes:historico'), headers={'hx-request': 'true'}
+    ).content.decode()
+
+    idx_ordenacao = html.index('Mais recentes primeiro')
+    linha = html.rindex('<div', 0, idx_ordenacao)
+    trecho = html[linha:idx_ordenacao]
+    assert 'tabular-nums">1</span>' in trecho
+    assert 'requisição' in trecho
+
+
+@pytest.mark.django_db
 def test_historico_ordenacao_disponivel_no_mobile(
     client, superuser, req_historico_obras
 ):

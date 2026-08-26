@@ -65,7 +65,7 @@
     {% partialdef resultados %}
     {% if page_obj.object_list %}
 
-      {% include "components/ordenacao_data.html" with url_ordenacao=url_ordenacao ordem=ordem target_id="resultados-movimentacoes" %}
+      {% include "components/ordenacao_data.html" with url_ordenacao=url_ordenacao ordem=ordem target_id="resultados-movimentacoes" page_obj=page_obj contagem=page_obj.paginator.count rotulo_contagem="movimentação,movimentações" %}
       {% include "components/table.html#cards_abertura" %}
         {% for mov in page_obj.object_list %}
           {% include "components/table.html#card_abertura" %}
