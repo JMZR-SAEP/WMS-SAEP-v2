@@ -4,6 +4,7 @@ import pytest
 
 from apps.core.tests.documento import (
     assert_dialogo_nomeado_pelo_proprio_titulo,
+    assert_html_balanceado,
     assert_sem_id_duplicado,
     dialogos,
     ids_do_documento,
@@ -101,3 +102,17 @@ def test_nome_acessivel_apontando_para_fora_do_dialogo_reprova():
     html = '<dialog aria-labelledby="m-titulo"></dialog><h2 id="m-titulo"></h2>'
     with pytest.raises(AssertionError):
         assert_dialogo_nomeado_pelo_proprio_titulo(html)
+
+
+def test_fragmento_balanceado_passa():
+    assert_html_balanceado('<div><span>texto</span><img src="x"></div>')
+
+
+def test_fechamento_fora_de_ordem_reprova():
+    with pytest.raises(AssertionError):
+        assert_html_balanceado('<div><span></div></span>')
+
+
+def test_tag_nao_fechada_reprova():
+    with pytest.raises(AssertionError):
+        assert_html_balanceado('<div><span>texto</div>')

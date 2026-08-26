@@ -19,6 +19,7 @@ from django.utils import timezone
 from apps.core.tests.contrato_modal import assert_copy_nao_diverge
 from apps.core.tests.documento import (
     assert_dialogo_nomeado_pelo_proprio_titulo,
+    assert_html_balanceado,
     assert_sem_id_duplicado,
     ids_do_documento,
 )
@@ -45,33 +46,6 @@ def _login(client, user):
     # que o test client não repassa. `force_login` é o idioma do resto da
     # suíte e monta a sessão direto, que é o que estes testes de view querem.
     client.force_login(user)
-
-
-_TAGS_VAZIAS = {'input', 'br', 'hr', 'img', 'meta', 'link'}
-
-
-class _PilhaDeTags(HTMLParser):
-    """Valida aninhamento/fechamento de tags num fragmento HTML (issue #88)."""
-
-    def __init__(self):
-        super().__init__()
-        self.pilha = []
-
-    def handle_starttag(self, tag, attrs):
-        if tag not in _TAGS_VAZIAS:
-            self.pilha.append(tag)
-
-    def handle_endtag(self, tag):
-        assert self.pilha and self.pilha[-1] == tag, (
-            f'fechamento inesperado de </{tag}>: pilha atual {self.pilha}'
-        )
-        self.pilha.pop()
-
-
-def _assert_html_balanceado(fragmento):
-    parser = _PilhaDeTags()
-    parser.feed(fragmento)
-    assert parser.pilha == [], f'tags não fechadas: {parser.pilha}'
 
 
 class _AberturaDosDialogos(HTMLParser):
@@ -3888,7 +3862,7 @@ class TestHistoricoRequisicoesResponsivo:
         content = client.get(URL_HISTORICO_REQUISICOES).content.decode()
         inicio = content.index('<details')
         fim = content.index('</details>', inicio) + len('</details>')
-        _assert_html_balanceado(content[inicio:fim])
+        assert_html_balanceado(content[inicio:fim])
 
     def test_wrapper_form_tem_sm_block_important(self, client, superuser):
         _login(client, superuser)
@@ -4418,7 +4392,7 @@ def test_listagens_tem_html_balanceado(
     ):
         response = client.get(reverse(nome_url))
         assert response.status_code == 200, nome_url
-        _assert_html_balanceado(response.content.decode())
+        assert_html_balanceado(response.content.decode())
 
 
 # ---------------------------------------------------------------------------
