@@ -51,6 +51,27 @@ def test_busca_com_resultado_anuncia_a_contagem(pagina_rascunho):
     assert 'resultado' in regiao.inner_text()
 
 
+def test_esc_fecha_o_dropdown(pagina_rascunho):
+    """`@keydown.escape="fecharDropdown()"` precisa ser exercido por Esc real.
+
+    `test_seta_para_baixo_com_popup_fechado_reabre_em_opcao_visivel`, logo
+    abaixo, passou a fechar o dropdown chamando `fecharDropdown()` direto via
+    `Alpine.$data(...)` — necessário porque o Esc nativo do Chrome em
+    `type="search"` também limpa o campo, o que não serve pra reproduzir
+    aquele caso. Mas isso deixou o binding `@keydown.escape` em si sem
+    nenhum teste que realmente aperta a tecla. Este caso cobre só isso: Esc
+    fecha o popup (o efeito colateral de limpar o campo, próprio do
+    `type="search"`, é esperado e não é o que está sob teste aqui).
+    """
+    campo = _buscar(pagina_rascunho, 'MAT')
+    assert campo.get_attribute('aria-expanded') == 'true'
+
+    campo.press('Escape')
+    pagina_rascunho.wait_for_timeout(200)
+
+    assert campo.get_attribute('aria-expanded') == 'false'
+
+
 def test_seta_para_baixo_com_popup_fechado_reabre_em_opcao_visivel(
     live_server, context, page, aux_obras, outro_usuario_obras
 ):
@@ -61,12 +82,15 @@ def test_seta_para_baixo_com_popup_fechado_reabre_em_opcao_visivel(
     acontecia; para o leitor de tela, o foco virtual ia parar numa opção
     invisível de um listbox anunciado como fechado.
 
-    O caso roda no combobox de BENEFICIÁRIO, e não no de material, porque só
-    ali o estado sob teste é alcançável de verdade: o de material é
-    `type="search"`, onde o Esc nativo do Chrome limpa o campo e leva os
-    resultados junto. O de beneficiário é `type="text"` — o Esc fecha o
-    dropdown e preserva query e resultados, que é exatamente a combinação que
-    quebrava.
+    Fecha via `fecharDropdown()` chamado direto no componente Alpine, não via
+    Esc: os dois combobox (material e beneficiário) são `type="search"`, e o
+    Esc nativo do Chrome nesse tipo de campo limpa o valor e dispara `input`
+    — o que reabre a busca 300ms depois com outro conjunto de resultados
+    (ou nenhum, se `minChars` não for atingido) e não reproduz o estado sob
+    teste. `fecharDropdown()` só zera `aberto`/`ativo`; `query` e
+    `resultados` ficam como estavam, que é justamente a combinação que
+    quebrava — dropdown fechado, resultados antigos ainda em memória, campo
+    com foco.
     """
     autenticar(live_server, context, aux_obras)
     page.goto(f'{live_server.url}/requisicoes/nova/')
@@ -78,8 +102,9 @@ def test_seta_para_baixo_com_popup_fechado_reabre_em_opcao_visivel(
     page.wait_for_timeout(900)
     assert page.locator('#id_beneficiario_id').get_attribute('aria-expanded') == 'true'
 
-    campo.press('Escape')
-    page.wait_for_timeout(200)
+    page.evaluate(
+        "() => Alpine.$data(document.querySelector('#id_beneficiario_id')).fecharDropdown()"
+    )
     assert campo.get_attribute('aria-expanded') == 'false'
     assert campo.get_attribute('aria-activedescendant') is None
 

@@ -120,7 +120,23 @@
 
     {# Empty state contextual: filtro sem resultado vs histórico visível vazio #}
     {% if tem_filtro_ativo %}
-      {% include 'components/empty_state.html' with icone='components/icons/_funil.html' titulo='Nenhum resultado para este filtro' descricao='Ajuste ou limpe os filtros para ver mais requisições.' %}
+      {% comment %}
+        Resolvido aqui dentro, e não reaproveitado do `url_historico` do topo
+        da tela: este bloco vive dentro de `{% templatetag openblock %}
+        partialdef resultados {% templatetag closeblock %}`, que também
+        renderiza sozinho no caminho HTMX (`...html#resultados`) — onde o
+        `{% templatetag openblock %} url ... as url_historico {% templatetag closeblock %}`
+        do topo não roda (mesmo problema do "Limpar filtros" reemitido OOB,
+        ver comentário mais abaixo).
+      {% endcomment %}
+      {% url 'requisicoes:historico' as url_historico_limpar %}
+      {% if filtros.texto %}
+        {% with titulo_busca='Nenhum resultado para "'|add:filtros.texto|add:'"' %}
+          {% include 'components/empty_state.html' with icone='components/icons/_funil.html' titulo=titulo_busca descricao='Ajuste ou limpe os filtros para ver mais requisições.' cta_url=url_historico_limpar cta_label='Limpar filtros' cta_secundario=True %}
+        {% endwith %}
+      {% else %}
+        {% include 'components/empty_state.html' with icone='components/icons/_funil.html' titulo='Nenhum resultado para este filtro' descricao='Ajuste ou limpe os filtros para ver mais requisições.' cta_url=url_historico_limpar cta_label='Limpar filtros' cta_secundario=True %}
+      {% endif %}
     {% else %}
       {% include 'components/empty_state.html' with icone='components/icons/_caixa_entrada.html' titulo='Nenhuma requisição encontrada' descricao='Ainda não há requisições visíveis para o seu papel.' %}
     {% endif %}

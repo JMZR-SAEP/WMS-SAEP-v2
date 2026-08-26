@@ -2358,9 +2358,15 @@ class TestHistoricoMovimentacoesFiltros:
         client.force_login(superuser)
         # Filtro sem resultado → mensagem específica de filtro, e NÃO a de
         # ledger vazio.
-        filtrado = client.get(URL_MOVIMENTACOES, {'material': 'inexistente'}).content
-        assert 'Nenhum resultado para este filtro'.encode() in filtrado
-        assert 'Nenhuma movimentação encontrada'.encode() not in filtrado
+        filtrado = client.get(
+            URL_MOVIMENTACOES, {'material': 'inexistente'}
+        ).content.decode()
+        # As aspas escapadas (autoescape do Django) só aparecem se o eco do
+        # termo buscado no título realmente rodou — o fallback genérico e o
+        # `value` ecoado no campo de busca (sem aspas ao redor) não bastam
+        # pra produzir essa substring.
+        assert 'Nenhum resultado para &quot;inexistente&quot;' in filtrado
+        assert 'Nenhuma movimentação encontrada' not in filtrado
 
     def test_chip_so_saidas_preserva_filtros_atuais(
         self, client, chefe_almoxarifado, setor_obras

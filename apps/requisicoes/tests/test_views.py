@@ -3728,9 +3728,13 @@ class TestHistoricoRequisicoesFiltros:
         _login(client, superuser)
         filtrado = client.get(
             URL_HISTORICO_REQUISICOES, {'texto': 'inexistente'}
-        ).content
-        assert 'Nenhum resultado para este filtro'.encode() in filtrado
-        assert 'Nenhuma requisição encontrada'.encode() not in filtrado
+        ).content.decode()
+        # As aspas escapadas (autoescape do Django) só aparecem se o eco do
+        # termo buscado no título realmente rodou — o fallback genérico e o
+        # `value` ecoado no campo de busca (sem aspas ao redor) não bastam
+        # pra produzir essa substring.
+        assert 'Nenhum resultado para &quot;inexistente&quot;' in filtrado
+        assert 'Nenhuma requisição encontrada' not in filtrado
 
     def test_vazio_de_filtro_e_vazio_inicial_usam_icones_diferentes(
         self, client, superuser, req_historico_obras
