@@ -54,8 +54,8 @@
     @keydown.arrow-up.prevent="selecionarAnterior()"
     @keydown.enter="if (ativo >= 0) { $event.preventDefault(); confirmarSelecao(); }"
     @keydown.escape="fecharDropdown()"
-    @blur="fecharDropdown()"
-    @focus="buscarTodos()"
+    @blur="focado = false; fecharDropdown()"
+    @focus="focado = true; buscarTodos()"
     autocomplete="off"
     autocorrect="off"
     autocapitalize="none"
@@ -178,4 +178,18 @@
   >
     {{ sem_resultados_label }}
   </p>
+  {% comment %}
+    Estado "digite mais": `0 < query.length < minChars`. Sem `aberto &&` no
+    x-show de propósito — esta caixa não é o listbox (não fica dentro do
+    `<ul>` e não aciona `:aria-expanded`); ela só informa quantos caracteres
+    faltam para o piso de busca liberar.
+  {% endcomment %}
+  <p
+    x-show="mensagemPoucosCaracteresVisivel()"
+    x-cloak
+    x-text="mensagemPoucosCaracteres()"
+    class="absolute z-20 mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm italic text-text-tertiary shadow-lg"
+    role="status"
+    aria-live="polite"
+  ></p>
 </div>

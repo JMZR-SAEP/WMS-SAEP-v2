@@ -43,6 +43,13 @@
       query: '',
       resultados: [],
       aberto: false,
+      // Guarda a caixa "faltam N caracteres" a não sobreviver ao blur: ela é
+      // independente de `aberto` de propósito (não é o listbox), mas sem
+      // `focado` ficava flutuando sobre o formulário depois que o campo
+      // perdia o foco, e também aparecia sozinha na carga inicial de uma
+      // edição sempre que o rótulo pré-selecionado era mais curto que
+      // `minChars`.
+      focado: false,
       buscando: false,
       // `erro` separa "a busca falhou" de "a busca não achou nada". Sem ele,
       // um 403 do endpoint caía no mesmo ramo de zero resultados e a tela
@@ -169,6 +176,11 @@
           this.$refs.hiddenInput.value = item.id;
         }
         this.fecharDropdown();
+        // Síncrono, e não só via blur no $nextTick: se o label do item
+        // selecionado for mais curto que `minChars`, `focado` continuar `true`
+        // até o blur rodar deixava `mensagemPoucosCaracteresVisivel()` piscar
+        // "faltam N caracteres" bem onde o listbox acabou de fechar.
+        this.focado = false;
         this.$nextTick(() => this.$refs.displayInput?.blur());
       },
 
@@ -246,6 +258,27 @@
         );
       },
 
+      // Estado "digite mais": `0 < query.length < minChars`. Sem isto, o único
+      // feedback de quem digita 1 caractere com `minChars: 2` é nenhum —
+      // dropdown fechado, sem spinner, sem mensagem — indistinguível de "sem
+      // resultados" ou "campo quebrado". Independente de `aberto`: esta caixa
+      // não é o listbox e não deve marcar `aria-expanded="true"`.
+      mensagemPoucosCaracteresVisivel() {
+        return (
+          this.focado &&
+          this.minChars > 0 &&
+          this.query.length > 0 &&
+          this.query.length < this.minChars
+        );
+      },
+
+      mensagemPoucosCaracteres() {
+        const faltam = this.minChars - this.query.length;
+        return faltam === 1
+          ? 'Falta 1 caractere para buscar.'
+          : `Faltam ${faltam} caracteres para buscar.`;
+      },
+
       // Texto da região live. O spinner é `aria-hidden` e o listbox não é
       // anunciado ao abrir, então uma busca bem-sucedida não produzia som
       // nenhum para quem usa leitor de tela: só o caso de zero resultados
@@ -253,6 +286,11 @@
       anuncioResultados() {
         if (this.buscando) return '';
         if (this.erro) return 'A busca falhou.';
+        // '' — não o texto —, mesmo padrão do caso de zero resultados logo
+        // abaixo: a caixa visível de "faltam N caracteres" já é
+        // `role="status" aria-live="polite"` e anuncia sozinha. Devolver o
+        // texto aqui também duplicava o anúncio pro leitor de tela.
+        if (this.mensagemPoucosCaracteresVisivel()) return '';
         if (!this.aberto) return '';
         const total = this.resultados.length;
         if (total === 0) return '';
