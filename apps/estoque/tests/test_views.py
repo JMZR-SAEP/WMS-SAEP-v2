@@ -2357,10 +2357,21 @@ class TestHistoricoMovimentacoesFiltros:
     ):
         client.force_login(superuser)
         # Filtro sem resultado → mensagem específica de filtro, e NÃO a de
-        # ledger vazio.
-        filtrado = client.get(URL_MOVIMENTACOES, {'material': 'inexistente'}).content
-        assert 'Nenhum resultado para este filtro'.encode() in filtrado
-        assert 'Nenhuma movimentação encontrada'.encode() not in filtrado
+        # ledger vazio. Termo com caractere HTML-especial: prova que
+        # `titulo_com_termo` (apps/core/templatetags/core_tags.py) não marca
+        # o título como seguro — o autoescape do Django roda sobre a string
+        # inteira, igual rodava antes da extração pro empty_state.html. Sem
+        # isso, um termo ASCII puro passaria mesmo se um `|safe` futuro
+        # desligasse o escape por engano.
+        filtrado = client.get(
+            URL_MOVIMENTACOES, {'material': '<b>inexistente</b>'}
+        ).content.decode()
+        assert (
+            'Nenhum resultado para &quot;&lt;b&gt;inexistente&lt;/b&gt;&quot;'
+            in filtrado
+        )
+        assert '<b>inexistente</b>' not in filtrado
+        assert 'Nenhuma movimentação encontrada' not in filtrado
 
     def test_chip_so_saidas_preserva_filtros_atuais(
         self, client, chefe_almoxarifado, setor_obras
@@ -2377,6 +2388,49 @@ class TestHistoricoMovimentacoesFiltros:
         assert f'setor={setor_obras.pk}' in url_chip
         assert 'tipos=consumo' in url_chip
         assert 'tipos=saida_excepcional' in url_chip
+
+    def test_chip_toggle_off_preserva_outros_tipos_selecionados(
+        self, client, superuser, requisicao_autorizada
+    ):
+        # Bug-regressão #143: `setlist('tipos', [])` limpava TODOS os tipos
+        # ao desligar o chip, não só os dois que ele próprio adicionou. Quem
+        # tivesse "Reserva" marcada perdia a seleção em silêncio ao
+        # alternar o chip.
+        client.force_login(superuser)
+        response = client.get(
+            URL_MOVIMENTACOES,
+            {'tipos': ['reserva', 'consumo', 'saida_excepcional']},
+        )
+        url_chip_off = response.context['url_chip_sem_so_saidas']
+        assert 'tipos=reserva' in url_chip_off
+        assert 'tipos=consumo' not in url_chip_off
+        assert 'tipos=saida_excepcional' not in url_chip_off
+
+    def test_campos_do_form_reemitidos_via_oob_com_tipo_marcado_no_swap_htmx(
+        self, client, superuser, requisicao_autorizada
+    ):
+        # Bug-regressão #143: os campos do filtro (inputs + fieldset de
+        # checkbox) vivem fora de #resultados-movimentacoes; sem reemite
+        # out-of-band, o checkbox de "tipos" ficava desmarcado após um swap
+        # HTMX mesmo com o filtro aplicado na URL — o próximo "Aplicar
+        # filtros" reenviava, em silêncio, um filtro vazio.
+        client.force_login(superuser)
+        parcial = client.get(
+            URL_MOVIMENTACOES, {'tipos': 'consumo'}, HTTP_HX_REQUEST='true'
+        ).content.decode()
+        assert 'id="resultados-movimentacoes-campos"' in parcial
+        assert 'hx-swap-oob="true"' in parcial
+        idx = parcial.index('value="consumo"')
+        trecho = parcial[idx : parcial.index('>', idx) + 1]
+        assert 'checked' in trecho
+
+    def test_campos_do_form_sem_oob_na_pagina_completa(
+        self, client, superuser, requisicao_autorizada
+    ):
+        client.force_login(superuser)
+        conteudo = client.get(URL_MOVIMENTACOES, {'tipos': 'consumo'}).content
+        assert conteudo.count(b'id="resultados-movimentacoes-campos"') == 1
+        assert b'hx-swap-oob' not in conteudo
 
 
 class TestHistoricoMovimentacoesFiltrosPartials:
@@ -2443,6 +2497,44 @@ class TestHistoricoMovimentacoesFiltrosPartials:
         assert b'id="filtro-acoes-movimentacoes"' in parcial
         assert b'hx-swap-oob="true"' in parcial
         assert b'Limpar filtros' in parcial
+
+    def test_limpar_filtros_e_link_navegavel_tambem_no_reemite_htmx(
+        self, client, superuser, requisicao_autorizada
+    ):
+        """Bug-regressão: "Limpar filtros" saía inerte na resposta HTMX.
+
+        O `{% url ... as url_movimentacoes %}` fica no topo da tela, fora do
+        `{% partialdef resultados %}`, e não roda quando o fragmento é
+        renderizado sozinho. Com `action_url` vazio o components/button.html
+        caía no ramo `<button>`: sem href e sem hx-get, um controle que não
+        fazia nada — logo depois de aplicar um filtro.
+        """
+        client.force_login(superuser)
+        parcial = client.get(
+            URL_MOVIMENTACOES, {'material': 'MAT001'}, HTTP_HX_REQUEST='true'
+        ).content.decode()
+        marca = 'id="filtro-acoes-movimentacoes"'
+        trecho = parcial[parcial.index(marca) :]
+        trecho = trecho[: trecho.index('</span>')]
+        assert f'href="{URL_MOVIMENTACOES}"' in trecho, (
+            f'"Limpar filtros" precisa navegar de verdade; veio: {trecho}'
+        )
+
+    def test_submit_fica_fora_do_wrapper_reemitido_via_oob(
+        self, client, superuser, requisicao_autorizada
+    ):
+        """O swap OOB não pode destruir o botão que disparou a requisição."""
+        client.force_login(superuser)
+        parcial = client.get(
+            URL_MOVIMENTACOES, {'material': 'MAT001'}, HTTP_HX_REQUEST='true'
+        ).content.decode()
+        marca = 'id="filtro-acoes-movimentacoes"'
+        trecho = parcial[parcial.index(marca) :]
+        trecho = trecho[: trecho.index('</span>')]
+        assert 'hx-swap-oob="true"' in trecho
+        assert 'Aplicar filtros' not in trecho, (
+            f'O submit não pode ser reemitido no OOB: {trecho}'
+        )
 
     def test_limpar_filtros_sem_oob_na_pagina_completa(
         self, client, superuser, requisicao_autorizada
@@ -2645,6 +2737,40 @@ class TestHistoricoMovimentacoesResponsivo:
         ).content.decode()
 
         assert '2 movimentações encontradas.' in html
+
+    def test_contagem_visivel_na_pagina_completa(
+        self, client, superuser, requisicao_autorizada
+    ):
+        """Issue #144: com a contagem só em `hx-swap-oob`, carga de página
+        completa não mostrava nada pra quem enxerga — `resumo-movimentacoes`
+        nasce vazio. A contagem visível fica na mesma linha do controle de
+        ordenação, e precisa aparecer mesmo com resultado único (sem
+        paginação, que só renderiza com mais de uma página).
+        """
+        client.force_login(superuser)
+        response = client.get(URL_MOVIMENTACOES)
+        assert response.context['page_obj'].paginator.num_pages == 1
+        html = response.content.decode()
+
+        idx_ordenacao = html.index('Mais recentes primeiro')
+        linha = html.rindex('<div', 0, idx_ordenacao)
+        trecho = html[linha:idx_ordenacao]
+        assert 'tabular-nums">1</span>' in trecho
+        assert 'movimentação' in trecho
+
+    def test_contagem_visivel_em_resposta_htmx(
+        self, client, superuser, requisicao_autorizada
+    ):
+        """A mesma contagem visível também na resposta parcial HTMX — não só
+        a sr-only via swap out-of-band."""
+        client.force_login(superuser)
+        html = client.get(URL_MOVIMENTACOES, HTTP_HX_REQUEST='true').content.decode()
+
+        idx_ordenacao = html.index('Mais recentes primeiro')
+        linha = html.rindex('<div', 0, idx_ordenacao)
+        trecho = html[linha:idx_ordenacao]
+        assert 'tabular-nums">1</span>' in trecho
+        assert 'movimentação' in trecho
 
 
 class TestHistoricoMovimentacoesFiltrosResponsivo:

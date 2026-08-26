@@ -17,7 +17,7 @@ from apps.core.exceptions import (
     PermissaoNegada,
 )
 from apps.core.http import htmx_redirect, parse_data_iso
-from apps.core.listagem import paginar_com_filtros
+from apps.core.listagem import contar_filtros_ativos, paginar_com_filtros
 from apps.core.modal import render_modal_erro
 from apps.core.presentation import traduz_erro_dominio
 from apps.core.templatetags.core_tags import formatar_quantidade
@@ -71,6 +71,7 @@ TIPOS_SO_SAIDAS = [
     TipoMovimentacaoEstoque.CONSUMO,
     TipoMovimentacaoEstoque.SAIDA_EXCEPCIONAL,
 ]
+TIPOS_SO_SAIDAS_VALUES = {t.value for t in TIPOS_SO_SAIDAS}
 
 
 def _setores_beneficiarios_do_ledger(visiveis):
@@ -133,9 +134,14 @@ def historico_movimentacoes_view(request):
     if mostrar_filtro_setor:
         setores_disponiveis = _setores_beneficiarios_do_ledger(visiveis)
 
-    tem_filtro_ativo = bool(
-        material or tipos or data_ini or data_fim or setor is not None
+    qtd_filtros_ativos = contar_filtros_ativos(
+        bool(material),
+        data_ini is not None,
+        data_fim is not None,
+        setor is not None,
+        listas=(tipos,),
     )
+    tem_filtro_ativo = qtd_filtros_ativos > 0
     so_saidas_ativo = set(tipos) == set(TIPOS_SO_SAIDAS)
 
     params_chip_on = request.GET.copy()
@@ -143,9 +149,13 @@ def historico_movimentacoes_view(request):
     params_chip_on.setlist('tipos', [t.value for t in TIPOS_SO_SAIDAS])
     url_chip_so_saidas = '?' + params_chip_on.urlencode()
 
+    # Remove só os tipos do chip — preserva outros tipos que a pessoa já
+    # tivesse selecionado antes de ligar o chip (bug #143: `setlist('tipos',
+    # [])` descartava a seleção inteira em silêncio).
     params_chip_off = request.GET.copy()
     params_chip_off.pop('page', None)
-    params_chip_off.setlist('tipos', [])
+    tipos_sem_chip = [t for t in tipos if t not in TIPOS_SO_SAIDAS_VALUES]
+    params_chip_off.setlist('tipos', tipos_sem_chip)
     url_chip_sem_so_saidas = '?' + params_chip_off.urlencode()
 
     contexto = {
@@ -167,6 +177,7 @@ def historico_movimentacoes_view(request):
         'url_chip_so_saidas': url_chip_so_saidas,
         'url_chip_sem_so_saidas': url_chip_sem_so_saidas,
         'tem_filtro_ativo': tem_filtro_ativo,
+        'qtd_filtros_ativos': qtd_filtros_ativos,
         'so_saidas_ativo': so_saidas_ativo,
         'querystring_filtros': resultado.querystring_filtros,
     }

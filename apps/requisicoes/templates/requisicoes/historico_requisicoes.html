@@ -1,4 +1,5 @@
 {% extends "base_auth.html" %}
+{% load core_tags %}
 
 {% block title %}Histórico de requisições — WMS-SAEP{% endblock %}
 
@@ -12,7 +13,16 @@
 
 {% url 'requisicoes:historico' as url_historico %}
 
-{% include "components/filter_shell.html#abertura" with action_url=url_historico target_id="resultados-historico-requisicoes" %}
+{% include "components/filter_shell.html#abertura" with action_url=url_historico target_id="resultados-historico-requisicoes" tem_filtro_ativo=tem_filtro_ativo qtd_filtros_ativos=qtd_filtros_ativos %}
+{% comment %}
+  Campos do filtro + fieldset de checkbox, com id estável pra reemite via
+  hx-swap-oob no partial `resultados` (issue #143): eles vivem fora de
+  #resultados-historico-requisicoes, e HTMX (filtro, ou back/forward)
+  só atualiza esse id — sem reemitir, o formulário ficava fora de sincronia
+  com a URL aplicada.
+{% endcomment %}
+{% partialdef campos %}
+  {% include "components/filter_shell.html#campos_abertura" with target_id="resultados-historico-requisicoes" %}
     {% include "components/filter_busca.html" with id="filtro-texto" name="texto" label="Solicitante ou beneficiário" value=filtros.texto placeholder="Nome ou matrícula" %}
 
     {% include "components/filter_data.html" with id="filtro-data-ini" name="data_ini" label="De" value=filtros.data_ini %}
@@ -28,8 +38,11 @@
 
   {# Preserva ordenação corrente ao submeter os filtros #}
   {% if ordem == 'asc' %}<input type="hidden" name="ordem" value="asc">{% endif %}
+  </div>
+{% endpartialdef %}
+{% partial campos %}
 
-  {% include "components/filter_acoes.html" with id="filtro-acoes-historico-requisicoes" action_url=url_historico target_id="resultados-historico-requisicoes" tem_filtro_ativo=tem_filtro_ativo %}
+  {% include "components/filter_acoes.html" with id="filtro-acoes-historico-requisicoes" action_url=url_historico tem_filtro_ativo=tem_filtro_ativo %}
 </form>
   </div>
 </details>
@@ -49,7 +62,7 @@
   {% partialdef resultados %}
   {% if page_obj.object_list %}
 
-    {% include "components/ordenacao_data.html" with url_ordenacao=url_ordenacao ordem=ordem target_id="resultados-historico-requisicoes" %}
+    {% include "components/ordenacao_data.html" with url_ordenacao=url_ordenacao ordem=ordem target_id="resultados-historico-requisicoes" page_obj=page_obj rotulo_contagem="requisição,requisições" %}
 
     {% include "components/table.html#cards_abertura" %}
       {% for req in page_obj.object_list %}
@@ -108,16 +121,48 @@
 
     {# Empty state contextual: filtro sem resultado vs histórico visível vazio #}
     {% if tem_filtro_ativo %}
-      {% include 'components/empty_state.html' with icone='components/icons/_funil.html' titulo='Nenhum resultado para este filtro' descricao='Ajuste ou limpe os filtros para ver mais requisições.' %}
+      {% comment %}
+        Resolvido aqui dentro, e não reaproveitado do `url_historico` do topo
+        da tela: este bloco vive dentro de `{% templatetag openblock %}
+        partialdef resultados {% templatetag closeblock %}`, que também
+        renderiza sozinho no caminho HTMX (`...html#resultados`) — onde o
+        `{% templatetag openblock %} url ... as url_historico {% templatetag closeblock %}`
+        do topo não roda (mesmo problema do "Limpar filtros" reemitido OOB,
+        ver comentário mais abaixo).
+      {% endcomment %}
+      {% url 'requisicoes:historico' as url_historico_limpar %}
+      {% titulo_com_termo filtros.texto 'Nenhum resultado para' 'este filtro' as titulo_busca %}
+      {% include 'components/empty_state.html' with icone='components/icons/_funil.html' titulo=titulo_busca descricao='Ajuste ou limpe os filtros para ver mais requisições.' cta_url=url_historico_limpar cta_label='Limpar filtros' cta_secundario=True %}
     {% else %}
       {% include 'components/empty_state.html' with icone='components/icons/_caixa_entrada.html' titulo='Nenhuma requisição encontrada' descricao='Ainda não há requisições visíveis para o seu papel.' %}
     {% endif %}
 
   {% endif %}
 
+  {% comment %}
+  Reemite os campos do formulário (inputs + checkboxes de estado) como swap
+  out-of-band: eles vivem fora de #resultados-historico-requisicoes, então
+  uma resposta HTMX (filtro, ou back/forward restaurando o cache de
+  histórico) precisa atualizá-los à parte pra refletir o recorte da URL —
+  senão o próximo "Aplicar filtros" reenvia, em silêncio, um filtro que não
+  é mais o que está sendo exibido (issue #143).
+  {% endcomment %}
+  {% if is_htmx %}{% with oob_campos=True %}{% partial campos %}{% endwith %}{% endif %}
+
   {% if is_htmx %}
-    {# filter_acoes.html vive fora de #resultados-historico-requisicoes (dentro do <form>); reemite via out-of-band pra refletir tem_filtro_ativo após um swap HTMX. #}
-    {% include "components/filter_acoes.html" with id="filtro-acoes-historico-requisicoes" action_url=url_historico target_id="resultados-historico-requisicoes" tem_filtro_ativo=tem_filtro_ativo oob=True %}
+    {% comment %}
+      O `{% templatetag openblock %} url ... as url_historico {% templatetag closeblock %}`
+      do topo da tela fica FORA deste partialdef e não roda quando o fragmento
+      é renderizado sozinho (`...html#resultados`, caminho HTMX). Sem resolver a
+      URL aqui, `action_url` chegava vazio no reemite e o "Limpar filtros" saía
+      como `<button>` inerte — sem href, sem ação — logo depois de aplicar um
+      filtro, que é exatamente quando ele é necessário.
+    {% endcomment %}
+    {% url 'requisicoes:historico' as url_historico %}
+    {# O slot do "Limpar" vive fora de #resultados-historico-requisicoes (dentro do <form>); reemite via out-of-band pra refletir tem_filtro_ativo após um swap HTMX. #}
+    {% include "components/filter_acoes.html#limpar" with id="filtro-acoes-historico-requisicoes" action_url=url_historico tem_filtro_ativo=tem_filtro_ativo oob=True %}
+    {# Idem: reemite o resumo em <summary>, fora do alvo do swap, pra refletir a contagem de filtros após HTMX. #}
+    {% include "components/filter_shell.html#resumo" with target_id="resultados-historico-requisicoes" tem_filtro_ativo=tem_filtro_ativo qtd_filtros_ativos=qtd_filtros_ativos oob_resumo=True %}
     {# Só o conteúdo da live region é trocado; o elemento com role="status" permanece no DOM. #}
     <span hx-swap-oob="innerHTML:#resumo-historico-requisicoes">{% if page_obj.paginator.count %}{{ page_obj.paginator.count }} requisiç{{ page_obj.paginator.count|pluralize:"ão,ões" }} encontrad{{ page_obj.paginator.count|pluralize:"a,as" }}.{% else %}Nenhuma requisição encontrada.{% endif %}</span>
   {% endif %}

@@ -3726,11 +3726,21 @@ class TestHistoricoRequisicoesFiltros:
         self, client, superuser, req_historico_obras
     ):
         _login(client, superuser)
+        # Termo com caractere HTML-especial: prova que `titulo_com_termo`
+        # (apps/core/templatetags/core_tags.py) não marca o título como
+        # seguro — o autoescape do Django roda sobre a string inteira, igual
+        # rodava antes da extração pro empty_state.html. Sem isso, um termo
+        # ASCII puro passaria mesmo se um `|safe` futuro desligasse o escape
+        # por engano.
         filtrado = client.get(
-            URL_HISTORICO_REQUISICOES, {'texto': 'inexistente'}
-        ).content
-        assert 'Nenhum resultado para este filtro'.encode() in filtrado
-        assert 'Nenhuma requisição encontrada'.encode() not in filtrado
+            URL_HISTORICO_REQUISICOES, {'texto': '<b>inexistente</b>'}
+        ).content.decode()
+        assert (
+            'Nenhum resultado para &quot;&lt;b&gt;inexistente&lt;/b&gt;&quot;'
+            in filtrado
+        )
+        assert '<b>inexistente</b>' not in filtrado
+        assert 'Nenhuma requisição encontrada' not in filtrado
 
     def test_vazio_de_filtro_e_vazio_inicial_usam_icones_diferentes(
         self, client, superuser, req_historico_obras
@@ -3840,6 +3850,83 @@ class TestHistoricoRequisicoesFiltrosPartials:
         conteudo = client.get(URL_HISTORICO_REQUISICOES, {'texto': 'x'}).content
         assert conteudo.count(b'id="filtro-acoes-historico-requisicoes"') == 1
         assert b'hx-swap-oob' not in conteudo
+
+    def test_limpar_filtros_e_link_navegavel_tambem_no_reemite_htmx(
+        self, client, superuser
+    ):
+        """Bug-regressão: "Limpar filtros" saía inerte na resposta HTMX.
+
+        O `{% url ... as url_historico %}` fica no topo da tela, fora do
+        `{% partialdef resultados %}`, e não roda quando o fragmento é
+        renderizado sozinho. Com `action_url` vazio o components/button.html cai
+        no ramo `<button>`: um controle sem href e sem hx-get, que não fazia
+        absolutamente nada — logo depois de aplicar um filtro, que é o momento
+        em que limpar é necessário.
+        """
+        _login(client, superuser)
+        parcial = client.get(
+            URL_HISTORICO_REQUISICOES, {'texto': 'x'}, HTTP_HX_REQUEST='true'
+        ).content.decode()
+        marca = 'id="filtro-acoes-historico-requisicoes"'
+        trecho = parcial[parcial.index(marca) :]
+        trecho = trecho[: trecho.index('</span>')]
+        assert f'href="{URL_HISTORICO_REQUISICOES}"' in trecho, (
+            f'"Limpar filtros" precisa navegar de verdade; veio: {trecho}'
+        )
+
+    def test_limpar_filtros_navega_sem_htmx_para_ressincronizar_os_campos(
+        self, client, superuser
+    ):
+        """Limpar por HTMX trocava só os resultados e deixava os campos sujos.
+
+        Os campos do filtro vivem no `<form>`, fora do alvo do swap. Limpando
+        por HTMX a URL ficava limpa e a listagem voltava sem filtro, mas o
+        campo seguia exibindo o texto e o checkbox seguia marcado — e o
+        "Aplicar filtros" seguinte reenviava, em silêncio, o filtro que a
+        pessoa acabara de limpar. A navegação nativa rerenderiza o formulário
+        inteiro pelo servidor, deixando campos, resultados e URL coerentes.
+        """
+        _login(client, superuser)
+        pagina = client.get(URL_HISTORICO_REQUISICOES, {'texto': 'x'}).content.decode()
+        marca = 'id="filtro-acoes-historico-requisicoes"'
+        trecho = pagina[pagina.index(marca) :]
+        trecho = trecho[: trecho.index('</span>')]
+        assert 'Limpar filtros' in trecho
+        assert 'hx-get' not in trecho, (
+            f'Limpar precisa ser navegação nativa, não swap HTMX: {trecho}'
+        )
+
+    def test_submit_fica_fora_do_wrapper_reemitido_via_oob(self, client, superuser):
+        """O swap OOB não pode destruir o botão que disparou a requisição.
+
+        O wrapper reemitido já foi a linha inteira, "Aplicar filtros" incluído.
+        Como `hx-swap-oob` substitui o elemento, o submit era removido do DOM
+        pelo swap que ele mesmo disparou: o foco caía no `<body>` e o próximo
+        Tab recomeçava a página inteira.
+        """
+        _login(client, superuser)
+        parcial = client.get(
+            URL_HISTORICO_REQUISICOES, {'texto': 'x'}, HTTP_HX_REQUEST='true'
+        ).content.decode()
+        marca = 'id="filtro-acoes-historico-requisicoes"'
+        trecho = parcial[parcial.index(marca) :]
+        trecho = trecho[: trecho.index('</span>')]
+        assert 'hx-swap-oob="true"' in trecho
+        assert 'Aplicar filtros' not in trecho, (
+            f'O submit não pode ser reemitido no OOB: {trecho}'
+        )
+
+    def test_form_de_filtros_sinaliza_envio_em_andamento(self, client, superuser):
+        """Aplicar filtro não devolvia sinal nenhum até o swap chegar."""
+        _login(client, superuser)
+        conteudo = client.get(URL_HISTORICO_REQUISICOES).content.decode()
+        # A partir do <details> — o primeiro <form> da página é o de logout.
+        barra = conteudo[conteudo.index('<details') :]
+        barra = barra[: barra.index('</details>')]
+        assert (
+            'data-prevent-double-submit'
+            in barra[: barra.index('>', barra.index('<form'))]
+        )
 
     def test_todos_os_campos_esperados_presentes(self, client, chefe_almoxarifado):
         _login(client, chefe_almoxarifado)
@@ -4300,6 +4387,46 @@ def test_historico_swap_htmx_anuncia_resultado_vazio(client, superuser):
         headers={'hx-request': 'true'},
     )
     assert 'Nenhuma requisição encontrada.' in response.content.decode()
+
+
+@pytest.mark.django_db
+def test_historico_contagem_visivel_na_pagina_completa(
+    client, superuser, req_historico_obras
+):
+    """Issue #144: com a contagem só em `hx-swap-oob`, carga de página
+    completa não mostrava nada pra quem enxerga — `resumo-historico-
+    requisicoes` nasce vazio. A contagem visível fica na mesma linha do
+    controle de ordenação, e precisa aparecer mesmo com resultado único (sem
+    paginação, que só renderiza com mais de uma página).
+    """
+    _login(client, superuser)
+    response = client.get(reverse('requisicoes:historico'))
+    assert response.context['page_obj'].paginator.num_pages == 1
+    html = response.content.decode()
+
+    idx_ordenacao = html.index('Mais recentes primeiro')
+    linha = html.rindex('<div', 0, idx_ordenacao)
+    trecho = html[linha:idx_ordenacao]
+    assert 'tabular-nums">1</span>' in trecho
+    assert 'requisição' in trecho
+
+
+@pytest.mark.django_db
+def test_historico_contagem_visivel_em_resposta_htmx(
+    client, superuser, req_historico_obras
+):
+    """A mesma contagem visível também na resposta parcial HTMX — não só a
+    sr-only via swap out-of-band."""
+    _login(client, superuser)
+    html = client.get(
+        reverse('requisicoes:historico'), headers={'hx-request': 'true'}
+    ).content.decode()
+
+    idx_ordenacao = html.index('Mais recentes primeiro')
+    linha = html.rindex('<div', 0, idx_ordenacao)
+    trecho = html[linha:idx_ordenacao]
+    assert 'tabular-nums">1</span>' in trecho
+    assert 'requisição' in trecho
 
 
 @pytest.mark.django_db

@@ -935,6 +935,34 @@ def _titulos_de_with(texto: str) -> dict[str, str]:
     return resolvidos
 
 
+_TITULO_COM_TERMO = re.compile(
+    r'\{%\s*titulo_com_termo\s+\S+\s+'
+    r"(?P<prefixo>'[^']*'|\"[^\"]*\")\s*"
+    r"(?P<sufixo>'[^']*'|\"[^\"]*\")?\s*"
+    r'as\s+(?P<var>\w+)\s*%\}'
+)
+
+
+def _titulos_de_titulo_com_termo(texto: str) -> dict[str, str]:
+    """Literais que `{% titulo_com_termo %}` monta pra `as <var>`.
+
+    `titulo_com_termo` (apps/core/templatetags/core_tags.py) monta o título
+    como `prefixo + '"' + termo + '"'` ou `prefixo + sufixo_generico` — nunca
+    deixa `termo` (dinâmico, não dá pra verificar aqui) decidir se o título
+    termina em ponto: só `prefixo`/`sufixo_generico`, os dois literais e
+    capturados aqui, participam dessa borda. Resolver isso — em vez de jogar
+    `titulo_busca` em `nao_verificaveis` — fecha o mesmo buraco que
+    `_titulos_de_with` fecha pro `{% with %}` + `|add:` que esta tag substitui.
+    """
+    resolvidos: dict[str, str] = {}
+    for encontro in _TITULO_COM_TERMO.finditer(texto):
+        prefixo = _sem_aspas(encontro.group('prefixo'))
+        sufixo = encontro.group('sufixo')
+        partes = [prefixo] + ([_sem_aspas(sufixo)] if sufixo else [])
+        resolvidos[encontro.group('var')] = "'" + ' '.join(partes) + "'"
+    return resolvidos
+
+
 def _desvios_de_copy_do_estado_vazio(caminho: str, texto: str):
     """Chamadas que fogem do padrão de copy, e as que não dá para verificar.
 
@@ -942,7 +970,9 @@ def _desvios_de_copy_do_estado_vazio(caminho: str, texto: str):
     três com valor não vazio, porque chave presente não é contrato cumprido.
     """
     desvios, nao_verificaveis, quantidade = [], [], 0
-    com_with = _titulos_de_with(_sem_comentarios(texto))
+    texto_limpo = _sem_comentarios(texto)
+    com_with = _titulos_de_with(texto_limpo)
+    com_with.update(_titulos_de_titulo_com_termo(texto_limpo))
 
     for numero, argumentos in _chamadas_do_estado_vazio(texto):
         quantidade += 1
@@ -2131,3 +2161,142 @@ class TestMecanismoDoGuardaDeXTrap:
             'sintetico.html',
             '{% comment %}<div x-trap="$refs.d.open"></div>{% endcomment %}',
         )
+
+
+class TestAutocompleteEstadosECombobox:
+    """components/autocomplete.html — contrato ARIA e estados da busca.
+
+    Achados da Etapa 4 (`docs/plans/audit-frontend-restante.md`), todos
+    reproduzidos no navegador antes da correção.
+    """
+
+    def _fonte(self) -> str:
+        raiz = Path(__file__).resolve().parents[3]
+        return (
+            raiz / 'apps' / 'core' / 'templates' / 'components' / 'autocomplete.html'
+        ).read_text()
+
+    def _js(self) -> str:
+        raiz = Path(__file__).resolve().parents[3]
+        return (
+            raiz / 'apps' / 'core' / 'static' / 'core' / 'js' / 'autocomplete.js'
+        ).read_text()
+
+    def test_activedescendant_so_aponta_com_o_popup_aberto(self):
+        """Referência para opção invisível é referência quebrada.
+
+        Depois de selecionar, o dropdown fecha mas `resultados` continua em
+        memória. A seta para baixo apontava `aria-activedescendant` para uma
+        <li> dentro de um <ul> em `display:none`.
+        """
+        assert 'aberto && ativo >= 0' in self._fonte()
+
+    def test_seta_para_baixo_reabre_o_popup_fechado(self):
+        js = self._js()
+        assert '!this.aberto && this.resultados.length > 0' in js
+        # Nas duas direções — a APG manda abrir em ambas.
+        assert js.count('!this.aberto && this.resultados.length > 0') == 2
+
+    def test_busca_expoe_estado_ocupado(self):
+        assert ':aria-busy="buscando"' in self._fonte()
+
+    def test_contagem_de_resultados_e_anunciada(self):
+        """Sem isto só o caso "nenhum resultado" falava.
+
+        O spinner é `aria-hidden` e abrir o listbox não anuncia nada sozinho,
+        então uma busca bem-sucedida era silenciosa no leitor de tela.
+        """
+        fonte = self._fonte()
+        assert 'anuncioResultados()' in fonte
+        assert 'role="status"' in fonte
+        assert 'resultados disponíveis.' in self._js()
+
+    def test_erro_de_busca_e_distinto_de_zero_resultados(self):
+        """403/500/queda de rede caíam no texto de "nada encontrado", ou em nada.
+
+        Um 403 devolve JSON sem a chave `resultados` — virava lista vazia e a
+        tela dizia que a busca não achou nada. Um 500 devolve HTML e estourava
+        no parse: o spinner sumia e o componente ficava mudo.
+        """
+        js = self._js()
+        assert 'if (!res.ok) throw' in js
+        assert 'this.erro = true' in js
+        fonte = self._fonte()
+        assert 'aberto && erro' in fonte
+        assert 'data-erro-busca' in fonte
+
+    def test_erro_nao_e_pintado_por_resposta_fora_de_ordem(self):
+        """Uma busca velha que falha não pode sujar o estado da busca corrente."""
+        js = self._js()
+        trecho = js[js.index('} catch (e) {') :]
+        trecho = trecho[: trecho.index('} finally {')]
+        assert 'this._abortController !== controller' in trecho
+
+    def test_mensagem_vazia_respeita_piso_zero(self):
+        """Com `minChars: 0`, busca de campo vazio sem resultados abria uma
+        caixa vazia: o piso virava 1 por causa de `Math.max(minChars, 1)`."""
+        js = self._js()
+        assert 'Math.max(this.minChars, 1)' not in js
+        assert 'this.query.length >= this.minChars' in js
+
+    def test_opcao_respeita_o_piso_de_toque(self):
+        """A <li> tinha 36px. É o alvo que o almoxarifado toca em pé, no galpão."""
+        fonte = self._fonte()
+        trecho = fonte[fonte.index('role="option"') :]
+        trecho = trecho[: trecho.index('</li>')]
+        assert 'min-h-11' in trecho
+
+    def test_opcao_ativa_nao_depende_so_do_fundo(self):
+        """`bg-primary-subtle` sozinho dá 1.09:1 contra o branco — a WCAG
+        1.4.11 pede 3:1 para identificar estado, e este é o único sinal de
+        onde as setas do teclado estão."""
+        fonte = self._fonte()
+        assert 'ring-2 ring-inset ring-primary' in fonte
+
+    def test_nenhuma_cor_abaixo_do_piso_dentro_de_option(self):
+        """Piso de cor dentro de `role="option"`: text-text-secondary.
+
+        `text-text-disabled` mede 2.63:1 no branco e 2.42:1 no fundo da opção
+        ativa; `text-text-tertiary` passa em repouso (4.76:1) e cai para
+        4.38:1 sobre a opção ativa. Os dois carregavam informação de decisão
+        (saldo do material, setor do beneficiário).
+        """
+        raiz = Path(__file__).resolve().parents[3]
+        proibidas = {'text-text-disabled', 'text-text-tertiary'}
+        infratores = []
+        for caminho in (raiz / 'apps').rglob('_autocomplete_item_*.html'):
+            texto = caminho.read_text()
+            # Pelos elementos, não pelo texto cru: o `{% comment %}` de cada
+            # partial cita os tokens reprovados para explicar por que saíram.
+            for _, atributos, numero in elementos(texto, 'span'):
+                for cor in classes(atributos) & proibidas:
+                    infratores.append(f'{caminho.relative_to(raiz)}:{numero}: {cor}')
+        assert not infratores, (
+            f'Cor abaixo do piso dentro de role="option": {infratores}'
+        )
+
+
+class TestFilterShellDisclosure:
+    """components/filter_shell.html — o disclosure de mobile."""
+
+    def _fonte(self) -> str:
+        raiz = Path(__file__).resolve().parents[3]
+        return (
+            raiz / 'apps' / 'core' / 'templates' / 'components' / 'filter_shell.html'
+        ).read_text()
+
+    def test_disclosure_reabre_ao_cruzar_o_breakpoint(self):
+        """Fechar os filtros no celular e chegar a >=640px escondia o
+        formulário inteiro E o `<summary>` que o reabria (`sm:hidden`): 12
+        campos inalcançáveis até recarregar a página.
+
+        `sm:block!` não resolve — um `<details>` fechado esconde pelo slot do
+        próprio elemento, não por `display` no filho.
+        """
+        fonte = self._fonte()
+        assert 'matchMedia' in fonte
+        assert '$el.open = true' in fonte
+
+    def test_glifo_acompanha_o_estado(self):
+        """Parado, apontava para baixo aberto e fechado."""
+        assert 'group-open:rotate-180' in self._fonte()

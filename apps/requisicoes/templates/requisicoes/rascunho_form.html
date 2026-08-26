@@ -155,7 +155,7 @@
               id="{{ form.beneficiario_id.id_for_label }}-valor"
               x-ref="hiddenInput"
             />
-            {% include "components/autocomplete.html" with label="Selecione o beneficiário" placeholder="Buscar por nome ou matrícula…" item_template="requisicoes/partials/_autocomplete_item_beneficiario.html" sem_resultados_label="Nenhum beneficiário encontrado." input_id=form.beneficiario_id.id_for_label com_erro=form.beneficiario_id.errors erro_id=form.beneficiario_id.id_for_label|add:"-erro" %}
+            {% include "components/autocomplete.html" with label="Selecione o beneficiário" placeholder="Buscar por nome ou matrícula…" item_template="requisicoes/partials/_autocomplete_item_beneficiario.html" sem_resultados_label="Nenhum beneficiário encontrado." tipo_input="search" input_id=form.beneficiario_id.id_for_label com_erro=form.beneficiario_id.errors erro_id=form.beneficiario_id.id_for_label|add:"-erro" %}
             {% if form.beneficiario_id.errors %}
               {% include "components/field_error.html" with id=form.beneficiario_id.id_for_label|add:"-erro" erros=form.beneficiario_id.errors %}
             {% endif %}

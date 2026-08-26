@@ -78,9 +78,8 @@
 
   {% elif busca %}
     {% url 'estoque:lista_materiais' as cta_lista_materiais_url %}
-    {% with titulo_busca='Nenhum material encontrado para "'|add:busca|add:'"' %}
-      {% include 'components/empty_state.html' with icone='components/icons/_funil.html' titulo=titulo_busca descricao='Confira o código ou tente parte do nome do material.' cta_url=cta_lista_materiais_url cta_label='Ver todos os materiais' cta_secundario=True %}
-    {% endwith %}
+    {% titulo_com_termo busca 'Nenhum material encontrado para' as titulo_busca %}
+    {% include 'components/empty_state.html' with icone='components/icons/_funil.html' titulo=titulo_busca descricao='Confira o código ou tente parte do nome do material.' cta_url=cta_lista_materiais_url cta_label='Ver todos os materiais' cta_secundario=True %}
   {% else %}
     {% include 'components/empty_state.html' with icone='components/icons/_caixa_entrada.html' titulo='Nenhum material no catálogo' descricao='Os materiais entram no WMS pela importação do arquivo do SCPI.' %}
   {% endif %}

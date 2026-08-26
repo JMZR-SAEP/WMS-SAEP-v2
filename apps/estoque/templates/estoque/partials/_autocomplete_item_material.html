@@ -4,7 +4,15 @@
   que retornam o saldo em campos JSON diferentes (`saldo_disponivel` vs
   `saldo_fisico`) — resolvido em runtime via `??`.
   Incluído por `components/autocomplete.html` dentro do escopo Alpine `item`/`idx`.
+
+  Piso de cor dentro de `role="option"`: `text-text-secondary`. O saldo vinha
+  em `text-text-disabled`, que mede 2.63:1 no fundo branco e 2.42:1 no fundo
+  da opção ativa — reprova o 4.5:1 da WCAG AA e contraria a regra do próprio
+  design system ("cinza de metadado (slate-500) é o piso — nada mais claro
+  carrega informação"). E o que estava escrito ali é justamente o número que
+  decide a escolha: se há saldo para o que se vai pedir, lido no galpão.
+  A hierarquia da linha fica por conta de peso e tamanho, não de cor.
 {% endcomment %}
 <span class="font-medium text-text-primary" x-text="item.codigo"></span>
 <span class="text-text-secondary" x-text="' — ' + item.nome"></span>
-<span class="ml-1 text-xs text-text-disabled" x-text="'(disp: ' + (item.saldo_disponivel ?? item.saldo_fisico) + ' ' + item.unidade + ')'"></span>
+<span class="ml-1 text-xs text-text-secondary" x-text="'(disp: ' + (item.saldo_disponivel ?? item.saldo_fisico) + ' ' + item.unidade + ')'"></span>

@@ -31,6 +31,17 @@ class ResultadoListagem:
     is_htmx: bool
 
 
+def contar_filtros_ativos(*flags: bool, listas: tuple = ()) -> int:
+    """Conta quantos filtros de uma barra `filter_shell.html` estão ativos.
+
+    `flags` já vêm resolvidos pela view (ex.: `bool(texto)`, `data_ini
+    is not None`, `setor is not None` — cada campo tem sua própria regra de
+    "ativo", então quem decide é a view); `listas` são sequências
+    multivaloradas (ex.: `tipos`, `estados`) contadas pelo próprio tamanho.
+    """
+    return sum(1 for flag in flags if flag) + sum(len(lista) for lista in listas)
+
+
 def paginar(request: HtmxHttpRequest, queryset: QuerySet, *, per_page: int) -> Page:
     """Pagina preservando a ordenação que o selector já definiu.
 

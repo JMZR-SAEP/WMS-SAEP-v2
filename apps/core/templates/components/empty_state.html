@@ -2,7 +2,13 @@
 Estado vazio reutilizável.
 
 Parâmetros:
-  titulo         (obrigatório) frase curta, **sem ponto final**
+  titulo         (obrigatório) frase curta, **sem ponto final**. Um estado
+                 vazio cujo título precisa ecoar um termo buscado (ex. "Nenhum
+                 resultado para \"xyz\"") monta o título por inteiro na tela
+                 chamadora — ver `core_tags.titulo_com_termo` — e não passa um
+                 parâmetro de conteúdo pra este componente resolver: pela
+                 Regra do Chrome Sem Parâmetro (DESIGN.md), um parâmetro que
+                 descreve conteúdo em vez de estrutura é abstração errada
   descricao      frase completa com ponto, dizendo o que houve e o que fazer
   icone          caminho de partial contendo apenas o `<path>` do SVG
   nivel_titulo   nível do cabeçalho (default 2). O default existe porque as
