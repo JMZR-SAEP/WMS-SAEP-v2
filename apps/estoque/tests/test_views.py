@@ -1,46 +1,19 @@
 """Testes de view para estoque.saidas_excepcionais."""
 
 import re
-from html.parser import HTMLParser
 from pathlib import Path
 
 from django.urls import reverse
 
 from apps.core.tests.documento import (
     assert_dialogo_nomeado_pelo_proprio_titulo,
+    assert_html_balanceado,
     assert_sem_id_duplicado,
     ids_do_documento,
 )
 
 
 URL = reverse('estoque:listar_saidas_excepcionais')
-
-
-_TAGS_VAZIAS = {'input', 'br', 'hr', 'img', 'meta', 'link'}
-
-
-class _PilhaDeTags(HTMLParser):
-    """Valida aninhamento/fechamento de tags num fragmento HTML (issue #88)."""
-
-    def __init__(self):
-        super().__init__()
-        self.pilha = []
-
-    def handle_starttag(self, tag, attrs):
-        if tag not in _TAGS_VAZIAS:
-            self.pilha.append(tag)
-
-    def handle_endtag(self, tag):
-        assert self.pilha and self.pilha[-1] == tag, (
-            f'fechamento inesperado de </{tag}>: pilha atual {self.pilha}'
-        )
-        self.pilha.pop()
-
-
-def _assert_html_balanceado(fragmento):
-    parser = _PilhaDeTags()
-    parser.feed(fragmento)
-    assert parser.pilha == [], f'tags não fechadas: {parser.pilha}'
 
 
 class TestListarSaidasExcepcionaisView:
@@ -2682,7 +2655,7 @@ class TestHistoricoMovimentacoesFiltrosResponsivo:
         content = client.get(URL_MOVIMENTACOES).content.decode()
         inicio = content.index('<details')
         fim = content.index('</details>', inicio) + len('</details>')
-        _assert_html_balanceado(content[inicio:fim])
+        assert_html_balanceado(content[inicio:fim])
 
     def test_wrapper_form_tem_sm_block_important(self, client, superuser):
         # Regressão de drift: historico_movimentacoes.html não tinha

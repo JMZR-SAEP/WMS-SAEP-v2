@@ -129,6 +129,55 @@ def assert_sem_id_duplicado(html: str) -> None:
     assert duplicados == [], f'ids repetidos no documento: {duplicados}'
 
 
+_TAGS_VAZIAS = {
+    'area',
+    'base',
+    'br',
+    'col',
+    'embed',
+    'hr',
+    'img',
+    'input',
+    'link',
+    'meta',
+    'param',
+    'source',
+    'track',
+    'wbr',
+}
+"""Todo elemento vazio da lista void do HTML5, e não só os que os templates
+emitem hoje: um `_PilhaDeTags` que só conhece o recorte atual reprovaria um
+fragmento válido (`<source>`, `<track>` etc.) que um template futuro venha a
+emitir, e a asserção de balanceamento existe para pegar HTML errado, não
+para restringir o vocabulário de tags permitidas.
+"""
+
+
+class _PilhaDeTags(HTMLParser):
+    """Valida aninhamento/fechamento de tags num fragmento HTML (issue #88)."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.pilha: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag not in _TAGS_VAZIAS:
+            self.pilha.append(tag)
+
+    def handle_endtag(self, tag: str) -> None:
+        assert self.pilha and self.pilha[-1] == tag, (
+            f'fechamento inesperado de </{tag}>: pilha atual {self.pilha}'
+        )
+        self.pilha.pop()
+
+
+def assert_html_balanceado(fragmento: str) -> None:
+    """Toda tag aberta no fragmento fecha, na ordem certa, antes do fim dele."""
+    parser = _PilhaDeTags()
+    parser.feed(fragmento)
+    assert parser.pilha == [], f'tags não fechadas: {parser.pilha}'
+
+
 def assert_dialogo_nomeado_pelo_proprio_titulo(html: str) -> None:
     """O nome acessível de cada `<dialog>` é um `<h2>` de dentro dele, e único.
 
