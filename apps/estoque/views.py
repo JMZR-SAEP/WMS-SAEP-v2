@@ -17,7 +17,7 @@ from apps.core.exceptions import (
     PermissaoNegada,
 )
 from apps.core.http import htmx_redirect, parse_data_iso
-from apps.core.listagem import paginar_com_filtros
+from apps.core.listagem import contar_filtros_ativos, paginar_com_filtros
 from apps.core.modal import render_modal_erro
 from apps.core.presentation import traduz_erro_dominio
 from apps.core.templatetags.core_tags import formatar_quantidade
@@ -134,9 +134,14 @@ def historico_movimentacoes_view(request):
     if mostrar_filtro_setor:
         setores_disponiveis = _setores_beneficiarios_do_ledger(visiveis)
 
-    tem_filtro_ativo = bool(
-        material or tipos or data_ini or data_fim or setor is not None
+    qtd_filtros_ativos = contar_filtros_ativos(
+        bool(material),
+        data_ini is not None,
+        data_fim is not None,
+        setor is not None,
+        listas=(tipos,),
     )
+    tem_filtro_ativo = qtd_filtros_ativos > 0
     so_saidas_ativo = set(tipos) == set(TIPOS_SO_SAIDAS)
 
     params_chip_on = request.GET.copy()
@@ -172,6 +177,7 @@ def historico_movimentacoes_view(request):
         'url_chip_so_saidas': url_chip_so_saidas,
         'url_chip_sem_so_saidas': url_chip_sem_so_saidas,
         'tem_filtro_ativo': tem_filtro_ativo,
+        'qtd_filtros_ativos': qtd_filtros_ativos,
         'so_saidas_ativo': so_saidas_ativo,
         'querystring_filtros': resultado.querystring_filtros,
     }

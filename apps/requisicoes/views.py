@@ -35,7 +35,7 @@ from apps.core.exceptions import (
     PermissaoNegada,
 )
 from apps.core.http import htmx_redirect, parse_data_iso
-from apps.core.listagem import paginar, paginar_com_filtros
+from apps.core.listagem import contar_filtros_ativos, paginar, paginar_com_filtros
 from apps.core.modal import render_modal_erro
 from apps.core.presentation import traduz_erro_dominio
 from apps.requisicoes.presentation import MODAL_COPY
@@ -1371,9 +1371,14 @@ def historico_requisicoes_view(request):
     if mostrar_filtro_setor:
         setores_disponiveis = setores_do_historico(visiveis)
 
-    tem_filtro_ativo = bool(
-        texto or estados or data_ini or data_fim or setor is not None
+    qtd_filtros_ativos = contar_filtros_ativos(
+        bool(texto),
+        data_ini is not None,
+        data_fim is not None,
+        setor is not None,
+        listas=(estados,),
     )
+    tem_filtro_ativo = qtd_filtros_ativos > 0
 
     contexto = {
         'page_obj': resultado.page_obj,
@@ -1392,6 +1397,7 @@ def historico_requisicoes_view(request):
         'aria_sort': resultado.aria_sort,
         'url_ordenacao': resultado.url_ordenacao,
         'tem_filtro_ativo': tem_filtro_ativo,
+        'qtd_filtros_ativos': qtd_filtros_ativos,
         'querystring_filtros': resultado.querystring_filtros,
     }
 
