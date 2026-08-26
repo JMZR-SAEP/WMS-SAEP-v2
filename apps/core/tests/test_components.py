@@ -935,6 +935,34 @@ def _titulos_de_with(texto: str) -> dict[str, str]:
     return resolvidos
 
 
+_TITULO_COM_TERMO = re.compile(
+    r'\{%\s*titulo_com_termo\s+\S+\s+'
+    r"(?P<prefixo>'[^']*'|\"[^\"]*\")\s*"
+    r"(?P<sufixo>'[^']*'|\"[^\"]*\")?\s*"
+    r'as\s+(?P<var>\w+)\s*%\}'
+)
+
+
+def _titulos_de_titulo_com_termo(texto: str) -> dict[str, str]:
+    """Literais que `{% titulo_com_termo %}` monta pra `as <var>`.
+
+    `titulo_com_termo` (apps/core/templatetags/core_tags.py) monta o título
+    como `prefixo + '"' + termo + '"'` ou `prefixo + sufixo_generico` — nunca
+    deixa `termo` (dinâmico, não dá pra verificar aqui) decidir se o título
+    termina em ponto: só `prefixo`/`sufixo_generico`, os dois literais e
+    capturados aqui, participam dessa borda. Resolver isso — em vez de jogar
+    `titulo_busca` em `nao_verificaveis` — fecha o mesmo buraco que
+    `_titulos_de_with` fecha pro `{% with %}` + `|add:` que esta tag substitui.
+    """
+    resolvidos: dict[str, str] = {}
+    for encontro in _TITULO_COM_TERMO.finditer(texto):
+        prefixo = _sem_aspas(encontro.group('prefixo'))
+        sufixo = encontro.group('sufixo')
+        partes = [prefixo] + ([_sem_aspas(sufixo)] if sufixo else [])
+        resolvidos[encontro.group('var')] = "'" + ' '.join(partes) + "'"
+    return resolvidos
+
+
 def _desvios_de_copy_do_estado_vazio(caminho: str, texto: str):
     """Chamadas que fogem do padrão de copy, e as que não dá para verificar.
 
@@ -942,7 +970,9 @@ def _desvios_de_copy_do_estado_vazio(caminho: str, texto: str):
     três com valor não vazio, porque chave presente não é contrato cumprido.
     """
     desvios, nao_verificaveis, quantidade = [], [], 0
-    com_with = _titulos_de_with(_sem_comentarios(texto))
+    texto_limpo = _sem_comentarios(texto)
+    com_with = _titulos_de_with(texto_limpo)
+    com_with.update(_titulos_de_titulo_com_termo(texto_limpo))
 
     for numero, argumentos in _chamadas_do_estado_vazio(texto):
         quantidade += 1

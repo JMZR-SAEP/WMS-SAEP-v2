@@ -37,6 +37,35 @@ def minutos_totais(delta: object) -> int | None:
     return int(delta.total_seconds() // 60)
 
 
+@register.simple_tag
+def titulo_com_termo(termo: str, prefixo: str, sufixo_generico: str = '') -> str:
+    """Monta o título do estado vazio filtrado: prefixo + termo entre aspas.
+
+    Existe pra manter a composição na tela chamadora — e não em
+    `components/empty_state.html` — sem repetir, em cada tela, o
+    `{% templatetag openblock %} with titulo_busca='...'|add:termo|add:'"'
+    {% templatetag closeblock %}` que já causou dois problemas: o regex do
+    guard de copy do estado vazio (`test_todo_chamador_do_estado_vazio_segue_a_copy`)
+    só resolve `{% templatetag openblock %} with {% templatetag closeblock %}`
+    até o primeiro filtro encadeado, então o título dinâmico passava como se
+    fosse literal; e mover a decisão "eco o termo ou caio no genérico" para
+    dentro de `empty_state.html` violava a Regra do Chrome Sem Parâmetro
+    (DESIGN.md): componente de moldura não recebe parâmetro que descreve
+    conteúdo — quem chama resolve o título por inteiro antes do include.
+
+    Não marca o retorno como seguro: o autoescape do Django roda sobre a
+    string inteira no `{{ titulo }}` de `empty_state.html`, igual rodava
+    antes — se `termo` contiver `<`, `>`, `&` ou aspas, eles saem escapados.
+
+    Uso:
+      {% titulo_com_termo filtros.material 'Nenhum resultado para' 'este filtro' as titulo_busca %}
+      {% include 'components/empty_state.html' with titulo=titulo_busca ... %}
+    """
+    if termo:
+        return f'{prefixo} "{termo}"'
+    return f'{prefixo} {sufixo_generico}'.rstrip()
+
+
 ICONES_CATALOGO = frozenset(
     {
         'voltar',

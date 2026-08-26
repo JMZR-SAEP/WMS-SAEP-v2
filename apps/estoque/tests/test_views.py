@@ -2357,15 +2357,20 @@ class TestHistoricoMovimentacoesFiltros:
     ):
         client.force_login(superuser)
         # Filtro sem resultado → mensagem específica de filtro, e NÃO a de
-        # ledger vazio.
+        # ledger vazio. Termo com caractere HTML-especial: prova que
+        # `titulo_com_termo` (apps/core/templatetags/core_tags.py) não marca
+        # o título como seguro — o autoescape do Django roda sobre a string
+        # inteira, igual rodava antes da extração pro empty_state.html. Sem
+        # isso, um termo ASCII puro passaria mesmo se um `|safe` futuro
+        # desligasse o escape por engano.
         filtrado = client.get(
-            URL_MOVIMENTACOES, {'material': 'inexistente'}
+            URL_MOVIMENTACOES, {'material': '<b>inexistente</b>'}
         ).content.decode()
-        # O termo entre aspas só aparece se o eco em components/empty_state.html
-        # (termo_buscado) realmente rodou — o fallback genérico (sufixo_generico)
-        # e o `value` ecoado no campo de busca (sem aspas ao redor) não bastam
-        # pra produzir essa substring.
-        assert 'Nenhum resultado para "inexistente"' in filtrado
+        assert (
+            'Nenhum resultado para &quot;&lt;b&gt;inexistente&lt;/b&gt;&quot;'
+            in filtrado
+        )
+        assert '<b>inexistente</b>' not in filtrado
         assert 'Nenhuma movimentação encontrada' not in filtrado
 
     def test_chip_so_saidas_preserva_filtros_atuais(

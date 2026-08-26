@@ -1,4 +1,5 @@
 {% extends "base_auth.html" %}
+{% load core_tags %}
 
 {% block title %}Histórico de requisições — WMS-SAEP{% endblock %}
 
@@ -130,7 +131,8 @@
         ver comentário mais abaixo).
       {% endcomment %}
       {% url 'requisicoes:historico' as url_historico_limpar %}
-      {% include 'components/empty_state.html' with icone='components/icons/_funil.html' titulo='Nenhum resultado para' termo_buscado=filtros.texto sufixo_generico='este filtro' descricao='Ajuste ou limpe os filtros para ver mais requisições.' cta_url=url_historico_limpar cta_label='Limpar filtros' cta_secundario=True %}
+      {% titulo_com_termo filtros.texto 'Nenhum resultado para' 'este filtro' as titulo_busca %}
+      {% include 'components/empty_state.html' with icone='components/icons/_funil.html' titulo=titulo_busca descricao='Ajuste ou limpe os filtros para ver mais requisições.' cta_url=url_historico_limpar cta_label='Limpar filtros' cta_secundario=True %}
     {% else %}
       {% include 'components/empty_state.html' with icone='components/icons/_caixa_entrada.html' titulo='Nenhuma requisição encontrada' descricao='Ainda não há requisições visíveis para o seu papel.' %}
     {% endif %}

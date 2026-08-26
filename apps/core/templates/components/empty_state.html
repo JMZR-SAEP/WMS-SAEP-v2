@@ -2,9 +2,13 @@
 Estado vazio reutilizável.
 
 Parâmetros:
-  titulo         (obrigatório) frase curta, **sem ponto final**. Com
-                 `termo_buscado`, vira o prefixo antes do termo entre aspas —
-                 ver `termo_buscado` abaixo
+  titulo         (obrigatório) frase curta, **sem ponto final**. Um estado
+                 vazio cujo título precisa ecoar um termo buscado (ex. "Nenhum
+                 resultado para \"xyz\"") monta o título por inteiro na tela
+                 chamadora — ver `core_tags.titulo_com_termo` — e não passa um
+                 parâmetro de conteúdo pra este componente resolver: pela
+                 Regra do Chrome Sem Parâmetro (DESIGN.md), um parâmetro que
+                 descreve conteúdo em vez de estrutura é abstração errada
   descricao      frase completa com ponto, dizendo o que houve e o que fazer
   icone          caminho de partial contendo apenas o `<path>` do SVG
   nivel_titulo   nível do cabeçalho (default 2). O default existe porque as
@@ -13,24 +17,6 @@ Parâmetros:
                  de uma seção mais funda passa o nível explicitamente
   cta_url        / cta_label — CTA opcional, botão primário por padrão;
                  `cta_secundario=True` renderiza como link sublinhado
-  termo_buscado  (opcional) quando informado, o título vira
-                 `{{ titulo }} "{{ termo_buscado }}"` — ex. titulo='Nenhum
-                 resultado para' + termo_buscado='xyz' vira 'Nenhum resultado
-                 para "xyz"'. Sem `termo_buscado`, o título usa `titulo`
-                 direto (com `sufixo_generico`, se houver — ver abaixo).
-                 Existe pra tirar do chamador o `{% templatetag openblock %}
-                 with {% templatetag closeblock %}` + `|add:` de montar essa
-                 versão na mão: catálogo de materiais e os dois históricos
-                 (issue #147) faziam essa montagem cada um do seu jeito, e a
-                 montagem via `|add:` escapava do guard de copy do estado
-                 vazio (`test_todo_chamador_do_estado_vazio_segue_a_copy`),
-                 que resolve `{% templatetag openblock %} with {% templatetag
-                 closeblock %}` só até o primeiro filtro encadeado
-  sufixo_generico (opcional, só faz sentido junto de `termo_buscado`) texto
-                 que substitui o termo entre aspas quando não há termo
-                 buscado — ex. titulo='Nenhum resultado para' +
-                 sufixo_generico='este filtro' vira 'Nenhum resultado para
-                 este filtro' quando `termo_buscado` for vazio/ausente
 
 `icone` e `descricao` são **opcionais para o componente e obrigatórios para
 chamador de tela**. Os dois níveis são de propósito: Django não tem parâmetro
@@ -49,7 +35,7 @@ títulos/descrições/flags antes do include.
     </svg>
   {% endif %}
   {% with nivel=nivel_titulo|default:2 %}
-    <h{{ nivel }} class="text-base font-medium text-text-secondary">{% if termo_buscado %}{{ titulo }} "{{ termo_buscado }}"{% elif sufixo_generico %}{{ titulo }} {{ sufixo_generico }}{% else %}{{ titulo }}{% endif %}</h{{ nivel }}>
+    <h{{ nivel }} class="text-base font-medium text-text-secondary">{{ titulo }}</h{{ nivel }}>
   {% endwith %}
   {% if descricao %}
     <p class="mx-auto mt-1 max-w-prose text-sm text-text-tertiary">{{ descricao }}</p>

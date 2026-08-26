@@ -3726,14 +3726,20 @@ class TestHistoricoRequisicoesFiltros:
         self, client, superuser, req_historico_obras
     ):
         _login(client, superuser)
+        # Termo com caractere HTML-especial: prova que `titulo_com_termo`
+        # (apps/core/templatetags/core_tags.py) não marca o título como
+        # seguro — o autoescape do Django roda sobre a string inteira, igual
+        # rodava antes da extração pro empty_state.html. Sem isso, um termo
+        # ASCII puro passaria mesmo se um `|safe` futuro desligasse o escape
+        # por engano.
         filtrado = client.get(
-            URL_HISTORICO_REQUISICOES, {'texto': 'inexistente'}
+            URL_HISTORICO_REQUISICOES, {'texto': '<b>inexistente</b>'}
         ).content.decode()
-        # O termo entre aspas só aparece se o eco em components/empty_state.html
-        # (termo_buscado) realmente rodou — o fallback genérico (sufixo_generico)
-        # e o `value` ecoado no campo de busca (sem aspas ao redor) não bastam
-        # pra produzir essa substring.
-        assert 'Nenhum resultado para "inexistente"' in filtrado
+        assert (
+            'Nenhum resultado para &quot;&lt;b&gt;inexistente&lt;/b&gt;&quot;'
+            in filtrado
+        )
+        assert '<b>inexistente</b>' not in filtrado
         assert 'Nenhuma requisição encontrada' not in filtrado
 
     def test_vazio_de_filtro_e_vazio_inicial_usam_icones_diferentes(

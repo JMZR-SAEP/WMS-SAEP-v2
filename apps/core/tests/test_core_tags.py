@@ -679,3 +679,49 @@ def test_painel_decisao_nao_emite_cor_crua_de_paleta():
     )
     for variant in ('info', 'warning', 'danger', 'desconhecida'):
         assert not cru.search(classes_painel_decisao(variant)['superficie'])
+
+
+# ---------------------------------------------------------------------------
+# titulo_com_termo — empty-state que ecoa termo buscado (issue #147)
+# ---------------------------------------------------------------------------
+
+
+def test_titulo_com_termo_ecoa_o_termo_entre_aspas():
+    from apps.core.templatetags.core_tags import titulo_com_termo
+
+    assert (
+        titulo_com_termo('xyz', 'Nenhum resultado para')
+        == 'Nenhum resultado para "xyz"'
+    )
+
+
+def test_titulo_com_termo_sem_termo_usa_sufixo_generico():
+    from apps.core.templatetags.core_tags import titulo_com_termo
+
+    assert (
+        titulo_com_termo('', 'Nenhum resultado para', 'este filtro')
+        == 'Nenhum resultado para este filtro'
+    )
+
+
+def test_titulo_com_termo_sem_termo_e_sem_sufixo_nao_deixa_espaco_sobrando():
+    from apps.core.templatetags.core_tags import titulo_com_termo
+
+    assert (
+        titulo_com_termo('', 'Nenhum material no catálogo')
+        == 'Nenhum material no catálogo'
+    )
+
+
+def test_titulo_com_termo_renderizado_escapa_o_termo():
+    """O retorno não é `mark_safe`: o autoescape do `{{ titulo }}` de
+    `components/empty_state.html` roda sobre a string inteira, igual rodava
+    antes desta tag existir — sem isso um termo buscado com `<`/`>`/`&`/aspas
+    refletiria sem escapar na página (issue #147, achado de review)."""
+    html = _render(
+        '{% titulo_com_termo termo prefixo as t %}{{ t }}',
+        termo='<b>x</b>',
+        prefixo='Nenhum resultado para',
+    )
+    assert html == 'Nenhum resultado para &quot;&lt;b&gt;x&lt;/b&gt;&quot;'
+    assert '<b>' not in html
