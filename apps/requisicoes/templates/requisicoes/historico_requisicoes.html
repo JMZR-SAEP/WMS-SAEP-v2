@@ -13,6 +13,15 @@
 {% url 'requisicoes:historico' as url_historico %}
 
 {% include "components/filter_shell.html#abertura" with action_url=url_historico target_id="resultados-historico-requisicoes" %}
+{% comment %}
+  Campos do filtro + fieldset de checkbox, com id estável pra reemite via
+  hx-swap-oob no partial `resultados` (issue #143): eles vivem fora de
+  #resultados-historico-requisicoes, e HTMX (filtro, ou back/forward)
+  só atualiza esse id — sem reemitir, o formulário ficava fora de sincronia
+  com a URL aplicada.
+{% endcomment %}
+{% partialdef campos %}
+  {% include "components/filter_shell.html#campos_abertura" with target_id="resultados-historico-requisicoes" %}
     {% include "components/filter_busca.html" with id="filtro-texto" name="texto" label="Solicitante ou beneficiário" value=filtros.texto placeholder="Nome ou matrícula" %}
 
     {% include "components/filter_data.html" with id="filtro-data-ini" name="data_ini" label="De" value=filtros.data_ini %}
@@ -28,6 +37,9 @@
 
   {# Preserva ordenação corrente ao submeter os filtros #}
   {% if ordem == 'asc' %}<input type="hidden" name="ordem" value="asc">{% endif %}
+  </div>
+{% endpartialdef %}
+{% partial campos %}
 
   {% include "components/filter_acoes.html" with id="filtro-acoes-historico-requisicoes" action_url=url_historico tem_filtro_ativo=tem_filtro_ativo %}
 </form>
@@ -114,6 +126,16 @@
     {% endif %}
 
   {% endif %}
+
+  {% comment %}
+  Reemite os campos do formulário (inputs + checkboxes de estado) como swap
+  out-of-band: eles vivem fora de #resultados-historico-requisicoes, então
+  uma resposta HTMX (filtro, ou back/forward restaurando o cache de
+  histórico) precisa atualizá-los à parte pra refletir o recorte da URL —
+  senão o próximo "Aplicar filtros" reenvia, em silêncio, um filtro que não
+  é mais o que está sendo exibido (issue #143).
+  {% endcomment %}
+  {% if is_htmx %}{% with oob_campos=True %}{% partial campos %}{% endwith %}{% endif %}
 
   {% if is_htmx %}
     {% comment %}

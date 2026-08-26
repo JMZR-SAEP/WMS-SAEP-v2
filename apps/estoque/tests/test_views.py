@@ -2378,6 +2378,49 @@ class TestHistoricoMovimentacoesFiltros:
         assert 'tipos=consumo' in url_chip
         assert 'tipos=saida_excepcional' in url_chip
 
+    def test_chip_toggle_off_preserva_outros_tipos_selecionados(
+        self, client, superuser, requisicao_autorizada
+    ):
+        # Bug-regressão #143: `setlist('tipos', [])` limpava TODOS os tipos
+        # ao desligar o chip, não só os dois que ele próprio adicionou. Quem
+        # tivesse "Reserva" marcada perdia a seleção em silêncio ao
+        # alternar o chip.
+        client.force_login(superuser)
+        response = client.get(
+            URL_MOVIMENTACOES,
+            {'tipos': ['reserva', 'consumo', 'saida_excepcional']},
+        )
+        url_chip_off = response.context['url_chip_sem_so_saidas']
+        assert 'tipos=reserva' in url_chip_off
+        assert 'tipos=consumo' not in url_chip_off
+        assert 'tipos=saida_excepcional' not in url_chip_off
+
+    def test_campos_do_form_reemitidos_via_oob_com_tipo_marcado_no_swap_htmx(
+        self, client, superuser, requisicao_autorizada
+    ):
+        # Bug-regressão #143: os campos do filtro (inputs + fieldset de
+        # checkbox) vivem fora de #resultados-movimentacoes; sem reemite
+        # out-of-band, o checkbox de "tipos" ficava desmarcado após um swap
+        # HTMX mesmo com o filtro aplicado na URL — o próximo "Aplicar
+        # filtros" reenviava, em silêncio, um filtro vazio.
+        client.force_login(superuser)
+        parcial = client.get(
+            URL_MOVIMENTACOES, {'tipos': 'consumo'}, HTTP_HX_REQUEST='true'
+        ).content.decode()
+        assert 'id="resultados-movimentacoes-campos"' in parcial
+        assert 'hx-swap-oob="true"' in parcial
+        idx = parcial.index('value="consumo"')
+        trecho = parcial[idx : parcial.index('>', idx) + 1]
+        assert 'checked' in trecho
+
+    def test_campos_do_form_sem_oob_na_pagina_completa(
+        self, client, superuser, requisicao_autorizada
+    ):
+        client.force_login(superuser)
+        conteudo = client.get(URL_MOVIMENTACOES, {'tipos': 'consumo'}).content
+        assert conteudo.count(b'id="resultados-movimentacoes-campos"') == 1
+        assert b'hx-swap-oob' not in conteudo
+
 
 class TestHistoricoMovimentacoesFiltrosPartials:
     """Cobertura da extração dos campos de filtro em partials (issue #88)."""

@@ -71,6 +71,7 @@ TIPOS_SO_SAIDAS = [
     TipoMovimentacaoEstoque.CONSUMO,
     TipoMovimentacaoEstoque.SAIDA_EXCEPCIONAL,
 ]
+TIPOS_SO_SAIDAS_VALUES = {t.value for t in TIPOS_SO_SAIDAS}
 
 
 def _setores_beneficiarios_do_ledger(visiveis):
@@ -143,9 +144,13 @@ def historico_movimentacoes_view(request):
     params_chip_on.setlist('tipos', [t.value for t in TIPOS_SO_SAIDAS])
     url_chip_so_saidas = '?' + params_chip_on.urlencode()
 
+    # Remove só os tipos do chip — preserva outros tipos que a pessoa já
+    # tivesse selecionado antes de ligar o chip (bug #143: `setlist('tipos',
+    # [])` descartava a seleção inteira em silêncio).
     params_chip_off = request.GET.copy()
     params_chip_off.pop('page', None)
-    params_chip_off.setlist('tipos', [])
+    tipos_sem_chip = [t for t in tipos if t not in TIPOS_SO_SAIDAS_VALUES]
+    params_chip_off.setlist('tipos', tipos_sem_chip)
     url_chip_sem_so_saidas = '?' + params_chip_off.urlencode()
 
     contexto = {

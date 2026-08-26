@@ -17,6 +17,15 @@
   {% include 'estoque/partials/_chip_so_saidas.html' %}
 
   {% include "components/filter_shell.html#abertura" with action_url=url_movimentacoes target_id="resultados-movimentacoes" %}
+  {% comment %}
+    Campos do filtro + fieldset de checkbox, com id estável pra reemite via
+    hx-swap-oob no partial `resultados` (issue #143): eles vivem fora de
+    #resultados-movimentacoes, e HTMX (chip, filtro, back/forward) só
+    atualiza esse id — sem reemitir, o formulário ficava fora de sincronia
+    com a URL aplicada.
+  {% endcomment %}
+  {% partialdef campos %}
+    {% include "components/filter_shell.html#campos_abertura" with target_id="resultados-movimentacoes" %}
       {% include "components/filter_busca.html" with id="filtro-material" name="material" label="Material" value=filtros.material placeholder="Código ou nome" %}
 
       {% include "components/filter_data.html" with id="filtro-data-ini" name="data_ini" label="De" value=filtros.data_ini %}
@@ -32,6 +41,9 @@
 
     {# Preserva ordenação corrente ao submeter os filtros #}
     {% if ordem == 'asc' %}<input type="hidden" name="ordem" value="asc">{% endif %}
+    </div>
+  {% endpartialdef %}
+  {% partial campos %}
 
     {% include "components/filter_acoes.html" with id="filtro-acoes-movimentacoes" action_url=url_movimentacoes tem_filtro_ativo=tem_filtro_ativo %}
   </form>
@@ -110,6 +122,16 @@
     falso) o chip é renderizado pelo próprio template-base — evita id duplicado.
     {% endcomment %}
     {% if is_htmx %}{% include 'estoque/partials/_chip_so_saidas.html' with oob_chip=True %}{% endif %}
+
+    {% comment %}
+    Reemite os campos do formulário (inputs + checkboxes de tipo) como swap
+    out-of-band: eles vivem fora de #resultados-movimentacoes, então uma
+    resposta HTMX (clique no chip, filtro, ou back/forward restaurando o
+    cache de histórico) precisa atualizá-los à parte pra refletir o recorte
+    da URL — senão o próximo "Aplicar filtros" reenvia, em silêncio, um
+    filtro que não é mais o que está sendo exibido (issue #143).
+    {% endcomment %}
+    {% if is_htmx %}{% with oob_campos=True %}{% partial campos %}{% endwith %}{% endif %}
 
     {% comment %}
       O `{% templatetag openblock %} url ... as url_movimentacoes {% templatetag closeblock %}`

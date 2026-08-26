@@ -5,22 +5,41 @@ nativo do Django 6 (mesmo padrão "abertura" de components/table.html,
 issue #83). Não conhece campos de domínio — só a moldura HTMX/disclosure.
 
 Fragmento (só abertura — fechamento fica literal na tela chamadora):
-  abertura   <details open><summary>Filtros...(sm:hidden)</summary>
-             <div class="sm:block!"><form method=get hx-get hx-target
-             hx-push-url><div class="grid ...">
+  abertura        <details open><summary>Filtros...(sm:hidden)</summary>
+                  <div class="sm:block!"><form method=get hx-get hx-target
+                  hx-push-url>
+  campos_abertura <div id="{{ target_id }}-campos"><div class="grid ...">
       Fechamento literal na tela, nesta ordem:
         </div>  {# fecha o grid de campos #}
-        ... fieldset de checkbox + hidden ordem + filter_acoes explícitos ...
+        ... fieldset de checkbox + hidden ordem ...
+        </div>  {# fecha o wrapper id="{{ target_id }}-campos" #}
+        ... filter_acoes explícito ...
         </form>
         </div>  {# fecha o wrapper sm:block! #}
         </details>
 
+`campos_abertura` existe pra dar um `id` estável aos campos de filtro +
+fieldset de checkbox: eles vivem fora de `#{{ target_id }}` (o alvo do swap
+de resultados), então uma resposta HTMX precisa reemiti-los via
+`hx-swap-oob="true"` pra não deixar o formulário fora de sincronia com a URL
+aplicada (issue #143 — chip ou back/forward mudam a URL e os resultados, mas
+os campos ficavam como estavam na primeira renderização). `filter_shell.html`
+não conhece campo de domínio, só a moldura: quem compõe o partial "campos"
+reemitido (definição + fields + fechamento) é a tela chamadora, no mesmo
+padrão de `{% partialdef resultados %}` — ver historico_movimentacoes.html.
+
 Parâmetros:
-  action_url  (obrigatório) URL da tela (action/hx-get do form)
-  target_id   (obrigatório) id do wrapper HTMX alvo do swap (sem #)
+  action_url  (obrigatório, só `abertura`) URL da tela (action/hx-get do form)
+  target_id   (obrigatório) id do wrapper HTMX alvo do swap (sem #); também
+              raiz do id `{{ target_id }}-campos` gerado por `campos_abertura`
+  oob_campos  (opcional, só `campos_abertura`) adiciona hx-swap-oob="true" —
+              usar só no reemite dentro do partial de resultados em
+              respostas HTMX (is_htmx)
 
 Uso canônico:
   {% include "components/filter_shell.html#abertura" with action_url=url_x target_id="resultados-x" %}
+  {% partialdef campos %}
+    {% include "components/filter_shell.html#campos_abertura" with target_id="resultados-x" %}
       {% include "components/filter_busca.html" with ... %}
       {% include "components/filter_data.html" with ... %}
     </div>
@@ -28,11 +47,17 @@ Uso canônico:
     {% include "components/filter_checkbox_group.html" with ... %}
 
     {% if ordem == 'asc' %}<input type="hidden" name="ordem" value="asc">{% endif %}
+    </div>
+  {% endpartialdef %}
+  {% partial campos %}
 
-    {% include "components/filter_acoes.html" with id="filtro-acoes-x" action_url=url_x tem_filtro_ativo=tem_filtro_ativo %}
+  {% include "components/filter_acoes.html" with id="filtro-acoes-x" action_url=url_x tem_filtro_ativo=tem_filtro_ativo %}
   </form>
   </div>
   </details>
+
+  {# dentro de {% partialdef resultados %}, só quando is_htmx: #}
+  {% with oob_campos=True %}{% partial campos %}{% endwith %}
 {% endcomment %}
 {% partialdef abertura %}
 {% comment %}
@@ -101,5 +126,12 @@ Uso canônico:
     data-prevent-double-submit
     class="rounded-xl border border-border bg-surface p-4 shadow-sm"
   >
+{% endpartialdef %}
+{% comment %}
+  Ver doc do topo do arquivo: id estável pros campos de filtro + fieldset de
+  checkbox, alvo do reemite `hx-swap-oob="true"` em respostas HTMX (#143).
+{% endcomment %}
+{% partialdef campos_abertura %}
+    <div id="{{ target_id }}-campos"{% if oob_campos %} hx-swap-oob="true"{% endif %}>
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 {% endpartialdef %}
