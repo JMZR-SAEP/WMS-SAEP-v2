@@ -2361,11 +2361,11 @@ class TestHistoricoMovimentacoesFiltros:
         filtrado = client.get(
             URL_MOVIMENTACOES, {'material': 'inexistente'}
         ).content.decode()
-        # As aspas escapadas (autoescape do Django) só aparecem se o eco do
-        # termo buscado no título realmente rodou — o fallback genérico e o
-        # `value` ecoado no campo de busca (sem aspas ao redor) não bastam
+        # O termo entre aspas só aparece se o eco em components/empty_state.html
+        # (termo_buscado) realmente rodou — o fallback genérico (sufixo_generico)
+        # e o `value` ecoado no campo de busca (sem aspas ao redor) não bastam
         # pra produzir essa substring.
-        assert 'Nenhum resultado para &quot;inexistente&quot;' in filtrado
+        assert 'Nenhum resultado para "inexistente"' in filtrado
         assert 'Nenhuma movimentação encontrada' not in filtrado
 
     def test_chip_so_saidas_preserva_filtros_atuais(

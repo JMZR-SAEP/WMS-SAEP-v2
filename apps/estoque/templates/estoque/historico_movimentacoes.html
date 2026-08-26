@@ -118,13 +118,7 @@
           ver comentário mais abaixo).
         {% endcomment %}
         {% url 'estoque:historico_movimentacoes' as url_movimentacoes_limpar %}
-        {% if filtros.material %}
-          {% with titulo_busca='Nenhum resultado para "'|add:filtros.material|add:'"' %}
-            {% include 'components/empty_state.html' with icone='components/icons/_funil.html' titulo=titulo_busca descricao='Ajuste ou limpe os filtros para ver mais movimentações.' cta_url=url_movimentacoes_limpar cta_label='Limpar filtros' cta_secundario=True %}
-          {% endwith %}
-        {% else %}
-          {% include 'components/empty_state.html' with icone='components/icons/_funil.html' titulo='Nenhum resultado para este filtro' descricao='Ajuste ou limpe os filtros para ver mais movimentações.' cta_url=url_movimentacoes_limpar cta_label='Limpar filtros' cta_secundario=True %}
-        {% endif %}
+        {% include 'components/empty_state.html' with icone='components/icons/_funil.html' titulo='Nenhum resultado para' termo_buscado=filtros.material sufixo_generico='este filtro' descricao='Ajuste ou limpe os filtros para ver mais movimentações.' cta_url=url_movimentacoes_limpar cta_label='Limpar filtros' cta_secundario=True %}
       {% else %}
         {% include 'components/empty_state.html' with icone='components/icons/_caixa_entrada.html' titulo='Nenhuma movimentação encontrada' descricao='Ainda não há movimentações de estoque visíveis para o seu papel.' %}
       {% endif %}
