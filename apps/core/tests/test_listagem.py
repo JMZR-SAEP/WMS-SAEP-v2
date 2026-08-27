@@ -1,10 +1,83 @@
 import pytest
+from django.http import QueryDict
 from django.test import RequestFactory
 
 from apps.accounts.models import VinculoAuxiliar
 from apps.core.listagem import paginar_com_filtros
+from apps.core.querystring import (
+    caminho_canonico,
+    canonicalizar,
+    querystring_ja_canonica,
+)
 
 pytestmark = pytest.mark.django_db
+
+# Ordem canônica de referência (espelha as das views de histórico).
+_ORDEM = ('texto', 'estados', 'data_ini', 'data_fim', 'setor', 'ordem', 'page')
+_MULTIVALOR = ('estados', 'tipos')
+
+
+def _qd(qs: str) -> QueryDict:
+    return QueryDict(qs)
+
+
+def _canon(qs: str) -> str:
+    return canonicalizar(_qd(qs), ordem_chaves=_ORDEM, chaves_multivalor=_MULTIVALOR)
+
+
+class TestCanonicalizarQuerystring:
+    def test_remove_chaves_vazias(self):
+        assert _canon('texto=Obras&data_ini=&data_fim=&setor=') == 'texto=Obras'
+
+    def test_ordem_fixa_de_chaves(self):
+        assert (
+            _canon('setor=3&ordem=asc&texto=Obras') == 'texto=Obras&setor=3&ordem=asc'
+        )
+
+    def test_ordem_fixa_dentro_do_multivalor(self):
+        a = _canon('estados=rascunho&estados=atendida')
+        b = _canon('estados=atendida&estados=rascunho')
+        assert a == b == 'estados=atendida&estados=rascunho'
+
+    def test_chave_unica_repetida_colapsa_no_ultimo_valor(self):
+        """`QueryDict.get('texto')` devolve o último; ordenar inverteria o que a
+        view lê (`texto=z&texto=a` → lê `a`, mas `a&z` passaria a ler `z`)."""
+        assert _canon('texto=z&texto=a') == 'texto=a'
+
+    def test_chave_desconhecida_vai_para_o_fim_em_ordem_alfabetica(self):
+        assert _canon('zzz=1&texto=x&aaa=2') == 'texto=x&aaa=2&zzz=1'
+
+    def test_mesmo_recorte_do_form_e_do_link_produz_a_mesma_querystring(self):
+        do_form = _canon('texto=Obras&data_ini=&data_fim=&setor=&estados=rascunho')
+        do_link = _canon('estados=rascunho&texto=Obras')
+        assert do_form == do_link
+
+    @pytest.mark.parametrize(
+        'bruto',
+        [
+            '',
+            'texto=Obras&data_ini=&estados=rascunho&estados=atendida',
+            'ordem=asc&page=2&setor=1&texto=a+b',
+            'zzz=9&estados=b&estados=a&texto=&x=1',
+            'texto=z&texto=a&estados=b&estados=a',
+        ],
+    )
+    def test_idempotencia(self, bruto):
+        """`canonicalizar(canonicalizar(x)) == canonicalizar(x)` — sem loop de 302."""
+        uma = _canon(bruto)
+        assert _canon(uma) == uma
+
+
+class TestCaminhoCanonico:
+    def test_sem_query_quando_tudo_vazio(self):
+        request = RequestFactory().get('/historico/?texto=&setor=')
+        assert caminho_canonico(request, ordem_chaves=_ORDEM) == '/historico/'
+
+    def test_querystring_ja_canonica_distingue_forma_suja_da_limpa(self):
+        suja = RequestFactory().get('/h/?data_ini=&texto=Obras')
+        limpa = RequestFactory().get('/h/?texto=Obras')
+        assert not querystring_ja_canonica(suja, ordem_chaves=_ORDEM)
+        assert querystring_ja_canonica(limpa, ordem_chaves=_ORDEM)
 
 
 def _request(factory, params='', htmx=False):

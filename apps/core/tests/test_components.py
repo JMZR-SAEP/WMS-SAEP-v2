@@ -2427,3 +2427,205 @@ class TestFilterShellDisclosure:
     def test_glifo_acompanha_o_estado(self):
         """Parado, apontava para baixo aberto e fechado."""
         assert 'group-open:rotate-180' in self._fonte()
+
+
+# ---------------------------------------------------------------------------
+# Gate #152: todo template que empurra URL nova via HTMX (`hx-push-url`) reemite
+# o estado que vive FORA do alvo do swap como `hx-swap-oob`. A dessincronia da
+# #143 foi ter sobrado superfície não coberta — convenção não quebra a suíte,
+# gate quebra.
+# ---------------------------------------------------------------------------
+
+# `hx-push-url` no markup, ou `hx_push_url=` repassado a um componente
+# passthrough. Comentários `{% comment %}` são removidos antes da varredura.
+_EMITE_PUSH_URL = re.compile(r'hx-push-url|hx_push_url\s*=')
+_REEMITE_OOB = 'hx-swap-oob'
+
+# Templates que emitem push-url mas não carregam o reemite OOB — cada um com o
+# motivo pelo qual a regra não se aplica a eles.
+_ISENTOS_DO_REEMITE_OOB: dict[str, str] = {
+    # button.html é passthrough puro (não conhece domínio): só emite
+    # `hx-push-url` quando o chamador passa `hx_push_url=`. A superfície é quem
+    # chama, e é lá que o reemite OOB tem que estar.
+    'apps/core/templates/components/button.html': (
+        'passthrough — quem inclui o botão é a superfície'
+    ),
+    # ordenacao_data.html é renderizado DENTRO de `{% partialdef resultados %}`,
+    # ou seja, dentro do próprio alvo do swap: volta inteiro em toda resposta
+    # HTMX. Não vive fora do alvo como o form e o chip, então reemitir a si
+    # mesmo via OOB só duplicaria id.
+    'apps/core/templates/components/ordenacao_data.html': (
+        'vive dentro do alvo do swap — trocado inteiro, sem OOB'
+    ),
+}
+
+_MINIMO_DE_SUPERFICIES_COM_PUSH_URL = 3
+
+
+def _superficies_com_push_url(raiz: Path):
+    """(caminho_relativo, reemite_oob) de cada apps/**/*.html que emite push-url."""
+    for caminho in sorted((raiz / 'apps').rglob('*.html')):
+        limpo = _sem_comentarios(caminho.read_text())
+        if not _EMITE_PUSH_URL.search(limpo):
+            continue
+        yield str(caminho.relative_to(raiz)), _REEMITE_OOB in limpo
+
+
+def test_todo_template_com_push_url_reemite_oob():
+    """`components/filter_acoes.html` já dizia em prosa ("o painel não pode
+    discordar da URL"), e três superfícies já reemitiam à mão. Vira gate: a
+    próxima superfície com `hx-push-url` sem `hx-swap-oob` quebra a suíte.
+    """
+    raiz = Path(__file__).resolve().parents[3]
+    superficies = list(_superficies_com_push_url(raiz))
+
+    assert len(superficies) >= _MINIMO_DE_SUPERFICIES_COM_PUSH_URL, (
+        f'A varredura achou só {len(superficies)} templates com push-url — o '
+        'gate está passando por não enxergar, não por estar tudo certo'
+    )
+
+    infratores = [
+        caminho
+        for caminho, reemite in superficies
+        if not reemite and caminho not in _ISENTOS_DO_REEMITE_OOB
+    ]
+    assert not infratores, (
+        'Template empurra URL nova via HTMX sem reemitir o estado fora do alvo '
+        f'do swap via hx-swap-oob (regressão #143): {infratores}'
+    )
+
+
+class TestMecanismoDoGateDePushUrl:
+    """O gate precisa provar que detecta, não que hoje a árvore está limpa."""
+
+    def _emite(self, texto: str) -> bool:
+        return bool(_EMITE_PUSH_URL.search(_sem_comentarios(texto)))
+
+    def _reemite(self, texto: str) -> bool:
+        return _REEMITE_OOB in _sem_comentarios(texto)
+
+    def test_push_url_sem_oob_e_detectado(self):
+        texto = '<a hx-get="/x" hx-push-url="true">ir</a>'
+        assert self._emite(texto) and not self._reemite(texto)
+
+    def test_push_url_com_oob_passa(self):
+        texto = (
+            '<a hx-get="/x" hx-push-url="true">ir</a>'
+            '<div id="fora" hx-swap-oob="true">estado</div>'
+        )
+        assert self._emite(texto) and self._reemite(texto)
+
+    def test_push_url_dentro_de_comment_nao_conta(self):
+        texto = '{% comment %}\n<a hx-push-url="true">exemplo</a>\n{% endcomment %}'
+        assert not self._emite(texto)
+
+    def test_hx_push_url_como_param_passthrough_e_detectado(self):
+        texto = '{% include "components/button.html" with hx_push_url="true" %}'
+        assert self._emite(texto)
+
+    def test_toda_isencao_tem_motivo_escrito(self):
+        assert all(_ISENTOS_DO_REEMITE_OOB.values())
+
+
+# ---------------------------------------------------------------------------
+# Gate #152 (call site): o reemite OOB de uma barra de filtros pertence ao
+# template CHAMADOR, não a filter_shell.html. O gate acima vê cada arquivo
+# isolado — filter_shell.html tem `hx-swap-oob` nos próprios partials e passa —,
+# mas um novo chamador de `#abertura` que esqueça de reemitir os campos ficaria
+# invisível. Esta varredura cobre o call site: toda tela que abre a barra
+# reemite todos os slots que vivem fora do alvo do swap.
+# ---------------------------------------------------------------------------
+
+_ABERTURA_DA_BARRA = 'components/filter_shell.html#abertura'
+
+# (token que o chamador precisa conter, descrição do slot). "campos" e "resumo"
+# vivem em filter_shell.html, "Limpar" em filter_acoes.html — os três fora de
+# `#{{ target_id }}`, logo os três precisam de reemite OOB no partial de
+# resultados de cada tela.
+_SLOTS_OOB_OBRIGATORIOS = (
+    ('oob_campos', 'reemite dos campos do filtro (filter_shell#campos_abertura)'),
+    ('oob_resumo', 'reemite do resumo em <summary> (filter_shell#resumo)'),
+    ('filter_acoes.html#limpar', 'reemite do slot "Limpar" (filter_acoes#limpar)'),
+)
+
+# Slot condicional: só quem também renderiza o chip precisa reemiti-lo.
+_CHIP_SO_SAIDAS = 'estoque/partials/_chip_so_saidas.html'
+
+_MINIMO_DE_BARRAS_DE_FILTRO = 2
+
+
+def _slots_oob_faltando(texto: str) -> list[str] | None:
+    """Slots OOB não reemitidos por uma tela que abre a barra de filtros.
+
+    Devolve `None` se o template não abre barra nenhuma; `[]` se abre e cobre
+    todos os slots.
+    """
+    limpo = _sem_comentarios(texto)
+    if _ABERTURA_DA_BARRA not in limpo:
+        return None
+    faltando = [desc for token, desc in _SLOTS_OOB_OBRIGATORIOS if token not in limpo]
+    if _CHIP_SO_SAIDAS in limpo and 'oob_chip' not in limpo:
+        faltando.append('reemite do chip "só saídas"')
+    return faltando
+
+
+def test_toda_barra_de_filtros_reemite_todos_os_slots_oob():
+    """O call site, não filter_shell.html, é dono do reemite (regressão #143)."""
+    raiz = Path(__file__).resolve().parents[3]
+    barras = {
+        str(caminho.relative_to(raiz)): faltando
+        for caminho in sorted((raiz / 'apps').rglob('*.html'))
+        if (faltando := _slots_oob_faltando(caminho.read_text())) is not None
+    }
+
+    assert len(barras) >= _MINIMO_DE_BARRAS_DE_FILTRO, (
+        f'A varredura achou só {len(barras)} barras de filtro — o gate está '
+        'passando por não enxergar, não por estar tudo certo'
+    )
+
+    infratores = {caminho: faltando for caminho, faltando in barras.items() if faltando}
+    assert not infratores, (
+        'Tela abre a barra de filtros sem reemitir via OOB todos os slots que '
+        f'vivem fora do alvo do swap (regressão #143): {infratores}'
+    )
+
+
+class TestMecanismoDaBarraDeFiltros:
+    """O gate de call site precisa provar que detecta chamador incompleto."""
+
+    BARRA_COMPLETA = (
+        '{% include "components/filter_shell.html#abertura" %}'
+        '{% if is_htmx %}{% with oob_campos=True %}x{% endwith %}'
+        '{% include "components/filter_shell.html#resumo" with oob_resumo=True %}'
+        '{% include "components/filter_acoes.html#limpar" with oob=True %}{% endif %}'
+    )
+
+    def test_barra_completa_passa(self):
+        assert _slots_oob_faltando(self.BARRA_COMPLETA) == []
+
+    def test_arquivo_que_nao_abre_a_barra_e_ignorado(self):
+        assert _slots_oob_faltando('<div>sem barra</div>') is None
+
+    def test_sem_reemite_de_campos_e_detectado(self):
+        assert _slots_oob_faltando(self.BARRA_COMPLETA.replace('oob_campos=True', ''))
+
+    def test_sem_reemite_de_limpar_e_detectado(self):
+        texto = self.BARRA_COMPLETA.replace(
+            'filter_acoes.html#limpar', 'filter_acoes.html'
+        )
+        assert _slots_oob_faltando(texto)
+
+    def test_reemite_dentro_de_comment_nao_conta(self):
+        texto = (
+            '{% include "components/filter_shell.html#abertura" %}'
+            '{% comment %}oob_campos oob_resumo filter_acoes.html#limpar{% endcomment %}'
+        )
+        assert len(_slots_oob_faltando(texto)) == 3
+
+    def test_chip_sem_reemite_e_detectado_so_quando_o_chip_e_renderizado(self):
+        com_chip = (
+            self.BARRA_COMPLETA
+            + "{% include 'estoque/partials/_chip_so_saidas.html' %}"
+        )
+        assert _slots_oob_faltando(com_chip) == ['reemite do chip "só saídas"']
+        assert _slots_oob_faltando(self.BARRA_COMPLETA) == []
