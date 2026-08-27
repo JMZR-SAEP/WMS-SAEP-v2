@@ -2629,3 +2629,149 @@ class TestMecanismoDaBarraDeFiltros:
         )
         assert _slots_oob_faltando(com_chip) == ['reemite do chip "só saídas"']
         assert _slots_oob_faltando(self.BARRA_COMPLETA) == []
+
+
+class TestFilterCheckboxGroupAgrupado:
+    """components/filter_checkbox_group.html: suporte a grupos opcionais sem
+    quebrar o uso plano (issue #154)."""
+
+    ESTADOS = [
+        ('rascunho', 'Rascunho'),
+        ('aguardando_autorizacao', 'Aguardando autorização'),
+        ('recusada', 'Recusada'),
+        ('autorizada', 'Autorizada'),
+        ('pronta_para_retirada', 'Pronta para retirada'),
+        ('atendida', 'Atendida'),
+        ('cancelada', 'Cancelada'),
+        ('estornada', 'Estornada'),
+    ]
+    EM_ANDAMENTO = 'rascunho aguardando_autorizacao autorizada pronta_para_retirada'
+    ENCERRADAS = 'recusada atendida cancelada estornada'
+
+    def _grupos(self):
+        from apps.core.templatetags.core_tags import agrupar_opcoes
+
+        return agrupar_opcoes(
+            self.ESTADOS,
+            'Em andamento',
+            self.EM_ANDAMENTO,
+            'Encerradas',
+            self.ENCERRADAS,
+        )
+
+    def _render_plano(self):
+        return render_to_string(
+            'components/filter_checkbox_group.html',
+            {
+                'legend': 'Tipo',
+                'name': 'tipos',
+                'opcoes': [('entrada', 'Entrada'), ('saida', 'Saída')],
+                'selecionados': ['saida'],
+            },
+        )
+
+    def _render_agrupado(self):
+        return render_to_string(
+            'components/filter_checkbox_group.html',
+            {
+                'legend': 'Estado',
+                'name': 'estados',
+                'grupos': self._grupos(),
+                'selecionados': ['autorizada'],
+            },
+        )
+
+    def test_uso_plano_gera_um_unico_fieldset(self):
+        html = self._render_plano()
+        assert html.count('<fieldset') == 1
+        assert html.count('<legend') == 1
+        assert 'value="entrada"' in html
+        assert 'value="saida"' in html
+        assert html.count('name="tipos"') == 2
+
+    def test_uso_plano_preserva_alvo_de_toque(self):
+        html = self._render_plano()
+        assert html.count('min-h-11') == 2
+
+    def test_uso_plano_respeita_selecao(self):
+        html = self._render_plano()
+        marcado = html[
+            html.index('value="saida"') : html.index('>', html.index('value="saida"'))
+            + 1
+        ]
+        assert 'checked' in marcado
+
+    def test_uso_agrupado_gera_dois_fieldsets_aninhados(self):
+        html = self._render_agrupado()
+        # 1 externo ("Estado") + 2 internos ("Em andamento" / "Encerradas").
+        assert html.count('<fieldset') == 3
+        assert html.count('<legend') == 3
+        assert '>Estado<' in html
+        assert '>Em andamento<' in html
+        assert '>Encerradas<' in html
+
+    def test_uso_agrupado_mantem_as_8_caixas_e_os_8_valores(self):
+        html = self._render_agrupado()
+        for valor, _ in self.ESTADOS:
+            assert f'value="{valor}"' in html
+        assert html.count('type="checkbox"') == 8
+        assert html.count('name="estados"') == 8
+
+    def test_uso_agrupado_preserva_alvo_de_toque(self):
+        assert self._render_agrupado().count('min-h-11') == 8
+
+    def test_agrupar_opcoes_particiona_preservando_rotulos(self):
+        grupos = self._grupos()
+        assert [legenda for legenda, _ in grupos] == ['Em andamento', 'Encerradas']
+        assert grupos[0][1] == [
+            ('rascunho', 'Rascunho'),
+            ('aguardando_autorizacao', 'Aguardando autorização'),
+            ('autorizada', 'Autorizada'),
+            ('pronta_para_retirada', 'Pronta para retirada'),
+        ]
+        assert [v for v, _ in grupos[1][1]] == self.ENCERRADAS.split()
+
+    def test_agrupar_opcoes_erra_alto_quando_falta_valor(self):
+        from django.core.exceptions import ImproperlyConfigured
+
+        from apps.core.templatetags.core_tags import agrupar_opcoes
+
+        with pytest.raises(ImproperlyConfigured):
+            agrupar_opcoes(self.ESTADOS, 'Parcial', self.EM_ANDAMENTO)
+
+    def test_agrupar_opcoes_erra_alto_com_valor_desconhecido(self):
+        from django.core.exceptions import ImproperlyConfigured
+
+        from apps.core.templatetags.core_tags import agrupar_opcoes
+
+        with pytest.raises(ImproperlyConfigured):
+            agrupar_opcoes(
+                self.ESTADOS,
+                'Em andamento',
+                self.EM_ANDAMENTO + ' inexistente',
+                'Encerradas',
+                self.ENCERRADAS,
+            )
+
+    def test_agrupar_opcoes_erra_alto_com_especificacao_impar(self):
+        from django.core.exceptions import ImproperlyConfigured
+
+        from apps.core.templatetags.core_tags import agrupar_opcoes
+
+        with pytest.raises(ImproperlyConfigured):
+            agrupar_opcoes(self.ESTADOS, 'Em andamento')
+
+    def test_grupos_do_historico_batem_com_estadorequisicao(self):
+        """A partição escrita no template cobre exatamente os 8 estados
+        canônicos — muda `EstadoRequisicao`, o `agrupar_opcoes` erra alto."""
+        from apps.requisicoes.models import EstadoRequisicao
+        from apps.core.templatetags.core_tags import agrupar_opcoes
+
+        grupos = agrupar_opcoes(
+            EstadoRequisicao.choices,
+            'Em andamento',
+            self.EM_ANDAMENTO,
+            'Encerradas',
+            self.ENCERRADAS,
+        )
+        assert [len(pares) for _, pares in grupos] == [4, 4]
