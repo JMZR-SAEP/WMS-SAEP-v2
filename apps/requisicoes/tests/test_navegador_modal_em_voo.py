@@ -225,7 +225,25 @@ def test_arrasto_de_selecao_que_termina_no_backdrop_nao_fecha_o_modal(
 def test_backdrop_fica_inerte_com_texto_digitado_mas_esc_e_voltar_continuam(
     pagina_de_decisao,
 ):
-    """Com justificativa escrita, o backdrop não descarta; as saídas deliberadas sim."""
+    """Com justificativa escrita, o backdrop não descarta; as saídas deliberadas sim.
+
+    ## Em observação — intermitência sob carga (#149)
+
+    Falhou uma vez numa execução completa da lane Navegador e passou nas 8
+    execuções seguintes (5 completas + 3 isoladas do módulo). Descartada a
+    hipótese de vir da correção de corrida em `form-submit.js`: a lane roda
+    limpa 3x com a versão anterior do arquivo, e o novo `liberar()` só devolve
+    foco quando `document.activeElement === document.body`, condição que o
+    `x-trap` do modal impede.
+
+    Hipótese corrente: sensibilidade a timing sob carga — `_clicar_no_backdrop`
+    depende da ordem `mousedown`/`mouseup`/`click` que o navegador emite e da
+    geometria do `<dialog>` no top layer. Nova falha esperada: `d.open` volta
+    `False` logo após o clique no backdrop, ou `document.activeElement` não é o
+    `[data-modal-dismiss]`. Se reincidir com padrão (mesma asserção, mesma fase
+    da lane), abrir issue de investigação e considerar estabilizar o gesto com
+    `page.wait_for_*` no lugar do `mouse.down/up` cru.
+    """
     page = pagina_de_decisao
     dialogo = _abrir(page, 'confirmar-recusar')
     dialogo.locator('#modal-recusar-motivo').fill('Duplicidade com REQ-2026-9001.')
