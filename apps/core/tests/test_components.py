@@ -2205,16 +2205,22 @@ class TestAutocompleteEstadosECombobox:
         ARIA 1.2 — emiti-lo é só ruído no HTML (#149)."""
         assert 'aria-haspopup' not in self._fonte()
 
-    def test_borda_do_listbox_e_estrutural_por_decisao(self):
-        """A borda do popup fica em `border-border` (1.23:1), não escalada para
-        `border-control`: o popup tem fundo e sombra próprios, então a linha é
-        reforço, não a única pista do componente. A decisão vive num comentário
-        do template para não ser "corrigida" no automático (#149)."""
+    def test_borda_do_listbox_documenta_a_decisao_de_nao_escalar(self):
+        """`ul[role="listbox"]` mantém `border-border` (1.23:1) em vez de subir
+        para `border-control`: decisão consciente, presa no comentário adjacente
+        para não ser "corrigida" no automático (#149).
+
+        Verifica o comentário imediatamente antes da tag, não a fonte inteira:
+        `border-border` não mudou e `1.4.11` aparece em outros comentários do
+        arquivo, então asserção sobre o arquivo todo passaria sem a decisão.
+        """
         fonte = self._fonte()
-        trecho = fonte[fonte.index('role="listbox"') :]
-        trecho = trecho[: trecho.index('>')]
-        assert 'border-border' in trecho
-        assert '1.4.11' in fonte
+        ul = fonte.index('role="listbox"')
+        comentario = fonte[fonte.rindex('{% comment %}', 0, ul) : ul]
+        assert 'border-border' in comentario
+        assert 'border-control' in comentario
+        assert '1.4.11' in comentario
+        assert 'decisão consciente' in comentario
 
     def test_contagem_de_resultados_e_anunciada(self):
         """Sem isto só o caso "nenhum resultado" falava.
