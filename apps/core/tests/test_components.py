@@ -2387,6 +2387,19 @@ class TestAutocompleteEstadosECombobox:
         js = self._js()
         assert 'this.erroGateVisivel = false;' in js
 
+    def test_mensagem_do_gate_e_associada_ao_combobox(self):
+        """`aria-describedby` amarra a causa do bloqueio ao input enquanto o
+        gate está ativo, preservando o id do erro de servidor
+        (docs/design-system.md — "campo com erro usa aria-invalid +
+        aria-describedby")."""
+        fonte = self._fonte()
+        assert ':id="idBase + \'-erro-gate\'"' in fonte
+        # A ligação dinâmica adiciona o id do gate e mantém o erro de servidor.
+        assert "erroGateVisivel ? idBase + '-erro-gate' : null" in fonte
+        assert "{% if com_erro and erro_id %}'{{ erro_id }}', {% endif %}" in fonte
+        # Fallback estático sem JS continua lá.
+        assert 'aria-describedby="{{ erro_id }}"' in fonte
+
 
 class TestFilterShellDisclosure:
     """components/filter_shell.html — o disclosure de mobile."""

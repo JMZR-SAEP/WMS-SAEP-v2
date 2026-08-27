@@ -92,6 +92,14 @@
       HTML (#149).
     {% endcomment %}
     {% if com_erro %}aria-invalid="true"{% if erro_id %} aria-describedby="{{ erro_id }}"{% endif %}{% endif %}
+    {% comment %}
+      `aria-describedby` dinâmico: mantém o id do erro de servidor (quando há) e
+      ADICIONA o id da mensagem do gate enquanto `erroGateVisivel`. O atributo
+      estático acima é o fallback sem JS — o erro de campo é a rota sem JS.
+      Quando o Alpine sobe, esta ligação assume; `|| null` remove o atributo em
+      vez de deixar `aria-describedby=""` quando não há nada a apontar.
+    {% endcomment %}
+    :aria-describedby="[{% if com_erro and erro_id %}'{{ erro_id }}', {% endif %}erroGateVisivel ? idBase + '-erro-gate' : null].filter(Boolean).join(' ') || null"
     :aria-controls="idBase + '-listbox'"
     :aria-expanded="aberto"
     {% comment %}
@@ -238,6 +246,7 @@
   <p
     x-show="erroGateVisivel"
     x-cloak
+    :id="idBase + '-erro-gate'"
     x-text="mensagemGate()"
     class="mt-1.5 text-xs font-medium text-danger-text"
     role="alert"

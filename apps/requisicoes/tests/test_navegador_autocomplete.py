@@ -266,11 +266,15 @@ def test_submit_com_texto_sem_vinculo_e_bloqueado_no_cliente(pagina_rascunho):
     pagina_rascunho.wait_for_timeout(300)
 
     assert pagina_rascunho.url.endswith('/requisicoes/nova/'), 'o envio não foi barrado'
-    assert pagina_rascunho.locator('p[data-erro-gate]').first.is_visible()
+    gate = pagina_rascunho.locator('p[data-erro-gate]').first
+    assert gate.is_visible()
     assert (
         pagina_rascunho.evaluate('document.activeElement.id')
         == 'id_itens-0-material_label'
     )
+    # A mensagem do gate fica amarrada ao combobox por aria-describedby.
+    descrito_por = campo.get_attribute('aria-describedby') or ''
+    assert gate.get_attribute('id') in descrito_por.split()
 
 
 def test_gate_aponta_a_linha_culpada_no_formset(pagina_rascunho):
