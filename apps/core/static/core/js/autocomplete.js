@@ -58,6 +58,17 @@
       // o spinner sumia e o componente ficava mudo.
       erro: false,
       ativo: -1,
+      // `vinculado` é o espelho reativo de `hiddenInput.value` (ver
+      // `_sincronizarVinculo()`): `true` quando o texto do campo corresponde a
+      // um item escolhido da lista, `false` quando é texto digitado que não
+      // vinculou nada. Até #151 as duas situações tinham o mesmo desenho.
+      vinculado: false,
+      // Texto que a região `role="status"` anuncia quando o vínculo morre
+      // (vinculado -> desvinculado). Some 300ms depois, no callback do debounce.
+      _anuncioVinculo: '',
+      // Gate de submit no cliente: `true` quando o envio foi barrado por haver
+      // texto sem vínculo neste combobox.
+      erroGateVisivel: false,
       _debounceTimer: null,
       _abortController: null,
 
@@ -69,6 +80,7 @@
           }
           this.query = (config.initialLabel || '').trim();
         }
+        this._sincronizarVinculo();
       },
 
       buscarComDebounce() {
@@ -77,17 +89,32 @@
         this.buscando = false;
         this.resultados = [];
         this.erro = false;
+        this.erroGateVisivel = false;
         this.fecharDropdown();
 
+        // Instante exato em que o vínculo morre: o hidden é zerado a cada tecla.
+        // `tinhaVinculo` é lido ANTES de zerar para separar "apagou um caractere
+        // de um item escolhido" (anuncia a quebra) de "segue digitando um texto
+        // que nunca vinculou" (silêncio — não houve mudança de estado).
+        const tinhaVinculo = !!this.$refs.hiddenInput?.value;
         if (this.$refs.hiddenInput) {
           this.$refs.hiddenInput.value = '';
+        }
+        this._sincronizarVinculo();
+        if (tinhaVinculo) {
+          this._anuncioVinculo = 'Seleção desfeita. Escolha um item da lista.';
         }
         if (this.onInvalidate) {
           this.onInvalidate();
         }
         clearTimeout(this._debounceTimer);
         const query = this.query;
-        this._debounceTimer = setTimeout(() => this._buscarComGate(query), 300);
+        this._debounceTimer = setTimeout(() => {
+          // A região live já leu "Seleção desfeita."; limpar aqui evita que ele
+          // encubra a contagem da busca que vem a seguir.
+          this._anuncioVinculo = '';
+          this._buscarComGate(query);
+        }, 300);
       },
 
       // Foco com campo vazio só lista tudo quando a tela pediu isso
@@ -175,6 +202,9 @@
         if (this.$refs.hiddenInput) {
           this.$refs.hiddenInput.value = item.id;
         }
+        this._sincronizarVinculo();
+        this._anuncioVinculo = '';
+        this.erroGateVisivel = false;
         this.fecharDropdown();
         // Síncrono, e não só via blur no $nextTick: se o label do item
         // selecionado for mais curto que `minChars`, `focado` continuar `true`
@@ -189,9 +219,11 @@
         this.query = '';
         this.resultados = [];
         this.erro = false;
+        this.erroGateVisivel = false;
         if (this.$refs.hiddenInput) {
           this.$refs.hiddenInput.value = '';
         }
+        this._sincronizarVinculo();
         this.fecharDropdown();
       },
 
@@ -284,6 +316,9 @@
       // nenhum para quem usa leitor de tela: só o caso de zero resultados
       // falava. Volta '' enquanto busca para não anunciar contagem velha.
       anuncioResultados() {
+        // Mudança de vínculo (vinculado -> desvinculado) tem prioridade: é a
+        // transição que, sem anúncio, fica indistinguível de "nada mudou".
+        if (this._anuncioVinculo) return this._anuncioVinculo;
         if (this.buscando) return '';
         if (this.erro) return 'A busca falhou.';
         // '' — não o texto —, mesmo padrão do caso de zero resultados logo
@@ -298,6 +333,30 @@
           ? '1 resultado disponível.'
           : `${total} resultados disponíveis.`;
       },
+
+      // Espelho reativo de `hiddenInput.value`. Alpine não observa escrita
+      // direta em propriedade de nó do DOM, então `x-show`/`:class` não
+      // reagiriam a um getter que só lesse o ref. Este campo NÃO é verdade
+      // paralela: nunca recebe um literal, só o resultado de
+      // `!!this.$refs.hiddenInput?.value`, reavaliado em todo ponto que mexe no
+      // hidden (init, selecionar, buscarComDebounce, limpar). A fonte continua
+      // sendo o hidden; isto é o cache que a reatividade do Alpine exige.
+      _sincronizarVinculo() {
+        this.vinculado = !!this.$refs.hiddenInput?.value;
+      },
+
+      // Gate de submit no cliente: há texto digitado neste combobox sem
+      // `hiddenInput` correspondente. É conveniência — o `clean()` do servidor
+      // continua sendo a autoridade final. Chamado pelo listener de `submit`
+      // deste arquivo via `Alpine.$data(escopo).sinalizarGate()`.
+      sinalizarGate() {
+        this.erroGateVisivel = true;
+        this.$refs.displayInput?.focus();
+      },
+
+      mensagemGate() {
+        return 'Selecione um item da lista. O texto digitado não corresponde a nenhum item.';
+      },
     };
   }
 
@@ -306,6 +365,51 @@
     _uidSeq += 1;
     return _uidSeq;
   }
+
+  // Gate de submit no cliente — barra o envio quando um combobox tem texto
+  // digitado mas nenhum item vinculado (`hiddenInput` vazio). É conveniência: o
+  // `clean()` do servidor continua rejeitando o mesmo caso, com ou sem JS.
+  //
+  // Percorre só comboboxes visíveis (um `x-show` fechado, ou a linha de formset
+  // marcada para remoção, não conta) e para na primeira linha culpada, pondo o
+  // foco nela — o `role="group" aria-label="Item N"` da linha dá o contexto ao
+  // leitor de tela.
+  function escopoDeComboboxSemVinculo(form) {
+    const combos = form.querySelectorAll('input[role="combobox"]');
+    for (const combo of combos) {
+      if (combo.offsetParent === null) continue;
+      const escopo = combo.closest('[x-data]');
+      const hidden = escopo?.querySelector('input[x-ref="hiddenInput"]');
+      if (!hidden) continue;
+      if (combo.value.trim() !== '' && hidden.value.trim() === '') {
+        return escopo;
+      }
+    }
+    return null;
+  }
+
+  // Captura (`true`) para correr antes do HTMX (que escuta `submit` no próprio
+  // form) e antes do guard de duplo-submit (form-submit.js, em bolha no
+  // document). `stopPropagation` impede que qualquer um dos dois trate um envio
+  // que este gate já barrou.
+  document.addEventListener(
+    'submit',
+    (event) => {
+      const form = event.target;
+      if (!(form instanceof HTMLFormElement)) return;
+      const escopo = escopoDeComboboxSemVinculo(form);
+      if (!escopo) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const dados = window.Alpine?.$data(escopo);
+      if (dados?.sinalizarGate) {
+        dados.sinalizarGate();
+      } else {
+        escopo.querySelector('input[role="combobox"]')?.focus();
+      }
+    },
+    true
+  );
 
   document.addEventListener('alpine:init', () => {
     window.Alpine.data('autocomplete', factory);

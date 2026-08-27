@@ -45,6 +45,29 @@ def test_formset_valido_com_um_item(material_disponivel):
 
 
 @pytest.mark.django_db
+def test_texto_digitado_sem_material_id_e_rejeitado_pelo_clean(material_disponivel):
+    """#151: o gate no cliente é conveniência — o `clean()` do servidor
+    continua rejeitando "texto digitado e vinculado a nada", com ou sem JS.
+
+    Reproduz o campo que *parece* escolhido e não está: `material_label`
+    preenchido (o operador apagou um caractere e o hidden foi zerado), mas
+    `material_id` vazio no POST.
+    """
+    data = _build_formset_data(
+        [
+            {
+                'material_id': '',
+                'material_label': str(material_disponivel),
+                'quantidade_solicitada': '5',
+            },
+        ]
+    )
+    fs = ItemRequisicaoFormSet(data, prefix='itens')
+    assert not fs.is_valid()
+    assert 'Selecione um material.' in fs.forms[0].errors['material_label']
+
+
+@pytest.mark.django_db
 def test_formset_duplicidade_levanta_erro(material_disponivel):
     data = _build_formset_data(
         [

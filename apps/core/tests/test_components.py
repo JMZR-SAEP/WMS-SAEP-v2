@@ -2297,6 +2297,96 @@ class TestAutocompleteEstadosECombobox:
             f'Cor abaixo do piso dentro de role="option": {infratores}'
         )
 
+    # ── #151: estado "vinculado" vs "digitado e vinculado a nada" ──────────
+
+    def test_vinculado_deriva_do_hidden_input_sem_estado_paralelo(self):
+        """A fonte única de verdade é `hiddenInput.value`.
+
+        `vinculado` é cache reativo (Alpine não observa escrita direta em nó do
+        DOM), mas nunca recebe um literal: só o resultado de
+        `!!this.$refs.hiddenInput?.value`, via `_sincronizarVinculo()`.
+        """
+        js = self._js()
+        assert 'this.vinculado = !!this.$refs.hiddenInput?.value' in js
+        assert '_sincronizarVinculo()' in js
+        # Nunca ligado/desligado por literal — a única atribuição a `vinculado`
+        # é a derivação acima.
+        assert 'this.vinculado = true' not in js
+        assert 'this.vinculado = false' not in js
+
+    def test_marca_de_vinculado_e_a_borda_estao_no_template(self):
+        fonte = self._fonte()
+        assert "{ 'campo--vinculado': vinculado }" in fonte
+        assert 'x-show="vinculado && !buscando"' in fonte
+        assert 'text-success' in fonte
+
+    def test_borda_de_vinculado_compilada_no_app_css(self):
+        """O passo `make css-build` que o AGENTS.md não menciona.
+
+        `.campo--vinculado` vive em input.css; sem recompilar, a classe fica
+        inerte em produção com a suíte verde.
+        """
+        raiz = Path(__file__).resolve().parents[3]
+        css = (raiz / 'apps/core/static/core/css/app.css').read_text()
+        casamento = re.search(r'\.campo--vinculado\{([^}]*)\}', css)
+        assert casamento, (
+            '`.campo--vinculado` não está em app.css — rode `make css-build`'
+        )
+        assert 'border-color' in casamento.group(1)
+
+    def test_marca_some_no_mesmo_gesto_que_zera_o_hidden(self):
+        """`buscarComDebounce()` zera o hidden e ressincroniza `vinculado` na
+        mesma chamada — o delta visual acontece na tecla, não no roundtrip."""
+        js = self._js()
+        trecho = js[js.index('buscarComDebounce()') :]
+        trecho = trecho[: trecho.index('buscarTodos')]
+        assert "this.$refs.hiddenInput.value = ''" in trecho
+        assert '_sincronizarVinculo()' in trecho
+
+    def test_mudanca_de_vinculo_passa_pela_regiao_live(self):
+        """vinculado -> desvinculado é anunciado pela região `role="status"`
+        que já existe, via `anuncioResultados()`."""
+        js = self._js()
+        assert (
+            "this._anuncioVinculo = 'Seleção desfeita. Escolha um item da lista.'" in js
+        )
+        assert 'if (this._anuncioVinculo) return this._anuncioVinculo;' in js
+        # Só na transição: `tinhaVinculo` é lido antes de zerar o hidden.
+        assert 'const tinhaVinculo = !!this.$refs.hiddenInput?.value;' in js
+        assert 'if (tinhaVinculo) {' in js
+        fonte = self._fonte()
+        assert 'role="status" aria-live="polite" x-text="anuncioResultados()"' in fonte
+
+    def test_gate_de_submit_bloqueia_texto_sem_vinculo_no_cliente(self):
+        js = self._js()
+        # Listener de submit em captura (`true`), para correr antes do HTMX e
+        # do guard de duplo-submit.
+        listener = js[js.index("addEventListener(\n    'submit',") :]
+        listener = listener[: listener.index('\n  );') + len('\n  );')]
+        assert listener.endswith('true\n  );')
+        assert 'event.preventDefault();' in js
+        assert 'event.stopPropagation();' in js
+        assert "combo.value.trim() !== '' && hidden.value.trim() === ''" in js
+        assert 'input[x-ref="hiddenInput"]' in js
+        assert 'sinalizarGate()' in js
+
+    def test_gate_identifica_a_linha_culpada_no_formset(self):
+        """Percorre todos os comboboxes visíveis e para no primeiro culpado,
+        pondo o foco nele."""
+        js = self._js()
+        assert 'form.querySelectorAll(\'input[role="combobox"]\')' in js
+        assert 'combo.offsetParent === null' in js
+        assert 'this.$refs.displayInput?.focus();' in js
+
+    def test_gate_nao_e_erro_de_campo_do_form(self):
+        """A mensagem do gate carrega `data-erro-gate` (some na próxima tecla);
+        a autoridade do erro persistente segue no `clean()` do servidor."""
+        fonte = self._fonte()
+        assert 'data-erro-gate' in fonte
+        assert 'x-show="erroGateVisivel"' in fonte
+        js = self._js()
+        assert 'this.erroGateVisivel = false;' in js
+
 
 class TestFilterShellDisclosure:
     """components/filter_shell.html — o disclosure de mobile."""

@@ -203,6 +203,22 @@
   }
 
   /*
+    Vínculo confirmado no combobox de autocomplete (#151): o hidden input tem
+    valor, ou seja, o texto no campo corresponde a um item real escolhido da
+    lista — não a texto digitado que não casou com nada. Antes as duas
+    situações tinham a mesma borda de `.campo`, e apagar um caractere de um
+    material já escolhido deixava um campo que parecia escolhido e não estava.
+
+    Verde de `success` (mesma família de "saldo disponível", "requisição
+    atendida"). Declarada antes de `:focus-visible` e de `[aria-invalid]` de
+    propósito: foco e erro de servidor têm precedência sobre a marca de
+    vínculo. O ✓ ao lado (autocomplete.html) é o par não-cromático desta borda.
+  */
+  .campo--vinculado {
+    border-color: var(--color-success);
+  }
+
+  /*
     Rótulo de campo — definição única, e ela inclui o espaço até o campo.
 
     O espaçamento vivia em quatro lugares e três valores: `mb-1` na label
