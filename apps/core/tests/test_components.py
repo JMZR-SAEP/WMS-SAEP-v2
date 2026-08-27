@@ -2200,6 +2200,22 @@ class TestAutocompleteEstadosECombobox:
     def test_busca_expoe_estado_ocupado(self):
         assert ':aria-busy="buscando"' in self._fonte()
 
+    def test_haspopup_redundante_saiu_do_combobox(self):
+        """`aria-haspopup="listbox"` é o valor padrão de `role="combobox"` em
+        ARIA 1.2 — emiti-lo é só ruído no HTML (#149)."""
+        assert 'aria-haspopup' not in self._fonte()
+
+    def test_borda_do_listbox_e_estrutural_por_decisao(self):
+        """A borda do popup fica em `border-border` (1.23:1), não escalada para
+        `border-control`: o popup tem fundo e sombra próprios, então a linha é
+        reforço, não a única pista do componente. A decisão vive num comentário
+        do template para não ser "corrigida" no automático (#149)."""
+        fonte = self._fonte()
+        trecho = fonte[fonte.index('role="listbox"') :]
+        trecho = trecho[: trecho.index('>')]
+        assert 'border-border' in trecho
+        assert '1.4.11' in fonte
+
     def test_contagem_de_resultados_e_anunciada(self):
         """Sem isto só o caso "nenhum resultado" falava.
 
