@@ -60,6 +60,18 @@
  * ramo era inalcançável e obrigava `liberar()` a escrever o inverso de código
  * que nunca roda. Se um spinner de submit voltar a ser necessário, ele volta
  * junto com o produtor do atributo e com um teste — não antes.
+ *
+ * ## A corrida entre o `setTimeout(0)` e o `liberar()`
+ *
+ * O `disabled` é adiado com `setTimeout(0)` porque o browser precisa terminar
+ * de montar o submit com o `name=valor` do botão antes de ele ser desabilitado.
+ * Só que `liberar()` roda em `htmx:afterRequest`, e uma resposta rápida de
+ * modal pode disparar esse evento enquanto o timer ainda está na fila. Nessa
+ * ordem, `liberar()` restaura os botões e apaga o estado em voo primeiro; o
+ * callback do timer, ao rodar em seguida, desabilita botões que já não têm
+ * estado de restauração — travados sem caminho de volta. Não é reproduzível
+ * localmente (desabilita em t~5ms, libera em t~67ms), mas é real. Por isso o
+ * id do timer fica no estado em voo e `liberar()` o cancela antes de restaurar.
  */
 (function () {
   'use strict';
@@ -115,6 +127,13 @@
     emVoo.delete(form);
     if (!estado) {
       return;
+    }
+
+    // Cancela o `setTimeout(0)` do handler de `submit` se ele ainda não rodou:
+    // sem isto, o callback enfileirado voltaria a desabilitar os botões que
+    // este método está prestes a restaurar, sem deixar estado para desfazer.
+    if (estado.timerDesabilitar) {
+      clearTimeout(estado.timerDesabilitar);
     }
 
     estado.rotulos.forEach(([node, texto]) => {
@@ -174,7 +193,11 @@
     const submitter = submitters.get(form);
     const botoes = travar(form, submitter ? [submitter] : alvosDoForm(form));
 
-    setTimeout(() => {
+    // Id guardado no estado em voo para `liberar()` poder cancelar o timer se
+    // `htmx:afterRequest` vencer esta corrida. Ver a docstring do arquivo.
+    const estado = emVoo.get(form);
+    estado.timerDesabilitar = setTimeout(() => {
+      estado.timerDesabilitar = null;
       botoes.forEach(({ btn }) => {
         btn.disabled = true;
       });
