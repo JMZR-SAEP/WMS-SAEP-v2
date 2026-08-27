@@ -793,8 +793,10 @@ def test_minhas_botao_ver_detalhes_corrige_drift_a11y(
 def test_minhas_botao_ver_detalhes_rascunho_preserva_aria_label(
     client, solicitante, req_rascunho_solicitante
 ):
-    """Rascunho não tem número público; o nome acessível o distingue pela
-    data/hora de criação, nunca pela PK — que é dado de infraestrutura.
+    """Rascunho não tem número público; o nome acessível o distingue pelo
+    beneficiário e pela data/hora de criação, nunca pela PK — que é dado de
+    infraestrutura. O `aria-label` do único filho vira o nome acessível do
+    heading, então o beneficiário precisa estar nele (PR #40).
     """
     _login(client, solicitante)
     response = client.get(reverse('requisicoes:minhas'))
@@ -802,7 +804,8 @@ def test_minhas_botao_ver_detalhes_rascunho_preserva_aria_label(
     criada_em = timezone.localtime(req_rascunho_solicitante.criado_em).strftime(
         '%d/%m/%Y %H:%M'
     )
-    aria_label = f'Ver detalhes do rascunho criado em {criada_em}'
+    beneficiario = req_rascunho_solicitante.beneficiario.nome
+    aria_label = f'Ver detalhes do rascunho de {beneficiario} criado em {criada_em}'
     assert html.count(f'aria-label="{aria_label}"') == 1
     assert f'Rascunho #{req_rascunho_solicitante.pk}' not in html
 

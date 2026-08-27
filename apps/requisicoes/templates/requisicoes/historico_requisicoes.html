@@ -105,7 +105,7 @@
                 Resolvido na tela, não no chrome (guardrail da #83).
               {% endcomment %}
               <h2 class="break-words text-sm font-semibold text-text-primary">
-                {% if req.numero_publico %}<a href="{{ url_detalhe_req }}?next={{ next_encoded }}" data-cartao-link class="rounded-sm focus-visible:outline-none" aria-label="Ver detalhes da requisição {{ req.numero_publico }}">{{ req.numero_publico }}</a>{% else %}<a href="{{ url_detalhe_req }}?next={{ next_encoded }}" data-cartao-link class="rounded-sm text-text-tertiary focus-visible:outline-none" aria-label="Ver detalhes do rascunho criado em {{ criada_em }}">Rascunho — {{ req.beneficiario.nome }}</a>{% endif %}
+                {% if req.numero_publico %}<a href="{{ url_detalhe_req }}?next={{ next_encoded }}" data-cartao-link class="rounded-sm focus-visible:outline-none" aria-label="Ver detalhes da requisição {{ req.numero_publico }}">{{ req.numero_publico }}</a>{% else %}<a href="{{ url_detalhe_req }}?next={{ next_encoded }}" data-cartao-link class="rounded-sm text-text-tertiary focus-visible:outline-none" aria-label="Ver detalhes do rascunho de {{ req.beneficiario.nome }} criado em {{ criada_em }}">Rascunho — {{ req.beneficiario.nome }}</a>{% endif %}
               </h2>
               <p class="mt-1 text-xs text-text-tertiary">{{ req.criado_em|date:"d/m/Y H:i" }}</p>
             </div>

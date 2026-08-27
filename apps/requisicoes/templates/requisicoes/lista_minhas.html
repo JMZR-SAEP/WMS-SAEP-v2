@@ -50,7 +50,7 @@
                   href="{{ url_detalhe_req }}?next={{ next_encoded }}"
                   data-cartao-link
                   class="rounded-sm text-text-tertiary focus-visible:outline-none"
-                  aria-label="Ver detalhes do rascunho criado em {{ criada_em }}"
+                  aria-label="Ver detalhes do rascunho de {{ req.beneficiario.nome }} criado em {{ criada_em }}"
                 >Rascunho — {{ req.beneficiario.nome }}</a>
               {% endif %}
             </h2>
