@@ -1344,7 +1344,9 @@ def historico_requisicoes_view(request):
     # para a forma canônica; caminho HTMX: canônica no header HX-Push-Url, sem
     # roundtrip extra. `caminho_canonico` é idempotente — sem loop de 302.
     url_canonica = caminho_canonico(
-        request, ordem_chaves=ORDEM_QUERYSTRING_HISTORICO_REQUISICOES
+        request,
+        ordem_chaves=ORDEM_QUERYSTRING_HISTORICO_REQUISICOES,
+        chaves_multivalor=('estados',),
     )
     if not request.htmx and request.get_full_path() != url_canonica:
         return redirect(url_canonica)

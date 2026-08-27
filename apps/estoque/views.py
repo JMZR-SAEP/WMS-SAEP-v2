@@ -120,7 +120,9 @@ def historico_movimentacoes_view(request):
     # a forma canônica; no caminho HTMX a canônica volta no header HX-Push-Url,
     # sem roundtrip extra. `caminho_canonico` é idempotente — sem loop de 302.
     url_canonica = caminho_canonico(
-        request, ordem_chaves=ORDEM_QUERYSTRING_MOVIMENTACOES
+        request,
+        ordem_chaves=ORDEM_QUERYSTRING_MOVIMENTACOES,
+        chaves_multivalor=('tipos',),
     )
     if not request.htmx and request.get_full_path() != url_canonica:
         return redirect(url_canonica)

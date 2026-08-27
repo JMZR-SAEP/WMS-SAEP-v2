@@ -14,40 +14,42 @@ pytestmark = pytest.mark.django_db
 
 # Ordem canônica de referência (espelha as das views de histórico).
 _ORDEM = ('texto', 'estados', 'data_ini', 'data_fim', 'setor', 'ordem', 'page')
+_MULTIVALOR = ('estados', 'tipos')
 
 
 def _qd(qs: str) -> QueryDict:
     return QueryDict(qs)
 
 
+def _canon(qs: str) -> str:
+    return canonicalizar(_qd(qs), ordem_chaves=_ORDEM, chaves_multivalor=_MULTIVALOR)
+
+
 class TestCanonicalizarQuerystring:
     def test_remove_chaves_vazias(self):
-        qs = canonicalizar(
-            _qd('texto=Obras&data_ini=&data_fim=&setor='), ordem_chaves=_ORDEM
-        )
-        assert qs == 'texto=Obras'
+        assert _canon('texto=Obras&data_ini=&data_fim=&setor=') == 'texto=Obras'
 
     def test_ordem_fixa_de_chaves(self):
-        qs = canonicalizar(_qd('setor=3&ordem=asc&texto=Obras'), ordem_chaves=_ORDEM)
-        assert qs == 'texto=Obras&setor=3&ordem=asc'
+        assert (
+            _canon('setor=3&ordem=asc&texto=Obras') == 'texto=Obras&setor=3&ordem=asc'
+        )
 
     def test_ordem_fixa_dentro_do_multivalor(self):
-        a = canonicalizar(_qd('estados=rascunho&estados=atendida'), ordem_chaves=_ORDEM)
-        b = canonicalizar(_qd('estados=atendida&estados=rascunho'), ordem_chaves=_ORDEM)
+        a = _canon('estados=rascunho&estados=atendida')
+        b = _canon('estados=atendida&estados=rascunho')
         assert a == b == 'estados=atendida&estados=rascunho'
 
+    def test_chave_unica_repetida_colapsa_no_ultimo_valor(self):
+        """`QueryDict.get('texto')` devolve o último; ordenar inverteria o que a
+        view lê (`texto=z&texto=a` → lê `a`, mas `a&z` passaria a ler `z`)."""
+        assert _canon('texto=z&texto=a') == 'texto=a'
+
     def test_chave_desconhecida_vai_para_o_fim_em_ordem_alfabetica(self):
-        qs = canonicalizar(_qd('zzz=1&texto=x&aaa=2'), ordem_chaves=_ORDEM)
-        assert qs == 'texto=x&aaa=2&zzz=1'
+        assert _canon('zzz=1&texto=x&aaa=2') == 'texto=x&aaa=2&zzz=1'
 
     def test_mesmo_recorte_do_form_e_do_link_produz_a_mesma_querystring(self):
-        do_form = canonicalizar(
-            _qd('texto=Obras&data_ini=&data_fim=&setor=&estados=rascunho'),
-            ordem_chaves=_ORDEM,
-        )
-        do_link = canonicalizar(
-            _qd('estados=rascunho&texto=Obras'), ordem_chaves=_ORDEM
-        )
+        do_form = _canon('texto=Obras&data_ini=&data_fim=&setor=&estados=rascunho')
+        do_link = _canon('estados=rascunho&texto=Obras')
         assert do_form == do_link
 
     @pytest.mark.parametrize(
@@ -57,13 +59,13 @@ class TestCanonicalizarQuerystring:
             'texto=Obras&data_ini=&estados=rascunho&estados=atendida',
             'ordem=asc&page=2&setor=1&texto=a+b',
             'zzz=9&estados=b&estados=a&texto=&x=1',
+            'texto=z&texto=a&estados=b&estados=a',
         ],
     )
     def test_idempotencia(self, bruto):
         """`canonicalizar(canonicalizar(x)) == canonicalizar(x)` — sem loop de 302."""
-        uma = canonicalizar(_qd(bruto), ordem_chaves=_ORDEM)
-        duas = canonicalizar(_qd(uma), ordem_chaves=_ORDEM)
-        assert uma == duas
+        uma = _canon(bruto)
+        assert _canon(uma) == uma
 
 
 class TestCaminhoCanonico:
