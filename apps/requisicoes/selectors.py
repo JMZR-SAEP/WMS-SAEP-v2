@@ -18,6 +18,7 @@ from apps.requisicoes import policies
 from apps.requisicoes.models import (
     EstadoRequisicao,
     EventoTimeline,
+    ItemRequisicao,
     Operacao,
     Requisicao,
     TimelineRequisicao,
@@ -211,7 +212,21 @@ def fila_atendimento(ator_id: int) -> QuerySet[Requisicao]:
                 EstadoRequisicao.PRONTA_PARA_RETIRADA,
             ]
         )
-        .annotate(quantidade_itens=Count('itens'), autorizada_em=autorizada_em_sq)
+        .annotate(
+            quantidade_itens=Count('itens'),
+            autorizada_em=autorizada_em_sq,
+            # O cartão da fila precisa nomear o que separar: o auxiliar consulta
+            # esta tela em pé no galpão, antes de andar até a prateleira, e
+            # "3 itens" não diz o que buscar. Subquery e não
+            # `prefetch_related('itens__material')`, que carregaria as N linhas
+            # de toda requisição da fila para exibir, no máximo, um nome por
+            # cartão — mesmo raciocínio do histórico (views.py).
+            primeiro_material_nome=Subquery(
+                ItemRequisicao.objects.filter(requisicao=OuterRef('pk'))
+                .order_by('pk')
+                .values('material__nome')[:1]
+            ),
+        )
         .order_by('atualizado_em', 'criado_em', 'id')
     )
     try:

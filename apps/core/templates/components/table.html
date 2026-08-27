@@ -20,6 +20,27 @@ Nenhum dos dois recebe parâmetro — são strings de classe fixas. Não paramet
 parâmetro que descreve conteúdo de célula, a abstração está errada" (guardrail
 da issue #83).
 
+## O cartão inteiro é o alvo
+
+O `card_abertura` reage a um link marcado com `data-cartao-link` no seu
+interior — cursor, hover e anel de foco passam a ser do cartão, não do link de
+7 caracteres dentro dele. Cartão sem esse link (ledger, catálogo) fica inerte,
+porque `has-[...]` simplesmente não casa.
+
+Antes, cada cartão de 483×256px tinha como alvo um botão "Ver detalhes" de
+109×44px — 4% da área. O design system exige 44px porque "a mesma tela é usada
+com o dedo, em pé, no galpão": o piso estava cumprido no botão e ignorado no
+cartão. E os 25 botões idênticos por página eram o elemento de menor entropia
+da listagem ocupando o segundo maior peso visual dela.
+
+O alargamento do alvo é `core/js/cartao-alvo.js`, e **não** um `::after`
+esticado sobre o cartão. O pseudo-elemento é a técnica usual e aqui seria
+errada: ela cobre o conteúdo e mata a seleção de texto. Copiar número público
+para conferir no SCPI é rotina declarada do produto (`PRODUCT.md`,
+Positioning), não caso de borda. O JS ignora o clique quando há texto
+selecionado e quando o alvo já é interativo; sem JS, o link do título continua
+funcionando sozinho.
+
 Uso canônico (dentro de {% partialdef resultados %} da própria tela, GET-only):
 
   {% include "components/table.html#cards_abertura" %}
@@ -41,5 +62,5 @@ Uso canônico (dentro de {% partialdef resultados %} da própria tela, GET-only)
 {% endpartialdef %}
 
 {% partialdef card_abertura %}
-<article class="rounded-xl border border-border bg-surface p-4 shadow-sm">
+<article class="relative rounded-xl border border-border bg-surface p-4 shadow-sm transition-colors has-[a[data-cartao-link]]:cursor-pointer hover:has-[a[data-cartao-link]]:bg-bg-page has-[a[data-cartao-link]:focus-visible]:ring-2 has-[a[data-cartao-link]:focus-visible]:ring-border-focus has-[a[data-cartao-link]:focus-visible]:ring-offset-2">
 {% endpartialdef %}

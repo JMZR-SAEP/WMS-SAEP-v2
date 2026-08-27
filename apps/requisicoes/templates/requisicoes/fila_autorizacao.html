@@ -12,9 +12,22 @@
   {% include "components/table.html#cards_abertura" %}
     {% for req in requisicoes %}
       {% include "components/table.html#card_abertura" %}
+        {% url 'requisicoes:detalhe' pk=req.pk as url_detalhe_req %}
+        {% with next_encoded=request.path|urlencode %}
         <div>
           <h2 class="break-words text-sm font-semibold text-text-primary">
-            {{ req.numero_publico }}
+            {% comment %}
+              O link do título é o alvo real; `data-cartao-link` faz o cartão
+              inteiro responder por ele (core/js/cartao-alvo.js). O nome
+              acessível traz o verbo — o número público sozinho não diz o que o
+              link faz.
+            {% endcomment %}
+            <a
+              href="{{ url_detalhe_req }}?next={{ next_encoded }}"
+              data-cartao-link
+              class="rounded-sm focus-visible:outline-none"
+              aria-label="Analisar requisição {{ req.numero_publico }}"
+            >{{ req.numero_publico }}</a>
           </h2>
           <p class="mt-1 text-xs text-text-tertiary">
             Enviada em {% if req.enviada_em %}{{ req.enviada_em|date:"d/m/Y H:i" }}{% else %}—{% endif %}
@@ -39,9 +52,8 @@
           </div>
         </dl>
 
-        {% url 'requisicoes:detalhe' pk=req.pk as url_detalhe_req %}
-        {% with next_encoded=request.path|urlencode %}
-          {% include "components/button.html" with variant="secondary" size="md" href=url_detalhe_req|add:"?next="|add:next_encoded label="Analisar" aria_label="Analisar requisição "|add:req.numero_publico class="mt-4" %}
+        {# Afordância do cartão, não um controle: o link do título já carrega o nome acessível com o mesmo verbo. #}
+        <p class="mt-4 flex items-center gap-1 text-sm font-medium text-primary" aria-hidden="true">Analisar <span>&rarr;</span></p>
         {% endwith %}
       </article>
     {% endfor %}

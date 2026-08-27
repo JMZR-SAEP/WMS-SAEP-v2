@@ -560,6 +560,17 @@ def _clicaveis_sem_piso(
     a segunda metade da regra do design system — "`link` usado como ação isolada
     recebe `class="min-h-11"` explícito" — e apagá-la abriria, no mecanismo
     novo, um buraco do mesmo formato do que ele fecha.
+
+    5. `data-cartao-link`: o alvo efetivo do link não é a sua própria caixa de
+       texto, é o `<article>` inteiro do cartão de listagem, que mede no mínimo
+       126px de altura. O piso existe para garantir área de toque, e aqui a
+       área é maior justamente porque o link foi marcado — `card_abertura`
+       reage a ele por `has-[a[data-cartao-link]]` e `core/js/cartao-alvo.js`
+       encaminha o clique do cartão. Exigir `min-h-11` na âncora inflaria a
+       caixa de linha do `<h2>` em cada cartão sem aumentar alvo nenhum.
+
+       A isenção não é gratuita: `test_link_de_cartao_tem_o_cartao_como_alvo`
+       falha se a marcação existir sem o mecanismo que a sustenta.
     """
     limpo = _sem_comentarios(texto)
     infratores: list[str] = []
@@ -570,6 +581,8 @@ def _clicaveis_sem_piso(
         if caminho == _TEMPLATE_DE_BOTAO and 'classes_botao' in (
             atributo(atributos, 'class') or ''
         ):
+            continue
+        if 'data-cartao-link' in atributos:
             continue
         nomes = _classes_garantidas(atributos)
         if 'min-h-11' in nomes or nomes & piso_css:
@@ -2811,3 +2824,98 @@ class TestFilterCheckboxGroupAgrupado:
             self.ENCERRADAS,
         )
         assert [len(pares) for _, pares in grupos] == [4, 4]
+
+
+def test_nenhum_badge_de_dado_estatico_declara_live_region():
+    """`badge.html` escreveu a proibição e dois partials de domínio a violavam.
+
+    O contrato do componente é explícito: "NÃO usar `status`/`alert` em badge
+    de dado estático: são live regions, e uma listagem de 20 linhas viraria 20
+    live regions." `_badge_tipo_movimentacao.html` e `_estado_saida_badge.html`
+    passavam `role="status"` em toda variante mapeada — no ledger, 25 live
+    regions por página, todas dentro de cartões, para dado que nunca muda em
+    resposta a ação nenhuma.
+
+    O contexto que o `role` carregava vive em `prefixo_sr`, que é texto
+    `sr-only` e portanto sempre exposto.
+    """
+    import re
+
+    raiz = Path(__file__).resolve().parents[3]
+    infratores = []
+    for template in (raiz / 'apps').rglob('*.html'):
+        for linha in re.findall(
+            r'\{%\s*include\s+"components/badge\.html"[^%]*%\}', template.read_text()
+        ):
+            if 'role=' in linha:
+                infratores.append(f'{template.relative_to(raiz)}: {linha.strip()}')
+
+    assert not infratores, (
+        f'badge de dado estático não declara live region; use prefixo_sr: {infratores}'
+    )
+
+
+def test_link_de_cartao_tem_o_cartao_como_alvo():
+    """A isenção de `data-cartao-link` no piso de 44px tem que ser verdade.
+
+    O link do título é uma âncora de texto: sozinho, ele é menor que 44px. O que
+    o torna aceitável é o alvo efetivo ser o `<article>` inteiro — e isso depende
+    de duas peças que este guarda amarra:
+
+    - `card_abertura` reage à presença do link (`has-[a[data-cartao-link]]`), o
+      que dá cursor, hover e anel de foco ao cartão;
+    - `core/js/cartao-alvo.js` encaminha o clique do cartão para o link.
+
+    Sem qualquer uma das duas, a isenção vira rota de fuga do piso e o cartão
+    volta a ter como alvo real uma âncora de 7 caracteres.
+    """
+    raiz = Path(__file__).resolve().parents[3]
+
+    chrome = (raiz / 'apps/core/templates/components/table.html').read_text()
+    assert 'has-[a[data-cartao-link]]:cursor-pointer' in chrome
+    assert 'hover:has-[a[data-cartao-link]]:bg-bg-page' in chrome
+    assert 'has-[a[data-cartao-link]:focus-visible]:ring-2' in chrome
+
+    js = (raiz / 'apps/core/static/core/js/cartao-alvo.js').read_text()
+    assert 'a[data-cartao-link]' in js
+    # As duas guardas que fazem o alargamento não atropelar o usuário.
+    assert 'getSelection' in js
+    assert 'closest(JA_INTERATIVO)' in js
+
+    base = (raiz / 'apps/core/templates/base.html').read_text()
+    assert 'core/js/cartao-alvo.js' in base
+
+    # O CSS compilado precisa ter os seletores: `has-[]` com colchetes aninhados
+    # é a construção mais frágil da varredura do Tailwind, e sem o `make
+    # css-build` o cartão fica sem cursor e sem anel de foco em silêncio.
+    css = (raiz / 'apps/core/static/core/css/app.css').read_text()
+    assert 'has(:is(a[data-cartao-link]))' in css
+    assert 'has(:is(a[data-cartao-link]:focus-visible))' in css
+
+    # E a marcação só existe em tela que usa o chrome de cartão. O `(?![\]:])`
+    # separa o atributo das ocorrências dentro dos seletores `has-[...]` do
+    # próprio chrome, que casariam o nome sem serem marcação.
+    import re
+
+    atributo_marcador = re.compile(r'data-cartao-link(?![\]:])')
+    chrome_relativo = 'apps/core/templates/components/table.html'
+
+    telas_marcadas = []
+    for caminho in sorted((raiz / 'apps').rglob('*.html')):
+        relativo = str(caminho.relative_to(raiz))
+        if relativo == chrome_relativo:
+            continue
+        conteudo = caminho.read_text()
+        ocorrencias = len(atributo_marcador.findall(conteudo))
+        if not ocorrencias:
+            continue
+        telas_marcadas.append(relativo)
+        assert 'components/table.html#card_abertura' in conteudo, (
+            f'{relativo} marca data-cartao-link sem usar o chrome de cartão'
+        )
+
+    # As cinco listagens navegáveis. Ledger, catálogo e histórico de importações
+    # ficam de fora de propósito: os dois primeiros não têm detalhe para onde ir,
+    # e o terceiro oferece um download, que não é navegação e por isso continua
+    # sendo um botão explícito.
+    assert len(telas_marcadas) == 5, telas_marcadas

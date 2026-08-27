@@ -11,46 +11,24 @@
 {% if requisicoes %}
   {% include "components/table.html#cards_abertura" %}
     {% for req in requisicoes %}
+      {% comment %}
+        Esta é a tela de maior consequência física do produto: o auxiliar a
+        consulta em pé no galpão, antes de andar até a prateleira. Duas coisas
+        que ela não dizia:
+
+        1. **O que separar.** O cartão trazia "ITENS: 3" — um dígito. Agora
+           nomeia o material (`primeiro_material_nome`, anotado no selector) e,
+           quando há mais de um, quantos faltam. O nome vem primeiro no `dl`
+           porque é o que manda o auxiliar até a prateleira.
+        2. **Qual das duas tarefas.** `autorizada` e `pronta_para_retirada` são
+           operações diferentes — separar o material e entregá-lo a quem
+           retira — e o botão dizia "Atender" nas duas. O verbo agora sai do
+           estado.
+      {% endcomment %}
       {% include "components/table.html#card_abertura" %}
-        <div class="flex items-start justify-between gap-3">
-          <div class="min-w-0">
-            <h2 class="break-words text-sm font-semibold text-text-primary">
-              {{ req.numero_publico }}
-            </h2>
-            <p class="mt-1 text-xs text-text-tertiary">
-              Autorizada em {% if req.autorizada_em %}{{ req.autorizada_em|date:"d/m/Y H:i" }}{% else %}—{% endif %}
-            </p>
-          </div>
-          <span class="shrink-0">
-            {% if req.estado == 'autorizada' %}
-              {% include "components/badge.html" with variant="blue" label="Autorizada" prefixo_sr="Estado: " %}
-            {% else %}
-              {% include "components/badge.html" with variant="teal" label="Pronta para retirada" prefixo_sr="Estado: " %}
-            {% endif %}
-          </span>
-        </div>
-
-        <dl class="mt-4 grid grid-cols-2 gap-3 text-sm">
-          <div>
-            <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Beneficiário</dt>
-            <dd class="mt-0.5 text-text-primary">
-              {{ req.beneficiario.nome }}
-              <span class="text-text-tertiary">({{ req.beneficiario.matricula }})</span>
-            </dd>
-          </div>
-          <div>
-            <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Setor</dt>
-            <dd class="mt-0.5 text-text-primary">{{ req.setor_beneficiario.nome }}</dd>
-          </div>
-          <div>
-            <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Itens</dt>
-            <dd class="mt-0.5 tabular-nums text-text-primary">{{ req.quantidade_itens }}</dd>
-          </div>
-        </dl>
-
         {% url 'requisicoes:detalhe' pk=req.pk as url_detalhe_req %}
         {% with next_encoded=request.path|urlencode %}
-          {% include "components/button.html" with variant="secondary" size="md" href=url_detalhe_req|add:"?next="|add:next_encoded label="Atender" aria_label="Atender requisição "|add:req.numero_publico class="mt-4" %}
+        {% if req.estado == 'autorizada' %}{% with verbo="Separar" %}{% include "requisicoes/fila_atendimento.html#corpo_cartao" %}{% endwith %}{% else %}{% with verbo="Entregar" %}{% include "requisicoes/fila_atendimento.html#corpo_cartao" %}{% endwith %}{% endif %}
         {% endwith %}
       </article>
     {% endfor %}
@@ -61,3 +39,67 @@
   {% include 'components/empty_state.html' with icone='components/icons/_caixa_entrada.html' titulo='Nenhuma requisição aguardando atendimento' descricao='A fila do almoxarifado está vazia.' %}
 {% endif %}
 {% endblock %}
+
+{% comment %}
+  Corpo do cartão da fila. Vive como `partialdef` no próprio arquivo, e não
+  como partial em `requisicoes/partials/`, porque não é reutilizado por tela
+  nenhuma: existe só para não duplicar 30 linhas entre os dois ramos de `verbo`.
+
+  Recebe do escopo: `req`, `verbo`, `url_detalhe_req`, `next_encoded`.
+{% endcomment %}
+{% partialdef corpo_cartao %}
+<div class="flex items-start justify-between gap-3">
+  <div class="min-w-0">
+    <h2 class="break-words text-sm font-semibold text-text-primary">
+      {% comment %}
+        O link do título é o alvo real; `data-cartao-link` faz o cartão inteiro
+        responder por ele (core/js/cartao-alvo.js). O nome acessível traz o
+        verbo, porque "REQ-2026-000034" sozinho não diz o que o link faz.
+      {% endcomment %}
+      <a
+        href="{{ url_detalhe_req }}?next={{ next_encoded }}"
+        data-cartao-link
+        class="rounded-sm focus-visible:outline-none"
+        aria-label="{{ verbo }} requisição {{ req.numero_publico }}"
+      >{{ req.numero_publico }}</a>
+    </h2>
+    <p class="mt-1 text-xs text-text-tertiary">
+      Autorizada em {% if req.autorizada_em %}{{ req.autorizada_em|date:"d/m/Y H:i" }}{% else %}—{% endif %}
+    </p>
+  </div>
+  <span class="shrink-0">
+    {% if req.estado == 'autorizada' %}
+      {% include "components/badge.html" with variant="blue" label="Autorizada" prefixo_sr="Estado: " %}
+    {% else %}
+      {% include "components/badge.html" with variant="teal" label="Pronta para retirada" prefixo_sr="Estado: " %}
+    {% endif %}
+  </span>
+</div>
+
+<dl class="mt-4 grid grid-cols-2 gap-3 text-sm">
+  {# Material primeiro e em linha inteira: é o dado que manda o auxiliar até a prateleira. #}
+  <div class="col-span-2">
+    <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Material</dt>
+    <dd class="mt-0.5 break-words text-text-primary">
+      {{ req.primeiro_material_nome|default:"—" }}
+      {% if req.quantidade_itens > 1 %}
+        <span class="text-text-tertiary">e mais {{ req.quantidade_itens|add:"-1" }}</span>
+      {% endif %}
+    </dd>
+  </div>
+  <div>
+    <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Beneficiário</dt>
+    <dd class="mt-0.5 text-text-primary">
+      {{ req.beneficiario.nome }}
+      <span class="text-text-tertiary">({{ req.beneficiario.matricula }})</span>
+    </dd>
+  </div>
+  <div>
+    <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Setor</dt>
+    <dd class="mt-0.5 text-text-primary">{{ req.setor_beneficiario.nome }}</dd>
+  </div>
+</dl>
+
+{# Afordância do cartão, não um controle: o link do título já carrega o nome acessível com o mesmo verbo. #}
+<p class="mt-4 flex items-center gap-1 text-sm font-medium text-primary" aria-hidden="true">{{ verbo }} <span>&rarr;</span></p>
+{% endpartialdef %}

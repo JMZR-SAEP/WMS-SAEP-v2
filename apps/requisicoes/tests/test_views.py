@@ -776,12 +776,17 @@ def test_minhas_botao_ver_detalhes_corrige_drift_a11y(
     aria_label = 'Ver detalhes da requisição REQ-2026-0010'
     marker = f'aria-label="{aria_label}"'
     assert html.count(marker) == 1, 'sem tabela, o nome acessível aparece uma vez'
-    for idx in (html.index(marker),):
-        tag = html[html.rindex('<a', 0, idx) : html.index('>', idx) + 1]
-        assert 'min-h-11' in tag
-        assert 'focus-visible:ring-2' in tag
-        assert 'focus-visible:ring-border-focus' in tag
-        assert 'py-1.5' not in tag
+    tag = html[
+        html.rindex('<a', 0, html.index(marker)) : html.index('>', html.index(marker))
+        + 1
+    ]
+    # O alvo deixou de ser o botão de 109×44px e passou a ser o cartão inteiro:
+    # o piso de 44px é do <article>, não desta âncora de texto, e o anel de foco
+    # vem do chrome via `has-[a[data-cartao-link]:focus-visible]`. O guarda
+    # `test_link_de_cartao_tem_o_cartao_como_alvo` amarra as duas peças.
+    assert 'data-cartao-link' in tag
+    assert 'min-h-11' not in tag
+    assert 'py-1.5' not in tag
 
 
 @pytest.mark.django_db
@@ -816,10 +821,7 @@ def test_minhas_renderiza_um_cartao_por_requisicao(
         in conteudo
     )
     assert (
-        conteudo.count(
-            '<article class="rounded-xl border border-border bg-surface p-4 shadow-sm">'
-        )
-        == 1
+        conteudo.count('<article class="relative rounded-xl border border-border') == 1
     )
     assert req_enviada_solicitante.numero_publico in conteudo
 
@@ -2070,19 +2072,27 @@ def test_fila_atendimento_aux_almox_renderiza_autorizada_e_pronta(
     assert req_pronta_view in requisicoes
     html = response.content.decode('utf-8')
     assert 'Fila de atendimento' in html
-    assert 'Atender' in html
+    # O verbo sai do estado: separar material e entregá-lo a quem retira são
+    # operações diferentes, e o cartão dizia "Atender" nas duas.
+    assert 'Separar' in html
+    assert 'Entregar' in html
+    assert 'Atender' not in html
 
 
 @pytest.mark.django_db
-def test_fila_atendimento_botao_atender_preserva_aria_label(
+def test_fila_atendimento_link_do_cartao_nomeia_o_verbo_do_estado(
     client, aux_almoxarifado, req_autorizada_view
 ):
+    """O nome acessível carrega o verbo: o número público sozinho não diz o que
+    o link faz, e o verbo visível é `aria-hidden` justamente para não duplicar.
+    """
     _login(client, aux_almoxarifado)
     response = client.get(reverse('requisicoes:atendimentos'))
     html = response.content.decode('utf-8')
     assert (
-        f'aria-label="Atender requisição {req_autorizada_view.numero_publico}"' in html
+        f'aria-label="Separar requisição {req_autorizada_view.numero_publico}"' in html
     )
+    assert 'data-cartao-link' in html
 
 
 @pytest.mark.django_db
@@ -2782,13 +2792,8 @@ def test_fila_atendimento_renderiza_cartoes(
     assert response.status_code == 200
     html = response.content.decode('utf-8')
     assert '<div class="grid items-start gap-3 sm:grid-cols-2 2xl:grid-cols-3">' in html
-    assert (
-        html.count(
-            '<article class="rounded-xl border border-border bg-surface p-4 shadow-sm">'
-        )
-        == 1
-    )
-    assert 'Atender' in html
+    assert html.count('<article class="relative rounded-xl border border-border') == 1
+    assert 'Separar' in html
 
 
 @pytest.mark.django_db
@@ -2800,12 +2805,7 @@ def test_fila_autorizacao_renderiza_cartoes(
     assert response.status_code == 200
     html = response.content.decode('utf-8')
     assert '<div class="grid items-start gap-3 sm:grid-cols-2 2xl:grid-cols-3">' in html
-    assert (
-        html.count(
-            '<article class="rounded-xl border border-border bg-surface p-4 shadow-sm">'
-        )
-        == 1
-    )
+    assert html.count('<article class="relative rounded-xl border border-border') == 1
     assert 'Analisar' in html
 
 
@@ -3541,9 +3541,10 @@ class TestHistoricoRequisicoesView:
         assert marker in html
         idx = html.index(marker)
         tag = html[html.rindex('<a', 0, idx) : html.index('>', idx) + 1]
-        assert 'min-h-11' in tag
-        assert 'focus-visible:ring-2' in tag
-        assert 'focus-visible:ring-border-focus' in tag
+        # Alvo e foco são do cartão agora, não desta âncora — ver
+        # `test_link_de_cartao_tem_o_cartao_como_alvo`.
+        assert 'data-cartao-link' in tag
+        assert 'min-h-11' not in tag
 
     def test_empty_state_quando_historico_vazio(self, client, chefe_almoxarifado):
         _login(client, chefe_almoxarifado)

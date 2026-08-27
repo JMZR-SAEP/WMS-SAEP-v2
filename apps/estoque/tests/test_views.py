@@ -1702,10 +1702,14 @@ class TestHistoricoImportacoesScpiView:
         )
         client.force_login(superuser)
         conteudo = client.get(self.URL).content.decode()
-        assert (
-            '<article class="rounded-xl border border-border bg-surface p-4 shadow-sm">'
-            in conteudo
-        )
+        assert '<article class="relative rounded-xl border border-border' in conteudo
+        # Esta é a única listagem em cartões cuja ação é um download, não uma
+        # navegação para detalhe: ela mantém o botão explícito e não marca
+        # `data-cartao-link`. Cartão que baixa arquivo ao ser clicado seria
+        # surpresa, não conveniência.
+        # `(?![\]:])` separa o atributo das ocorrências dentro dos seletores
+        # `has-[a[data-cartao-link]]` que o chrome imprime em todo <article>.
+        assert not re.search(r'data-cartao-link(?![\]:])', conteudo)
         assert 'relatorio.csv' in conteudo
         assert 'Concluída' in conteudo
         assert '<table' not in conteudo
