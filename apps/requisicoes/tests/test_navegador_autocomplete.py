@@ -193,3 +193,109 @@ def test_opcao_ativa_tem_indicador_alem_do_fundo(pagina_rascunho):
         'el => getComputedStyle(el).boxShadow'
     )
     assert 'inset' in sombra, f'opção ativa sem anel: {sombra}'
+
+
+# ── #151: estado "vinculado" vs "digitado e vinculado a nada" ──────────────────
+
+HIDDEN_MATERIAL = '#id_itens-0-material_id'
+
+
+def _selecionar_primeiro(page, termo, campo_sel=COMBO_MATERIAL):
+    """Busca e clica na primeira opção do dropdown — deixa a linha vinculada."""
+    campo = page.locator(campo_sel)
+    campo.fill(termo)
+    page.wait_for_timeout(900)
+    page.locator('li[role="option"]').first.click()
+    page.wait_for_timeout(150)
+    return campo
+
+
+def _apagar_um_caractere(page, campo):
+    """Foco explícito + Backspace. `Locator.press` logo após o blur da seleção
+    não estava editando o campo; um clique antes resolve."""
+    campo.click()
+    page.keyboard.press('End')
+    page.keyboard.press('Backspace')
+
+
+def test_selecionar_material_mostra_marca_de_vinculado(pagina_rascunho):
+    """Selecionar da lista => borda de vínculo + ✓, e o hidden tem valor."""
+    campo = _selecionar_primeiro(pagina_rascunho, 'MAT')
+
+    assert pagina_rascunho.locator(HIDDEN_MATERIAL).input_value() != ''
+    assert 'campo--vinculado' in (campo.get_attribute('class') or '')
+    marca = pagina_rascunho.locator('span[x-show="vinculado && !buscando"]').first
+    assert marca.is_visible(), 'marca de vinculado invisível após seleção'
+
+
+def test_apagar_caractere_remove_a_marca_no_mesmo_gesto(pagina_rascunho):
+    """A marca some na primeira tecla, antes do debounce de 300ms — pelo
+    caminho de `onInvalidate()` que já zerava o hidden."""
+    campo = _selecionar_primeiro(pagina_rascunho, 'MAT')
+    assert 'campo--vinculado' in (campo.get_attribute('class') or '')
+
+    _apagar_um_caractere(pagina_rascunho, campo)
+    pagina_rascunho.wait_for_timeout(50)  # bem abaixo dos 300ms do debounce
+
+    assert 'campo--vinculado' not in (campo.get_attribute('class') or '')
+    assert pagina_rascunho.locator(HIDDEN_MATERIAL).input_value() == ''
+
+
+def test_mudanca_de_vinculo_e_anunciada_na_regiao_live(pagina_rascunho):
+    """vinculado -> desvinculado passa pela região `role="status"` existente."""
+    campo = _selecionar_primeiro(pagina_rascunho, 'MAT')
+
+    _apagar_um_caractere(pagina_rascunho, campo)
+    pagina_rascunho.wait_for_timeout(100)  # antes de o callback limpar o texto
+
+    regiao = pagina_rascunho.locator('span.sr-only[role="status"]').first
+    assert 'Seleção desfeita' in regiao.inner_text()
+
+
+def test_submit_com_texto_sem_vinculo_e_bloqueado_no_cliente(pagina_rascunho):
+    """Texto digitado sem seleção => envio barrado antes do servidor, foco no
+    campo culpado e mensagem visível."""
+    _buscar(pagina_rascunho, 'Parafuso')
+    campo = pagina_rascunho.locator(COMBO_MATERIAL)
+    # Blur (não Esc: em type="search" o Esc nativo do Chrome limpa o campo, e
+    # o gate só dispara com texto presente).
+    campo.evaluate('el => el.blur()')
+    pagina_rascunho.locator('#id_itens-0-quantidade_solicitada').fill('3')
+
+    pagina_rascunho.get_by_role('button', name='Salvar rascunho').click()
+    pagina_rascunho.wait_for_timeout(300)
+
+    assert pagina_rascunho.url.endswith('/requisicoes/nova/'), 'o envio não foi barrado'
+    gate = pagina_rascunho.locator('p[data-erro-gate]').first
+    assert gate.is_visible()
+    assert (
+        pagina_rascunho.evaluate('document.activeElement.id')
+        == 'id_itens-0-material_label'
+    )
+    # A mensagem do gate fica amarrada ao combobox por aria-describedby.
+    descrito_por = campo.get_attribute('aria-describedby') or ''
+    assert gate.get_attribute('id') in descrito_por.split()
+
+
+def test_gate_aponta_a_linha_culpada_no_formset(pagina_rascunho):
+    """Formset com várias linhas: o gate põe o foco na linha errada, não na
+    primeira."""
+    _selecionar_primeiro(pagina_rascunho, 'MAT')
+    pagina_rascunho.locator('#id_itens-0-quantidade_solicitada').fill('2')
+
+    pagina_rascunho.get_by_role('button', name='Adicionar material').click()
+    pagina_rascunho.wait_for_selector('#id_itens-1-material_label')
+
+    linha1 = pagina_rascunho.locator('#id_itens-1-material_label')
+    linha1.fill('texto que não casa com nada')
+    linha1.evaluate('el => el.blur()')
+    pagina_rascunho.locator('#id_itens-1-quantidade_solicitada').fill('1')
+
+    pagina_rascunho.get_by_role('button', name='Salvar rascunho').click()
+    pagina_rascunho.wait_for_timeout(300)
+
+    assert pagina_rascunho.url.endswith('/requisicoes/nova/')
+    assert (
+        pagina_rascunho.evaluate('document.activeElement.id')
+        == 'id_itens-1-material_label'
+    )

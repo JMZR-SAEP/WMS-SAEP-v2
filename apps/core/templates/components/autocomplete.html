@@ -77,6 +77,16 @@
       if com_erro {% templatetag closeblock %}` saiu do `class`.
     {% endcomment %}
     class="campo"
+    {% comment %}
+      Borda de vínculo confirmado — `campo--vinculado` (input.css) só entra
+      quando o hidden input tem valor. É o par visual do ✓ abaixo e desaparece
+      na primeira tecla pelo caminho de `onInvalidate()` (autocomplete.js). O
+      CSS deixa `:focus-visible` e `[aria-invalid]` vencerem esta borda.
+
+      `pr-10` abre espaço para o ✓ (ou o spinner) no canto direito: sem ele um
+      rótulo de material longo corria por baixo do ícone absoluto.
+    {% endcomment %}
+    :class="{ 'campo--vinculado': vinculado, 'pr-10': vinculado || buscando }"
     role="combobox"
     aria-autocomplete="list"
     {% comment %}
@@ -85,6 +95,14 @@
       HTML (#149).
     {% endcomment %}
     {% if com_erro %}aria-invalid="true"{% if erro_id %} aria-describedby="{{ erro_id }}"{% endif %}{% endif %}
+    {% comment %}
+      `aria-describedby` dinâmico: mantém o id do erro de servidor (quando há) e
+      ADICIONA o id da mensagem do gate enquanto `erroGateVisivel`. O atributo
+      estático acima é o fallback sem JS — o erro de campo é a rota sem JS.
+      Quando o Alpine sobe, esta ligação assume; `|| null` remove o atributo em
+      vez de deixar `aria-describedby=""` quando não há nada a apontar.
+    {% endcomment %}
+    :aria-describedby="[{% if com_erro and erro_id %}'{{ erro_id }}', {% endif %}erroGateVisivel ? idBase + '-erro-gate' : null].filter(Boolean).join(' ') || null"
     :aria-controls="idBase + '-listbox'"
     :aria-expanded="aberto"
     {% comment %}
@@ -103,6 +121,18 @@
     qualquer `x-show`: região escondida não anuncia.
   {% endcomment %}
   <span class="sr-only" role="status" aria-live="polite" x-text="anuncioResultados()"></span>
+  {% comment %}
+    Marca de vínculo confirmado. O hidden tem valor => o texto no campo
+    corresponde a um item escolhido da lista, não a texto digitado solto.
+    `!buscando` porque a marca e o spinner disputam o mesmo canto; eles nunca
+    aparecem juntos. `aria-hidden`: a mudança de vínculo é anunciada pela
+    região `role="status"` acima — aqui é reforço para quem enxerga.
+  {% endcomment %}
+  <span x-show="vinculado && !buscando" x-cloak class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-success" aria-hidden="true">
+    <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+      <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+    </svg>
+  </span>
   <span x-show="buscando" x-cloak class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" aria-hidden="true">
     <svg class="h-4 w-4 animate-spin motion-reduce:animate-none text-text-disabled" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
       <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -204,5 +234,25 @@
     class="absolute z-20 mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm italic text-text-tertiary shadow-lg"
     role="status"
     aria-live="polite"
+  ></p>
+  {% comment %}
+    Gate de submit (cliente) — texto digitado sem item vinculado. `role="alert"`
+    porque interrompe uma tentativa de envio; `sinalizarGate()` (autocomplete.js)
+    traz o foco para o campo, e a linha do formset já se identifica pelo
+    `role="group" aria-label="Item N"`.
+
+    `data-erro-gate`, como `data-erro-busca`: NÃO é erro de campo do Form (não
+    vem do `clean()`, não sobrevive ao POST, some na próxima tecla). O guard de
+    components/field_error.html isenta os dois pelo mesmo motivo — o `clean()`
+    do servidor continua sendo a voz canônica do erro persistente.
+  {% endcomment %}
+  <p
+    x-show="erroGateVisivel"
+    x-cloak
+    :id="idBase + '-erro-gate'"
+    x-text="mensagemGate()"
+    class="mt-1.5 text-xs font-medium text-danger-text"
+    role="alert"
+    data-erro-gate
   ></p>
 </div>
