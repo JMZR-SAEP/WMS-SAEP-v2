@@ -90,13 +90,17 @@
             {% comment %}
               O material se repete a cada movimentação, então o heading visível
               sozinho devolvia rótulos idênticos para quem navega por heading.
-              O que distingue uma linha do ledger da seguinte — tipo e instante —
-              já está no cartão (badge acima, data ao lado), e entra aqui em
-              `sr-only` para não duplicar visualmente o que o olho já leu.
-              Mesma gramática do `prefixo_sr` de components/badge.html.
+              O instante entra em `sr-only` como discriminador, sem duplicar
+              visualmente a data que já está ao lado do badge.
+
+              Só o instante, e não o tipo: o badge logo acima já anuncia
+              "Tipo de movimentação: X" via `aria_label`, e repetir o tipo aqui
+              fazia o leitor de tela ouvi-lo duas vezes por cartão na leitura
+              linear. O instante basta para distinguir dois lançamentos do
+              mesmo material.
             {% endcomment %}
             <h2 class="mt-3 break-words text-sm font-semibold text-text-primary">
-              {{ mov.material }}<span class="sr-only"> — {{ mov.get_tipo_display }} em {{ mov.criado_em|date:"d/m/Y H:i" }}</span>
+              {{ mov.material }}<span class="sr-only"> em {{ mov.criado_em|date:"d/m/Y H:i" }}</span>
             </h2>
 
             <dl class="mt-3 grid grid-cols-2 gap-3 text-sm">
