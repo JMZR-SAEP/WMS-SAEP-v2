@@ -47,6 +47,14 @@ Notas:
   passaram pelo bloco de auth; o erro de login é inline em `login.html`.
 - O shell foi reescrito em torno da API de slots do topbar (`.design/topbar/DESIGN_BRIEF.md`):
   `topbar_menu`, `topbar_leading`, `topbar_actions`, `topbar_overflow`, `topbar_domain`.
+- **Dark mode está fora do escopo desta auditoria** e saiu das etapas 5 e 8. Não existe no
+  produto: zero `prefers-color-scheme` e zero `dark:` no `app.css` compilado, e o `DESIGN.md`
+  compromete-se com um mundo claro só ("papel frio sobre papel branco"). Auditar a ausência
+  mediria uma premissa do plano, não uma regressão. Adotar dark mode é decisão de produto, com
+  ADR e uma revisão inteira da escala de tokens — não item de checklist de auditoria. O que
+  existe de real e adjacente já foi resolvido na Etapa 5: `base.html` declara
+  `color-scheme: light`, senão o widget nativo do `<input type="date">` dos filtros herdava o
+  tema escuro do SO numa página que só existe em claro.
 
 ---
 
@@ -80,7 +88,7 @@ elas é responsabilidade da Etapa 8.
 - `card_abertura`: `<article>` com hierarquia de heading correta (`<h2>` do título do item), `dl`
   explícito para os campos, badge de estado nunca só por cor
 - `cards_abertura`: grid responsivo (1 col mobile → `sm:2` → `2xl:3`) — conferir em viewport curto e
-  largo, dark mode
+  largo
 - Guardrail da #83: os fragmentos não recebem parâmetro que descreva conteúdo de célula. Se a
   auditoria concluir que precisam, isso é um achado — registrar a decisão antes de parametrizar
 - `pagination`: página atual anunciada, alvos de toque, contagem total, preservação de querystring
@@ -181,7 +189,7 @@ Sobre o fluxo de importação SCPI, que é onde o operador toma decisão de verd
 Sem alvo — varredura das 19 telas já auditadas, agora sobre a base refeita. Verifica:
 
 - Nenhuma tela regrediu com a troca de token ou refatoração de componente
-- Dark mode e mobile em todas as 19
+- Mobile em todas as 19
 - Consistência final entre as 4 listas de requisições e as 3 de estoque, agora todas em cartões
 
 ### Fase 2 — critique

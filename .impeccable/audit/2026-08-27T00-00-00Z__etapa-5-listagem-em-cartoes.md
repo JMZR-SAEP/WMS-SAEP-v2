@@ -273,13 +273,19 @@ O que falha é a borda do sistema:
 
 ## Nota sobre o plano
 
-A Fase 1 da Etapa 5 pede conferência em **dark mode**. O projeto não tem dark mode: zero
+A Fase 1 da Etapa 5 pedia conferência em **dark mode**. O projeto não tem dark mode: zero
 `prefers-color-scheme`, zero `dark:` no `app.css` compilado, e o DESIGN.md compromete-se com um
-único mundo claro ("papel frio sobre papel branco"). Não é regressão — é premissa do plano que não
-bate com o sistema incumbente. O item de dark mode das Etapas 5–8 deveria sair do plano, ou virar
-uma decisão explícita de produto. O que existe de real e adjacente: `base.html` não declara
-`color-scheme: light`, então o `<input type="date">` dos filtros herda o widget escuro do SO em quem
-usa tema escuro. Uma linha resolve.
+único mundo claro ("papel frio sobre papel branco"). Não era regressão — era premissa do plano que
+não batia com o sistema incumbente, e auditar a ausência mediria o plano, não o produto.
+
+**Resolvido:** o item saiu das Etapas 5 e 8 de `docs/plans/audit-frontend-restante.md`, com a
+justificativa registrada nas notas do inventário para ninguém reintroduzi-lo. Adotar dark mode
+continua possível, mas como decisão de produto — ADR e revisão da escala de tokens inteira —, não
+como item de checklist de auditoria.
+
+O que existia de real e adjacente foi corrigido nesta etapa: `base.html` não declarava
+`color-scheme: light`, então o widget nativo do `<input type="date">` dos filtros herdava o tema
+escuro do SO numa página que só existe em claro.
 
 ## Ações recomendadas, em ordem
 
