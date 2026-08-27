@@ -7,8 +7,10 @@ comportamento em JS.
 
 > **Estado deste plano (revisado em 2026-08-27).**
 >
-> - **Etapas 0–4 concluídas.** Não mexer — ver "Etapas concluídas" abaixo.
-> - **Etapas 5–8 pendentes.** Cada uma tem agora duas fases: `/impeccable audit` (defeito técnico —
+> - **Etapas 0–5 concluídas.** Não mexer — ver "Etapas concluídas" abaixo. A Etapa 5 (listagem em
+>   cartões) fechou com audit + correções + critique; o reteste da tabela no catálogo está em
+>   `DESIGN.md`.
+> - **Etapas 6–8 pendentes.** Cada uma tem agora duas fases: `/impeccable audit` (defeito técnico —
 >   a11y, responsivo, performance) seguida de `/impeccable critique` (revisão de UX com pontuação
 >   heurística sobre o resultado do audit). A critique fecha a etapa e alimenta o backlog de
 >   `polish` se restar P0/P1.
@@ -34,11 +36,11 @@ mudar.
 | Camada | Arquivos | Linhas aprox. |
 |---|---|---|
 | Tokens e base CSS | `apps/core/static/core/css/input.css` | 810 |
-| Componentes compartilhados | `apps/core/templates/components/*.html` (25) + `components/icons/` (4 partials + 15 svg) | — |
+| Componentes compartilhados | `apps/core/templates/components/*.html` (25) + `components/icons/` (3 partials + 15 svg) | — |
 | Shell e navegação | `base.html`, `base_auth.html`, `core/_topbar_nav.html`, `core/partials/_side_nav.html`, `core/partials/_messages.html`, `core/partials/_message_item.html` | — |
 | Partials de requisições | `apps/requisicoes/templates/requisicoes/partials/**` (13) | — |
 | Partials de estoque | `apps/estoque/templates/estoque/partials/**` (11) | — |
-| Comportamento | `apps/core/static/core/js/*.js` (6) | 1648 |
+| Comportamento | `apps/core/static/core/js/*.js` (7) | 1720 |
 
 Notas:
 
@@ -58,7 +60,7 @@ Notas:
 
 ---
 
-## Etapas concluídas (0–4) — não mexer
+## Etapas concluídas (0–5) — não mexer
 
 | Etapa | Escopo | Alvos |
 |---|---|---|
@@ -67,13 +69,18 @@ Notas:
 | 2 | Feedback e estado | `alert`, `error_summary`, `field_error`, `empty_state`, `badge`, `_icone_nivel`, `_messages`, `_message_item`, `mensagens.js` |
 | 3 | Overlay | `modal`, `_modal_body`, `_modal_icon`, `modal.js` |
 | 4 | Busca e filtro | família `autocomplete` + `filter_*` (inclui `filter_chips`, `filter_presets_periodo`) |
+| 5 | Listagem em cartões | `table.html` (chrome de cartões), `pagination`, `page_header`, `ordenacao_data`, `icons/` (`_check` removido), `cartao-alvo.js` (novo); reteste da tabela no catálogo em `DESIGN.md` |
 
 Achados dessas etapas viraram issues próprias (#127, #147, #149, #151, #152–#154). Regressão sobre
 elas é responsabilidade da Etapa 8.
 
 ---
 
-## Etapa 5 — Listagem em cartões
+## Etapa 5 — Listagem em cartões (concluída)
+
+Entregue: audit + correções + critique. Achados de UX que sobraram foram para o backlog de
+`polish`; o reteste da Regra do Cartão Único no catálogo de materiais está registrado em `DESIGN.md`.
+As duas fases abaixo ficam como registro do que foi rodado.
 
 ### Fase 1 — audit
 
@@ -95,7 +102,7 @@ elas é responsabilidade da Etapa 8.
 - `page_header`: hierarquia de título e ação primária; interação com o slot `topbar_leading` quando
   a tela sobrescreve a brand
 - `ordenacao_data`: controle de ordenação — estado atual anunciado, reversão
-- `icons/`: 4 partials (`_caixa_entrada`, `_check`, `_funil`, `_prancheta`) + 15 svg —
+- `icons/`: 3 partials (`_caixa_entrada`, `_funil`, `_prancheta`) + 15 svg —
   `aria-hidden` quando decorativos, rótulo quando informativos; conferir se partial e svg do mesmo
   glifo divergem
 
@@ -212,12 +219,11 @@ existe (`critique.latest` nulo). Verifica:
 
 | Etapa | Escopo | Alvos | Fases |
 |---|---|---|---|
-| 0–4 | Tokens, ação, feedback, overlay, busca/filtro | — | **concluídas** |
-| 5 | Listagem em cartões | 5 | audit + critique |
+| 0–5 | Tokens, ação, feedback, overlay, busca/filtro, listagem em cartões | — | **concluídas** |
 | 6 | Partials de requisições | 13 | audit + critique |
 | 7 | Partials de estoque | 11 | audit + critique |
 | 8 | Regressão das 19 telas | 19 | audit + critique |
 
-Etapas 0–4 concluídas e congeladas. Nas etapas 5–8 a ordem interna é fixa (audit → correções →
-critique); 5 é independente, 6 e 7 dependem das correções de 1–5 já mergeadas, 8 fecha. P0/P1 que
+Etapas 0–5 concluídas e congeladas. Nas etapas 6–8 a ordem interna é fixa (audit → correções →
+critique); 6 e 7 dependem das correções de 1–5 já mergeadas, 8 fecha. P0/P1 que
 sobrarem das critiques alimentam `/impeccable polish`.
