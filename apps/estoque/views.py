@@ -16,6 +16,7 @@ from apps.core.exceptions import (
     ErroDominio,
     PermissaoNegada,
 )
+from apps.core.filtros import montar_chip, montar_presets_periodo
 from apps.core.http import htmx_redirect, parse_data_iso
 from apps.core.listagem import contar_filtros_ativos, paginar_com_filtros
 from apps.core.modal import render_modal_erro
@@ -83,7 +84,6 @@ TIPOS_SO_SAIDAS = [
     TipoMovimentacaoEstoque.CONSUMO,
     TipoMovimentacaoEstoque.SAIDA_EXCEPCIONAL,
 ]
-TIPOS_SO_SAIDAS_VALUES = {t.value for t in TIPOS_SO_SAIDAS}
 
 
 def _setores_beneficiarios_do_ledger(visiveis):
@@ -166,21 +166,27 @@ def historico_movimentacoes_view(request):
         listas=(tipos,),
     )
     tem_filtro_ativo = qtd_filtros_ativos > 0
-    so_saidas_ativo = set(tipos) == set(TIPOS_SO_SAIDAS)
 
-    params_chip_on = request.GET.copy()
-    params_chip_on.pop('page', None)
-    params_chip_on.setlist('tipos', [t.value for t in TIPOS_SO_SAIDAS])
-    url_chip_so_saidas = '?' + params_chip_on.urlencode()
-
-    # Remove só os tipos do chip — preserva outros tipos que a pessoa já
-    # tivesse selecionado antes de ligar o chip (bug #143: `setlist('tipos',
-    # [])` descartava a seleção inteira em silêncio).
-    params_chip_off = request.GET.copy()
-    params_chip_off.pop('page', None)
-    tipos_sem_chip = [t for t in tipos if t not in TIPOS_SO_SAIDAS_VALUES]
-    params_chip_off.setlist('tipos', tipos_sem_chip)
-    url_chip_sem_so_saidas = '?' + params_chip_off.urlencode()
+    # Atalhos de recorte (issue #153) — chips e presets resolvem para a URL
+    # canônica (#152) via apps.core.filtros; ninguém remonta querystring à mão.
+    # Teto de 3 chips por tela: aqui só "Só saídas".
+    chips_filtro = [
+        montar_chip(
+            request,
+            id='so-saidas',
+            rotulo='Só saídas',
+            glifo='↧',
+            chave='tipos',
+            valores=[t.value for t in TIPOS_SO_SAIDAS],
+            ordem_chaves=ORDEM_QUERYSTRING_MOVIMENTACOES,
+            chaves_multivalor=('tipos',),
+        )
+    ][:3]
+    presets_periodo = montar_presets_periodo(
+        request,
+        ordem_chaves=ORDEM_QUERYSTRING_MOVIMENTACOES,
+        chaves_multivalor=('tipos',),
+    )
 
     contexto = {
         'page_obj': resultado.page_obj,
@@ -197,11 +203,10 @@ def historico_movimentacoes_view(request):
         },
         'ordem': resultado.ordem,
         'url_ordenacao': resultado.url_ordenacao,
-        'url_chip_so_saidas': url_chip_so_saidas,
-        'url_chip_sem_so_saidas': url_chip_sem_so_saidas,
+        'chips_filtro': chips_filtro,
+        'presets_periodo': presets_periodo,
         'tem_filtro_ativo': tem_filtro_ativo,
         'qtd_filtros_ativos': qtd_filtros_ativos,
-        'so_saidas_ativo': so_saidas_ativo,
         'querystring_filtros': resultado.querystring_filtros,
     }
 

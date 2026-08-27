@@ -2349,8 +2349,8 @@ class TestHistoricoMovimentacoesFiltros:
             {'tipos': ['consumo', 'saida_excepcional']},
         )
         inativo = client.get(URL_MOVIMENTACOES)
-        assert ativo.context['so_saidas_ativo'] is True
-        assert inativo.context['so_saidas_ativo'] is False
+        assert ativo.context['chips_filtro'][0].ativo is True
+        assert inativo.context['chips_filtro'][0].ativo is False
 
     def test_chip_so_saidas_reemitido_via_oob_no_swap_htmx(
         self, client, superuser, requisicao_autorizada
@@ -2364,7 +2364,7 @@ class TestHistoricoMovimentacoesFiltros:
             {'tipos': ['consumo', 'saida_excepcional']},
             HTTP_HX_REQUEST='true',
         ).content
-        assert b'id="chip-so-saidas"' in parcial
+        assert b'id="filter-chips"' in parcial
         assert b'hx-swap-oob="true"' in parcial
         assert b'aria-current="true"' in parcial
 
@@ -2374,8 +2374,26 @@ class TestHistoricoMovimentacoesFiltros:
         # Render completo: chip único, sem atributo OOB (evita id duplicado).
         client.force_login(superuser)
         conteudo = client.get(URL_MOVIMENTACOES).content
-        assert conteudo.count(b'id="chip-so-saidas"') == 1
+        assert conteudo.count(b'id="filter-chips"') == 1
         assert b'hx-swap-oob' not in conteudo
+
+    def test_presets_periodo_datas_absolutas_sem_estado_novo(
+        self, client, superuser, requisicao_autorizada
+    ):
+        # issue #153: preset resolve para datas absolutas em data_ini/data_fim,
+        # sem token relativo nem chave nova na querystring.
+        client.force_login(superuser)
+        presets = client.get(URL_MOVIMENTACOES).context['presets_periodo']
+        assert [p.rotulo for p in presets] == [
+            'Últimos 7 dias',
+            'Últimos 30 dias',
+            'Este mês',
+        ]
+        for preset in presets:
+            query = preset.url.split('?', 1)[1]
+            chaves = {p.split('=')[0] for p in query.split('&')}
+            assert chaves <= {'data_ini', 'data_fim'}
+            assert 'periodo' not in chaves
 
     def test_flag_tem_filtro_ativo(self, client, superuser, requisicao_autorizada):
         client.force_login(superuser)
@@ -2415,7 +2433,7 @@ class TestHistoricoMovimentacoesFiltros:
             {'material': 'parafuso', 'ordem': 'asc', 'setor': setor_obras.pk},
             follow=True,
         )
-        url_chip = response.context['url_chip_so_saidas']
+        url_chip = response.context['chips_filtro'][0].url
         assert 'material=parafuso' in url_chip
         assert 'ordem=asc' in url_chip
         assert f'setor={setor_obras.pk}' in url_chip
@@ -2435,10 +2453,13 @@ class TestHistoricoMovimentacoesFiltros:
             {'tipos': ['reserva', 'consumo', 'saida_excepcional']},
             follow=True,
         )
-        url_chip_off = response.context['url_chip_sem_so_saidas']
-        assert 'tipos=reserva' in url_chip_off
-        assert 'tipos=consumo' not in url_chip_off
-        assert 'tipos=saida_excepcional' not in url_chip_off
+        # tipos=[reserva, consumo, saida_excepcional] → chip ativo (subconjunto);
+        # a URL do chip desliga removendo SÓ consumo/saida_excepcional.
+        chip = response.context['chips_filtro'][0]
+        assert chip.ativo is True
+        assert 'tipos=reserva' in chip.url
+        assert 'tipos=consumo' not in chip.url
+        assert 'tipos=saida_excepcional' not in chip.url
 
     def test_campos_do_form_reemitidos_via_oob_com_tipo_marcado_no_swap_htmx(
         self, client, superuser, requisicao_autorizada
@@ -2612,7 +2633,7 @@ class TestHistoricoMovimentacoesResponsivo:
         response = client.get(URL_MOVIMENTACOES)
         assert response.status_code == 200
         content = response.content.decode()
-        pos_chip = content.find('id="chip-so-saidas"')
+        pos_chip = content.find('id="filter-chips"')
         pos_details = content.find('<details')
         assert pos_chip != -1, 'chip-so-saidas não encontrado'
         assert pos_details != -1, '<details não encontrado'
@@ -2850,7 +2871,7 @@ class TestHistoricoMovimentacoesFiltrosResponsivo:
             / 'historico_movimentacoes.html'
         )
         fonte = caminho.read_text()
-        idx_chip = fonte.index('_chip_so_saidas.html')
+        idx_chip = fonte.index('components/filter_chips.html')
         idx_shell = fonte.index('filter_shell.html#abertura')
         assert idx_chip < idx_shell
 
