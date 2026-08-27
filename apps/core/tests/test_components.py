@@ -2316,9 +2316,11 @@ class TestAutocompleteEstadosECombobox:
 
     def test_marca_de_vinculado_e_a_borda_estao_no_template(self):
         fonte = self._fonte()
-        assert "{ 'campo--vinculado': vinculado }" in fonte
+        assert "'campo--vinculado': vinculado" in fonte
         assert 'x-show="vinculado && !buscando"' in fonte
         assert 'text-success' in fonte
+        # Espaço à direita para o ícone absoluto não ser encoberto por rótulo longo.
+        assert "'pr-10': vinculado || buscando" in fonte
 
     def test_borda_de_vinculado_compilada_no_app_css(self):
         """O passo `make css-build` que o AGENTS.md não menciona.

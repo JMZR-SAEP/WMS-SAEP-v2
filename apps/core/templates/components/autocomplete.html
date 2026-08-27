@@ -82,8 +82,11 @@
       quando o hidden input tem valor. É o par visual do ✓ abaixo e desaparece
       na primeira tecla pelo caminho de `onInvalidate()` (autocomplete.js). O
       CSS deixa `:focus-visible` e `[aria-invalid]` vencerem esta borda.
+
+      `pr-10` abre espaço para o ✓ (ou o spinner) no canto direito: sem ele um
+      rótulo de material longo corria por baixo do ícone absoluto.
     {% endcomment %}
-    :class="{ 'campo--vinculado': vinculado }"
+    :class="{ 'campo--vinculado': vinculado, 'pr-10': vinculado || buscando }"
     role="combobox"
     aria-autocomplete="list"
     {% comment %}
