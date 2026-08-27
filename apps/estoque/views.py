@@ -20,6 +20,7 @@ from apps.core.http import htmx_redirect, parse_data_iso
 from apps.core.listagem import contar_filtros_ativos, paginar_com_filtros
 from apps.core.modal import render_modal_erro
 from apps.core.presentation import traduz_erro_dominio
+from apps.core.querystring import caminho_canonico
 from apps.core.templatetags.core_tags import formatar_quantidade
 from apps.estoque.forms import ItemSaidaExcepcionalFormSet, SaidaExcepcionalForm
 from apps.estoque.presentation import (
@@ -66,6 +67,17 @@ def listar_saidas_excepcionais_view(request):
 
 PAGINA_MOVIMENTACOES_TAMANHO = 25
 
+# Ordem canônica da querystring do ledger (issue #152). Multi-valor: `tipos`.
+ORDEM_QUERYSTRING_MOVIMENTACOES = (
+    'material',
+    'tipos',
+    'data_ini',
+    'data_fim',
+    'setor',
+    'ordem',
+    'page',
+)
+
 # Chip "só saídas": atalho que recorta o ledger nas saídas reais de material.
 TIPOS_SO_SAIDAS = [
     TipoMovimentacaoEstoque.CONSUMO,
@@ -102,6 +114,16 @@ def historico_movimentacoes_view(request):
         exigir_pode_consultar_movimentacoes_estoque(papel)
     except PermissaoNegada as exc:
         raise PermissionDenied(str(exc))
+
+    # A URL é a fonte de verdade do recorte (issue #152). No caminho nativo
+    # (submit do form, que sempre emite as chaves vazias) redireciona 302 para
+    # a forma canônica; no caminho HTMX a canônica volta no header HX-Push-Url,
+    # sem roundtrip extra. `caminho_canonico` é idempotente — sem loop de 302.
+    url_canonica = caminho_canonico(
+        request, ordem_chaves=ORDEM_QUERYSTRING_MOVIMENTACOES
+    )
+    if not request.htmx and request.get_full_path() != url_canonica:
+        return redirect(url_canonica)
 
     material = request.GET.get('material', '').strip()
     tipos_brutos = request.GET.getlist('tipos')
@@ -185,7 +207,11 @@ def historico_movimentacoes_view(request):
         template = 'estoque/historico_movimentacoes.html#resultados'
     else:
         template = 'estoque/historico_movimentacoes.html'
-    return render(request, template, contexto)
+    resposta = render(request, template, contexto)
+    if request.htmx:
+        # Empurra a canônica em vez de deixar o HTMX serializar o form.
+        resposta['HX-Push-Url'] = url_canonica
+    return resposta
 
 
 @login_required

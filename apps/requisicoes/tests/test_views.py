@@ -3598,6 +3598,40 @@ class TestHistoricoRequisicoesView:
         nomes = {t.name for t in response.templates}
         assert 'requisicoes/historico_requisicoes.html' not in nomes
 
+    def test_caminho_nativo_redireciona_302_para_querystring_canonica(
+        self, client, superuser
+    ):
+        """Submit do form emite as chaves vazias; a URL de auditoria não pode
+        ter duas grafias para o mesmo recorte (issue #152)."""
+        _login(client, superuser)
+        response = client.get(
+            URL_HISTORICO_REQUISICOES,
+            {'texto': 'Obras', 'data_ini': '', 'data_fim': '', 'setor': ''},
+        )
+        assert response.status_code == 302
+        assert response['Location'] == f'{URL_HISTORICO_REQUISICOES}?texto=Obras'
+
+    def test_caminho_nativo_ja_canonico_nao_redireciona(self, client, superuser):
+        _login(client, superuser)
+        response = client.get(URL_HISTORICO_REQUISICOES, {'texto': 'Obras'})
+        assert response.status_code == 200
+
+    def test_caminho_htmx_devolve_canonica_no_header_hx_push_url(
+        self, client, superuser
+    ):
+        """Sem roundtrip extra: a canônica volta no header, o HTMX não serializa
+        o que o form mandou."""
+        _login(client, superuser)
+        response = client.get(
+            URL_HISTORICO_REQUISICOES,
+            {'estados': ['atendida', 'rascunho'], 'data_ini': ''},
+            HTTP_HX_REQUEST='true',
+        )
+        assert response.status_code == 200
+        assert response['HX-Push-Url'] == (
+            f'{URL_HISTORICO_REQUISICOES}?estados=atendida&estados=rascunho'
+        )
+
     def test_requisicao_normal_devolve_template_completo(self, client, superuser):
         _login(client, superuser)
         response = client.get(URL_HISTORICO_REQUISICOES)
@@ -3712,6 +3746,7 @@ class TestHistoricoRequisicoesFiltros:
                 'estados': 'nao_existe',
                 'page': 'foo',
             },
+            follow=True,
         )
         assert response.status_code == 200
 

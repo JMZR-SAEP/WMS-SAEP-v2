@@ -2425,3 +2425,101 @@ class TestFilterShellDisclosure:
     def test_glifo_acompanha_o_estado(self):
         """Parado, apontava para baixo aberto e fechado."""
         assert 'group-open:rotate-180' in self._fonte()
+
+
+# ---------------------------------------------------------------------------
+# Gate #152: todo template que empurra URL nova via HTMX (`hx-push-url`) reemite
+# o estado que vive FORA do alvo do swap como `hx-swap-oob`. A dessincronia da
+# #143 foi ter sobrado superfície não coberta — convenção não quebra a suíte,
+# gate quebra.
+# ---------------------------------------------------------------------------
+
+# `hx-push-url` no markup, ou `hx_push_url=` repassado a um componente
+# passthrough. Comentários `{% comment %}` são removidos antes da varredura.
+_EMITE_PUSH_URL = re.compile(r'hx-push-url|hx_push_url\s*=')
+_REEMITE_OOB = 'hx-swap-oob'
+
+# Templates que emitem push-url mas não carregam o reemite OOB — cada um com o
+# motivo pelo qual a regra não se aplica a eles.
+_ISENTOS_DO_REEMITE_OOB: dict[str, str] = {
+    # button.html é passthrough puro (não conhece domínio): só emite
+    # `hx-push-url` quando o chamador passa `hx_push_url=`. A superfície é quem
+    # chama, e é lá que o reemite OOB tem que estar.
+    'apps/core/templates/components/button.html': (
+        'passthrough — quem inclui o botão é a superfície'
+    ),
+    # ordenacao_data.html é renderizado DENTRO de `{% partialdef resultados %}`,
+    # ou seja, dentro do próprio alvo do swap: volta inteiro em toda resposta
+    # HTMX. Não vive fora do alvo como o form e o chip, então reemitir a si
+    # mesmo via OOB só duplicaria id.
+    'apps/core/templates/components/ordenacao_data.html': (
+        'vive dentro do alvo do swap — trocado inteiro, sem OOB'
+    ),
+}
+
+_MINIMO_DE_SUPERFICIES_COM_PUSH_URL = 3
+
+
+def _superficies_com_push_url(raiz: Path):
+    """(caminho_relativo, reemite_oob) de cada apps/**/*.html que emite push-url."""
+    for caminho in sorted((raiz / 'apps').rglob('*.html')):
+        limpo = _sem_comentarios(caminho.read_text())
+        if not _EMITE_PUSH_URL.search(limpo):
+            continue
+        yield str(caminho.relative_to(raiz)), _REEMITE_OOB in limpo
+
+
+def test_todo_template_com_push_url_reemite_oob():
+    """`components/filter_acoes.html` já dizia em prosa ("o painel não pode
+    discordar da URL"), e três superfícies já reemitiam à mão. Vira gate: a
+    próxima superfície com `hx-push-url` sem `hx-swap-oob` quebra a suíte.
+    """
+    raiz = Path(__file__).resolve().parents[3]
+    superficies = list(_superficies_com_push_url(raiz))
+
+    assert len(superficies) >= _MINIMO_DE_SUPERFICIES_COM_PUSH_URL, (
+        f'A varredura achou só {len(superficies)} templates com push-url — o '
+        'gate está passando por não enxergar, não por estar tudo certo'
+    )
+
+    infratores = [
+        caminho
+        for caminho, reemite in superficies
+        if not reemite and caminho not in _ISENTOS_DO_REEMITE_OOB
+    ]
+    assert not infratores, (
+        'Template empurra URL nova via HTMX sem reemitir o estado fora do alvo '
+        f'do swap via hx-swap-oob (regressão #143): {infratores}'
+    )
+
+
+class TestMecanismoDoGateDePushUrl:
+    """O gate precisa provar que detecta, não que hoje a árvore está limpa."""
+
+    def _emite(self, texto: str) -> bool:
+        return bool(_EMITE_PUSH_URL.search(_sem_comentarios(texto)))
+
+    def _reemite(self, texto: str) -> bool:
+        return _REEMITE_OOB in _sem_comentarios(texto)
+
+    def test_push_url_sem_oob_e_detectado(self):
+        texto = '<a hx-get="/x" hx-push-url="true">ir</a>'
+        assert self._emite(texto) and not self._reemite(texto)
+
+    def test_push_url_com_oob_passa(self):
+        texto = (
+            '<a hx-get="/x" hx-push-url="true">ir</a>'
+            '<div id="fora" hx-swap-oob="true">estado</div>'
+        )
+        assert self._emite(texto) and self._reemite(texto)
+
+    def test_push_url_dentro_de_comment_nao_conta(self):
+        texto = '{% comment %}\n<a hx-push-url="true">exemplo</a>\n{% endcomment %}'
+        assert not self._emite(texto)
+
+    def test_hx_push_url_como_param_passthrough_e_detectado(self):
+        texto = '{% include "components/button.html" with hx_push_url="true" %}'
+        assert self._emite(texto)
+
+    def test_toda_isencao_tem_motivo_escrito(self):
+        assert all(_ISENTOS_DO_REEMITE_OOB.values())

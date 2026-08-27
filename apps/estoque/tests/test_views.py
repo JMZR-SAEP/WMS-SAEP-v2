@@ -2239,6 +2239,37 @@ class TestHistoricoMovimentacoesFiltros:
         nomes = {t.name for t in response.templates}
         assert 'estoque/historico_movimentacoes.html' in nomes
 
+    def test_caminho_nativo_redireciona_302_para_querystring_canonica(
+        self, client, superuser
+    ):
+        """Chaves vazias e grafia ambígua não entram na URL de auditoria (#152)."""
+        client.force_login(superuser)
+        response = client.get(
+            URL_MOVIMENTACOES,
+            {'material': 'MAT001', 'data_ini': '', 'tipos': ''},
+        )
+        assert response.status_code == 302
+        assert response['Location'] == f'{URL_MOVIMENTACOES}?material=MAT001'
+
+    def test_caminho_nativo_ja_canonico_nao_redireciona(self, client, superuser):
+        client.force_login(superuser)
+        response = client.get(URL_MOVIMENTACOES, {'material': 'MAT001'})
+        assert response.status_code == 200
+
+    def test_caminho_htmx_devolve_canonica_no_header_hx_push_url(
+        self, client, superuser
+    ):
+        client.force_login(superuser)
+        response = client.get(
+            URL_MOVIMENTACOES,
+            {'tipos': ['saida_excepcional', 'consumo'], 'setor': ''},
+            HTTP_HX_REQUEST='true',
+        )
+        assert response.status_code == 200
+        assert response['HX-Push-Url'] == (
+            f'{URL_MOVIMENTACOES}?tipos=consumo&tipos=saida_excepcional'
+        )
+
     def test_ordenacao_asc_inverte_cronologia(
         self,
         client,
@@ -2305,6 +2336,7 @@ class TestHistoricoMovimentacoesFiltros:
                 'tipos': 'nao_existe',
                 'page': 'foo',
             },
+            follow=True,
         )
         assert response.status_code == 200
 
@@ -2381,6 +2413,7 @@ class TestHistoricoMovimentacoesFiltros:
         response = client.get(
             URL_MOVIMENTACOES,
             {'material': 'parafuso', 'ordem': 'asc', 'setor': setor_obras.pk},
+            follow=True,
         )
         url_chip = response.context['url_chip_so_saidas']
         assert 'material=parafuso' in url_chip
@@ -2400,6 +2433,7 @@ class TestHistoricoMovimentacoesFiltros:
         response = client.get(
             URL_MOVIMENTACOES,
             {'tipos': ['reserva', 'consumo', 'saida_excepcional']},
+            follow=True,
         )
         url_chip_off = response.context['url_chip_sem_so_saidas']
         assert 'tipos=reserva' in url_chip_off

@@ -38,6 +38,7 @@ from apps.core.http import htmx_redirect, parse_data_iso
 from apps.core.listagem import contar_filtros_ativos, paginar, paginar_com_filtros
 from apps.core.modal import render_modal_erro
 from apps.core.presentation import traduz_erro_dominio
+from apps.core.querystring import caminho_canonico
 from apps.requisicoes.presentation import MODAL_COPY
 from apps.requisicoes.presentation import cancelamento_copy, registro_requisicao
 from apps.core.quantidades import formatar as formatar_quantidade
@@ -1310,6 +1311,17 @@ def confirmar_importacao_scpi_view(request):
 
 PAGINA_HISTORICO_REQUISICOES_TAMANHO = 25
 
+# Ordem canônica da querystring do histórico (issue #152). Multi-valor: `estados`.
+ORDEM_QUERYSTRING_HISTORICO_REQUISICOES = (
+    'texto',
+    'estados',
+    'data_ini',
+    'data_fim',
+    'setor',
+    'ordem',
+    'page',
+)
+
 
 @login_required
 @require_GET
@@ -1327,6 +1339,15 @@ def historico_requisicoes_view(request):
         exigir_pode_consultar_historico_requisicoes(papel)
     except PermissaoNegada as exc:
         raise PermissionDenied(str(exc))
+
+    # A URL é a fonte de verdade do recorte (issue #152). Caminho nativo: 302
+    # para a forma canônica; caminho HTMX: canônica no header HX-Push-Url, sem
+    # roundtrip extra. `caminho_canonico` é idempotente — sem loop de 302.
+    url_canonica = caminho_canonico(
+        request, ordem_chaves=ORDEM_QUERYSTRING_HISTORICO_REQUISICOES
+    )
+    if not request.htmx and request.get_full_path() != url_canonica:
+        return redirect(url_canonica)
 
     texto = request.GET.get('texto', '').strip()
     estados_brutos = request.GET.getlist('estados')
@@ -1404,4 +1425,8 @@ def historico_requisicoes_view(request):
         template = 'requisicoes/historico_requisicoes.html#resultados'
     else:
         template = 'requisicoes/historico_requisicoes.html'
-    return render(request, template, contexto)
+    resposta = render(request, template, contexto)
+    if request.htmx:
+        # Empurra a canônica em vez de deixar o HTMX serializar o form.
+        resposta['HX-Push-Url'] = url_canonica
+    return resposta
