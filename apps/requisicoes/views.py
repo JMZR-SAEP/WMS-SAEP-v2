@@ -24,7 +24,6 @@ from django.forms.formsets import DELETION_FIELD_NAME
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_GET, require_http_methods
 
 from apps.core.exceptions import (
@@ -35,7 +34,7 @@ from apps.core.exceptions import (
     PermissaoNegada,
 )
 from apps.core.filtros import montar_chip, montar_presets_periodo
-from apps.core.http import htmx_redirect, parse_data_iso
+from apps.core.http import htmx_redirect, parse_data_iso, voltar_url_seguro
 from apps.core.listagem import contar_filtros_ativos, paginar, paginar_com_filtros
 from apps.core.modal import render_modal_erro
 from apps.core.presentation import traduz_erro_dominio
@@ -109,14 +108,7 @@ from apps.requisicoes.transitions import (
 
 
 def _voltar_url(request, default: str = '') -> str:
-    if not default:
-        default = reverse('requisicoes:minhas')
-    next_url = request.POST.get('next') or request.GET.get('next', '')
-    if not url_has_allowed_host_and_scheme(
-        next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()
-    ):
-        next_url = default
-    return next_url
+    return voltar_url_seguro(request, default=default or reverse('requisicoes:minhas'))
 
 
 def _pode_copiar_agora(papel: PapelEfetivo, requisicao: Requisicao) -> bool:

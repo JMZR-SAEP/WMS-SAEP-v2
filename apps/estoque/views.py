@@ -17,7 +17,12 @@ from apps.core.exceptions import (
     PermissaoNegada,
 )
 from apps.core.filtros import montar_chip, montar_presets_periodo
-from apps.core.http import htmx_redirect, parse_data_iso, querystring_sem_page
+from apps.core.http import (
+    htmx_redirect,
+    parse_data_iso,
+    querystring_sem_page,
+    voltar_url_seguro,
+)
 from apps.core.listagem import contar_filtros_ativos, paginar, paginar_com_filtros
 from apps.core.modal import render_modal_erro
 from apps.core.presentation import traduz_erro_dominio
@@ -426,6 +431,11 @@ def detalhe_saida_excepcional_view(request, pk: int):
             'saida': saida,
             'pode_estornar': pode_estornar,
             'registro': registro_saida_excepcional(saida),
+            # Preserva a página da listagem paginada de onde o operador veio
+            # (`?next=` no link do cartão); fallback para a primeira página.
+            'voltar_url': voltar_url_seguro(
+                request, default=reverse('estoque:listar_saidas_excepcionais')
+            ),
         },
     )
 

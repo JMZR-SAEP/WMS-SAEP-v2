@@ -650,6 +650,28 @@ class TestDetalheSaidaExcepcionalView:
         response = client.get(self._url(saida_registrada.pk))
         assert response.context['pode_estornar'] is False
 
+    def test_voltar_url_preserva_pagina_da_listagem(
+        self, client, chefe_almoxarifado, saida_registrada
+    ):
+        """O cartão da lista paginada manda `?next=` com a página de origem; os
+        dois links "Voltar" do detalhe devem apontar de volta para ela (PR #40).
+        """
+        client.force_login(chefe_almoxarifado)
+        proximo = f'{URL}?page=2'
+        response = client.get(self._url(saida_registrada.pk), {'next': proximo})
+        assert response.context['voltar_url'] == proximo
+        assert response.content.decode().count(f'href="{proximo}"') == 2
+
+    def test_voltar_url_rejeita_destino_externo(
+        self, client, chefe_almoxarifado, saida_registrada
+    ):
+        """`next` para outro host cai no fallback — nunca vira open redirect."""
+        client.force_login(chefe_almoxarifado)
+        response = client.get(
+            self._url(saida_registrada.pk), {'next': 'https://evil.example/x'}
+        )
+        assert response.context['voltar_url'] == URL
+
     def test_post_retorna_405(self, client, chefe_almoxarifado, saida_registrada):
         client.force_login(chefe_almoxarifado)
         response = client.post(self._url(saida_registrada.pk), data={})

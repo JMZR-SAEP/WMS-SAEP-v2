@@ -5,7 +5,7 @@
 
 {% block topbar_leading %}
   <a
-    href="{% url 'estoque:listar_saidas_excepcionais' %}"
+    href="{{ voltar_url }}"
     class="app-bar__nav-icon"
     aria-label="Voltar para lista de saídas excepcionais"
   >
@@ -161,7 +161,7 @@
   {# Navegação de volta #}
   <div>
     <a
-      href="{% url 'estoque:listar_saidas_excepcionais' %}"
+      href="{{ voltar_url }}"
       class="inline-flex min-h-11 items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-2 text-sm font-medium text-text-secondary hover:bg-bg-page hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1"
     >
       <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">

@@ -11,6 +11,7 @@ from datetime import date
 from django.http import HttpRequest, HttpResponse
 from django.http.request import QueryDict
 from django.shortcuts import redirect
+from django.utils.http import url_has_allowed_host_and_scheme
 from django_htmx.middleware import HtmxDetails
 
 
@@ -42,6 +43,23 @@ def parse_data_iso(valor: str | None) -> date | None:
         return date.fromisoformat(valor)
     except ValueError:
         return None
+
+
+def voltar_url_seguro(request: HttpRequest, *, default: str) -> str:
+    """Destino de 'Voltar': o `next` recebido (POST tem prioridade sobre GET) se
+    for uma URL local segura; caso contrário, `default`.
+
+    Mesma checagem de open redirect que o `LoginView` do Django faz — o `next`
+    vem da querystring do link de origem e não pode ser confiado às cegas.
+    """
+    candidato = request.POST.get('next') or request.GET.get('next', '')
+    if candidato and url_has_allowed_host_and_scheme(
+        candidato,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return candidato
+    return default
 
 
 def querystring_sem_page(get_params: QueryDict) -> str:
