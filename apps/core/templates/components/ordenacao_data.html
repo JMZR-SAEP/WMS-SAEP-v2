@@ -38,11 +38,23 @@ Uso:
   {% else %}
     <span></span>
   {% endif %}
-  {% with seletor_alvo="#"|add:target_id %}
+  {% comment %}
+    O rótulo nomeia o **destino**, não o estado corrente. Era o inverso: com
+    `ordem='desc'` o botão dizia "Mais recentes primeiro ↓" — que é o que a tela
+    já mostrava — e o href apontava para `?ordem=asc`. Quem lia o rótulo e queria
+    aquilo clicava e recebia o oposto. `url_ordenacao` sempre inverte; o texto
+    agora acompanha.
+
+    `id` estável: este controle vive DENTRO do próprio `hx-target`, então o swap
+    o destrói e recria. O htmx restaura o foco procurando o mesmo `id` no DOM
+    novo — sem `id`, quem ordena pelo teclado é jogado de volta para o <body> e
+    precisa tabular a tela inteira outra vez.
+  {% endcomment %}
+  {% with seletor_alvo="#"|add:target_id id_ordenacao="ordenacao-"|add:target_id %}
     {% if ordem == 'asc' %}
-      {% include "components/button.html" with variant="secondary" label="Mais antigas primeiro ↑" href=url_ordenacao hx_get=url_ordenacao hx_target=seletor_alvo hx_push_url="true" aria_label="Ordenar por data/hora, atualmente crescente" %}
+      {% include "components/button.html" with variant="secondary" button_id=id_ordenacao label="Mais recentes primeiro ↓" href=url_ordenacao hx_get=url_ordenacao hx_target=seletor_alvo hx_push_url="true" aria_label="Ordenar por mais recentes primeiro; atualmente mais antigas primeiro" %}
     {% else %}
-      {% include "components/button.html" with variant="secondary" label="Mais recentes primeiro ↓" href=url_ordenacao hx_get=url_ordenacao hx_target=seletor_alvo hx_push_url="true" aria_label="Ordenar por data/hora, atualmente decrescente" %}
+      {% include "components/button.html" with variant="secondary" button_id=id_ordenacao label="Mais antigas primeiro ↑" href=url_ordenacao hx_get=url_ordenacao hx_target=seletor_alvo hx_push_url="true" aria_label="Ordenar por mais antigas primeiro; atualmente mais recentes primeiro" %}
     {% endif %}
   {% endwith %}
 </div>

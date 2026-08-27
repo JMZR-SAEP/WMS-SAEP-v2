@@ -87,8 +87,16 @@
               <p class="shrink-0 text-xs text-text-tertiary">{{ mov.criado_em|date:"d/m/Y H:i" }}</p>
             </div>
 
+            {% comment %}
+              O material se repete a cada movimentação, então o heading visível
+              sozinho devolvia rótulos idênticos para quem navega por heading.
+              O que distingue uma linha do ledger da seguinte — tipo e instante —
+              já está no cartão (badge acima, data ao lado), e entra aqui em
+              `sr-only` para não duplicar visualmente o que o olho já leu.
+              Mesma gramática do `prefixo_sr` de components/badge.html.
+            {% endcomment %}
             <h2 class="mt-3 break-words text-sm font-semibold text-text-primary">
-              {{ mov.material }}
+              {{ mov.material }}<span class="sr-only"> — {{ mov.get_tipo_display }} em {{ mov.criado_em|date:"d/m/Y H:i" }}</span>
             </h2>
 
             <dl class="mt-3 grid grid-cols-2 gap-3 text-sm">

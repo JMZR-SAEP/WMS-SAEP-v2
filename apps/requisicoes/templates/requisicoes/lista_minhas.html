@@ -27,11 +27,12 @@
       {% include "components/table.html#card_abertura" %}
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
+            {# Beneficiário no título: "Rascunho" sozinho repetia o mesmo heading em cada rascunho da lista, e rascunho não tem número público a exibir. #}
             <h2 class="break-words text-sm font-semibold text-text-primary">
               {% if req.numero_publico %}
                 {{ req.numero_publico }}
               {% else %}
-                <span class="text-text-tertiary">Rascunho</span>
+                <span class="text-text-tertiary">Rascunho — {{ req.beneficiario.nome }}</span>
               {% endif %}
             </h2>
             <p class="mt-1 text-xs text-text-tertiary">

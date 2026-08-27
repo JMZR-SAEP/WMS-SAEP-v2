@@ -54,14 +54,16 @@
       {% endfor %}
     </div>
 
+    {% include 'components/pagination.html' with page_obj=page_obj rotulo_itens='saídas excepcionais' aria_label='Paginação das saídas excepcionais' %}
+
   {% else %}
 
     {# Empty state #}
     {% if pode_registrar %}
       {% url 'estoque:nova_saida_excepcional' as cta_nova_saida_url %}
-      {% include 'components/empty_state.html' with icone='components/icons/_check.html' titulo='Nenhuma saída excepcional registrada' descricao='Registre a primeira baixa administrativa direta de material.' cta_url=cta_nova_saida_url cta_label='Nova saída excepcional' %}
+      {% include 'components/empty_state.html' with icone='components/icons/_prancheta.html' titulo='Nenhuma saída excepcional registrada' descricao='Registre a primeira baixa administrativa direta de material.' cta_url=cta_nova_saida_url cta_label='Nova saída excepcional' %}
     {% else %}
-      {% include 'components/empty_state.html' with icone='components/icons/_check.html' titulo='Nenhuma saída excepcional registrada' descricao='Não há saídas excepcionais no sistema.' %}
+      {% include 'components/empty_state.html' with icone='components/icons/_prancheta.html' titulo='Nenhuma saída excepcional registrada' descricao='Não há saídas excepcionais no sistema.' %}
     {% endif %}
 
   {% endif %}

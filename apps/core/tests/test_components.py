@@ -198,7 +198,7 @@ def test_data_modal_trigger_ausente_por_padrao():
 def test_icon_template_incluido_antes_do_label():
     html = render_to_string(
         'components/button.html',
-        {'label': 'Confirmar', 'icon_template': 'components/icons/_check.html'},
+        {'label': 'Confirmar', 'icon_template': 'components/icons/confirmar.svg'},
     )
     icon_idx = html.index('aria-hidden="true"')
     label_idx = html.index('Confirmar')
@@ -216,7 +216,7 @@ def test_botao_somente_icone_usa_aria_label_como_nome_acessivel():
         {
             'label': '',
             'aria_label': 'Fechar',
-            'icon_template': 'components/icons/_check.html',
+            'icon_template': 'components/icons/confirmar.svg',
         },
     )
     assert 'aria-label="Fechar"' in html
@@ -1303,6 +1303,32 @@ class TestPaginationHref:
     def test_sem_filtros_nao_deixa_e_comercial_solto(self):
         assert self._hrefs(self._render(2)) == ['?page=1', '?page=3']
 
+    def test_nome_acessivel_dos_controles_e_anterior_e_proxima(self):
+        """O `aria_label` do include nomeia o <nav>, não os botões.
+
+        `{% include %}` sem `only` repassa o contexto inteiro, e `button.html`
+        emite `aria-label` quando encontra a variável. Sem zerar o parâmetro nos
+        includes de botão, os dois controles anunciavam o rótulo do <nav> —
+        "Paginação do histórico de requisições" — em vez de "Anterior" e
+        "Próxima". O texto visível continuava certo; só quem usa leitor de tela
+        perdia a única pista de qual controle avança e qual volta.
+        """
+        html = self._render(2, aria_label='Paginação do histórico de requisições')
+
+        assert html.count('aria-label="Paginação do histórico de requisições"') == 1
+        assert 'aria-label' in html.split('<div class="flex items-center gap-2">')[0]
+        controles = html.split('<div class="flex items-center gap-2">')[1]
+        assert 'aria-label' not in controles
+        assert 'Anterior' in controles
+        assert 'Próxima' in controles
+
+    def test_nome_acessivel_tambem_nao_vaza_nos_extremos(self):
+        """Nos extremos os controles são <button disabled>, mesmo caminho."""
+        for numero in (1, 3):
+            html = self._render(numero, aria_label='Paginação das movimentações')
+            controles = html.split('<div class="flex items-center gap-2">')[1]
+            assert 'aria-label' not in controles
+
     def test_extremos_desabilitam_em_vez_de_gerar_href_vazio(self):
         primeira = self._render(1)
         ultima = self._render(3)
@@ -1315,10 +1341,11 @@ class TestPaginationHref:
 def test_todo_icon_template_de_button_honra_a_classe():
     """`button.html` dimensiona o ícone por `class`, a tag {% icon %} por `size`.
 
-    O catálogo tem as duas convenções convivendo: 10 dos 11 `.svg` usam
-    `class="{{ class }}"`, e `voltar.svg` usa `width="{{ size }}"`. Passar um
-    ícone de `size` para `icon_template` renderiza `width=""` — o ícone estoura
-    o botão, e nada quebra: sem erro, sem log, sem teste vermelho.
+    Todo `.svg` do catálogo usa `class="{{ class }}"`; `voltar.svg` e
+    `devolver.svg` aceitam `width="{{ size }}"` por cima, para a tag. Um SVG que
+    dimensionasse **só** por `size` renderizaria `width=""` vindo de
+    `icon_template` — o ícone estoura o botão, e nada quebra: sem erro, sem log,
+    sem teste vermelho.
     """
     import re
 

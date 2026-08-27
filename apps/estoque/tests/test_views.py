@@ -37,6 +37,33 @@ class TestListarSaidasExcepcionaisView:
         response = client.get(URL)
         assert response.status_code == 403
 
+    def test_lista_pagina_em_vez_de_carregar_tudo(
+        self, client, chefe_almoxarifado, estoque_principal, material_disponivel
+    ):
+        """A lista só cresce: `listar_saidas_excepcionais` não tem recorte de
+        período nem filtro, e a tela renderizava o queryset inteiro em cartões.
+        """
+        from apps.estoque.services import registrar_saida_excepcional
+        from apps.estoque.views import PAGINA_SAIDAS_EXCEPCIONAIS_TAMANHO
+
+        total = PAGINA_SAIDAS_EXCEPCIONAIS_TAMANHO + 2
+        for i in range(total):
+            registrar_saida_excepcional(
+                ator_id=chefe_almoxarifado.pk,
+                estoque_id=estoque_principal.pk,
+                motivo=f'Descarte {i}',
+                observacao='',
+                itens=[{'material_id': material_disponivel.pk, 'quantidade': '1'}],
+            )
+
+        client.force_login(chefe_almoxarifado)
+        response = client.get(URL)
+        page_obj = response.context['page_obj']
+
+        assert page_obj.paginator.count == total
+        assert len(response.context['saidas']) == PAGINA_SAIDAS_EXCEPCIONAIS_TAMANHO
+        assert 'Paginação das saídas excepcionais' in response.content.decode()
+
     def test_usuario_inativo_redirecionado_para_login(self, client, usuario_inativo):
         # Django ModelBackend trata is_active=False como não-autenticado;
         # @login_required redireciona para login (USR-01).
@@ -1614,6 +1641,36 @@ class TestHistoricoImportacoesScpiView:
         assert resp.status_code == 200
         assert b'relatorio.csv' in resp.content
 
+    def test_historico_pagina_em_vez_de_carregar_tudo(
+        self, client, superuser, estoque_principal
+    ):
+        """A importação SCPI é ritual recorrente: o histórico só cresce. A
+        contagem também vem do paginator agora — o `|length` anterior
+        materializava o queryset inteiro só para exibir o número.
+        """
+        from apps.estoque.models import ImportacaoSCPI, StatusImportacaoSCPI
+        from apps.estoque.views import PAGINA_IMPORTACOES_SCPI_TAMANHO
+
+        total = PAGINA_IMPORTACOES_SCPI_TAMANHO + 2
+        for i in range(total):
+            ImportacaoSCPI.objects.create(
+                arquivo_nome=f'scpi-{i}.csv',
+                arquivo_hash=f'{i:064d}',
+                importado_por=superuser,
+                estoque=estoque_principal,
+                status=StatusImportacaoSCPI.CONCLUIDA,
+            )
+
+        client.force_login(superuser)
+        resp = client.get(self.URL)
+        page_obj = resp.context['page_obj']
+        conteudo = resp.content.decode()
+
+        assert page_obj.paginator.count == total
+        assert len(resp.context['importacoes']) == PAGINA_IMPORTACOES_SCPI_TAMANHO
+        assert 'Paginação do histórico de importações SCPI' in conteudo
+        assert f'{total} importações registradas' in conteudo
+
     def test_nao_expoe_csv_bruto(self, client, superuser, estoque_principal):
         from apps.estoque.models import ImportacaoSCPI, StatusImportacaoSCPI
 
@@ -2031,10 +2088,66 @@ class TestListaMateriaisView:
         client.force_login(chefe_almoxarifado)
         conteudo = client.get(URL_MATERIAIS).content.decode()
         # <article> literal aqui: o estilo do cartão depende do estado de
-        # divergência, então esta tela não usa o #card_abertura do chrome.
+        # divergência, então esta tela não usa o #card_abertura do chrome. O
+        # container, esse sim, é o chrome — não tinha nada de condicional e a
+        # cópia da string de grade não acompanharia uma mudança de breakpoint.
         assert '<article' in conteudo
-        assert 'grid items-start gap-3 sm:grid-cols-2' in conteudo
+        assert 'grid items-start gap-3 sm:grid-cols-2 2xl:grid-cols-3' in conteudo
         assert '<table' not in conteudo
+
+    def test_catalogo_pagina_em_vez_de_despejar_o_scpi_inteiro(
+        self, client, chefe_almoxarifado, estoque_principal
+    ):
+        """O catálogo é populado pela importação SCPI, ou seja, cresce com o
+        arquivo do sistema legado. Sem paginação, a tela renderizava o queryset
+        inteiro — ~1,2 KB de HTML e 14 nós de DOM por cartão — numa página que o
+        almoxarifado abre do celular, em pé no galpão.
+        """
+        from apps.estoque.models import Material, SaldoEstoque, UnidadeMedida
+        from apps.estoque.views import PAGINA_MATERIAIS_TAMANHO
+
+        total = PAGINA_MATERIAIS_TAMANHO + 3
+        for i in range(total):
+            material = Material.objects.create(
+                codigo=f'900.000.{i:03d}',
+                nome=f'Material {i}',
+                unidade=UnidadeMedida.UNIDADE,
+                ativo=True,
+            )
+            SaldoEstoque.objects.create(
+                estoque=estoque_principal, material=material, saldo_fisico=1
+            )
+
+        client.force_login(chefe_almoxarifado)
+        response = client.get(URL_MATERIAIS)
+        page_obj = response.context['page_obj']
+
+        assert page_obj.paginator.count == total
+        assert len(response.context['saldos']) == PAGINA_MATERIAIS_TAMANHO
+        assert 'Paginação do catálogo de materiais' in response.content.decode()
+
+    def test_paginacao_do_catalogo_preserva_a_busca(
+        self, client, chefe_almoxarifado, estoque_principal
+    ):
+        """Sem `querystring_filtros`, ir para a página 2 caía no catálogo
+        inteiro — perdendo exatamente o recorte que o usuário acabou de pedir."""
+        from apps.estoque.models import Material, SaldoEstoque, UnidadeMedida
+        from apps.estoque.views import PAGINA_MATERIAIS_TAMANHO
+
+        for i in range(PAGINA_MATERIAIS_TAMANHO + 1):
+            material = Material.objects.create(
+                codigo=f'901.000.{i:03d}',
+                nome=f'Tinta {i}',
+                unidade=UnidadeMedida.UNIDADE,
+                ativo=True,
+            )
+            SaldoEstoque.objects.create(
+                estoque=estoque_principal, material=material, saldo_fisico=1
+            )
+
+        client.force_login(chefe_almoxarifado)
+        conteudo = client.get(URL_MATERIAIS, {'busca': 'Tinta'}).content.decode()
+        assert 'href="?busca=Tinta&amp;page=2"' in conteudo
 
     def test_material_divergente_realca_linha_e_card(
         self, client, chefe_almoxarifado, material_scpi_critico, estoque_principal
@@ -2044,7 +2157,10 @@ class TestListaMateriaisView:
         conteudo = response.content.decode()
         # Sem tabela, o realce de divergência vive só no cartão.
         assert 'border-danger-border-strong bg-danger-subtle' in conteudo
-        assert 'aria-label="Material com divergência crítica"' in conteudo
+        # Sem `aria-label` no <article>: ele substituía o nome acessível do
+        # cartão pelo rótulo genérico e apagava o código do material, que é a
+        # identidade do registro. O badge diz o estado — e diz para todos.
+        assert 'aria-label="Material com divergência crítica"' not in conteudo
         assert conteudo.count('Divergente') == 1
 
 
@@ -2807,7 +2923,7 @@ class TestHistoricoMovimentacoesResponsivo:
         assert response.context['page_obj'].paginator.num_pages == 1
         html = response.content.decode()
 
-        idx_ordenacao = html.index('Mais recentes primeiro')
+        idx_ordenacao = html.index('Mais antigas primeiro')
         linha = html.rindex('<div', 0, idx_ordenacao)
         trecho = html[linha:idx_ordenacao]
         assert 'tabular-nums">1</span>' in trecho
@@ -2821,7 +2937,7 @@ class TestHistoricoMovimentacoesResponsivo:
         client.force_login(superuser)
         html = client.get(URL_MOVIMENTACOES, HTTP_HX_REQUEST='true').content.decode()
 
-        idx_ordenacao = html.index('Mais recentes primeiro')
+        idx_ordenacao = html.index('Mais antigas primeiro')
         linha = html.rindex('<div', 0, idx_ordenacao)
         trecho = html[linha:idx_ordenacao]
         assert 'tabular-nums">1</span>' in trecho

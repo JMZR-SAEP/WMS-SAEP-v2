@@ -4524,7 +4524,7 @@ def test_historico_contagem_visivel_na_pagina_completa(
     assert response.context['page_obj'].paginator.num_pages == 1
     html = response.content.decode()
 
-    idx_ordenacao = html.index('Mais recentes primeiro')
+    idx_ordenacao = html.index('Mais antigas primeiro')
     linha = html.rindex('<div', 0, idx_ordenacao)
     trecho = html[linha:idx_ordenacao]
     assert 'tabular-nums">1</span>' in trecho
@@ -4542,7 +4542,7 @@ def test_historico_contagem_visivel_em_resposta_htmx(
         reverse('requisicoes:historico'), headers={'hx-request': 'true'}
     ).content.decode()
 
-    idx_ordenacao = html.index('Mais recentes primeiro')
+    idx_ordenacao = html.index('Mais antigas primeiro')
     linha = html.rindex('<div', 0, idx_ordenacao)
     trecho = html[linha:idx_ordenacao]
     assert 'tabular-nums">1</span>' in trecho
@@ -4555,11 +4555,24 @@ def test_historico_ordenacao_disponivel_no_mobile(
 ):
     """O <th> ordenável vive na tabela, que só existe a partir de 640px; o
     controle equivalente precisa existir no chrome de cards.
+
+    O rótulo nomeia o **destino**, não o estado corrente: em `ordem=desc`
+    (default) o controle leva para crescente, então diz "Mais antigas primeiro".
+    Antes ele dizia "Mais recentes primeiro" — o que a tela já mostrava — e
+    apontava para o inverso.
     """
     _login(client, superuser)
     html = client.get(reverse('requisicoes:historico')).content.decode()
-    assert 'Mais recentes primeiro' in html
-    assert html.count('aria-label="Ordenar por data/hora, atualmente decrescente"') == 1
+    assert 'Mais antigas primeiro' in html
+    assert 'Mais recentes primeiro' not in html
+    assert (
+        html.count(
+            'aria-label="Ordenar por mais antigas primeiro; '
+            'atualmente mais recentes primeiro"'
+        )
+        == 1
+    )
+    assert html.count('id="ordenacao-resultados-historico-requisicoes"') == 1
 
 
 @pytest.mark.django_db

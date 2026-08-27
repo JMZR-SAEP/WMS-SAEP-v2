@@ -34,6 +34,17 @@ Parâmetros:
   icon_template      (opcional) caminho de partial incluído antes do label
   icon_class         (opcional, default="h-4 w-4") classe repassada ao `icon_template`
   full_width_mobile  (opcional, boolean) aplica w-full sm:w-auto
+  button_id          (opcional) `id` do elemento. Existe para o htmx: um
+                     controle que vive dentro do próprio `hx-target` é destruído
+                     e recriado pelo swap, e o htmx só devolve o foco para ele
+                     se encontrar o mesmo `id` no DOM novo. Sem `id`, o foco cai
+                     no <body> (ver components/ordenacao_data.html).
+                     O nome é prefixado de propósito: `{% templatetag openblock %}
+                     include {% templatetag closeblock %}` sem `only` repassa o
+                     contexto inteiro, e `id` é parâmetro corrente em componentes
+                     que envolvem botões (modal, filter_acoes) — um `id` simples
+                     vazaria para dentro de cada botão descendente e duplicaria
+                     o id no documento.
   aria_label         (opcional) sobrescreve o nome acessível
   aria_haspopup      (opcional) valor de `aria-haspopup` (ex: "dialog")
   aria_describedby   (opcional) id do texto que explica o botão — usado para
@@ -84,6 +95,7 @@ Uso:
 {% if href %}
 <a
   href="{{ href }}"
+  {% if button_id %}id="{{ button_id }}"{% endif %}
   class="{% classes_botao variant=variant size=size tag="a" full_width_mobile=full_width_mobile extra=class %}"
   {% if aria_label %}aria-label="{{ aria_label }}"{% endif %}
   {% if aria_haspopup %}aria-haspopup="{{ aria_haspopup }}"{% endif %}
@@ -98,6 +110,7 @@ Uso:
 {% else %}
 <button
   type="{{ type|default:'button' }}"
+  {% if button_id %}id="{{ button_id }}"{% endif %}
   {% if name %}name="{{ name }}"{% endif %}
   {% if value is not None %}value="{{ value }}"{% endif %}
   {% comment %}

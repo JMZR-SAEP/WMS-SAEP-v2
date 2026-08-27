@@ -5,6 +5,8 @@
   <meta charset="utf-8">
   {# viewport-fit=cover: sem ele env(safe-area-inset-*) sempre devolve 0 e o respiro do notch na .app-bar não acontece #}
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  {# O sistema visual só existe em claro (DESIGN.md: papel frio sobre papel branco, sem variante escura). Sem declarar isso, o widget nativo do <input type="date"> dos filtros herda o tema escuro do SO e destoa da página inteira. #}
+  <meta name="color-scheme" content="light">
   <title>{% block title %}WMS-SAEP{% endblock %}</title>
   <link rel="stylesheet" href="{% static 'core/css/app.css' %}">
   {% block extra_head %}{% endblock %}

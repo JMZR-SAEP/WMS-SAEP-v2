@@ -17,8 +17,8 @@ from apps.core.exceptions import (
     PermissaoNegada,
 )
 from apps.core.filtros import montar_chip, montar_presets_periodo
-from apps.core.http import htmx_redirect, parse_data_iso
-from apps.core.listagem import contar_filtros_ativos, paginar_com_filtros
+from apps.core.http import htmx_redirect, parse_data_iso, querystring_sem_page
+from apps.core.listagem import contar_filtros_ativos, paginar, paginar_com_filtros
 from apps.core.modal import render_modal_erro
 from apps.core.presentation import traduz_erro_dominio
 from apps.core.querystring import caminho_canonico
@@ -46,6 +46,9 @@ from apps.estoque.selectors import (
 from apps.estoque.services import registrar_saida_excepcional
 
 
+PAGINA_SAIDAS_EXCEPCIONAIS_TAMANHO = 25
+
+
 @login_required
 @require_GET
 def listar_saidas_excepcionais_view(request):
@@ -56,11 +59,13 @@ def listar_saidas_excepcionais_view(request):
         raise PermissionDenied(str(exc))
 
     saidas = listar_saidas_excepcionais(request.user.pk)
+    page_obj = paginar(request, saidas, per_page=PAGINA_SAIDAS_EXCEPCIONAIS_TAMANHO)
     return render(
         request,
         'estoque/lista_saidas_excepcionais.html',
         {
-            'saidas': saidas,
+            'page_obj': page_obj,
+            'saidas': page_obj.object_list,
             'pode_registrar': pode_registrar_saida_excepcional(papel),
         },
     )
@@ -622,6 +627,9 @@ def sucesso_importacao_scpi_view(request, pk: int):
     )
 
 
+PAGINA_IMPORTACOES_SCPI_TAMANHO = 25
+
+
 @login_required
 @require_http_methods(['GET'])
 def historico_importacoes_scpi_view(request):
@@ -636,10 +644,11 @@ def historico_importacoes_scpi_view(request):
         raise PermissionDenied(str(exc))
 
     importacoes = listar_historico_importacoes_scpi()
+    page_obj = paginar(request, importacoes, per_page=PAGINA_IMPORTACOES_SCPI_TAMANHO)
     return render(
         request,
         'estoque/historico_importacoes_scpi.html',
-        {'importacoes': importacoes},
+        {'page_obj': page_obj, 'importacoes': page_obj.object_list},
     )
 
 
@@ -678,6 +687,9 @@ def baixar_arquivo_importacao_scpi_view(request, pk: int):
     return FileResponse(arquivo, as_attachment=True, filename=nome or 'importacao.csv')
 
 
+PAGINA_MATERIAIS_TAMANHO = 25
+
+
 @login_required
 @require_GET
 def lista_materiais_view(request):
@@ -693,8 +705,14 @@ def lista_materiais_view(request):
 
     busca = request.GET.get('busca', '').strip()
     saldos = listar_materiais_com_saldo(busca=busca)
+    page_obj = paginar(request, saldos, per_page=PAGINA_MATERIAIS_TAMANHO)
     return render(
         request,
         'estoque/lista_materiais.html',
-        {'saldos': saldos, 'busca': busca},
+        {
+            'page_obj': page_obj,
+            'saldos': page_obj.object_list,
+            'busca': busca,
+            'querystring_filtros': querystring_sem_page(request.GET),
+        },
     )

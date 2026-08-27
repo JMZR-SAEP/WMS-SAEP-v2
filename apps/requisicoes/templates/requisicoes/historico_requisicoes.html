@@ -92,8 +92,18 @@
         {% include "components/table.html#card_abertura" %}
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
+              {% comment %}
+                Rascunho não tem número público — por decisão de domínio: o
+                descarte de um rascunho não deixa rastro, então não há número a
+                preservar. Só que "Rascunho" sozinho repetia o mesmo heading em
+                todos os rascunhos da página, e navegar por heading com leitor
+                de tela devolvia uma lista de rótulos indistinguíveis. O
+                beneficiário é o que o operador de fato usa para distinguir um
+                rascunho do outro (a data já está na linha logo abaixo).
+                Resolvido na tela, não no chrome (guardrail da #83).
+              {% endcomment %}
               <h2 class="break-words text-sm font-semibold text-text-primary">
-                {% if req.numero_publico %}{{ req.numero_publico }}{% else %}<span class="text-text-tertiary">Rascunho</span>{% endif %}
+                {% if req.numero_publico %}{{ req.numero_publico }}{% else %}<span class="text-text-tertiary">Rascunho — {{ req.beneficiario.nome }}</span>{% endif %}
               </h2>
               <p class="mt-1 text-xs text-text-tertiary">{{ req.criado_em|date:"d/m/Y H:i" }}</p>
             </div>
