@@ -37,6 +37,27 @@ class TestListarSaidasExcepcionais:
         assert qs[0] == s2
         assert qs[1] == s1
 
+    def test_desempata_por_id_no_mesmo_instante(
+        self, db, chefe_almoxarifado, estoque_principal
+    ):
+        """Registros do mesmo `criado_em` têm ordem estável (`-id`), senão a
+        fronteira de página da listagem paginada varia entre requisições (PR #40).
+        """
+        from django.utils import timezone
+
+        instante = timezone.now()
+        s1 = SaidaExcepcional.objects.create(
+            motivo='A', registrado_por=chefe_almoxarifado, estoque=estoque_principal
+        )
+        s2 = SaidaExcepcional.objects.create(
+            motivo='B', registrado_por=chefe_almoxarifado, estoque=estoque_principal
+        )
+        SaidaExcepcional.objects.filter(pk__in=[s1.pk, s2.pk]).update(
+            criado_em=instante
+        )
+        qs = list(listar_saidas_excepcionais(chefe_almoxarifado.pk))
+        assert [s.pk for s in qs] == [s2.pk, s1.pk]
+
     def test_anota_quantidade_itens(
         self, db, chefe_almoxarifado, estoque_principal, material_disponivel
     ):
