@@ -194,13 +194,10 @@ reviews:
 
     - path: "docs/**/*.md"
       instructions: >
-        Docs usam PT-BR e são fonte de contrato para agentes. Verifique conflito
+        Docs são fonte de contrato para agentes. Verifique conflito
         com CONTEXT.md, ADRs aceitas, docs/CONVENTIONS.md, matriz de permissões,
         matriz de invariantes, transições de requisição e design-system. Se docs
         e código divergem, sinalize explicitamente em vez de normalizar silêncio.
-        Anglicismos técnicos pontuais (templates, server-rendered, etc) são
-        aceitáveis quando não há equivalente idiomático PT-BR consolidado na
-        documentação do projeto. Não sinalize como "erro de vocábulo" de PT-BR.
 
     - path: ".design/**/*.md"
       instructions: >

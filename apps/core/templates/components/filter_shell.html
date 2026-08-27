@@ -111,6 +111,14 @@ Uso canônico:
     window.addEventListener('resize', manterAbertoNoDesktop);
   "
 >
+  {% comment %}
+    Borda em `border-border` (estrutural, slate-200, 1.23:1 no branco) e não
+    `border-control`: decisão consciente. O `<summary>` tem `bg-surface` e
+    `shadow-sm` próprios, então a linha é reforço, não a única pista do
+    controle — o piso de 3:1 da WCAG 1.4.11 vale para a borda que sozinha
+    identifica um controle (ver a taxonomia de tokens de borda em
+    `docs/design-system.md`) (#149).
+  {% endcomment %}
   <summary
     class="mb-4 flex min-h-11 cursor-pointer list-none items-center justify-between rounded-xl border border-border bg-surface px-4 py-2 text-sm font-medium text-text-secondary shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
   >

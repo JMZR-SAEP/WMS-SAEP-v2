@@ -79,7 +79,11 @@
     class="campo"
     role="combobox"
     aria-autocomplete="list"
-    aria-haspopup="listbox"
+    {% comment %}
+      O atributo redundante de haspopup saiu daqui: `listbox` já é o valor
+      padrão de `role="combobox"` em ARIA 1.2, então emiti-lo era só ruído no
+      HTML (#149).
+    {% endcomment %}
     {% if com_erro %}aria-invalid="true"{% if erro_id %} aria-describedby="{{ erro_id }}"{% endif %}{% endif %}
     :aria-controls="idBase + '-listbox'"
     :aria-expanded="aberto"
@@ -105,6 +109,15 @@
       <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
     </svg>
   </span>
+  {% comment %}
+    Borda em `border-border` (estrutural, slate-200, 1.23:1 no branco) e não
+    `border-control`: decisão consciente, não pendência. Aqui a linha não é a
+    única pista do componente — o popup tem `bg-surface` próprio e `shadow-lg`,
+    que já o descolam da página. A taxonomia de `docs/design-system.md` reserva
+    o piso de 3:1 da WCAG 1.4.11 para a borda que sozinha identifica um controle
+    (o caso do `.campo`, que por isso usa `border-control` a 4.77:1); esta é
+    reforço de uma delimitação que fundo e sombra já fazem (#149).
+  {% endcomment %}
   <ul
     x-show="aberto"
     x-cloak
