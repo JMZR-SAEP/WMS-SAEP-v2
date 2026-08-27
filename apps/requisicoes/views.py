@@ -1394,7 +1394,6 @@ def historico_requisicoes_view(request):
             'setor': setor,
         },
         'ordem': resultado.ordem,
-        'aria_sort': resultado.aria_sort,
         'url_ordenacao': resultado.url_ordenacao,
         'tem_filtro_ativo': tem_filtro_ativo,
         'qtd_filtros_ativos': qtd_filtros_ativos,

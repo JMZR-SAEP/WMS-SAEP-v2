@@ -48,8 +48,8 @@ estoque (curva ABC, ponto de pedido, alertas).
    visível (regra de domínio, no selector); os filtros só estreitam dentro do permitido.
    Nunca o contrário. Setor jamais vê dado de outro setor por manipular a URL.
 3. **Recorte compartilhável sobre estado efêmero** — todo filtro é querystring. Auditor
-   manda um link, marca um favorito, recarrega sem perder contexto. HTMX troca só a
-   tabela, mas a URL acompanha.
+   manda um link, marca um favorito, recarrega sem perder contexto. Ao filtrar, HTMX
+   troca só o bloco de resultados, mas a URL acompanha; a paginação usa `href` puro.
 
 ## Aesthetic Direction
 
@@ -57,8 +57,8 @@ estoque (curva ABC, ponto de pedido, alertas).
   informação sem ser ruidoso. Segue `docs/design-system.md` à risca.
 - **Tone**: Clínico e confiável. É uma tela de auditoria; transmite exatidão, não
   entusiasmo.
-- **Reference points**: `lista_saidas_excepcionais.html` (tela-irmã: filtros + tabela +
-  cards mobile), changelist administrativa densa, extrato bancário.
+- **Reference points**: `lista_saidas_excepcionais.html` (tela-irmã: filtros + lista de
+  cartões), changelist administrativa densa, extrato bancário.
 - **Anti-references**: dashboard colorido com cards de métrica; nada de gráficos,
   gradientes ou "hero". Sem alarmismo cromático — cor comunica tipo, não emoção.
 
@@ -73,12 +73,14 @@ Componentes e convenções já no código que esta tela respeita e estende:
   não-negativa), info=slate. Shades 50–100 fundo de badge; 700–900 texto colorido.
 - **Espaçamento / layout**: container `max-w-screen-xl mx-auto`; cards `rounded-xl border
   border-slate-200 bg-white shadow-sm`; alvos de toque `min-h-11`.
-- **Acessibilidade já praticada**: `focus-visible:ring-2 ring-blue-500`, `<caption
-  class="sr-only">` em tabelas, `aria-label` em ações, `scope="col"` em headers.
-- **Split responsivo**: mobile = `<article>` cards empilhados (`sm:hidden`); desktop =
-  `<table>` (`hidden sm:block`). Padrão herdado de `lista_saidas_excepcionais.html`.
+- **Acessibilidade já praticada**: `focus-visible:ring-2 ring-blue-500`; lista de
+  cartões (`components/table.html`) com `aria-label` na região que a descreve e na
+  ordenação corrente, `aria-label` em ações, cada cartão como `<article>` rotulado.
+- **Split responsivo**: uma única lista de cartões (`components/table.html`) nas duas
+  larguras — cada movimentação é um `<article>`; o layout do cartão adensa em `sm:` sem
+  virar `<table>`. `docs/design-system.md:357` proíbe renderização em tabela HTML.
 - **Stack de interação**: Django templates + Tailwind + HTMX + Alpine. Paginação e
-  filtros server-side; HTMX faz swap parcial da tabela.
+  filtros server-side; HTMX faz swap parcial do bloco de resultados (`#resultados`).
 - **Camada de dados**: selectors retornam `QuerySet`/dados; views finas; RBAC no
   selector espelhando `requisicoes/selectors.py::requisicoes_visiveis_para`
   (helpers `_setores_chefiados_nao_almox`, `_eh_almoxarifado`).
@@ -88,14 +90,13 @@ Componentes e convenções já no código que esta tela respeita e estende:
 | Component | Status | Notes |
 | --------- | ------ | ----- |
 | App-bar / título da página | Exists | Reusa `block topbar_leading` + `app-bar__title`. |
-| Tabela densa (desktop) | Modify | Mesmo esqueleto de `lista_saidas_excepcionais`; novas colunas (tipo, deltas, origem, ator). |
-| Cards empilhados (mobile) | Modify | Mesmo padrão `<article>`; adaptado às colunas de movimentação. |
+| Lista de cartões (`components/table.html`) | Modify | Chrome de listagem em cartões; cada movimentação é um `<article>` com tipo, deltas, origem e ator. Adensa em `sm:` sem virar `<table>` (`docs/design-system.md:357`). |
 | Badge de tipo de movimentação | New | Pill semântica por `TipoMovimentacaoEstoque` (7 tipos). Cor comunica identidade do tipo, não alarme. Reusa formato pill existente. |
 | Barra de filtros | New | Form GET: busca de material, multi-seleção de tipo, período (data ini/fim), setor (só almox). Submete via HTMX preservando querystring. |
 | Chip "só saídas" | New | Atalho que seta o filtro de tipo para `consumo` + `saida_excepcional`. |
 | Célula de delta assinado | New | Δfísico / Δreservado com `tabular-nums`; sinal +/− visível; zero atenuado (`text-slate-400`). |
 | Célula de origem | New | Renderiza **texto** com o nº público da requisição **ou** da saída excepcional (exatamente uma origem por linha). **Sem link nesta entrega** — deep-links de origem ficam em "Out of Scope". |
-| Paginação | New/Modify | Controle server-side; preserva querystring de filtros. Verificar se há partial de paginação reutilizável antes de criar. |
+| Paginação (`components/pagination.html`) | Exists | Controle server-side reutilizável; links de página por `href` puro (`?<filtros>&page=N`), sem HTMX. Preserva a querystring de filtros. **Por quê `href` puro**: a navegação nativa do browser é a única fonte capaz de deixar campos do formulário, bloco de resultados e barra de URL coerentes ao mesmo tempo — um `hx-get` parcial troca resultados e `hx-push-url` mexe na URL, mas os campos do form de filtro ficam com o estado da página anterior, e o histórico do browser passa a guardar respostas parciais. `href` puro recarrega tudo de uma vez, então voltar/avançar, recarregar e compartilhar link sempre batem. |
 | Empty state | Exists | Padrão `border-dashed` + ícone + mensagem; texto adaptado ("Nenhuma movimentação encontrada para este filtro"). |
 | Item de menu "Movimentações" | New | Entrada na navegação da área de estoque (`_topbar_nav.html`). Visível conforme RBAC. |
 
@@ -105,13 +106,16 @@ Componentes e convenções já no código que esta tela respeita e estende:
   `criado_em` decrescente (mais recente no topo), filtro de tipo = todos. Sem filtro de
   material/período aplicado.
 - **Filtrar**: usuário ajusta material/tipo/período/setor → submit dispara HTMX GET →
-  só o bloco da tabela+paginação é trocado; a URL é atualizada (`hx-push-url`) para o
-  recorte ficar compartilhável. Página volta para 1.
+  só o bloco de resultados + paginação (`#resultados`) é trocado; a URL é atualizada
+  (`hx-push-url`) para o recorte ficar compartilhável. Página volta para 1.
 - **Chip "só saídas"**: um clique seta tipo = consumo+saída_excepcional e reaplica o
   filtro. Estado ativo do chip visível.
-- **Ordenar**: clicar no header de data inverte cronologia (asc ↔ desc) — auditor lê
-  reconciliação de baixo para cima quando quiser. Indicador de direção no header.
-- **Paginar**: navegação de páginas via HTMX, mantendo todos os filtros na URL.
+- **Ordenar**: o controle próprio de ordenação (`components/ordenacao_data.html`, botão
+  fora da lista, não um header de tabela) inverte a cronologia (asc ↔ desc) — auditor lê
+  reconciliação de baixo para cima quando quiser. O rótulo/estado do botão anuncia a
+  direção corrente.
+- **Paginar**: links de página por `href` puro (`components/pagination.html`), sem HTMX,
+  mantendo todos os filtros na querystring.
 - **Sem resultados**: empty state contextual ("Nenhuma movimentação para este filtro" —
   diferente de "ledger vazio").
 - **RBAC invisível**: chefe de setor não vê o filtro de setor (já está escopado) nem
@@ -120,10 +124,10 @@ Componentes e convenções já no código que esta tela respeita e estende:
 
 ## Responsive Behavior
 
-- **≥ sm (desktop/tablet)**: tabela densa com todas as colunas — data/hora · tipo ·
-  material · Δfísico · Δreservado · origem · ator. `overflow-x-auto` protege em larguras
-  intermediárias.
-- **< sm (mobile)**: cada movimentação vira card. Hierarquia no card: tipo (badge) +
+- **≥ sm (desktop/tablet)**: lista de cartões adensada — cada `<article>` mostra numa
+  linha data/hora · tipo · material · Δfísico · Δreservado · origem · ator, em grade
+  fluida. Sem `<table>` e sem `overflow-x-auto` (`docs/design-system.md:357`).
+- **< sm (mobile)**: o mesmo cartão reflui empilhado. Hierarquia: tipo (badge) +
   data/hora no topo; material em destaque; deltas em `<dl>`; origem e ator como
   metadados secundários. Sem rolagem horizontal.
 - **Barra de filtros**: em mobile colapsa em layout empilhado / disclosure; campos full-
@@ -137,11 +141,18 @@ Componentes e convenções já no código que esta tela respeita e estende:
   sinal do delta é explícito (+/−), não só cor.
 - Navegação completa por teclado: filtros, chip, ordenação e paginação focáveis e
   operáveis; `focus-visible:ring-2 ring-blue-500`.
-- Tabela com `<caption class="sr-only">` descrevendo conteúdo e ordenação corrente;
-  `scope="col"` nos headers; header de ordenação com `aria-sort`.
-- Região da tabela atualizada por HTMX anuncia mudança para leitores de tela: contêiner de
-  resultados com `aria-live="polite"` **e** `aria-atomic="true"` — contrato completo de
-  `docs/design-system.md` (linha 267) para updates HTMX críticos.
+- A região da lista de cartões tem `aria-label` descrevendo conteúdo e ordenação
+  corrente; cada cartão é um `<article>` rotulado. **Sem `aria-sort`**: ele só é válido
+  em `columnheader`/`rowheader` e numa lista de cartões não há onde pousar — a direção da
+  ordenação é anunciada pelo rótulo/estado do próprio botão de `components/ordenacao_data.html`.
+- Filtro por HTMX anuncia a mudança pelo **tamanho** do resultado, não pelo resultado: uma
+  `<p role="status">` sr-only **fora** do wrapper de swap, atualizada por `hx-swap-oob="innerHTML:#..."`
+  com `page_obj.paginator.count` ("N movimentações encontradas" / "Nenhuma movimentação
+  encontrada"). Os cartões e a paginação são trocados fora dessa live region — o `#resultados`
+  **não** leva `aria-live`/`aria-atomic` (marcar o wrapper inteiro releria a lista do começo a
+  cada filtro e não anuncia de forma confiável). Contrato em `docs/design-system.md`
+  §"Anúncio de listagem filtrada por HTMX" e checklist "Listagem filtrada por HTMX anuncia a
+  CONTAGEM numa live region fora da lista".
 - Alvos de toque `min-h-11` em todos os controles.
 
 ## Out of Scope

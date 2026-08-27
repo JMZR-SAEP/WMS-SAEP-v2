@@ -5,8 +5,7 @@ services nem selectors de domínio. A view continua chamando `exigir_pode_*`
 (policies.py) e os selectors de filtro (`filtrar_*`) exatamente como hoje —
 este módulo não decide autorização nem filtra domínio, só recebe o queryset
 já autorizado/filtrado pela view e cuida de ordenar, paginar e montar os
-metadados de apresentação (URL de ordenação, aria-sort, querystring,
-flag HTMX).
+metadados de apresentação (URL de ordenação, querystring, flag HTMX).
 """
 
 from __future__ import annotations
@@ -25,7 +24,6 @@ class ResultadoListagem:
 
     page_obj: Page
     ordem: str
-    aria_sort: str
     url_ordenacao: str
     querystring_filtros: str
     is_htmx: bool
@@ -56,9 +54,9 @@ def paginar_com_filtros(
     request: HtmxHttpRequest, queryset: QuerySet, *, per_page: int
 ) -> ResultadoListagem:
     """Ordena por `criado_em` (via `?ordem=`), pagina e monta os metadados
-    comuns de listagem (URL de ordenação, aria-sort, querystring de filtros,
-    flag HTMX). Fora daqui: permissão, parsing de filtros de domínio, chamada
-    de selectors — responsabilidade da view (ADR-0011).
+    comuns de listagem (URL de ordenação, querystring de filtros, flag HTMX).
+    Fora daqui: permissão, parsing de filtros de domínio, chamada de
+    selectors — responsabilidade da view (ADR-0011).
     """
     ordem = 'asc' if request.GET.get('ordem') == 'asc' else 'desc'
     campos_ordenacao = ('criado_em', 'pk') if ordem == 'asc' else ('-criado_em', '-pk')
@@ -76,7 +74,6 @@ def paginar_com_filtros(
     return ResultadoListagem(
         page_obj=page_obj,
         ordem=ordem,
-        aria_sort='ascending' if ordem == 'asc' else 'descending',
         url_ordenacao=url_ordenacao,
         querystring_filtros=querystring_sem_page(request.GET),
         is_htmx=bool(request.htmx),

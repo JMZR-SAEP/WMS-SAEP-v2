@@ -78,22 +78,6 @@ class TestPaginarComFiltrosMetadados:
         assert 'material=parafuso' in resultado.url_ordenacao
         assert 'ordem=asc' in resultado.url_ordenacao
 
-    def test_aria_sort_corresponde_a_ordem(self, setor_comum, solicitante):
-        VinculoAuxiliar.objects.create(usuario=solicitante, setor=setor_comum)
-
-        request_desc = _request(RequestFactory())
-        request_asc = _request(RequestFactory(), params='ordem=asc')
-
-        resultado_desc = paginar_com_filtros(
-            request_desc, VinculoAuxiliar.objects.all(), per_page=25
-        )
-        resultado_asc = paginar_com_filtros(
-            request_asc, VinculoAuxiliar.objects.all(), per_page=25
-        )
-
-        assert resultado_desc.aria_sort == 'descending'
-        assert resultado_asc.aria_sort == 'ascending'
-
     def test_is_htmx_reflete_request_htmx(self, setor_comum, solicitante):
         VinculoAuxiliar.objects.create(usuario=solicitante, setor=setor_comum)
 
