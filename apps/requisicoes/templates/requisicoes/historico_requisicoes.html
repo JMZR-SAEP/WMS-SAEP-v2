@@ -34,7 +34,15 @@
     {% endif %}
   </div>
 
-  {% include "components/filter_checkbox_group.html" with legend="Estado" name="estados" opcoes=estados_opcoes selecionados=filtros.estados %}
+  {% comment %}
+    Agrupa os 8 estados em "Em andamento" e "Encerradas" espelhando a coluna
+    `Final?` de docs/estado-transicoes-requisicao.md §3 (issue #154). As 8
+    caixas e os 8 valores da querystring seguem intactos — só a apresentação
+    ganha dois fieldset/legend. `agrupar_opcoes` erra alto se a partição sair
+    de sincronia com `EstadoRequisicao`.
+  {% endcomment %}
+  {% agrupar_opcoes estados_opcoes "Em andamento" "rascunho aguardando_autorizacao autorizada pronta_para_retirada" "Encerradas" "recusada atendida cancelada estornada" as estados_grupos %}
+  {% include "components/filter_checkbox_group.html" with legend="Estado" name="estados" grupos=estados_grupos selecionados=filtros.estados %}
 
   {# Preserva ordenação corrente ao submeter os filtros #}
   {% if ordem == 'asc' %}<input type="hidden" name="ordem" value="asc">{% endif %}

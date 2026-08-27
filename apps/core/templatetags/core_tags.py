@@ -1,4 +1,4 @@
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from datetime import timedelta
 from typing import Any
 
@@ -811,3 +811,52 @@ def secoes_navegacao(context: Any) -> list[dict[str, Any]]:
                 }
             )
     return secoes
+
+
+@register.simple_tag
+def agrupar_opcoes(
+    opcoes: Iterable[tuple[Any, Any]],
+    *especificacoes: str,
+) -> list[tuple[str, list[tuple[Any, Any]]]]:
+    """Reparte `opcoes` (pares valor/rótulo) em grupos rotulados, preservando
+    os valores originais.
+
+    Usado pelo filtro de estado do histórico de requisições (issue #154), que
+    agrupa os 8 estados em "Em andamento" e "Encerradas" sem colapsar as caixas
+    nem mudar a querystring — cada grupo vira um ``<fieldset>``/``<legend>`` em
+    ``components/filter_checkbox_group.html``.
+
+    ``especificacoes`` alterna legenda e os valores do grupo separados por
+    espaço::
+
+        {% agrupar_opcoes estados_opcoes
+           "Em andamento" "rascunho aguardando_autorizacao autorizada pronta_para_retirada"
+           "Encerradas" "recusada atendida cancelada estornada" as estados_grupos %}
+
+    Erra alto (`ImproperlyConfigured`) se a partição não cobrir exatamente os
+    valores de `opcoes` uma única vez — assim uma mudança em `EstadoRequisicao`
+    não passa silenciosa pelo template.
+    """
+    if len(especificacoes) % 2 != 0:
+        raise ImproperlyConfigured('agrupar_opcoes espera pares (legenda, valores).')
+    rotulo_por_valor = {valor: rotulo for valor, rotulo in opcoes}
+    grupos: list[tuple[str, list[tuple[Any, Any]]]] = []
+    vistos: set[Any] = set()
+    for legenda, valores_brutos in zip(especificacoes[::2], especificacoes[1::2]):
+        pares: list[tuple[Any, Any]] = []
+        for valor in valores_brutos.split():
+            if valor not in rotulo_por_valor:
+                raise ImproperlyConfigured(
+                    f'agrupar_opcoes: valor desconhecido {valor!r}.'
+                )
+            if valor in vistos:
+                raise ImproperlyConfigured(f'agrupar_opcoes: valor repetido {valor!r}.')
+            vistos.add(valor)
+            pares.append((valor, rotulo_por_valor[valor]))
+        grupos.append((legenda, pares))
+    faltando = set(rotulo_por_valor) - vistos
+    if faltando:
+        raise ImproperlyConfigured(
+            f'agrupar_opcoes: valores não agrupados: {sorted(faltando)}.'
+        )
+    return grupos
