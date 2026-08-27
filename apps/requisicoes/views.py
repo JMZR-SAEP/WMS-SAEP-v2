@@ -34,6 +34,7 @@ from apps.core.exceptions import (
     EstadoInvalido,
     PermissaoNegada,
 )
+from apps.core.filtros import montar_chip, montar_presets_periodo
 from apps.core.http import htmx_redirect, parse_data_iso
 from apps.core.listagem import contar_filtros_ativos, paginar, paginar_com_filtros
 from apps.core.modal import render_modal_erro
@@ -1403,11 +1404,57 @@ def historico_requisicoes_view(request):
     )
     tem_filtro_ativo = qtd_filtros_ativos > 0
 
+    # Atalhos de recorte (issue #153) — chips por papel e presets de período
+    # resolvem para a URL canônica (#152) via apps.core.filtros; ninguém
+    # remonta querystring à mão. Teto de 3 chips por tela; papel sem direito ao
+    # recorte não vê o chip.
+    chips_filtro = []
+    eh_chefe_de_setor = (
+        papel.setor_chefiado_ativo_id is not None and not papel.eh_chefe_de_almoxarifado
+    )
+    if eh_chefe_de_setor:
+        chips_filtro.append(
+            montar_chip(
+                request,
+                id='aguardando-autorizacao',
+                rotulo='Aguardando minha autorização',
+                glifo='⏳',
+                chave='estados',
+                valores=[EstadoRequisicao.AGUARDANDO_AUTORIZACAO.value],
+                ordem_chaves=ORDEM_QUERYSTRING_HISTORICO_REQUISICOES,
+                chaves_multivalor=('estados',),
+            )
+        )
+    if papel.eh_almoxarifado or papel.eh_superusuario:
+        chips_filtro.append(
+            montar_chip(
+                request,
+                id='excecoes',
+                rotulo='Exceções',
+                glifo='⚠',
+                chave='estados',
+                valores=[
+                    EstadoRequisicao.ESTORNADA.value,
+                    EstadoRequisicao.RECUSADA.value,
+                ],
+                ordem_chaves=ORDEM_QUERYSTRING_HISTORICO_REQUISICOES,
+                chaves_multivalor=('estados',),
+            )
+        )
+    chips_filtro = chips_filtro[:3]
+    presets_periodo = montar_presets_periodo(
+        request,
+        ordem_chaves=ORDEM_QUERYSTRING_HISTORICO_REQUISICOES,
+        chaves_multivalor=('estados',),
+    )
+
     contexto = {
         'page_obj': resultado.page_obj,
         'is_htmx': resultado.is_htmx,
         'mostrar_filtro_setor': mostrar_filtro_setor,
         'setores_disponiveis': setores_disponiveis,
+        'chips_filtro': chips_filtro,
+        'presets_periodo': presets_periodo,
         'estados_opcoes': EstadoRequisicao.choices,
         'filtros': {
             'texto': texto,

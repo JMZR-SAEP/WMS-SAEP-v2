@@ -15,7 +15,12 @@
 
   {% url 'estoque:historico_movimentacoes' as url_movimentacoes %}
 
-  {% include 'estoque/partials/_chip_so_saidas.html' %}
+  {% comment %}
+    Chips de recorte por papel (issue #153): acima dos resultados, recortam o
+    conjunto inteiro. Vivem fora de #resultados-movimentacoes → reemitidos via
+    hx-swap-oob no partial `resultados` em respostas HTMX (oob_chips).
+  {% endcomment %}
+  {% include "components/filter_chips.html" with chips=chips_filtro target_id="resultados-movimentacoes" %}
 
   {% include "components/filter_shell.html#abertura" with action_url=url_movimentacoes target_id="resultados-movimentacoes" tem_filtro_ativo=tem_filtro_ativo qtd_filtros_ativos=qtd_filtros_ativos %}
   {% comment %}
@@ -37,6 +42,13 @@
         {% include "components/filter_select.html" with id="filtro-setor" name="setor" label="Setor" opcoes=setores_disponiveis selecionado=filtros.setor opcao_todos_rotulo="Todos os setores" %}
       {% endif %}
     </div>
+
+    {% comment %}
+      Presets de período colados ao par De/Até (issue #153): logo abaixo dos
+      campos e acima do fieldset de tipo. Vivem dentro de `campos`, já
+      reemitido via oob_campos.
+    {% endcomment %}
+    {% include "components/filter_presets_periodo.html" with presets=presets_periodo target_id="resultados-movimentacoes" %}
 
     {% include "components/filter_checkbox_group.html" with legend="Tipo" name="tipos" opcoes=tipos_opcoes selecionados=filtros.tipos %}
 
@@ -128,12 +140,13 @@
     {% endif %}
 
     {% comment %}
-    Em respostas HTMX, reemite o chip "só saídas" como swap out-of-band: ele vive
-    fora de #resultados-movimentacoes, então precisa ser atualizado à parte para
-    refletir estado ativo/alternância da URL. No render da página completa (is_htmx
-    falso) o chip é renderizado pelo próprio template-base — evita id duplicado.
+    Em respostas HTMX, reemite os chips de recorte como swap out-of-band: eles
+    vivem fora de #resultados-movimentacoes, então precisam ser atualizados à
+    parte para refletir estado ativo/alternância da URL. No render da página
+    completa (is_htmx falso) os chips são renderizados pelo topo do template —
+    evita id duplicado.
     {% endcomment %}
-    {% if is_htmx %}{% include 'estoque/partials/_chip_so_saidas.html' with oob_chip=True %}{% endif %}
+    {% if is_htmx %}{% include "components/filter_chips.html" with chips=chips_filtro target_id="resultados-movimentacoes" oob_chips=True %}{% endif %}
 
     {% comment %}
     Reemite os campos do formulário (inputs + checkboxes de tipo) como swap

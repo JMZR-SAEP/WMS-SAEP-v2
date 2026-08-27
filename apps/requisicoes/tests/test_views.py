@@ -3673,6 +3673,91 @@ class TestHistoricoRequisicoesView:
         assert b'2 itens' in response.content
 
 
+class TestHistoricoRequisicoesChipsPorPapel:
+    """Chips de recorte por papel (issue #153)."""
+
+    def test_chefe_de_setor_ve_aguardando_minha_autorizacao(self, client, chefe_obras):
+        _login(client, chefe_obras)
+        chips = client.get(URL_HISTORICO_REQUISICOES).context['chips_filtro']
+        rotulos = [c.rotulo for c in chips]
+        assert 'Aguardando minha autorização' in rotulos
+        assert 'Exceções' not in rotulos
+        chip = next(c for c in chips if c.rotulo == 'Aguardando minha autorização')
+        assert 'estados=aguardando_autorizacao' in chip.url
+
+    def test_almoxarifado_ve_excecoes(self, client, chefe_almoxarifado):
+        _login(client, chefe_almoxarifado)
+        chips = client.get(URL_HISTORICO_REQUISICOES).context['chips_filtro']
+        rotulos = [c.rotulo for c in chips]
+        assert 'Exceções' in rotulos
+        assert 'Aguardando minha autorização' not in rotulos
+        chip = next(c for c in chips if c.rotulo == 'Exceções')
+        assert 'estados=estornada' in chip.url
+        assert 'estados=recusada' in chip.url
+
+    def test_superuser_ve_excecoes(self, client, superuser):
+        _login(client, superuser)
+        chips = client.get(URL_HISTORICO_REQUISICOES).context['chips_filtro']
+        assert [c.rotulo for c in chips] == ['Exceções']
+
+    def test_chip_ativo_desliga_preservando_selecao_alheia(
+        self, client, chefe_almoxarifado
+    ):
+        _login(client, chefe_almoxarifado)
+        response = client.get(
+            URL_HISTORICO_REQUISICOES,
+            {'estados': ['estornada', 'recusada', 'atendida']},
+            follow=True,
+        )
+        chip = next(
+            c for c in response.context['chips_filtro'] if c.rotulo == 'Exceções'
+        )
+        assert chip.ativo is True
+        assert 'estados=atendida' in chip.url
+        assert 'estados=estornada' not in chip.url
+        assert 'estados=recusada' not in chip.url
+
+    def test_chip_reemitido_via_oob_no_swap_htmx(self, client, superuser):
+        _login(client, superuser)
+        parcial = client.get(URL_HISTORICO_REQUISICOES, HTTP_HX_REQUEST='true').content
+        assert b'id="filter-chips"' in parcial
+        assert b'hx-swap-oob="true"' in parcial
+
+
+class TestHistoricoRequisicoesPresetsPeriodo:
+    """Presets de período — datas absolutas, sem estado novo (issue #153)."""
+
+    def test_preset_preenche_data_ini_e_data_fim_com_datas_absolutas(
+        self, client, superuser
+    ):
+        _login(client, superuser)
+        presets = client.get(URL_HISTORICO_REQUISICOES).context['presets_periodo']
+        rotulos = [p.rotulo for p in presets]
+        assert rotulos == ['Últimos 7 dias', 'Últimos 30 dias', 'Este mês']
+        hoje = timezone.localdate().isoformat()
+        for preset in presets:
+            assert 'data_ini=' in preset.url and f'data_fim={hoje}' in preset.url
+            assert 'periodo=' not in preset.url
+
+    def test_preset_nao_introduz_estado_novo_na_querystring(self, client, superuser):
+        _login(client, superuser)
+        preset = client.get(URL_HISTORICO_REQUISICOES).context['presets_periodo'][1]
+        query = preset.url.split('?', 1)[1]
+        chaves = {p.split('=')[0] for p in query.split('&')}
+        assert chaves <= {'data_ini', 'data_fim'}
+
+    def test_preset_ativo_quando_url_ja_mostra_a_janela(self, client, superuser):
+        _login(client, superuser)
+        base = client.get(URL_HISTORICO_REQUISICOES).context['presets_periodo'][1]
+        query = base.url.split('?', 1)[1]
+        params = dict(p.split('=') for p in query.split('&'))
+        presets = client.get(URL_HISTORICO_REQUISICOES, params).context[
+            'presets_periodo'
+        ]
+        assert presets[1].ativo is True
+        assert presets[0].ativo is False
+
+
 class TestHistoricoRequisicoesFiltros:
     def test_filtro_texto_reduz_resultado(
         self, client, superuser, req_historico_obras, req_historico_ti
