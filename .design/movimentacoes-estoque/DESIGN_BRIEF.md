@@ -145,9 +145,14 @@ Componentes e convenções já no código que esta tela respeita e estende:
   corrente; cada cartão é um `<article>` rotulado. **Sem `aria-sort`**: ele só é válido
   em `columnheader`/`rowheader` e numa lista de cartões não há onde pousar — a direção da
   ordenação é anunciada pelo rótulo/estado do próprio botão de `components/ordenacao_data.html`.
-- Bloco de resultados atualizado por HTMX anuncia mudança para leitores de tela: contêiner
-  de resultados com `aria-live="polite"` **e** `aria-atomic="true"` — contrato completo de
-  `docs/design-system.md` (linha 267) para updates HTMX críticos.
+- Filtro por HTMX anuncia a mudança pelo **tamanho** do resultado, não pelo resultado: uma
+  `<p role="status">` sr-only **fora** do wrapper de swap, atualizada por `hx-swap-oob="innerHTML:#..."`
+  com `page_obj.paginator.count` ("N movimentações encontradas" / "Nenhuma movimentação
+  encontrada"). Os cartões e a paginação são trocados fora dessa live region — o `#resultados`
+  **não** leva `aria-live`/`aria-atomic` (marcar o wrapper inteiro releria a lista do começo a
+  cada filtro e não anuncia de forma confiável). Contrato em `docs/design-system.md`
+  §"Anúncio de listagem filtrada por HTMX" e checklist "Listagem filtrada por HTMX anuncia a
+  CONTAGEM numa live region fora da lista".
 - Alvos de toque `min-h-11` em todos os controles.
 
 ## Out of Scope
