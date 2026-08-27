@@ -1,0 +1,31 @@
+{% comment %}
+Presets de período colados ao par De/Até (issue #153). A view monta a lista
+`presets` (apps/core/filtros.PresetPeriodo); cada um resolve para DATAS
+ABSOLUTAS e preenche `data_ini`/`data_fim` na URL canônica (issue #152) —
+nenhum estado novo na querystring (token relativo `?periodo=30d` foi
+descartado, ver #148/#153).
+
+Distinção visual x chip é por POSIÇÃO (#153): o preset pertence ao par De/Até,
+então é renderizado DENTRO do partial `campos` do filtro — que já é reemitido
+via `hx-swap-oob` (`oob_campos`) em respostas HTMX. Por isso este bloco não
+carrega `hx-swap-oob` próprio (ver isenção em test_components.py).
+
+Parâmetros:
+  presets     (obrigatório) iterável de PresetPeriodo; vazio → nada renderiza
+  target_id   (obrigatório) id do wrapper HTMX alvo do swap (sem #)
+{% endcomment %}
+{% if presets %}
+<div class="mt-4 flex flex-wrap items-center gap-2">
+  <span class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Período</span>
+  {% for preset in presets %}
+    <a
+      href="{{ preset.url }}"
+      hx-get="{{ preset.url }}"
+      hx-target="#{{ target_id }}"
+      hx-push-url="true"
+      {% if preset.ativo %}aria-current="true"{% endif %}
+      class="inline-flex min-h-11 items-center rounded-full border px-3 py-1.5 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1 {% if preset.ativo %}border-primary-border-strong bg-primary-muted text-primary-text-strong{% else %}border-border bg-surface text-text-secondary hover:bg-bg-page{% endif %}"
+    >{{ preset.rotulo }}</a>
+  {% endfor %}
+</div>
+{% endif %}

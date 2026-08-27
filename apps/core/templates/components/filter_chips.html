@@ -1,0 +1,40 @@
+{% comment %}
+Chips de recorte acima dos resultados (issue #153). Genérico: a view monta a
+lista `chips` (apps/core/filtros.ChipFiltro), cada um já resolvido para a URL
+canônica de ligar/desligar (issue #152). Link (não submit): alterna a URL num
+único request.
+
+Distinção visual chip x preset é por POSIÇÃO (#153): os chips vivem ACIMA dos
+resultados e recortam o conjunto inteiro; os presets ficam colados ao par
+De/Até. Por isso este bloco vive FORA do alvo do swap de resultados
+(`#{{ target_id }}`), e numa resposta HTMX precisa ser reemitido via
+`hx-swap-oob="true"` (passar `oob_chips=True`) — senão o estado ativo e a URL
+de alternância ficam presos na primeira renderização (regressão #143).
+
+Parâmetros:
+  chips       (obrigatório) iterável de ChipFiltro; vazio → nada renderiza
+  target_id   (obrigatório) id do wrapper HTMX alvo do swap (sem #)
+  oob_chips   (opcional) adiciona hx-swap-oob="true" — só no reemite is_htmx
+{% endcomment %}
+{% if chips %}
+<div
+  id="filter-chips"
+  class="mb-4 flex flex-wrap items-center gap-2"
+  {% if oob_chips %}hx-swap-oob="true"{% endif %}
+>
+  {% for chip in chips %}
+    <a
+      href="{{ chip.url }}"
+      hx-get="{{ chip.url }}"
+      hx-target="#{{ target_id }}"
+      hx-push-url="true"
+      {% if chip.ativo %}aria-current="true"{% endif %}
+      class="inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1 {% if chip.ativo %}border-primary-border-strong bg-primary-muted text-primary-text-strong{% else %}border-border bg-surface text-text-secondary hover:bg-bg-page{% endif %}"
+    >
+      {% if chip.glifo %}<span aria-hidden="true">{{ chip.glifo }}</span>{% endif %}
+      {{ chip.rotulo }}
+      {% if chip.ativo %}<span class="text-primary-text" aria-hidden="true">✕</span>{% endif %}
+    </a>
+  {% endfor %}
+</div>
+{% endif %}

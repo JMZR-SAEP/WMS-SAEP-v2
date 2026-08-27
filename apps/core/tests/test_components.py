@@ -2457,6 +2457,12 @@ _ISENTOS_DO_REEMITE_OOB: dict[str, str] = {
     'apps/core/templates/components/ordenacao_data.html': (
         'vive dentro do alvo do swap — trocado inteiro, sem OOB'
     ),
+    # filter_presets_periodo.html (issue #153) é renderizado DENTRO do partial
+    # `campos` do filtro, que já volta inteiro via `oob_campos` em toda resposta
+    # HTMX. Reemitir a si mesmo via OOB só duplicaria o bloco.
+    'apps/core/templates/components/filter_presets_periodo.html': (
+        'vive dentro do partial `campos` — reemitido inteiro via oob_campos'
+    ),
 }
 
 _MINIMO_DE_SUPERFICIES_COM_PUSH_URL = 3
@@ -2548,8 +2554,9 @@ _SLOTS_OOB_OBRIGATORIOS = (
     ('filter_acoes.html#limpar', 'reemite do slot "Limpar" (filter_acoes#limpar)'),
 )
 
-# Slot condicional: só quem também renderiza o chip precisa reemiti-lo.
-_CHIP_SO_SAIDAS = 'estoque/partials/_chip_so_saidas.html'
+# Slot condicional: só quem também renderiza os chips de recorte precisa
+# reemiti-los (issue #153 — chip por papel genérico em components/).
+_CHIP_FILTRO = 'components/filter_chips.html'
 
 _MINIMO_DE_BARRAS_DE_FILTRO = 2
 
@@ -2564,8 +2571,8 @@ def _slots_oob_faltando(texto: str) -> list[str] | None:
     if _ABERTURA_DA_BARRA not in limpo:
         return None
     faltando = [desc for token, desc in _SLOTS_OOB_OBRIGATORIOS if token not in limpo]
-    if _CHIP_SO_SAIDAS in limpo and 'oob_chip' not in limpo:
-        faltando.append('reemite do chip "só saídas"')
+    if _CHIP_FILTRO in limpo and 'oob_chips' not in limpo:
+        faltando.append('reemite dos chips de recorte (filter_chips)')
     return faltando
 
 
@@ -2625,9 +2632,11 @@ class TestMecanismoDaBarraDeFiltros:
     def test_chip_sem_reemite_e_detectado_so_quando_o_chip_e_renderizado(self):
         com_chip = (
             self.BARRA_COMPLETA
-            + "{% include 'estoque/partials/_chip_so_saidas.html' %}"
+            + '{% include "components/filter_chips.html" with chips=chips_filtro %}'
         )
-        assert _slots_oob_faltando(com_chip) == ['reemite do chip "só saídas"']
+        assert _slots_oob_faltando(com_chip) == [
+            'reemite dos chips de recorte (filter_chips)'
+        ]
         assert _slots_oob_faltando(self.BARRA_COMPLETA) == []
 
 
