@@ -172,7 +172,6 @@ def historico_movimentacoes_view(request):
             'setor': setor,
         },
         'ordem': resultado.ordem,
-        'aria_sort': resultado.aria_sort,
         'url_ordenacao': resultado.url_ordenacao,
         'url_chip_so_saidas': url_chip_so_saidas,
         'url_chip_sem_so_saidas': url_chip_sem_so_saidas,
