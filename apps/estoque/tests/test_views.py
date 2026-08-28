@@ -3027,6 +3027,48 @@ class TestHistoricoMovimentacoesResponsivo:
         assert 'tabular-nums">1</span>' in trecho
         assert 'movimentação' in trecho
 
+    def test_contagem_com_paginacao_diz_pagina_e_recorte(
+        self,
+        client,
+        superuser,
+        requisicao_autorizada,
+        material_disponivel,
+        estoque_principal,
+    ):
+        """Issue #156: com paginação a linha de cima mostrava `<span>` vazio e
+        a contagem do recorte só reaparecia no rodapé. Agora diz
+        "25 de 26 movimentações" — quantas nesta página `de` quantas no
+        recorte — nos dois caminhos de render.
+        """
+        filtro = self._consumos_isolados(
+            26,
+            superuser,
+            requisicao_autorizada,
+            material_disponivel,
+            estoque_principal,
+        )
+        client.force_login(superuser)
+
+        esperado = (
+            'tabular-nums">25</span> de '
+            '<span class="font-medium tabular-nums">26</span>'
+        )
+
+        completa = client.get(URL_MOVIMENTACOES, filtro)
+        assert completa.context['page_obj'].paginator.num_pages == 2
+        html = completa.content.decode()
+        idx = html.index('Mais antigas primeiro')
+        trecho = html[html.rindex('<div', 0, idx) : idx]
+        assert esperado in trecho
+        assert 'movimentações' in trecho
+        assert '<span></span>' not in trecho
+
+        parcial = client.get(
+            URL_MOVIMENTACOES, filtro, HTTP_HX_REQUEST='true'
+        ).content.decode()
+        idx_p = parcial.index('Mais antigas primeiro')
+        assert esperado in parcial[parcial.rindex('<div', 0, idx_p) : idx_p]
+
 
 class TestHistoricoMovimentacoesFiltrosResponsivo:
     """Paridade estrutural da barra de filtros extraída (issue #88)."""

@@ -1414,6 +1414,49 @@ class TestPaginationHref:
         assert 'href=""' not in ultima
 
 
+class TestOrdenacaoDataContagem:
+    """Issue #156: a contagem do recorte sumia da linha de cima justamente
+    quando havia paginação — `<span></span>` vazio no lugar e o número só
+    reaparecia no rodapé de `pagination.html`. Agora aparece SEMPRE.
+    """
+
+    def _render(self, total, per_page):
+        from django.core.paginator import Paginator
+        from django.template.loader import render_to_string
+
+        paginator = Paginator(list(range(total)), per_page)
+        return render_to_string(
+            'components/ordenacao_data.html',
+            {
+                'url_ordenacao': '?ordem=asc',
+                'ordem': 'desc',
+                'target_id': 'resultados-x',
+                'page_obj': paginator.page(1),
+                'rotulo_contagem': 'requisição,requisições',
+            },
+        )
+
+    def test_sem_paginacao_mostra_o_tamanho_do_recorte(self):
+        html = self._render(total=8, per_page=25)
+        assert '<span class="font-medium tabular-nums">8</span> requisições' in html
+
+    def test_com_paginacao_diz_pagina_de_recorte(self):
+        html = self._render(total=60, per_page=25)
+        assert (
+            '<span class="font-medium tabular-nums">25</span> de '
+            '<span class="font-medium tabular-nums">60</span> requisições'
+        ) in html
+
+    def test_sem_span_vazio_de_layout(self):
+        assert '<span></span>' not in self._render(total=60, per_page=25)
+
+    def test_contagem_e_sempre_o_primeiro_filho_da_linha(self):
+        for total in (8, 60):
+            corpo = self._render(total=total, per_page=25)
+            corpo = corpo[corpo.index('justify-between') :]
+            assert corpo.index('<p') < corpo.index('Mais antigas primeiro')
+
+
 def test_todo_icon_template_de_button_honra_a_classe():
     """`button.html` dimensiona o ícone por `class`, a tag {% icon %} por `size`.
 
