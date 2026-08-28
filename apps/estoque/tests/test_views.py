@@ -2306,6 +2306,7 @@ class TestHistoricoMovimentacoesView:
         requisicao_autorizada,
         material_disponivel,
         estoque_principal,
+        monkeypatch,
     ):
         """`date:"d/m/Y H:i"` tem precisão de minuto — um atendimento gera várias
         movimentações do mesmo material na mesma transação. O número do
@@ -2314,12 +2315,16 @@ class TestHistoricoMovimentacoesView:
         import re
         from decimal import Decimal
 
+        from django.utils import timezone
+
         from apps.estoque.models import MovimentacaoEstoque, TipoMovimentacaoEstoque
 
         req, _ = requisicao_autorizada
-        # `criado_em` é `auto_now_add`: as duas criadas em sequência caem no
-        # mesmo minuto, que é exatamente a colisão que o número do lançamento
-        # resolve.
+        # `criado_em` é `auto_now_add`; congela o relógio para as duas caírem no
+        # mesmo instante — a colisão que o número do lançamento resolve —, sem
+        # depender de o teste rodar rápido o bastante dentro do mesmo minuto.
+        instante = timezone.now().replace(second=0, microsecond=0)
+        monkeypatch.setattr('django.utils.timezone.now', lambda: instante)
         movs = [
             MovimentacaoEstoque.objects.create(
                 tipo=TipoMovimentacaoEstoque.CONSUMO,

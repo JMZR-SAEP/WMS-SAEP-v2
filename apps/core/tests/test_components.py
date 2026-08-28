@@ -460,6 +460,12 @@ _CONDICIONAL_DJANGO = re.compile(r'\{%\s*if\b.*?\{%\s*endif\s*%\}', re.S)
 _INCLUDE_DE_BOTAO = re.compile(
     r'\{%\s*include\s+([\'"])components/button\.html\1(.*?)%\}', re.S
 )
+# `(?:[^%]|%(?!\}))*` casa os argumentos até o `%}` de fechamento sem parar num
+# `%` de valor (`prefixo_sr="50%"`). `[^%]*` parava, e um `role=` depois do `%`
+# escapava da guarda. Aspa capturada + retrovisor (`\1`) como no include de botão.
+_INCLUDE_DE_BADGE = re.compile(
+    r'\{%\s*include\s+([\'"])components/badge\.html\1(?:[^%]|%(?!\}))*%\}'
+)
 _VARIANTE_LINK = re.compile(r'variant=([\'"])link\1')
 
 # Único arquivo em que a classe pode sair de `{% classes_botao %}`: é lá que
@@ -531,6 +537,18 @@ def _sem_comentarios(texto: str) -> str:
     acusaria quatro falsos positivos, e a correção óbvia seria afrouxá-lo.
     """
     return _COMENTARIO_DJANGO.sub(lambda m: '\n' * m.group(0).count('\n'), texto)
+
+
+def _tem_atributo(atributos: str, nome: str) -> bool:
+    """`True` só se `nome` for um atributo exato do elemento.
+
+    `atributo()` devolve `None` tanto para ausente quanto para presente-sem-valor
+    (`data-cartao-link`), e `nome in atributos` casaria `data-cartao-link-extra`
+    ou um `aria-describedby="data-cartao-link"`. O parser de pares resolve os
+    dois.
+    """
+    procurado = nome.lower()
+    return any(chave.lower() == procurado for chave, _ in pares(atributos))
 
 
 def _faixas_de_cartao(texto: str) -> list[range]:
@@ -625,7 +643,7 @@ def _clicaveis_sem_piso(
             atributo(atributos, 'class') or ''
         ):
             continue
-        if 'data-cartao-link' in atributos and any(
+        if _tem_atributo(atributos, 'data-cartao-link') and any(
             numero in faixa for faixa in faixas_cartao
         ):
             continue
@@ -2884,18 +2902,10 @@ def test_nenhum_badge_de_dado_estatico_declara_live_region():
     O contexto que o `role` carregava vive em `prefixo_sr`, que é texto
     `sr-only` e portanto sempre exposto.
     """
-    import re
-
     raiz = Path(__file__).resolve().parents[3]
     infratores = []
-    # A aspa é capturada e conferida por retrovisor (`\1`): o projeto escreve
-    # `{% include %}` com aspas simples ou duplas, e um guarda que só entende
-    # aspas duplas seria contornável por uma escolha de estilo.
-    include_badge = re.compile(
-        r'\{%\s*include\s+([\'"])components/badge\.html\1[^%]*%\}'
-    )
     for template in (raiz / 'apps').rglob('*.html'):
-        for encontro in include_badge.finditer(template.read_text()):
+        for encontro in _INCLUDE_DE_BADGE.finditer(template.read_text()):
             trecho = encontro.group(0)
             if 'role=' in trecho:
                 infratores.append(f'{template.relative_to(raiz)}: {trecho.strip()}')
@@ -2942,12 +2952,13 @@ def test_link_de_cartao_tem_o_cartao_como_alvo():
     assert 'has(:is(a[data-cartao-link]))' in css
     assert 'has(:is(a[data-cartao-link]:focus-visible))' in css
 
-    # E a marcação só existe em tela que usa o chrome de cartão. O `(?![\]:])`
-    # separa o atributo das ocorrências dentro dos seletores `has-[...]` do
-    # próprio chrome, que casariam o nome sem serem marcação.
+    # E a marcação só existe em tela que usa o chrome de cartão. O
+    # `(?![-\w\]:])` separa o atributo exato das ocorrências dentro dos seletores
+    # `has-[...]` do próprio chrome e de nomes parecidos (`data-cartao-link-x`),
+    # que casariam o nome sem serem a marcação.
     import re
 
-    atributo_marcador = re.compile(r'data-cartao-link(?![\]:])')
+    atributo_marcador = re.compile(r'data-cartao-link(?![-\w\]:])')
     chrome_relativo = 'apps/core/templates/components/table.html'
 
     telas_marcadas = []
@@ -2970,7 +2981,7 @@ def test_link_de_cartao_tem_o_cartao_como_alvo():
         limpo = _sem_comentarios(conteudo)
         faixas = _faixas_de_cartao(limpo)
         for _, atributos, numero in elementos(limpo, 'a'):
-            if 'data-cartao-link' not in atributos:
+            if not _tem_atributo(atributos, 'data-cartao-link'):
                 continue
             assert any(numero in faixa for faixa in faixas), (
                 f'{relativo}:{numero} data-cartao-link fora de um cartão'
@@ -2981,3 +2992,37 @@ def test_link_de_cartao_tem_o_cartao_como_alvo():
     # e o terceiro oferece um download, que não é navegação e por isso continua
     # sendo um botão explícito.
     assert len(telas_marcadas) == 5, telas_marcadas
+
+
+def test_isencao_de_cartao_so_vale_para_o_atributo_exato():
+    """`data-cartao-link-extra` e `aria-describedby="data-cartao-link"` não são a
+    marcação — o seletor do chrome exige `a[data-cartao-link]`. A isenção do
+    piso de 44px não pode alcançá-los por casamento de substring.
+    """
+    markup = (
+        '{% include "components/table.html#card_abertura" %}\n'
+        '  <a href="/x" data-cartao-link class="rounded-sm">REQ-1</a>\n'
+        '</article>\n'
+        '<a href="/y" data-cartao-link-extra class="rounded-sm">solto</a>\n'
+        '<a href="/z" aria-describedby="data-cartao-link" class="rounded-sm">outro</a>\n'
+    )
+    infratores, _ = _clicaveis_sem_piso('t.html', markup, frozenset(), {})
+    # a âncora real dentro do cartão é isentada; as duas parecidas, não
+    assert infratores == [
+        't.html:4 clicável sem piso de 44px',
+        't.html:5 clicável sem piso de 44px',
+    ]
+
+
+def test_include_de_badge_detecta_role_depois_de_percent_no_argumento():
+    """`prefixo_sr="50%"` não pode cegar a guarda de live region: o `%` no valor
+    de um argumento antes de `role=` fazia o padrão antigo (`[^%]*`) não casar o
+    include inteiro.
+    """
+    trecho = (
+        '{% include \'components/badge.html\' with label="x" '
+        'prefixo_sr="50% cheio" role="status" %}'
+    )
+    encontro = _INCLUDE_DE_BADGE.search(trecho)
+    assert encontro is not None
+    assert 'role=' in encontro.group(0)
