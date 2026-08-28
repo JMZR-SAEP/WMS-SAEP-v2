@@ -820,7 +820,7 @@ def test_minhas_renderiza_um_cartao_por_requisicao(
     _login(client, solicitante)
     conteudo = client.get(reverse('requisicoes:minhas')).content.decode()
     assert (
-        '<div class="grid items-start gap-3 sm:grid-cols-2 2xl:grid-cols-3">'
+        '<div class="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">'
         in conteudo
     )
     assert (
@@ -1281,7 +1281,10 @@ def test_fila_autorizacao_chefe_renderiza_apenas_setor(
     html = response.content.decode('utf-8')
     assert 'Fila de autorização' in html
     assert 'Analisar' in html
-    assert 'Enviada em' in html
+    # A linha "Enviada em" não é asserida aqui: `req_enviada_solicitante` é
+    # montada por ORM direto, sem o evento `envio_autorizacao` que alimenta a
+    # anotação. O rótulo tem cobertura própria em
+    # `test_fila_autorizacao_coluna_enviada_em` (issue #160).
     assert (
         f'aria-label="Analisar requisição {req_enviada_solicitante.numero_publico}"'
         in html
@@ -1302,7 +1305,6 @@ def test_fila_autorizacao_superuser_ve_todos_setores(
     html = response.content.decode('utf-8')
     assert 'Fila de autorização' in html
     assert 'Analisar' in html
-    assert 'Enviada em' in html
 
 
 @pytest.mark.django_db
@@ -2786,6 +2788,124 @@ def test_fila_atendimento_coluna_autorizada_em(
     assert 'Atualizada em' not in html
 
 
+# ---------------------------------------------------------------------------
+# Issue #160 — a linha de data some inteira quando a data não existe
+#
+# `enviada_em`/`autorizada_em` não são campos de `Requisicao`: são anotações
+# dos selectors `fila_autorizacao`/`fila_atendimento` sobre os eventos
+# `envio_autorizacao`/`autorizacao_total` da timeline. Dentro do recorte de
+# cada fila a data nunca falta em dado consistente — TR-005 é a única porta
+# para `aguardando_autorizacao`, TR-008 para `autorizada`, e `autorizada` é a
+# única origem de `pronta_para_retirada` (TR-009). A guarda no template é
+# defensiva: se a data faltar, some o `<p>` inteiro, e não só o valor — um
+# "Enviada em —" ocuparia a segunda posição de leitura do cartão sem informar
+# nada.
+#
+# Os cenários negativos são montados por ORM direto porque não há caminho de
+# service que os produza: todo service que leva a requisição a estes estados
+# grava o evento na mesma transação.
+# ---------------------------------------------------------------------------
+
+#: O `<p>` de metadado do cartão das duas filas. Nenhuma das duas telas tem
+#: formulário de filtro, então esta é a única ocorrência da classe na página —
+#: dá para asserir a ausência do elemento, não só a do texto.
+_P_METADADO_CARTAO = '<p class="mt-1 text-xs text-text-tertiary">'
+
+
+@pytest.mark.django_db
+def test_fila_autorizacao_enviada_em_traz_data_formatada(
+    client, chefe_obras, req_enviada_com_timeline
+):
+    _login(client, chefe_obras)
+    response = client.get(reverse('requisicoes:autorizacoes'))
+    assert response.status_code == 200
+    html = response.content.decode('utf-8')
+    envio = TimelineRequisicao.objects.get(
+        requisicao=req_enviada_com_timeline,
+        evento=EventoTimeline.ENVIO_AUTORIZACAO,
+    )
+    enviada_em = timezone.localtime(envio.criado_em).strftime('%d/%m/%Y %H:%M')
+    assert f'{_P_METADADO_CARTAO}Enviada em {enviada_em}</p>' in html
+
+
+@pytest.mark.django_db
+def test_fila_autorizacao_sem_evento_de_envio_omite_a_linha_inteira(
+    client, chefe_obras, req_enviada_solicitante
+):
+    """Sem `envio_autorizacao` na timeline, não sobra rótulo nem travessão.
+
+    `req_enviada_solicitante` nasce por ORM direto em `aguardando_autorizacao`,
+    sem evento — o cenário que nenhum service produz, e o único em que a
+    anotação `enviada_em` chega `None`.
+    """
+    _login(client, chefe_obras)
+    response = client.get(reverse('requisicoes:autorizacoes'))
+    assert response.status_code == 200
+    html = response.content.decode('utf-8')
+    # O cartão está lá: o que sumiu é a linha da data, não a requisição.
+    assert req_enviada_solicitante.numero_publico in html
+    assert 'Enviada em' not in html
+    assert 'Enviada em —' not in html
+    assert _P_METADADO_CARTAO not in html
+
+
+@pytest.mark.django_db
+def test_fila_atendimento_autorizada_em_traz_data_formatada(
+    client, aux_almoxarifado, req_autorizada_com_timeline
+):
+    _login(client, aux_almoxarifado)
+    response = client.get(reverse('requisicoes:atendimentos'))
+    assert response.status_code == 200
+    html = response.content.decode('utf-8')
+    autorizacao = TimelineRequisicao.objects.get(
+        requisicao=req_autorizada_com_timeline,
+        evento=EventoTimeline.AUTORIZACAO_TOTAL,
+    )
+    autorizada_em = timezone.localtime(autorizacao.criado_em).strftime('%d/%m/%Y %H:%M')
+    assert f'{_P_METADADO_CARTAO}Autorizada em {autorizada_em}</p>' in html
+
+
+@pytest.mark.django_db
+def test_fila_atendimento_sem_evento_de_autorizacao_omite_a_linha_inteira(
+    client, aux_almoxarifado, req_autorizada_view
+):
+    """Sem `autorizacao_total` na timeline, não sobra rótulo nem travessão.
+
+    `req_autorizada_view` nasce por ORM direto em `autorizada`, sem evento — o
+    cenário que nenhum service produz, e o único em que a anotação
+    `autorizada_em` chega `None`.
+    """
+    _login(client, aux_almoxarifado)
+    response = client.get(reverse('requisicoes:atendimentos'))
+    assert response.status_code == 200
+    html = response.content.decode('utf-8')
+    # O cartão está lá: o que sumiu é a linha da data, não a requisição.
+    assert req_autorizada_view.numero_publico in html
+    assert 'Autorizada em' not in html
+    assert 'Autorizada em —' not in html
+    assert _P_METADADO_CARTAO not in html
+
+
+@pytest.mark.django_db
+def test_fila_atendimento_pronta_para_retirada_sem_evento_omite_a_linha_inteira(
+    client, aux_almoxarifado, req_pronta_view
+):
+    """Mesma guarda no outro estado que a fila lista (`pronta_para_retirada`).
+
+    A tela renderiza o cartão pelo ramo "Entregar", que passa pelo mesmo
+    `partialdef corpo_cartao` — o ramo do verbo não pode reintroduzir o rótulo
+    órfão.
+    """
+    _login(client, aux_almoxarifado)
+    response = client.get(reverse('requisicoes:atendimentos'))
+    assert response.status_code == 200
+    html = response.content.decode('utf-8')
+    assert req_pronta_view.numero_publico in html
+    assert 'Entregar' in html
+    assert 'Autorizada em' not in html
+    assert _P_METADADO_CARTAO not in html
+
+
 @pytest.mark.django_db
 def test_fila_atendimento_renderiza_cartoes(
     client, aux_almoxarifado, req_autorizada_view
@@ -2794,7 +2914,7 @@ def test_fila_atendimento_renderiza_cartoes(
     response = client.get(reverse('requisicoes:atendimentos'))
     assert response.status_code == 200
     html = response.content.decode('utf-8')
-    assert '<div class="grid items-start gap-3 sm:grid-cols-2 2xl:grid-cols-3">' in html
+    assert '<div class="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">' in html
     assert html.count('<article class="relative rounded-xl border border-border') == 1
     assert 'Separar' in html
 
@@ -2807,7 +2927,7 @@ def test_fila_autorizacao_renderiza_cartoes(
     response = client.get(reverse('requisicoes:autorizacoes'))
     assert response.status_code == 200
     html = response.content.decode('utf-8')
-    assert '<div class="grid items-start gap-3 sm:grid-cols-2 2xl:grid-cols-3">' in html
+    assert '<div class="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">' in html
     assert html.count('<article class="relative rounded-xl border border-border') == 1
     assert 'Analisar' in html
 

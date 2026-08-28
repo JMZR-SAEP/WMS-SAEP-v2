@@ -29,9 +29,21 @@
               aria-label="Analisar requisição {{ req.numero_publico }}"
             >{{ req.numero_publico }}</a>
           </h2>
-          <p class="mt-1 text-xs text-text-tertiary">
-            Enviada em {% if req.enviada_em %}{{ req.enviada_em|date:"d/m/Y H:i" }}{% else %}—{% endif %}
-          </p>
+          {% comment %}
+            A linha inteira sai quando não há data — nunca "Enviada em —" com
+            o rótulo órfão na segunda posição de leitura do cartão (issue #160).
+
+            A guarda é defensiva, não "campo opcional": `enviada_em` é anotação
+            do selector `fila_autorizacao` sobre o evento `envio_autorizacao`,
+            e TR-005 é a única porta de entrada em `aguardando_autorizacao` —
+            o único estado que esta fila lista. A timeline é append-only
+            (ADR-0002) e o admin nega add/change/delete nela, então em dado
+            consistente a data sempre existe. `None` só aparece em registro
+            montado fora dos services (ORM direto, seed antigo, migração).
+          {% endcomment %}
+          {% if req.enviada_em %}
+            <p class="mt-1 text-xs text-text-tertiary">Enviada em {{ req.enviada_em|date:"d/m/Y H:i" }}</p>
+          {% endif %}
         </div>
 
         {# Rótulo rebaixado (issue #158): `Rótulo: valor` inline, sem caixa alta, `<dl>/<dt>/<dd>` preservado. Ver DESIGN.md §A Regra da Caixa Alta Estrutural. #}
