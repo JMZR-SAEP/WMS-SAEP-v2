@@ -3117,3 +3117,45 @@ def test_include_de_badge_detecta_role_depois_de_percent_no_argumento():
     encontro = _INCLUDE_DE_BADGE.search(trecho)
     assert encontro is not None
     assert 'role=' in encontro.group(0)
+
+
+def test_cards_abertura_denso_e_estrutura_pura_e_de_uso_restrito():
+    """`#cards_abertura_denso` (issue #159) é fragmento irmão de estrutura pura.
+
+    A variante densa antecipa a 3ª coluna para `xl` (1280px) numa listagem
+    comprovadamente densa. Este guarda amarra o que a decisão prometeu:
+
+    - o fragmento existe e diverge do `#cards_abertura` só no breakpoint da 3ª
+      coluna (`xl` em vez de `2xl`) — nada mais;
+    - continua string de classe fixa: nenhuma variável de template no corpo,
+      senão vira o parâmetro que a Regra do Chrome Sem Parâmetro proíbe;
+    - o CSS compilado tem a variante `xl:grid-cols-3` (sem `make css-build` a
+      3ª coluna some em silêncio);
+    - só uma listagem o usa. Uma segunda entra no mesmo fragmento pelo critério
+      de DESIGN.md; um terceiro fragmento, não.
+    """
+    raiz = Path(__file__).resolve().parents[3]
+    chrome = (raiz / 'apps/core/templates/components/table.html').read_text()
+
+    def _corpo(nome: str) -> str:
+        inicio = chrome.index('{% partialdef ' + nome + ' %}') + len(
+            '{% partialdef ' + nome + ' %}'
+        )
+        return chrome[inicio : chrome.index('{% endpartialdef %}', inicio)].strip()
+
+    denso = _corpo('cards_abertura_denso')
+    normal = _corpo('cards_abertura')
+
+    assert denso == '<div class="grid items-start gap-3 sm:grid-cols-2 xl:grid-cols-3">'
+    assert normal.replace('2xl:grid-cols-3', 'xl:grid-cols-3') == denso
+    assert '{{' not in denso and '{%' not in denso
+
+    css = (raiz / 'apps/core/static/core/css/app.css').read_text()
+    assert 'xl\\:grid-cols-3' in css or '.xl\\:grid-cols-3' in css
+
+    usos = [
+        str(p.relative_to(raiz))
+        for p in sorted((raiz / 'apps').rglob('*.html'))
+        if '#cards_abertura_denso' in p.read_text()
+    ]
+    assert usos == ['apps/estoque/templates/estoque/lista_materiais.html'], usos

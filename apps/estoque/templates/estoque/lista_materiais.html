@@ -34,18 +34,20 @@
   {% if saldos %}
 
     {% comment %}
-      O container é o chrome (`#cards_abertura`): não há nada de condicional
-      nele, e a cópia da string de grade que morava aqui já não acompanharia uma
-      mudança de breakpoint. Só o <article> fica literal, porque a borda e o
-      fundo dependem do estado de domínio (divergência crítica) e
-      `#card_abertura` é string fixa por contrato da #83.
+      O container é o chrome (`#cards_abertura_denso`): não há nada de
+      condicional nele, e a cópia da string de grade que morava aqui já não
+      acompanharia uma mudança de breakpoint. A variante densa (3ª coluna em
+      `xl`/1280px) vale porque o cartão do catálogo passou no critério de
+      densidade — DESIGN.md §A Regra do Cartão Único, issue #159. Só o <article>
+      fica literal, porque a borda e o fundo dependem do estado de domínio
+      (divergência crítica) e `#card_abertura` é string fixa por contrato da #83.
 
       Sem `aria-label` no <article>: ele substituía o nome acessível do cartão
       pelo rótulo genérico, apagando o código do material — que é a identidade
       do registro. O badge "Divergente" ao lado já diz o estado, e diz para
       todos, não só para leitor de tela.
     {% endcomment %}
-    {% include "components/table.html#cards_abertura" %}
+    {% include "components/table.html#cards_abertura_denso" %}
       {% for saldo in saldos %}
         <article
           class="rounded-xl border {% if saldo.divergente_calculado %}border-danger-border-strong bg-danger-subtle{% else %}border-border bg-surface{% endif %} p-4 shadow-sm"

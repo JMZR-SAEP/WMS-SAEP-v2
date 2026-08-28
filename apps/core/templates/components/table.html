@@ -10,15 +10,20 @@ maximizada. O cartão responde em qualquer largura e carrega mais campos que a
 tabela carregava.
 
 Fragmentos (só abertura — fechamentos ficam literais na tela chamadora):
-  cards_abertura   container: grid de cartões, 1 coluna no mobile, 2 a partir de
-                   `sm`, 3 a partir de `2xl`. Fechamento literal: </div>
-  card_abertura    cartão individual: article.rounded-xl...
-                   Fechamento literal: </article>
+  cards_abertura        container: grid de cartões, 1 coluna no mobile, 2 a
+                        partir de `sm`, 3 a partir de `2xl`. Fechamento: </div>
+  cards_abertura_denso  igual, mas a 3ª coluna entra em `xl` (1280px). Só para
+                        listagem comprovadamente densa pelo critério em
+                        DESIGN.md §A Regra do Cartão Único (issue #159). Hoje só
+                        `estoque/lista_materiais`. Fechamento literal: </div>
+  card_abertura         cartão individual: article.rounded-xl...
+                        Fechamento literal: </article>
 
-Nenhum dos dois recebe parâmetro — são strings de classe fixas. Não parametrizar
-(ex. `class` extra) sem antes registrar a decisão: "se o chrome precisar de
-parâmetro que descreve conteúdo de célula, a abstração está errada" (guardrail
-da issue #83).
+Nenhum recebe parâmetro — são strings de classe fixas. `cards_abertura_denso` é
+fragmento irmão de estrutura pura (contagem de colunas), não parâmetro. Não
+parametrizar (ex. `class` extra, `denso=True`) sem antes registrar a decisão:
+"se o chrome precisar de parâmetro que descreve conteúdo de célula, a abstração
+está errada" (guardrail da issue #83).
 
 ## O cartão inteiro é o alvo
 
@@ -59,6 +64,10 @@ Uso canônico (dentro de {% partialdef resultados %} da própria tela, GET-only)
 {% endcomment %}
 {% partialdef cards_abertura %}
 <div class="grid items-start gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+{% endpartialdef %}
+
+{% partialdef cards_abertura_denso %}
+<div class="grid items-start gap-3 sm:grid-cols-2 xl:grid-cols-3">
 {% endpartialdef %}
 
 {% partialdef card_abertura %}
