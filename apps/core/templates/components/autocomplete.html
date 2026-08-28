@@ -42,6 +42,7 @@
        sem_resultados_label="Nenhum beneficiário encontrado."
     %}
 {% endcomment %}
+{% load core_tags %}
 <label class="rotulo-campo" {% if input_id %}for="{{ input_id }}"{% else %}:for="idBase + '-busca'"{% endif %}>{{ label }}</label>
 <div class="relative">
   <input
@@ -129,15 +130,10 @@
     região `role="status"` acima — aqui é reforço para quem enxerga.
   {% endcomment %}
   <span x-show="vinculado && !buscando" x-cloak class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-success" aria-hidden="true">
-    <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-      <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-    </svg>
+    {% icon "confirmar" class="h-4 w-4" %}
   </span>
   <span x-show="buscando" x-cloak class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" aria-hidden="true">
-    <svg class="h-4 w-4 animate-spin motion-reduce:animate-none text-text-disabled" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
-    </svg>
+    {% icon "spinner" class="h-4 w-4 animate-spin motion-reduce:animate-none text-text-disabled" %}
   </span>
   {% comment %}
     Borda em `border-border` (estrutural, slate-200, 1.23:1 no branco) e não

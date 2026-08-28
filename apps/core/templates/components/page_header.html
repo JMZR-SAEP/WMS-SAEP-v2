@@ -17,10 +17,12 @@ na barra ao lado do back-arrow, pattern Material sancionado pelo brief.
 
 Parâmetros:
   titulo  (obrigatório) texto do cabeçalho
-  class   (obrigatório na prática) margem inferior escolhida pela tela — `mb-2`
-          quando um parágrafo de apoio vem logo abaixo, `mb-6` quando o conteúdo
-          começa direto. Sem default para não gerar duas classes de margem
-          concorrentes na mesma marcação.
+  class   (opcional) margem inferior escolhida pela tela — `mb-2` quando um
+          parágrafo de apoio vem logo abaixo, `mb-6` quando o conteúdo começa
+          direto. Sem default para não gerar duas classes de margem concorrentes
+          na mesma marcação. Tela cujo layout já dá o respiro omite: em
+          `notificacoes/lista.html` o título divide uma linha flex com uma ação,
+          e o `gap-y` do wrapper resolve o espaçamento.
 
 Uso:
   {% include "components/page_header.html" with titulo="Minhas requisições" class="mb-2" %}

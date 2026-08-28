@@ -87,8 +87,25 @@
               <p class="shrink-0 text-xs text-text-tertiary">{{ mov.criado_em|date:"d/m/Y H:i" }}</p>
             </div>
 
+            {% comment %}
+              O material se repete a cada movimentação, então o heading visível
+              sozinho devolvia rótulos idênticos para quem navega por heading.
+              O instante + o número do lançamento entram em `sr-only` como
+              discriminador, sem duplicar visualmente a data que já está ao lado
+              do badge.
+
+              Não só o instante: `date:"d/m/Y H:i"` tem precisão de minuto e
+              dois lançamentos do mesmo material no mesmo minuto (um atendimento
+              gera várias movimentações na mesma transação) voltariam a colidir.
+              O número do lançamento (`mov.pk`) é o único identificador estável e
+              único — só no nome acessível, nunca no texto visível.
+
+              Não o tipo: o badge logo acima já anuncia "Tipo de movimentação:
+              X" via `aria_label`, e repeti-lo aqui fazia o leitor de tela
+              ouvi-lo duas vezes por cartão na leitura linear.
+            {% endcomment %}
             <h2 class="mt-3 break-words text-sm font-semibold text-text-primary">
-              {{ mov.material }}
+              {{ mov.material }}<span class="sr-only"> — lançamento {{ mov.pk }} em {{ mov.criado_em|date:"d/m/Y H:i" }}</span>
             </h2>
 
             <dl class="mt-3 grid grid-cols-2 gap-3 text-sm">

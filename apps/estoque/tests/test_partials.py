@@ -96,7 +96,13 @@ def test_tipo_canonico_mantem_variante_de_hoje(tipo, variant_esperada):
         'violet': 'bg-violet-100',
     }[variant_esperada]
     assert marcadores in html
-    assert 'aria-label="Tipo de movimentação: '.encode().decode() in html
+    # `prefixo_sr` e não `aria-label`+`role="status"`: badge de dado estático não
+    # é live region (contrato escrito em components/badge.html), e no ledger eram
+    # 25 delas por página. Texto `sr-only` é sempre exposto; `aria-label` num
+    # <span> sem role, não — a spec ARIA não garante.
+    assert '<span class="sr-only">Tipo de movimentação: </span>' in html
+    assert 'role="status"' not in html
+    assert 'aria-label=' not in html
 
 
 # ─── _estado_saida_badge.html ──────────────────────────────────────────────

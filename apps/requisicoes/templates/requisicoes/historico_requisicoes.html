@@ -90,10 +90,22 @@
     {% include "components/table.html#cards_abertura" %}
       {% for req in page_obj.object_list %}
         {% include "components/table.html#card_abertura" %}
+          {% url 'requisicoes:detalhe' pk=req.pk as url_detalhe_req %}
+          {% with next_encoded=request.get_full_path|urlencode criada_em=req.criado_em|date:"d/m/Y H:i" %}
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
+              {% comment %}
+                Rascunho não tem número público — por decisão de domínio: o
+                descarte de um rascunho não deixa rastro, então não há número a
+                preservar. Só que "Rascunho" sozinho repetia o mesmo heading em
+                todos os rascunhos da página, e navegar por heading com leitor
+                de tela devolvia uma lista de rótulos indistinguíveis. O
+                beneficiário é o que o operador de fato usa para distinguir um
+                rascunho do outro (a data já está na linha logo abaixo).
+                Resolvido na tela, não no chrome (guardrail da #83).
+              {% endcomment %}
               <h2 class="break-words text-sm font-semibold text-text-primary">
-                {% if req.numero_publico %}{{ req.numero_publico }}{% else %}<span class="text-text-tertiary">Rascunho</span>{% endif %}
+                {% if req.numero_publico %}<a href="{{ url_detalhe_req }}?next={{ next_encoded }}" data-cartao-link class="rounded-sm focus-visible:outline-none" aria-label="Ver detalhes da requisição {{ req.numero_publico }}">{{ req.numero_publico }}</a>{% else %}<a href="{{ url_detalhe_req }}?next={{ next_encoded }}" data-cartao-link class="rounded-sm text-text-tertiary focus-visible:outline-none" aria-label="Ver detalhes do rascunho de {{ req.beneficiario.nome }} criado em {{ criada_em }}">Rascunho — {{ req.beneficiario.nome }}</a>{% endif %}
               </h2>
               <p class="mt-1 text-xs text-text-tertiary">{{ req.criado_em|date:"d/m/Y H:i" }}</p>
             </div>
@@ -126,13 +138,8 @@
             </div>
           </dl>
 
-          {% url 'requisicoes:detalhe' pk=req.pk as url_detalhe_req %}
-          {% with next_encoded=request.get_full_path|urlencode criada_em=req.criado_em|date:"d/m/Y H:i" %}
-            {% if req.numero_publico %}
-              {% include "components/button.html" with variant="secondary" size="md" href=url_detalhe_req|add:"?next="|add:next_encoded label="Ver detalhes" aria_label="Ver detalhes da requisição "|add:req.numero_publico class="mt-4" %}
-            {% else %}
-              {% include "components/button.html" with variant="secondary" size="md" href=url_detalhe_req|add:"?next="|add:next_encoded label="Ver detalhes" aria_label="Ver detalhes do rascunho criado em "|add:criada_em class="mt-4" %}
-            {% endif %}
+          {# Afordância do cartão, não um controle: o link do título já carrega o nome acessível. #}
+          <p class="mt-4 flex items-center gap-1 text-sm font-medium text-primary" aria-hidden="true">Ver detalhes <span>&rarr;</span></p>
           {% endwith %}
         </article>
       {% endfor %}

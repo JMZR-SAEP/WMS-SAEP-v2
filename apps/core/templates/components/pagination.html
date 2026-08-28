@@ -4,6 +4,14 @@ Paginação server-side reutilizável. Recebe `page_obj` (Paginator page),
 `aria_label` (texto do aria-label do nav). Opcionalmente recebe
 `querystring_filtros` (querystring atual sem `page`) para preservar os
 filtros ativos ao navegar. Alvos de toque min-h-11, focáveis.
+
+`aria_label` nomeia o <nav> e **só** o <nav>: cada include de `button.html`
+abaixo zera o parâmetro explicitamente. `{% templatetag openblock %} include
+{% templatetag closeblock %}` sem `only` repassa o contexto inteiro, e
+`button.html` emite `aria-label` quando encontra a variável — sem o `=None`,
+os dois controles anunciavam "Paginação do histórico de requisições" em vez de
+"Anterior"/"Próxima", sobrescrevendo o texto visível para quem usa leitor de
+tela. Travado em `TestPaginationHref.test_nome_acessivel_dos_controles_*`.
 {% endcomment %}
 {% if page_obj.paginator.num_pages > 1 %}
   <nav
@@ -45,21 +53,21 @@ filtros ativos ao navegar. Alvos de toque min-h-11, focáveis.
       {% if page_obj.has_previous %}
         {% with pagina_anterior=page_obj.previous_page_number|stringformat:"s" %}
           {% with href_anterior=base_url|add:pagina_anterior %}
-            {% include "components/button.html" with variant="secondary" label="Anterior" href=href_anterior %}
+            {% include "components/button.html" with variant="secondary" label="Anterior" href=href_anterior aria_label=None %}
           {% endwith %}
         {% endwith %}
       {% else %}
-        {% include "components/button.html" with variant="secondary" label="Anterior" disabled=True %}
+        {% include "components/button.html" with variant="secondary" label="Anterior" disabled=True aria_label=None %}
       {% endif %}
 
       {% if page_obj.has_next %}
         {% with pagina_proxima=page_obj.next_page_number|stringformat:"s" %}
           {% with href_proxima=base_url|add:pagina_proxima %}
-            {% include "components/button.html" with variant="secondary" label="Próxima" href=href_proxima %}
+            {% include "components/button.html" with variant="secondary" label="Próxima" href=href_proxima aria_label=None %}
           {% endwith %}
         {% endwith %}
       {% else %}
-        {% include "components/button.html" with variant="secondary" label="Próxima" disabled=True %}
+        {% include "components/button.html" with variant="secondary" label="Próxima" disabled=True aria_label=None %}
       {% endif %}
     </div>
     {% endwith %}

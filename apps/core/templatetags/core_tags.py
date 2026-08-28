@@ -77,7 +77,7 @@ ICONES_CATALOGO = frozenset(
         'copiar',
         'editar',
         'confirmar',
-        'confirmar_check',
+        'sucesso',
         'estornar',
         'informacao',
         'atencao',

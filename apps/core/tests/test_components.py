@@ -198,7 +198,7 @@ def test_data_modal_trigger_ausente_por_padrao():
 def test_icon_template_incluido_antes_do_label():
     html = render_to_string(
         'components/button.html',
-        {'label': 'Confirmar', 'icon_template': 'components/icons/_check.html'},
+        {'label': 'Confirmar', 'icon_template': 'components/icons/confirmar.svg'},
     )
     icon_idx = html.index('aria-hidden="true"')
     label_idx = html.index('Confirmar')
@@ -216,7 +216,7 @@ def test_botao_somente_icone_usa_aria_label_como_nome_acessivel():
         {
             'label': '',
             'aria_label': 'Fechar',
-            'icon_template': 'components/icons/_check.html',
+            'icon_template': 'components/icons/confirmar.svg',
         },
     )
     assert 'aria-label="Fechar"' in html
@@ -460,6 +460,12 @@ _CONDICIONAL_DJANGO = re.compile(r'\{%\s*if\b.*?\{%\s*endif\s*%\}', re.S)
 _INCLUDE_DE_BOTAO = re.compile(
     r'\{%\s*include\s+([\'"])components/button\.html\1(.*?)%\}', re.S
 )
+# `(?:[^%]|%(?!\}))*` casa os argumentos até o `%}` de fechamento sem parar num
+# `%` de valor (`prefixo_sr="50%"`). `[^%]*` parava, e um `role=` depois do `%`
+# escapava da guarda. Aspa capturada + retrovisor (`\1`) como no include de botão.
+_INCLUDE_DE_BADGE = re.compile(
+    r'\{%\s*include\s+([\'"])components/badge\.html\1(?:[^%]|%(?!\}))*%\}'
+)
 _VARIANTE_LINK = re.compile(r'variant=([\'"])link\1')
 
 # Único arquivo em que a classe pode sair de `{% classes_botao %}`: é lá que
@@ -533,6 +539,56 @@ def _sem_comentarios(texto: str) -> str:
     return _COMENTARIO_DJANGO.sub(lambda m: '\n' * m.group(0).count('\n'), texto)
 
 
+def _tem_atributo(atributos: str, nome: str) -> bool:
+    """`True` só se `nome` for um atributo exato do elemento.
+
+    `atributo()` devolve `None` tanto para ausente quanto para presente-sem-valor
+    (`data-cartao-link`), e `nome in atributos` casaria `data-cartao-link-extra`
+    ou um `aria-describedby="data-cartao-link"`. O parser de pares resolve os
+    dois.
+    """
+    procurado = nome.lower()
+    return any(chave.lower() == procurado for chave, _ in pares(atributos))
+
+
+def _faixas_de_cartao(texto: str) -> list[range]:
+    """Faixas de linha que renderizam *dentro* de um cartão de listagem.
+
+    `card_abertura` só emite `<article ...>`; o fechamento é literal na tela
+    chamadora. Uma âncora `data-cartao-link` só é o alvo do cartão se estiver
+    dentro dessa faixa — fora dela, é uma âncora de texto solta e a isenção do
+    piso de 44px não vale.
+
+    O corpo do cartão também pode viver num `{% partialdef %}` no mesmo arquivo
+    (`fila_atendimento.html`) e ser incluído no `{% for %}`. Nesse caso a faixa
+    do `partialdef` incluído de dentro do cartão também conta.
+    """
+    linhas = texto.splitlines()
+    faixas: list[range] = []
+    abertura: int | None = None
+    for numero, linha in enumerate(linhas, 1):
+        if 'components/table.html#card_abertura' in linha:
+            abertura = numero
+        elif abertura is not None and '</article>' in linha:
+            faixas.append(range(abertura, numero + 1))
+            abertura = None
+
+    incluidos: set[str] = set()
+    for numero, linha in enumerate(linhas, 1):
+        if any(numero in faixa for faixa in faixas):
+            incluidos.update(re.findall(r'\{%\s*include\s+"[^"]*#([\w-]+)"', linha))
+    if incluidos:
+        dentro: int | None = None
+        for numero, linha in enumerate(linhas, 1):
+            encontro = re.search(r'\{%\s*partialdef\s+([\w-]+)', linha)
+            if encontro and encontro.group(1) in incluidos:
+                dentro = numero
+            elif dentro is not None and 'endpartialdef' in linha:
+                faixas.append(range(dentro, numero + 1))
+                dentro = None
+    return faixas
+
+
 def _clicaveis_sem_piso(
     caminho: str,
     texto: str,
@@ -560,8 +616,24 @@ def _clicaveis_sem_piso(
     a segunda metade da regra do design system — "`link` usado como ação isolada
     recebe `class="min-h-11"` explícito" — e apagá-la abriria, no mecanismo
     novo, um buraco do mesmo formato do que ele fecha.
+
+    5. `data-cartao-link` **dentro de uma faixa `#card_abertura` … `</article>`**:
+       o alvo efetivo do link não é a sua própria caixa de texto, é o
+       `<article>` inteiro do cartão de listagem, que mede no mínimo 126px de
+       altura. O piso existe para garantir área de toque, e aqui a área é maior
+       justamente porque o link foi marcado — `card_abertura` reage a ele por
+       `has-[a[data-cartao-link]]` e `core/js/cartao-alvo.js` encaminha o clique
+       do cartão. Exigir `min-h-11` na âncora inflaria a caixa de linha do
+       `<h2>` em cada cartão sem aumentar alvo nenhum.
+
+       A isenção é estrutural, não pela presença do atributo: `_faixas_de_cartao`
+       amarra a âncora ao cartão que a contém. Uma âncora `data-cartao-link`
+       fora de um `<article>` de cartão continua devendo o piso. E não é
+       gratuita: `test_link_de_cartao_tem_o_cartao_como_alvo` falha se a
+       marcação existir sem o mecanismo que a sustenta.
     """
     limpo = _sem_comentarios(texto)
+    faixas_cartao = _faixas_de_cartao(limpo)
     infratores: list[str] = []
     quantidade = 0
 
@@ -569,6 +641,10 @@ def _clicaveis_sem_piso(
         quantidade += 1
         if caminho == _TEMPLATE_DE_BOTAO and 'classes_botao' in (
             atributo(atributos, 'class') or ''
+        ):
+            continue
+        if _tem_atributo(atributos, 'data-cartao-link') and any(
+            numero in faixa for faixa in faixas_cartao
         ):
             continue
         nomes = _classes_garantidas(atributos)
@@ -1303,6 +1379,32 @@ class TestPaginationHref:
     def test_sem_filtros_nao_deixa_e_comercial_solto(self):
         assert self._hrefs(self._render(2)) == ['?page=1', '?page=3']
 
+    def test_nome_acessivel_dos_controles_e_anterior_e_proxima(self):
+        """O `aria_label` do include nomeia o <nav>, não os botões.
+
+        `{% include %}` sem `only` repassa o contexto inteiro, e `button.html`
+        emite `aria-label` quando encontra a variável. Sem zerar o parâmetro nos
+        includes de botão, os dois controles anunciavam o rótulo do <nav> —
+        "Paginação do histórico de requisições" — em vez de "Anterior" e
+        "Próxima". O texto visível continuava certo; só quem usa leitor de tela
+        perdia a única pista de qual controle avança e qual volta.
+        """
+        html = self._render(2, aria_label='Paginação do histórico de requisições')
+
+        assert html.count('aria-label="Paginação do histórico de requisições"') == 1
+        assert 'aria-label' in html.split('<div class="flex items-center gap-2">')[0]
+        controles = html.split('<div class="flex items-center gap-2">')[1]
+        assert 'aria-label' not in controles
+        assert 'Anterior' in controles
+        assert 'Próxima' in controles
+
+    def test_nome_acessivel_tambem_nao_vaza_nos_extremos(self):
+        """Nos extremos os controles são <button disabled>, mesmo caminho."""
+        for numero in (1, 3):
+            html = self._render(numero, aria_label='Paginação das movimentações')
+            controles = html.split('<div class="flex items-center gap-2">')[1]
+            assert 'aria-label' not in controles
+
     def test_extremos_desabilitam_em_vez_de_gerar_href_vazio(self):
         primeira = self._render(1)
         ultima = self._render(3)
@@ -1315,10 +1417,11 @@ class TestPaginationHref:
 def test_todo_icon_template_de_button_honra_a_classe():
     """`button.html` dimensiona o ícone por `class`, a tag {% icon %} por `size`.
 
-    O catálogo tem as duas convenções convivendo: 10 dos 11 `.svg` usam
-    `class="{{ class }}"`, e `voltar.svg` usa `width="{{ size }}"`. Passar um
-    ícone de `size` para `icon_template` renderiza `width=""` — o ícone estoura
-    o botão, e nada quebra: sem erro, sem log, sem teste vermelho.
+    Todo `.svg` do catálogo usa `class="{{ class }}"`; `voltar.svg` e
+    `devolver.svg` aceitam `width="{{ size }}"` por cima, para a tag. Um SVG que
+    dimensionasse **só** por `size` renderizaria `width=""` vindo de
+    `icon_template` — o ícone estoura o botão, e nada quebra: sem erro, sem log,
+    sem teste vermelho.
     """
     import re
 
@@ -2784,3 +2887,142 @@ class TestFilterCheckboxGroupAgrupado:
             self.ENCERRADAS,
         )
         assert [len(pares) for _, pares in grupos] == [4, 4]
+
+
+def test_nenhum_badge_de_dado_estatico_declara_live_region():
+    """`badge.html` escreveu a proibição e dois partials de domínio a violavam.
+
+    O contrato do componente é explícito: "NÃO usar `status`/`alert` em badge
+    de dado estático: são live regions, e uma listagem de 20 linhas viraria 20
+    live regions." `_badge_tipo_movimentacao.html` e `_estado_saida_badge.html`
+    passavam `role="status"` em toda variante mapeada — no ledger, 25 live
+    regions por página, todas dentro de cartões, para dado que nunca muda em
+    resposta a ação nenhuma.
+
+    O contexto que o `role` carregava vive em `prefixo_sr`, que é texto
+    `sr-only` e portanto sempre exposto.
+    """
+    raiz = Path(__file__).resolve().parents[3]
+    infratores = []
+    for template in (raiz / 'apps').rglob('*.html'):
+        for encontro in _INCLUDE_DE_BADGE.finditer(template.read_text()):
+            trecho = encontro.group(0)
+            if 'role=' in trecho:
+                infratores.append(f'{template.relative_to(raiz)}: {trecho.strip()}')
+
+    assert not infratores, (
+        f'badge de dado estático não declara live region; use prefixo_sr: {infratores}'
+    )
+
+
+def test_link_de_cartao_tem_o_cartao_como_alvo():
+    """A isenção de `data-cartao-link` no piso de 44px tem que ser verdade.
+
+    O link do título é uma âncora de texto: sozinho, ele é menor que 44px. O que
+    o torna aceitável é o alvo efetivo ser o `<article>` inteiro — e isso depende
+    de duas peças que este guarda amarra:
+
+    - `card_abertura` reage à presença do link (`has-[a[data-cartao-link]]`), o
+      que dá cursor, hover e anel de foco ao cartão;
+    - `core/js/cartao-alvo.js` encaminha o clique do cartão para o link.
+
+    Sem qualquer uma das duas, a isenção vira rota de fuga do piso e o cartão
+    volta a ter como alvo real uma âncora de 7 caracteres.
+    """
+    raiz = Path(__file__).resolve().parents[3]
+
+    chrome = (raiz / 'apps/core/templates/components/table.html').read_text()
+    assert 'has-[a[data-cartao-link]]:cursor-pointer' in chrome
+    assert 'hover:has-[a[data-cartao-link]]:bg-bg-page' in chrome
+    assert 'has-[a[data-cartao-link]:focus-visible]:ring-2' in chrome
+
+    js = (raiz / 'apps/core/static/core/js/cartao-alvo.js').read_text()
+    assert 'a[data-cartao-link]' in js
+    # As duas guardas que fazem o alargamento não atropelar o usuário.
+    assert 'getSelection' in js
+    assert 'closest(JA_INTERATIVO)' in js
+
+    base = (raiz / 'apps/core/templates/base.html').read_text()
+    assert 'core/js/cartao-alvo.js' in base
+
+    # O CSS compilado precisa ter os seletores: `has-[]` com colchetes aninhados
+    # é a construção mais frágil da varredura do Tailwind, e sem o `make
+    # css-build` o cartão fica sem cursor e sem anel de foco em silêncio.
+    css = (raiz / 'apps/core/static/core/css/app.css').read_text()
+    assert 'has(:is(a[data-cartao-link]))' in css
+    assert 'has(:is(a[data-cartao-link]:focus-visible))' in css
+
+    # E a marcação só existe em tela que usa o chrome de cartão. O
+    # `(?![-\w\]:])` separa o atributo exato das ocorrências dentro dos seletores
+    # `has-[...]` do próprio chrome e de nomes parecidos (`data-cartao-link-x`),
+    # que casariam o nome sem serem a marcação.
+    import re
+
+    atributo_marcador = re.compile(r'data-cartao-link(?![-\w\]:])')
+    chrome_relativo = 'apps/core/templates/components/table.html'
+
+    telas_marcadas = []
+    for caminho in sorted((raiz / 'apps').rglob('*.html')):
+        relativo = str(caminho.relative_to(raiz))
+        if relativo == chrome_relativo:
+            continue
+        conteudo = caminho.read_text()
+        ocorrencias = len(atributo_marcador.findall(conteudo))
+        if not ocorrencias:
+            continue
+        telas_marcadas.append(relativo)
+        assert 'components/table.html#card_abertura' in conteudo, (
+            f'{relativo} marca data-cartao-link sem usar o chrome de cartão'
+        )
+        # Presença do include não basta: cada âncora marcada tem que morar
+        # dentro de uma faixa `#card_abertura` … `</article>`, senão o alvo real
+        # volta a ser a âncora de texto e a isenção do piso de 44px fica sem
+        # lastro (mesma faixa que `_clicaveis_sem_piso` usa).
+        limpo = _sem_comentarios(conteudo)
+        faixas = _faixas_de_cartao(limpo)
+        for _, atributos, numero in elementos(limpo, 'a'):
+            if not _tem_atributo(atributos, 'data-cartao-link'):
+                continue
+            assert any(numero in faixa for faixa in faixas), (
+                f'{relativo}:{numero} data-cartao-link fora de um cartão'
+            )
+
+    # As cinco listagens navegáveis. Ledger, catálogo e histórico de importações
+    # ficam de fora de propósito: os dois primeiros não têm detalhe para onde ir,
+    # e o terceiro oferece um download, que não é navegação e por isso continua
+    # sendo um botão explícito.
+    assert len(telas_marcadas) == 5, telas_marcadas
+
+
+def test_isencao_de_cartao_so_vale_para_o_atributo_exato():
+    """`data-cartao-link-extra` e `aria-describedby="data-cartao-link"` não são a
+    marcação — o seletor do chrome exige `a[data-cartao-link]`. A isenção do
+    piso de 44px não pode alcançá-los por casamento de substring.
+    """
+    markup = (
+        '{% include "components/table.html#card_abertura" %}\n'
+        '  <a href="/x" data-cartao-link class="rounded-sm">REQ-1</a>\n'
+        '</article>\n'
+        '<a href="/y" data-cartao-link-extra class="rounded-sm">solto</a>\n'
+        '<a href="/z" aria-describedby="data-cartao-link" class="rounded-sm">outro</a>\n'
+    )
+    infratores, _ = _clicaveis_sem_piso('t.html', markup, frozenset(), {})
+    # a âncora real dentro do cartão é isentada; as duas parecidas, não
+    assert infratores == [
+        't.html:4 clicável sem piso de 44px',
+        't.html:5 clicável sem piso de 44px',
+    ]
+
+
+def test_include_de_badge_detecta_role_depois_de_percent_no_argumento():
+    """`prefixo_sr="50%"` não pode cegar a guarda de live region: o `%` no valor
+    de um argumento antes de `role=` fazia o padrão antigo (`[^%]*`) não casar o
+    include inteiro.
+    """
+    trecho = (
+        '{% include \'components/badge.html\' with label="x" '
+        'prefixo_sr="50% cheio" role="status" %}'
+    )
+    encontro = _INCLUDE_DE_BADGE.search(trecho)
+    assert encontro is not None
+    assert 'role=' in encontro.group(0)

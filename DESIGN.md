@@ -281,6 +281,21 @@ A regra anterior mandava renderizar duas vezes, cartão abaixo de 640px e tabela
 
 Consequência para quem escreve tela nova: não reintroduzir `<table>` em listagem. Se a densidade de uma tabela parecer necessária, o problema a resolver primeiro é a largura disponível — não o chrome.
 
+**Reteste no catálogo de materiais (2026-08-27).** A crítica da Etapa 5 levantou que o catálogo é o caso canônico da tabela — 4 campos, três deles numéricos, todos curtos — e que a regra talvez cobrasse caro ali sem devolver nada. Foi medido com um protótipo de `<table>` já otimizado: `table-fixed`, `truncate` no nome do material, colunas em porcentagem e padding de 12px.
+
+| Viewport | Conteúdo disponível | A tabela precisa de | Cabe? | Altura por linha |
+|---|---|---|---|---|
+| 1024px | 736px | 759px | **não**, estoura 23px | 65px — as quantidades quebram em duas linhas |
+| 1280px | 992px | 990px | por 2px | 45px |
+
+O resultado sustenta a regra e não abre exceção:
+
+- A 1024px a tabela não cabe **mesmo truncando**, e o que quebra em duas linhas são justamente as quantidades — a coluna que a tabela existiria para alinhar. É o mesmo fracasso que a #83 mediu, agora com a implementação mais favorável possível.
+- A 1280px ela cabe por 2px. Um rótulo de coluna mais longo, uma unidade mais larga ou um `padding` a mais eliminam a folga.
+- A vitória de densidade é condicional e cara: 45px por linha contra 63px por registro do cartão (126px em grade de 2 colunas), **e** ao custo de truncar o nome do material, que o cartão não trunca.
+
+Onde há ganho real a buscar é na grade, não no chrome: o cartão do catálogo tem 126px de altura e ainda assim só recebe 2 colunas a 1280px, porque a terceira coluna só entra em `2xl` (1536px). Três colunas a 1280px dariam 42px por registro — mais denso que a tabela, sem truncar nada. Isso é assunto do breakpoint da grade, e esbarra na Regra do Chrome Sem Parâmetro: `cards_abertura` é string fixa e uma contagem de colunas por tela seria parâmetro novo. Contagem de coluna não é "conteúdo de célula", então não é o que aquele guardrail proíbe — mas mudar o contrato do chrome exige decisão registrada antes, não durante.
+
 **A Regra do Chrome Sem Parâmetro.** Os fragmentos de chrome de listagem não recebem parâmetro de classe. Se um chrome precisa de um parâmetro que descreve conteúdo de célula, a abstração está errada — a célula fica explícita na tela chamadora.
 
 ## Elevation & Depth

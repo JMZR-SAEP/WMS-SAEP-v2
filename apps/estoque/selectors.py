@@ -20,7 +20,9 @@ def listar_saidas_excepcionais(ator_id: int) -> QuerySet:
     return (
         SaidaExcepcional.objects.select_related('registrado_por', 'estoque')
         .annotate(quantidade_itens=Count('itens'))
-        .order_by('-criado_em')
+        # `-id` desempata registros do mesmo instante: sem ele, a fronteira de
+        # página da listagem paginada não é determinística entre requisições.
+        .order_by('-criado_em', '-id')
     )
 
 
@@ -226,7 +228,7 @@ def listar_historico_importacoes_scpi():
     from apps.estoque.models import ImportacaoSCPI
 
     return ImportacaoSCPI.objects.select_related('importado_por', 'estoque').order_by(
-        '-importado_em'
+        '-importado_em', '-id'
     )
 
 
@@ -268,7 +270,10 @@ def listar_materiais_com_saldo(*, busca: str = ''):
                 output_field=BooleanField(),
             ),
         )
-        .order_by('material__nome')
+        # `pk` desempata materiais homônimos: `material__nome` não é único e
+        # sozinho deixa a fronteira de 25 registros da paginação instável entre
+        # requisições.
+        .order_by('material__nome', 'pk')
     )
 
     if busca:

@@ -6,25 +6,33 @@ textual é sempre o portador primário do significado (acessibilidade: cor nunca
 
 Tipo não mapeado (ramo {% else %}): repassa o valor cru sob o prefixo
 `desconhecida:`, deixando o fallback vermelho do badge.html gritar (Decisão
-A-1, issue #122). Não passa `role`/`aria_label` — o próprio badge.html
-ignora os dois na variante desconhecida e força `role="alert"`. Passa
-`prefixo_sr` no lugar, e o badge compõe o nome acessível: "Tipo de
-movimentação: Indisponível (rótulo real)".
+A-1, issue #122). O badge.html ignora `role`/`aria_label` na variante
+desconhecida e força `role="alert"`; o `prefixo_sr` sobrevive, e o badge
+compõe o nome acessível: "Tipo de movimentação: Indisponível (rótulo real)".
+
+Todos os ramos usam `prefixo_sr`, e nenhum passa `role`. O `role="status"`
+que estava aqui contrariava o contrato escrito no próprio badge.html — "NÃO
+usar `status`/`alert` em badge de dado estático: são live regions, e uma
+listagem de 20 linhas viraria 20 live regions". No ledger eram 25 live
+regions por página, todas dentro de cartões, para dado que nunca muda em
+resposta a ação nenhuma. `prefixo_sr` entrega o mesmo contexto por texto
+`sr-only`, que é sempre exposto — diferente de `aria-label` num <span> sem
+role, que a spec ARIA não garante que seja anunciado.
 {% endcomment %}
 {% if tipo == 'reserva' %}
-  {% include "components/badge.html" with variant="blue" label=rotulo role="status" aria_label="Tipo de movimentação: "|add:rotulo %}
+  {% include "components/badge.html" with variant="blue" label=rotulo prefixo_sr="Tipo de movimentação: " %}
 {% elif tipo == 'liberacao' %}
-  {% include "components/badge.html" with variant="slate" label=rotulo role="status" aria_label="Tipo de movimentação: "|add:rotulo %}
+  {% include "components/badge.html" with variant="slate" label=rotulo prefixo_sr="Tipo de movimentação: " %}
 {% elif tipo == 'consumo' %}
-  {% include "components/badge.html" with variant="indigo" label=rotulo role="status" aria_label="Tipo de movimentação: "|add:rotulo %}
+  {% include "components/badge.html" with variant="indigo" label=rotulo prefixo_sr="Tipo de movimentação: " %}
 {% elif tipo == 'saida_excepcional' %}
-  {% include "components/badge.html" with variant="red" label=rotulo role="status" aria_label="Tipo de movimentação: "|add:rotulo %}
+  {% include "components/badge.html" with variant="red" label=rotulo prefixo_sr="Tipo de movimentação: " %}
 {% elif tipo == 'estorno_saida' %}
-  {% include "components/badge.html" with variant="amber" label=rotulo role="status" aria_label="Tipo de movimentação: "|add:rotulo %}
+  {% include "components/badge.html" with variant="amber" label=rotulo prefixo_sr="Tipo de movimentação: " %}
 {% elif tipo == 'devolucao' %}
-  {% include "components/badge.html" with variant="teal" label=rotulo role="status" aria_label="Tipo de movimentação: "|add:rotulo %}
+  {% include "components/badge.html" with variant="teal" label=rotulo prefixo_sr="Tipo de movimentação: " %}
 {% elif tipo == 'estorno_requisicao' %}
-  {% include "components/badge.html" with variant="violet" label=rotulo role="status" aria_label="Tipo de movimentação: "|add:rotulo %}
+  {% include "components/badge.html" with variant="violet" label=rotulo prefixo_sr="Tipo de movimentação: " %}
 {% else %}
   {% include "components/badge.html" with variant="desconhecida:"|add:tipo label=rotulo prefixo_sr="Tipo de movimentação: " %}
 {% endif %}

@@ -307,7 +307,7 @@
         class="fixed inset-x-0 bottom-0 z-10 mt-6 flex flex-nowrap items-center justify-end gap-2 border-t border-border bg-surface px-4 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] sm:static sm:z-auto sm:gap-3 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:pb-0"
         x-data="modalController({ id: 'confirmar-importacao-scpi' })"
       >
-        {% include "components/button.html" with variant="primary" label="Confirmar importação" icon_template="components/icons/confirmar_check.svg" data_modal_trigger="confirmar-importacao-scpi" aria_describedby="alertas-importacao" class="shrink-0" %}
+        {% include "components/button.html" with variant="primary" label="Confirmar importação" icon_template="components/icons/confirmar.svg" data_modal_trigger="confirmar-importacao-scpi" aria_describedby="alertas-importacao" class="shrink-0" %}
 
         {% modal_copy "confirmar_importacao_scpi" as confirmar_importacao_scpi_copy %}
         {% url 'requisicoes:confirmar_importacao_scpi' as url_confirmar_importacao %}

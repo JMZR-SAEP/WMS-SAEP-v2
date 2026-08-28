@@ -9,7 +9,7 @@
   <div class="mb-4 flex items-center justify-between">
     <p class="text-sm text-text-tertiary">
       {% if importacoes %}
-        {{ importacoes|length }} importaç{% if importacoes|length == 1 %}ão registrada{% else %}ões registradas{% endif %}
+        {{ page_obj.paginator.count }} importaç{{ page_obj.paginator.count|pluralize:"ão registrada,ões registradas" }}
       {% else %}
         Nenhuma importação registrada.
       {% endif %}
@@ -24,7 +24,8 @@
         {% include "components/table.html#card_abertura" %}
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
-              <h2 class="font-mono text-xs break-all text-text-primary">{{ imp.arquivo_nome }}</h2>
+              {# 14px semibold como os outros seis cartões: 12px é tamanho de rótulo estrutural, e mono é uma segunda família que o design system não declara — ela fica reservada ao hash, que é onde caractere a caractere importa. #}
+              <h2 class="break-all text-sm font-semibold text-text-primary">{{ imp.arquivo_nome }}</h2>
               <p class="mt-1 text-xs text-text-tertiary">{{ imp.importado_em|date:"d/m/Y H:i" }}</p>
             </div>
             <span class="shrink-0">
@@ -70,6 +71,8 @@
         </article>
       {% endfor %}
     </div>
+
+    {% include 'components/pagination.html' with page_obj=page_obj rotulo_itens='importações' aria_label='Paginação do histórico de importações SCPI' %}
   {% endif %}
 
 </div>

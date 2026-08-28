@@ -37,6 +37,33 @@ class TestListarSaidasExcepcionaisView:
         response = client.get(URL)
         assert response.status_code == 403
 
+    def test_lista_pagina_em_vez_de_carregar_tudo(
+        self, client, chefe_almoxarifado, estoque_principal, material_disponivel
+    ):
+        """A lista só cresce: `listar_saidas_excepcionais` não tem recorte de
+        período nem filtro, e a tela renderizava o queryset inteiro em cartões.
+        """
+        from apps.estoque.services import registrar_saida_excepcional
+        from apps.estoque.views import PAGINA_SAIDAS_EXCEPCIONAIS_TAMANHO
+
+        total = PAGINA_SAIDAS_EXCEPCIONAIS_TAMANHO + 2
+        for i in range(total):
+            registrar_saida_excepcional(
+                ator_id=chefe_almoxarifado.pk,
+                estoque_id=estoque_principal.pk,
+                motivo=f'Descarte {i}',
+                observacao='',
+                itens=[{'material_id': material_disponivel.pk, 'quantidade': '1'}],
+            )
+
+        client.force_login(chefe_almoxarifado)
+        response = client.get(URL)
+        page_obj = response.context['page_obj']
+
+        assert page_obj.paginator.count == total
+        assert len(response.context['saidas']) == PAGINA_SAIDAS_EXCEPCIONAIS_TAMANHO
+        assert 'Paginação das saídas excepcionais' in response.content.decode()
+
     def test_usuario_inativo_redirecionado_para_login(self, client, usuario_inativo):
         # Django ModelBackend trata is_active=False como não-autenticado;
         # @login_required redireciona para login (USR-01).
@@ -622,6 +649,28 @@ class TestDetalheSaidaExcepcionalView:
         client.force_login(aux_almoxarifado)
         response = client.get(self._url(saida_registrada.pk))
         assert response.context['pode_estornar'] is False
+
+    def test_voltar_url_preserva_pagina_da_listagem(
+        self, client, chefe_almoxarifado, saida_registrada
+    ):
+        """O cartão da lista paginada manda `?next=` com a página de origem; os
+        dois links "Voltar" do detalhe devem apontar de volta para ela (PR #40).
+        """
+        client.force_login(chefe_almoxarifado)
+        proximo = f'{URL}?page=2'
+        response = client.get(self._url(saida_registrada.pk), {'next': proximo})
+        assert response.context['voltar_url'] == proximo
+        assert response.content.decode().count(f'href="{proximo}"') == 2
+
+    def test_voltar_url_rejeita_destino_externo(
+        self, client, chefe_almoxarifado, saida_registrada
+    ):
+        """`next` para outro host cai no fallback — nunca vira open redirect."""
+        client.force_login(chefe_almoxarifado)
+        response = client.get(
+            self._url(saida_registrada.pk), {'next': 'https://evil.example/x'}
+        )
+        assert response.context['voltar_url'] == URL
 
     def test_post_retorna_405(self, client, chefe_almoxarifado, saida_registrada):
         client.force_login(chefe_almoxarifado)
@@ -1614,6 +1663,36 @@ class TestHistoricoImportacoesScpiView:
         assert resp.status_code == 200
         assert b'relatorio.csv' in resp.content
 
+    def test_historico_pagina_em_vez_de_carregar_tudo(
+        self, client, superuser, estoque_principal
+    ):
+        """A importação SCPI é ritual recorrente: o histórico só cresce. A
+        contagem também vem do paginator agora — o `|length` anterior
+        materializava o queryset inteiro só para exibir o número.
+        """
+        from apps.estoque.models import ImportacaoSCPI, StatusImportacaoSCPI
+        from apps.estoque.views import PAGINA_IMPORTACOES_SCPI_TAMANHO
+
+        total = PAGINA_IMPORTACOES_SCPI_TAMANHO + 2
+        for i in range(total):
+            ImportacaoSCPI.objects.create(
+                arquivo_nome=f'scpi-{i}.csv',
+                arquivo_hash=f'{i:064d}',
+                importado_por=superuser,
+                estoque=estoque_principal,
+                status=StatusImportacaoSCPI.CONCLUIDA,
+            )
+
+        client.force_login(superuser)
+        resp = client.get(self.URL)
+        page_obj = resp.context['page_obj']
+        conteudo = resp.content.decode()
+
+        assert page_obj.paginator.count == total
+        assert len(resp.context['importacoes']) == PAGINA_IMPORTACOES_SCPI_TAMANHO
+        assert 'Paginação do histórico de importações SCPI' in conteudo
+        assert f'{total} importações registradas' in conteudo
+
     def test_nao_expoe_csv_bruto(self, client, superuser, estoque_principal):
         from apps.estoque.models import ImportacaoSCPI, StatusImportacaoSCPI
 
@@ -1645,10 +1724,14 @@ class TestHistoricoImportacoesScpiView:
         )
         client.force_login(superuser)
         conteudo = client.get(self.URL).content.decode()
-        assert (
-            '<article class="rounded-xl border border-border bg-surface p-4 shadow-sm">'
-            in conteudo
-        )
+        assert '<article class="relative rounded-xl border border-border' in conteudo
+        # Esta é a única listagem em cartões cuja ação é um download, não uma
+        # navegação para detalhe: ela mantém o botão explícito e não marca
+        # `data-cartao-link`. Cartão que baixa arquivo ao ser clicado seria
+        # surpresa, não conveniência.
+        # `(?![\]:])` separa o atributo das ocorrências dentro dos seletores
+        # `has-[a[data-cartao-link]]` que o chrome imprime em todo <article>.
+        assert not re.search(r'data-cartao-link(?![\]:])', conteudo)
         assert 'relatorio.csv' in conteudo
         assert 'Concluída' in conteudo
         assert '<table' not in conteudo
@@ -2031,10 +2114,66 @@ class TestListaMateriaisView:
         client.force_login(chefe_almoxarifado)
         conteudo = client.get(URL_MATERIAIS).content.decode()
         # <article> literal aqui: o estilo do cartão depende do estado de
-        # divergência, então esta tela não usa o #card_abertura do chrome.
+        # divergência, então esta tela não usa o #card_abertura do chrome. O
+        # container, esse sim, é o chrome — não tinha nada de condicional e a
+        # cópia da string de grade não acompanharia uma mudança de breakpoint.
         assert '<article' in conteudo
-        assert 'grid items-start gap-3 sm:grid-cols-2' in conteudo
+        assert 'grid items-start gap-3 sm:grid-cols-2 2xl:grid-cols-3' in conteudo
         assert '<table' not in conteudo
+
+    def test_catalogo_pagina_em_vez_de_despejar_o_scpi_inteiro(
+        self, client, chefe_almoxarifado, estoque_principal
+    ):
+        """O catálogo é populado pela importação SCPI, ou seja, cresce com o
+        arquivo do sistema legado. Sem paginação, a tela renderizava o queryset
+        inteiro — ~1,2 KB de HTML e 14 nós de DOM por cartão — numa página que o
+        almoxarifado abre do celular, em pé no galpão.
+        """
+        from apps.estoque.models import Material, SaldoEstoque, UnidadeMedida
+        from apps.estoque.views import PAGINA_MATERIAIS_TAMANHO
+
+        total = PAGINA_MATERIAIS_TAMANHO + 3
+        for i in range(total):
+            material = Material.objects.create(
+                codigo=f'900.000.{i:03d}',
+                nome=f'Material {i}',
+                unidade=UnidadeMedida.UNIDADE,
+                ativo=True,
+            )
+            SaldoEstoque.objects.create(
+                estoque=estoque_principal, material=material, saldo_fisico=1
+            )
+
+        client.force_login(chefe_almoxarifado)
+        response = client.get(URL_MATERIAIS)
+        page_obj = response.context['page_obj']
+
+        assert page_obj.paginator.count == total
+        assert len(response.context['saldos']) == PAGINA_MATERIAIS_TAMANHO
+        assert 'Paginação do catálogo de materiais' in response.content.decode()
+
+    def test_paginacao_do_catalogo_preserva_a_busca(
+        self, client, chefe_almoxarifado, estoque_principal
+    ):
+        """Sem `querystring_filtros`, ir para a página 2 caía no catálogo
+        inteiro — perdendo exatamente o recorte que o usuário acabou de pedir."""
+        from apps.estoque.models import Material, SaldoEstoque, UnidadeMedida
+        from apps.estoque.views import PAGINA_MATERIAIS_TAMANHO
+
+        for i in range(PAGINA_MATERIAIS_TAMANHO + 1):
+            material = Material.objects.create(
+                codigo=f'901.000.{i:03d}',
+                nome=f'Tinta {i}',
+                unidade=UnidadeMedida.UNIDADE,
+                ativo=True,
+            )
+            SaldoEstoque.objects.create(
+                estoque=estoque_principal, material=material, saldo_fisico=1
+            )
+
+        client.force_login(chefe_almoxarifado)
+        conteudo = client.get(URL_MATERIAIS, {'busca': 'Tinta'}).content.decode()
+        assert 'href="?busca=Tinta&amp;page=2"' in conteudo
 
     def test_material_divergente_realca_linha_e_card(
         self, client, chefe_almoxarifado, material_scpi_critico, estoque_principal
@@ -2044,7 +2183,10 @@ class TestListaMateriaisView:
         conteudo = response.content.decode()
         # Sem tabela, o realce de divergência vive só no cartão.
         assert 'border-danger-border-strong bg-danger-subtle' in conteudo
-        assert 'aria-label="Material com divergência crítica"' in conteudo
+        # Sem `aria-label` no <article>: ele substituía o nome acessível do
+        # cartão pelo rótulo genérico e apagava o código do material, que é a
+        # identidade do registro. O badge diz o estado — e diz para todos.
+        assert 'aria-label="Material com divergência crítica"' not in conteudo
         assert conteudo.count('Divergente') == 1
 
 
@@ -2156,6 +2298,64 @@ class TestHistoricoMovimentacoesView:
         response = client.get(URL_MOVIMENTACOES)
         assert response.context['page_obj'].paginator.count == 0
         assert b'Nenhuma movimenta' in response.content
+
+    def test_heading_do_cartao_distingue_lancamentos_do_mesmo_minuto(
+        self,
+        client,
+        superuser,
+        requisicao_autorizada,
+        material_disponivel,
+        estoque_principal,
+        monkeypatch,
+    ):
+        """`date:"d/m/Y H:i"` tem precisão de minuto — um atendimento gera várias
+        movimentações do mesmo material na mesma transação. O número do
+        lançamento entra em `sr-only` para o nome acessível não colidir.
+        """
+        import re
+        from decimal import Decimal
+
+        from django.utils import timezone
+
+        from apps.estoque.models import MovimentacaoEstoque, TipoMovimentacaoEstoque
+
+        req, _ = requisicao_autorizada
+        # `criado_em` é `auto_now_add`; congela o relógio para as duas caírem no
+        # mesmo instante — a colisão que o número do lançamento resolve —, sem
+        # depender de o teste rodar rápido o bastante dentro do mesmo minuto.
+        instante = timezone.now().replace(second=0, microsecond=0)
+        monkeypatch.setattr('django.utils.timezone.now', lambda: instante)
+        movs = [
+            MovimentacaoEstoque.objects.create(
+                tipo=TipoMovimentacaoEstoque.CONSUMO,
+                material=material_disponivel,
+                estoque=estoque_principal,
+                delta_fisico=Decimal('-1'),
+                delta_reservado=Decimal('-1'),
+                requisicao=req,
+                ator=superuser,
+            )
+            for _ in range(2)
+        ]
+
+        client.force_login(superuser)
+        html = client.get(URL_MOVIMENTACOES).content.decode()
+
+        headings = re.findall(r'<h2[^>]*>(.*?)</h2>', html, re.S)
+        nomes_acessiveis = [
+            ' '.join(re.sub(r'<[^>]+>', '', h).split()) for h in headings
+        ]
+        # todo nome acessível é único, apesar de material e minuto repetidos
+        assert len(set(nomes_acessiveis)) == len(nomes_acessiveis)
+        nomes_das_criadas = [
+            n for m in movs for n in nomes_acessiveis if f'lançamento {m.pk} em ' in n
+        ]
+        assert len(nomes_das_criadas) == 2
+        # sem o número do lançamento os dois colidiriam: mesmo material, mesmo minuto
+        sem_lancamento = [
+            re.sub(r' — lançamento \d+ em ', ' em ', n) for n in nomes_das_criadas
+        ]
+        assert sem_lancamento[0] == sem_lancamento[1]
 
     def test_paginacao_usa_componente_com_rotulo_e_aria_label_proprios(
         self,
@@ -2807,7 +3007,7 @@ class TestHistoricoMovimentacoesResponsivo:
         assert response.context['page_obj'].paginator.num_pages == 1
         html = response.content.decode()
 
-        idx_ordenacao = html.index('Mais recentes primeiro')
+        idx_ordenacao = html.index('Mais antigas primeiro')
         linha = html.rindex('<div', 0, idx_ordenacao)
         trecho = html[linha:idx_ordenacao]
         assert 'tabular-nums">1</span>' in trecho
@@ -2821,7 +3021,7 @@ class TestHistoricoMovimentacoesResponsivo:
         client.force_login(superuser)
         html = client.get(URL_MOVIMENTACOES, HTTP_HX_REQUEST='true').content.decode()
 
-        idx_ordenacao = html.index('Mais recentes primeiro')
+        idx_ordenacao = html.index('Mais antigas primeiro')
         linha = html.rindex('<div', 0, idx_ordenacao)
         trecho = html[linha:idx_ordenacao]
         assert 'tabular-nums">1</span>' in trecho

@@ -15,10 +15,18 @@
     {% include "components/table.html#cards_abertura" %}
       {% for saida in saidas %}
         {% include "components/table.html#card_abertura" %}
+          {% url 'estoque:detalhe_saida_excepcional' saida.pk as url_detalhe_saida %}
+          {% with pk_texto=saida.pk|stringformat:"s" next_encoded=request.get_full_path|urlencode %}
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
+              {# O link do título é o alvo real; `data-cartao-link` faz o cartão inteiro responder por ele (core/js/cartao-alvo.js). #}
               <h2 class="break-words text-sm font-semibold text-text-primary">
-                {{ saida.numero_publico|default:"—" }}
+                <a
+                  href="{{ url_detalhe_saida }}?next={{ next_encoded }}"
+                  data-cartao-link
+                  class="rounded-sm focus-visible:outline-none"
+                  aria-label="Ver detalhe da saída {% if saida.numero_publico %}{{ saida.numero_publico }}{% else %}{{ pk_texto }}{% endif %}"
+                >{{ saida.numero_publico|default:"—" }}</a>
               </h2>
               <p class="mt-1 text-xs text-text-tertiary">
                 {{ saida.criado_em|date:"d/m/Y H:i" }}
@@ -42,26 +50,23 @@
             </div>
           </dl>
 
-          {% url 'estoque:detalhe_saida_excepcional' saida.pk as url_detalhe_saida %}
-          {% with pk_texto=saida.pk|stringformat:"s" %}
-            {% if saida.numero_publico %}
-              {% include "components/button.html" with variant="secondary" size="md" href=url_detalhe_saida label="Ver detalhe" aria_label="Ver detalhe da saída "|add:saida.numero_publico class="mt-4" %}
-            {% else %}
-              {% include "components/button.html" with variant="secondary" size="md" href=url_detalhe_saida label="Ver detalhe" aria_label="Ver detalhe da saída "|add:pk_texto class="mt-4" %}
-            {% endif %}
+          {# Afordância do cartão, não um controle: o link do título já carrega o nome acessível. #}
+          <p class="mt-4 flex items-center gap-1 text-sm font-medium text-primary" aria-hidden="true">Ver detalhe <span>&rarr;</span></p>
           {% endwith %}
         </article>
       {% endfor %}
     </div>
+
+    {% include 'components/pagination.html' with page_obj=page_obj rotulo_itens='saídas excepcionais' aria_label='Paginação das saídas excepcionais' %}
 
   {% else %}
 
     {# Empty state #}
     {% if pode_registrar %}
       {% url 'estoque:nova_saida_excepcional' as cta_nova_saida_url %}
-      {% include 'components/empty_state.html' with icone='components/icons/_check.html' titulo='Nenhuma saída excepcional registrada' descricao='Registre a primeira baixa administrativa direta de material.' cta_url=cta_nova_saida_url cta_label='Nova saída excepcional' %}
+      {% include 'components/empty_state.html' with icone='components/icons/_prancheta.html' titulo='Nenhuma saída excepcional registrada' descricao='Registre a primeira baixa administrativa direta de material.' cta_url=cta_nova_saida_url cta_label='Nova saída excepcional' %}
     {% else %}
-      {% include 'components/empty_state.html' with icone='components/icons/_check.html' titulo='Nenhuma saída excepcional registrada' descricao='Não há saídas excepcionais no sistema.' %}
+      {% include 'components/empty_state.html' with icone='components/icons/_prancheta.html' titulo='Nenhuma saída excepcional registrada' descricao='Não há saídas excepcionais no sistema.' %}
     {% endif %}
 
   {% endif %}
