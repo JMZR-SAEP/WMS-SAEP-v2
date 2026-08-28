@@ -494,7 +494,10 @@ def estornar_saida_excepcional_view(request, pk: int):
                 erro=str(exc),
                 form_body_template=('estoque/partials/_modal_form_estorno_saida.html'),
                 confirm_label=copy['confirm_label'],
-                confirm_variant='danger',
+                # `return` e não `danger`: o 422 devolve o mesmo modal, e a cor
+                # da ação é parte dele. Mesma razão pela qual o estorno de
+                # requisição passa a própria variante aqui.
+                confirm_variant='return',
                 icon_variant=copy['icon_variant'],
                 acao_erro='estornar a saída',
                 contexto_form={'justificativa': justificativa},

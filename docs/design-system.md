@@ -493,6 +493,15 @@ confirmação do estorno passaram a teal; `classes_painel_decisao` ganhou a
 variante `return` e `_icone_nivel.html` ganhou o glifo. O vermelho volta a
 significar só negação, falha e divergência.
 
+A regra vale para as duas reversões que a tabela lista, e não só para a
+requisição: o estorno de requisição em `requisicoes/detalhe.html` e o estorno de
+saída excepcional em `estoque/detalhe_saida_excepcional.html`, incluindo o
+`confirm_variant` que cada view repassa ao re-render 422 — o modal que reabre
+com erro é o mesmo modal, e a cor da ação é parte dele. A tela de saída
+excepcional já saía em `text-return-*` no bloco "Dados do estorno" enquanto a
+ação que o produz saía em vermelho; era a mesma operação com dois sistemas de
+cor na mesma página.
+
 Duas coisas que a tabela corrige em relação ao que existia antes da #136:
 
 - **A lixeira não é mais o glifo de `danger` inteiro.** Cancelar, recusar e
