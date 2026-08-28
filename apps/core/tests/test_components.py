@@ -1575,6 +1575,40 @@ def test_nenhum_rotulo_de_campo_escrito_a_mao():
     )
 
 
+def test_dt_repetido_por_registro_nao_veste_tipografia_de_label():
+    """Rótulo repetido por registro (issue #158) fica inline em caixa normal.
+
+    `DESIGN.md` §A Regra da Caixa Alta Estrutural reserva `uppercase` a rótulo
+    de estrutura impresso uma vez — `<th>`, `<label>`, cabeçalho de menu. O
+    `<dt>` de um `<dl>` dentro de um cartão de listagem reimprime o mesmo texto
+    a cada cartão da página: não é cabeçalho de coluna e não sobe para caixa
+    alta. Semântica `<dl>/<dt>/<dd>` preservada; só a apresentação muda.
+    """
+
+    raiz = Path(__file__).resolve().parents[3]
+    telas = (
+        'apps/requisicoes/templates/requisicoes/historico_requisicoes.html',
+        'apps/requisicoes/templates/requisicoes/lista_minhas.html',
+        'apps/requisicoes/templates/requisicoes/fila_autorizacao.html',
+        'apps/requisicoes/templates/requisicoes/fila_atendimento.html',
+        'apps/estoque/templates/estoque/historico_movimentacoes.html',
+        'apps/estoque/templates/estoque/lista_saidas_excepcionais.html',
+        'apps/estoque/templates/estoque/lista_materiais.html',
+        'apps/estoque/templates/estoque/historico_importacoes_scpi.html',
+    )
+    infratores: list[str] = []
+    for rel in telas:
+        texto = (raiz / rel).read_text()
+        for _, atributos, numero in elementos(texto, 'dt'):
+            if 'uppercase' in classes(atributos):
+                infratores.append(f'{rel}:{numero}')
+
+    assert not infratores, (
+        '`<dt>` repetido por registro em caixa alta; rebaixe para rótulo inline '
+        f'(DESIGN.md §A Regra da Caixa Alta Estrutural): {infratores}'
+    )
+
+
 def test_nenhum_widget_carrega_margem_de_rotulo():
     """A régua entre rótulo e campo não pertence ao Python.
 
