@@ -533,6 +533,44 @@ def _sem_comentarios(texto: str) -> str:
     return _COMENTARIO_DJANGO.sub(lambda m: '\n' * m.group(0).count('\n'), texto)
 
 
+def _faixas_de_cartao(texto: str) -> list[range]:
+    """Faixas de linha que renderizam *dentro* de um cartão de listagem.
+
+    `card_abertura` só emite `<article ...>`; o fechamento é literal na tela
+    chamadora. Uma âncora `data-cartao-link` só é o alvo do cartão se estiver
+    dentro dessa faixa — fora dela, é uma âncora de texto solta e a isenção do
+    piso de 44px não vale.
+
+    O corpo do cartão também pode viver num `{% partialdef %}` no mesmo arquivo
+    (`fila_atendimento.html`) e ser incluído no `{% for %}`. Nesse caso a faixa
+    do `partialdef` incluído de dentro do cartão também conta.
+    """
+    linhas = texto.splitlines()
+    faixas: list[range] = []
+    abertura: int | None = None
+    for numero, linha in enumerate(linhas, 1):
+        if 'components/table.html#card_abertura' in linha:
+            abertura = numero
+        elif abertura is not None and '</article>' in linha:
+            faixas.append(range(abertura, numero + 1))
+            abertura = None
+
+    incluidos: set[str] = set()
+    for numero, linha in enumerate(linhas, 1):
+        if any(numero in faixa for faixa in faixas):
+            incluidos.update(re.findall(r'\{%\s*include\s+"[^"]*#([\w-]+)"', linha))
+    if incluidos:
+        dentro: int | None = None
+        for numero, linha in enumerate(linhas, 1):
+            encontro = re.search(r'\{%\s*partialdef\s+([\w-]+)', linha)
+            if encontro and encontro.group(1) in incluidos:
+                dentro = numero
+            elif dentro is not None and 'endpartialdef' in linha:
+                faixas.append(range(dentro, numero + 1))
+                dentro = None
+    return faixas
+
+
 def _clicaveis_sem_piso(
     caminho: str,
     texto: str,
@@ -561,18 +599,23 @@ def _clicaveis_sem_piso(
     recebe `class="min-h-11"` explícito" — e apagá-la abriria, no mecanismo
     novo, um buraco do mesmo formato do que ele fecha.
 
-    5. `data-cartao-link`: o alvo efetivo do link não é a sua própria caixa de
-       texto, é o `<article>` inteiro do cartão de listagem, que mede no mínimo
-       126px de altura. O piso existe para garantir área de toque, e aqui a
-       área é maior justamente porque o link foi marcado — `card_abertura`
-       reage a ele por `has-[a[data-cartao-link]]` e `core/js/cartao-alvo.js`
-       encaminha o clique do cartão. Exigir `min-h-11` na âncora inflaria a
-       caixa de linha do `<h2>` em cada cartão sem aumentar alvo nenhum.
+    5. `data-cartao-link` **dentro de uma faixa `#card_abertura` … `</article>`**:
+       o alvo efetivo do link não é a sua própria caixa de texto, é o
+       `<article>` inteiro do cartão de listagem, que mede no mínimo 126px de
+       altura. O piso existe para garantir área de toque, e aqui a área é maior
+       justamente porque o link foi marcado — `card_abertura` reage a ele por
+       `has-[a[data-cartao-link]]` e `core/js/cartao-alvo.js` encaminha o clique
+       do cartão. Exigir `min-h-11` na âncora inflaria a caixa de linha do
+       `<h2>` em cada cartão sem aumentar alvo nenhum.
 
-       A isenção não é gratuita: `test_link_de_cartao_tem_o_cartao_como_alvo`
-       falha se a marcação existir sem o mecanismo que a sustenta.
+       A isenção é estrutural, não pela presença do atributo: `_faixas_de_cartao`
+       amarra a âncora ao cartão que a contém. Uma âncora `data-cartao-link`
+       fora de um `<article>` de cartão continua devendo o piso. E não é
+       gratuita: `test_link_de_cartao_tem_o_cartao_como_alvo` falha se a
+       marcação existir sem o mecanismo que a sustenta.
     """
     limpo = _sem_comentarios(texto)
+    faixas_cartao = _faixas_de_cartao(limpo)
     infratores: list[str] = []
     quantidade = 0
 
@@ -582,7 +625,9 @@ def _clicaveis_sem_piso(
             atributo(atributos, 'class') or ''
         ):
             continue
-        if 'data-cartao-link' in atributos:
+        if 'data-cartao-link' in atributos and any(
+            numero in faixa for faixa in faixas_cartao
+        ):
             continue
         nomes = _classes_garantidas(atributos)
         if 'min-h-11' in nomes or nomes & piso_css:
@@ -2843,12 +2888,17 @@ def test_nenhum_badge_de_dado_estatico_declara_live_region():
 
     raiz = Path(__file__).resolve().parents[3]
     infratores = []
+    # A aspa é capturada e conferida por retrovisor (`\1`): o projeto escreve
+    # `{% include %}` com aspas simples ou duplas, e um guarda que só entende
+    # aspas duplas seria contornável por uma escolha de estilo.
+    include_badge = re.compile(
+        r'\{%\s*include\s+([\'"])components/badge\.html\1[^%]*%\}'
+    )
     for template in (raiz / 'apps').rglob('*.html'):
-        for linha in re.findall(
-            r'\{%\s*include\s+"components/badge\.html"[^%]*%\}', template.read_text()
-        ):
-            if 'role=' in linha:
-                infratores.append(f'{template.relative_to(raiz)}: {linha.strip()}')
+        for encontro in include_badge.finditer(template.read_text()):
+            trecho = encontro.group(0)
+            if 'role=' in trecho:
+                infratores.append(f'{template.relative_to(raiz)}: {trecho.strip()}')
 
     assert not infratores, (
         f'badge de dado estático não declara live region; use prefixo_sr: {infratores}'
@@ -2913,6 +2963,18 @@ def test_link_de_cartao_tem_o_cartao_como_alvo():
         assert 'components/table.html#card_abertura' in conteudo, (
             f'{relativo} marca data-cartao-link sem usar o chrome de cartão'
         )
+        # Presença do include não basta: cada âncora marcada tem que morar
+        # dentro de uma faixa `#card_abertura` … `</article>`, senão o alvo real
+        # volta a ser a âncora de texto e a isenção do piso de 44px fica sem
+        # lastro (mesma faixa que `_clicaveis_sem_piso` usa).
+        limpo = _sem_comentarios(conteudo)
+        faixas = _faixas_de_cartao(limpo)
+        for _, atributos, numero in elementos(limpo, 'a'):
+            if 'data-cartao-link' not in atributos:
+                continue
+            assert any(numero in faixa for faixa in faixas), (
+                f'{relativo}:{numero} data-cartao-link fora de um cartão'
+            )
 
     # As cinco listagens navegáveis. Ledger, catálogo e histórico de importações
     # ficam de fora de propósito: os dois primeiros não têm detalhe para onde ir,
