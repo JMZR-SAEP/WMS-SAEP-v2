@@ -27,7 +27,7 @@
       {% endcomment %}
       {% include "components/table.html#card_abertura" %}
         {% url 'requisicoes:detalhe' pk=req.pk as url_detalhe_req %}
-        {% with next_encoded=request.path|urlencode %}
+        {% with next_encoded=request.get_full_path|urlencode %}
         {% if req.estado == 'autorizada' %}{% with verbo="Separar" %}{% include "requisicoes/fila_atendimento.html#corpo_cartao" %}{% endwith %}{% else %}{% with verbo="Entregar" %}{% include "requisicoes/fila_atendimento.html#corpo_cartao" %}{% endwith %}{% endif %}
         {% endwith %}
       </article>

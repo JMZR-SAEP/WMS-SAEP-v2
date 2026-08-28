@@ -13,7 +13,7 @@
     {% for req in requisicoes %}
       {% include "components/table.html#card_abertura" %}
         {% url 'requisicoes:detalhe' pk=req.pk as url_detalhe_req %}
-        {% with next_encoded=request.path|urlencode %}
+        {% with next_encoded=request.get_full_path|urlencode %}
         <div>
           <h2 class="break-words text-sm font-semibold text-text-primary">
             {% comment %}

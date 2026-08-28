@@ -4387,6 +4387,15 @@ def test_minhas_pagina_resultados(client, solicitante, setor_obras, monkeypatch)
     assert len(response.context['requisicoes']) == 2
     assert 'Próxima' in response.content.decode()
 
+    # `next` do cartão codifica `request.get_full_path`: ao abrir um cartão da
+    # página 2, o "Voltar" do detalhe tem que trazer de volta à página 2.
+    from django.template.defaultfilters import urlencode as tpl_urlencode
+
+    url = reverse('requisicoes:minhas')
+    assert 'page%3D2' not in response.content.decode()
+    pagina2 = client.get(url, {'page': 2}).content.decode()
+    assert f'?next={tpl_urlencode(url + "?page=2")}' in pagina2
+
 
 @pytest.mark.django_db
 def test_fila_autorizacao_pagina_resultados(
@@ -4406,6 +4415,12 @@ def test_fila_autorizacao_pagina_resultados(
     assert response.context['page_obj'].paginator.num_pages == 2
     assert len(response.context['requisicoes']) == 2
 
+    from django.template.defaultfilters import urlencode as tpl_urlencode
+
+    url = reverse('requisicoes:autorizacoes')
+    pagina2 = client.get(url, {'page': 2}).content.decode()
+    assert f'?next={tpl_urlencode(url + "?page=2")}' in pagina2
+
 
 @pytest.mark.django_db
 def test_fila_atendimento_pagina_resultados(
@@ -4424,6 +4439,12 @@ def test_fila_atendimento_pagina_resultados(
     response = client.get(reverse('requisicoes:atendimentos'))
     assert response.context['page_obj'].paginator.num_pages == 2
     assert len(response.context['requisicoes']) == 2
+
+    from django.template.defaultfilters import urlencode as tpl_urlencode
+
+    url = reverse('requisicoes:atendimentos')
+    pagina2 = client.get(url, {'page': 2}).content.decode()
+    assert f'?next={tpl_urlencode(url + "?page=2")}' in pagina2
 
 
 @pytest.mark.django_db
