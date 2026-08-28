@@ -18,7 +18,7 @@ ESTADOS_CANONICOS = {
     'atendida': 'green',
     'recusada': 'red-strong',
     'cancelada': 'orange',
-    'estornada': 'teal',
+    'estornada': 'teal-strong',
 }
 
 
@@ -66,6 +66,6 @@ def test_estado_canonico_mantem_variante_de_hoje(estado, variant_esperada):
         'green': 'bg-success-muted',
         'red-strong': 'bg-danger-muted-strong',
         'orange': 'bg-orange-100',
-        'teal': 'bg-return-muted',
+        'teal-strong': 'bg-return-muted-strong',
     }[variant_esperada]
     assert marcadores in html
