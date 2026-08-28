@@ -17,7 +17,14 @@ MODAL_COPY: dict[str, dict[str, str]] = {
         # com ênfase. Ver `consequencia` em `components/_modal_body.html`.
         'consequencia': 'Esta ação é irreversível.',
         'confirm_label': 'Confirmar estorno',
-        'icon_variant': 'danger',
+        # 'return', não 'danger': o estorno é reversão operacional, e a Regra da
+        # Reversão Não é Erro reserva o vermelho para negação, falha e
+        # divergência. O estado resultante já saía em teal — o bloco "Dados do
+        # estorno" de `detalhe_saida_excepcional.html` usa `text-return-*` — e a
+        # ação que o produz saía em vermelho: a mesma operação com dois sistemas
+        # de cor na mesma tela. O estorno de requisição fez este caminho na #136;
+        # a saída excepcional é a outra reversão e ficou para trás.
+        'icon_variant': 'return',
     },
     'confirmar_importacao_scpi': {
         'titulo': 'Confirmar importação do SCPI?',

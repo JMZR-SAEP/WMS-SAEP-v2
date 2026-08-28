@@ -311,25 +311,87 @@
       // cala no dia em que não coincidirem. Campo ausente deixa o "—" do
       // servidor no lugar — a tela prefere admitir que não sabe a inventar um
       // número numa confirmação que baixa estoque.
+      //
+      // O resumo repete quatro coisas, e as três últimas entraram na fase 2 da
+      // Etapa 6: a quantidade entregue, se a linha ficou parcial, a
+      // justificativa dessa linha e o nome do retirante. Antes ele repetia só o
+      // número, e deixava de fora justamente o que faz uma entrega estar errada
+      // — `— saco / de 15 autorizada` era idêntico tendo sido digitado 15 ou 3.
+      //
+      // O que este método **não** faz é reformatar o número digitado para casar
+      // com o `formatar_quantidade` do vizinho. A política de formatação vive em
+      // `apps/core/quantidades.py` e reescrevê-la aqui criaria uma segunda
+      // grafia dela em JavaScript — a mesma classe de divergência que a caixa de
+      // erro do modal existe para não repetir.
       sincronizarResumo() {
         const dialog = this.$refs.dialog;
         if (!dialog) {
           return;
         }
-        dialog.querySelectorAll('[data-resumo-entregue-de]').forEach((celula) => {
-          const campo = document.getElementById(
-            celula.getAttribute('data-resumo-entregue-de')
-          );
+
+        const campoDe = (celula, atributo) => {
+          const id = celula.getAttribute(atributo);
+          const campo = document.getElementById(id);
           if (!campo) {
             console.error(
-              `modal ${this.id}: campo ${celula.getAttribute(
-                'data-resumo-entregue-de'
-              )} do resumo nao encontrado`
+              `modal ${this.id}: campo ${id} do resumo nao encontrado`
             );
+          }
+          return campo;
+        };
+
+        dialog.querySelectorAll('[data-resumo-entregue-de]').forEach((celula) => {
+          const campo = campoDe(celula, 'data-resumo-entregue-de');
+          if (!campo) {
             return;
           }
           const valor = campo.value.trim();
           celula.textContent = valor === '' ? '—' : valor;
+        });
+
+        dialog.querySelectorAll('[data-resumo-retirante-de]').forEach((celula) => {
+          const campo = campoDe(celula, 'data-resumo-retirante-de');
+          if (!campo) {
+            return;
+          }
+          const valor = campo.value.trim();
+          celula.textContent = valor === '' ? '—' : valor;
+        });
+
+        // Parcial é a mesma conta que a linha do formulário faz (`entregue <
+        // autorizada`), e não um segundo critério: o formulário decide com ela
+        // se a justificativa é obrigatória, e o resumo tem de concordar. Valor
+        // vazio ou não numérico não é parcial — é linha por preencher, e quem
+        // barra isso é o `required` do campo, não o resumo.
+        dialog.querySelectorAll('[data-resumo-linha]').forEach((linha) => {
+          const aviso = linha.querySelector('[data-resumo-parcial]');
+          const celulaEntregue = linha.querySelector('[data-resumo-entregue-de]');
+          if (!aviso || !celulaEntregue) {
+            return;
+          }
+          const campo = campoDe(celulaEntregue, 'data-resumo-entregue-de');
+          const autorizada = parseFloat(linha.getAttribute('data-resumo-autorizada'));
+          const entregue = campo ? parseFloat(campo.value) : NaN;
+          const parcial =
+            !Number.isNaN(autorizada) &&
+            !Number.isNaN(entregue) &&
+            entregue < autorizada;
+          aviso.hidden = !parcial;
+          if (!parcial) {
+            return;
+          }
+          const celulaJust = aviso.querySelector('[data-resumo-justificativa-de]');
+          if (!celulaJust) {
+            return;
+          }
+          const campoJust = campoDe(celulaJust, 'data-resumo-justificativa-de');
+          const texto = campoJust ? campoJust.value.trim() : '';
+          // Sem texto o resumo diz que falta, em vez de deixar a frase pela
+          // metade. É defesa, não estado alcançável: a justificativa é
+          // `required` exatamente quando a linha é parcial, e `validarFormId`
+          // barra a abertura do modal enquanto o formulário estiver inválido —
+          // medido em test_navegador_modal_submit_externo.py.
+          celulaJust.textContent = texto === '' ? 'sem justificativa' : texto;
         });
       },
 

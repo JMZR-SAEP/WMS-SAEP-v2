@@ -11,9 +11,18 @@ from apps.core.tests.documento import (
     assert_sem_id_duplicado,
     ids_do_documento,
 )
+from apps.core.tests.marcacao import atributo, elementos, pares
 
 
 URL = reverse('estoque:listar_saidas_excepcionais')
+
+# Início dos dois glifos do catálogo que disputam o cabeçalho do modal de
+# estorno: `devolver.svg` é o que a variante `return` escolhe em
+# `_modal_icon.html`, e `alerta.svg` é o círculo de perigo que ela substituiu.
+# Comparar o `<path>` renderizado, e não o nome do arquivo, é o que faz o teste
+# medir o glifo que chega ao HTML.
+PATH_DEVOLVER = 'M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62'
+PATH_ALERTA = 'M18 10A8 8 0 1 1 2 10a8 8 0 0 1 16 0Z'
 
 
 class TestListarSaidasExcepcionaisView:
@@ -741,6 +750,55 @@ class TestDetalheSaidaExcepcionalView:
         assert 'estornar-saida-titulo' in ids_do_documento(html)
         assert_dialogo_nomeado_pelo_proprio_titulo(html)
 
+    def test_estorno_nao_usa_o_vocabulario_de_perigo(
+        self, client, chefe_almoxarifado, saida_registrada
+    ):
+        """Reversão operacional nunca é vermelha (Regra da Reversão Não é Erro).
+
+        Esta tela se contradizia sozinha: o bloco "Dados do estorno" já saía em
+        `text-return-*` e o estado resultante em teal, enquanto o gatilho, o
+        ícone do modal e o botão de confirmação saíam em vermelho — a ação e o
+        seu efeito dizendo coisas opostas na mesma página. O estorno de
+        requisição fez este caminho na #136; a saída excepcional ficou para
+        trás, e `docs/design-system.md` passou a declarar as duas em `return`.
+
+        Renderizado, e não lido do fonte do template: o que precisa estar certo
+        são os tokens que chegam ao HTML e o glifo que `_modal_icon.html`
+        escolhe. Um guarda de string passaria com a variante escrita e não
+        resolvida.
+        """
+        client.force_login(chefe_almoxarifado)
+        html = client.get(self._url(saida_registrada.pk)).content.decode('utf-8')
+
+        (gatilho,) = [
+            atributos
+            for _, atributos, _ in elementos(html, 'button')
+            if atributo(atributos, 'data-modal-trigger') == 'estornar-saida'
+        ]
+        classe = atributo(gatilho, 'class')
+        assert 'text-return-text-strong' in classe
+        assert 'border-return' in classe
+        assert 'danger' not in classe, classe
+
+        inicio = html.index('id="estornar-saida"')
+        dialog = html[inicio : html.index('</dialog>', inicio)]
+
+        assert 'bg-return-muted text-return-text' in dialog
+        assert PATH_DEVOLVER in dialog
+        assert 'bg-danger-muted' not in dialog
+        assert PATH_ALERTA not in dialog
+
+        (confirmar,) = [
+            atributos
+            for _, atributos, _ in elementos(dialog, 'button')
+            # `data-modal-confirm` não tem valor, e `atributo` devolve `None`
+            # tanto para ausente quanto para atributo sem valor.
+            if 'data-modal-confirm' in {nome for nome, _ in pares(atributos)}
+        ]
+        classe_confirmar = atributo(confirmar, 'class')
+        assert 'bg-return' in classe_confirmar
+        assert 'danger' not in classe_confirmar, classe_confirmar
+
     def _estornar_url(self, pk):
         return reverse('estoque:estornar_saida_excepcional', args=[pk])
 
@@ -946,6 +1004,71 @@ class TestEstornarSaidaExcepcionalView:
         # Não pode ter vindo página inteira dentro da caixa do modal.
         assert '<html' not in conteudo
         assert 'app-bar' not in conteudo
+
+    def test_o_422_devolve_o_estorno_na_mesma_cor_em_que_ele_abriu(
+        self, client, chefe_almoxarifado, saida_registrada
+    ):
+        """O 422 devolve o mesmo modal, e a cor da ação é parte dele.
+
+        A view monta o corpo por conta própria — se ela ficar em `danger`, o
+        modal que reabre com erro passa a ser um parente do que abriu: mesma
+        ação, mesmo título, vermelho onde estava teal, e justamente no momento
+        em que a pessoa está decidindo se repete a operação.
+        """
+        client.force_login(chefe_almoxarifado)
+        conteudo = client.post(
+            self._url(saida_registrada.pk),
+            data={'justificativa': ''},
+            HTTP_HX_REQUEST='true',
+        ).content.decode('utf-8')
+
+        assert 'bg-return-muted text-return-text' in conteudo
+        assert PATH_DEVOLVER in conteudo
+        assert 'bg-danger-muted' not in conteudo
+
+        (confirmar,) = [
+            atributos
+            for _, atributos, _ in elementos(conteudo, 'button')
+            if 'data-modal-confirm' in {nome for nome, _ in pares(atributos)}
+        ]
+        classe = atributo(confirmar, 'class')
+        assert 'bg-return' in classe
+        assert 'danger' not in classe, classe
+
+    def test_o_422_conserva_o_progresso_e_o_foco_do_modal_que_abriu(
+        self, client, chefe_almoxarifado, saida_registrada
+    ):
+        """`loading_label` e `corpo_com_campo_focavel` também são o mesmo modal.
+
+        Os dois vêm do include em `detalhe_saida_excepcional.html` e a view monta
+        o corpo do 422 por conta própria: omiti-los cai no default, e a segunda
+        tentativa — a que a pessoa faz já tendo errado uma vez — perde o rótulo
+        de progresso do botão e ganha uma parada de tabulação antes do
+        `<textarea>` que o corpo já tem.
+        """
+        client.force_login(chefe_almoxarifado)
+        conteudo = client.post(
+            self._url(saida_registrada.pk),
+            data={'justificativa': ''},
+            HTTP_HX_REQUEST='true',
+        ).content.decode('utf-8')
+
+        (confirmar,) = [
+            atributos
+            for _, atributos, _ in elementos(conteudo, 'button')
+            if 'data-modal-confirm' in {nome for nome, _ in pares(atributos)}
+        ]
+        assert atributo(confirmar, 'data-submit-loading-label') == 'Estornando…'
+
+        rolaveis = [
+            atributos
+            for _, atributos, _ in elementos(conteudo, 'div')
+            if 'overflow-y-auto' in (atributo(atributos, 'class') or '')
+        ]
+        assert rolaveis, 'corpo do 422 sem região rolável'
+        for atributos in rolaveis:
+            assert atributo(atributos, 'tabindex') is None
+            assert atributo(atributos, 'aria-labelledby') is None
 
     def test_htmx_erro_preserva_justificativa_digitada(
         self, client, chefe_almoxarifado, saida_registrada

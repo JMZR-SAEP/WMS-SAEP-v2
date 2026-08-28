@@ -311,3 +311,84 @@ def test_resumo_sem_o_campo_admite_que_nao_sabe_e_acusa(pagina_de_atendimento):
     celula = page.locator('#confirmar-atender-retirada [data-resumo-entregue-de]').first
     assert celula.inner_text().strip() == '—'
     assert any('resumo' in m for m in mensagens_erro), mensagens_erro
+
+
+def test_resumo_marca_linha_parcial_com_a_justificativa_e_o_retirante(
+    pagina_de_atendimento,
+):
+    """O resumo repete o que faz uma entrega estar errada, não só o número.
+
+    Ele repetia material, entregue e autorizada, e deixava de fora as três
+    coisas que decidem se a baixa está certa: quais linhas ficaram parciais, a
+    justificativa que essas linhas foram obrigadas a ter, e quem está retirando.
+    `— saco / de 15 autorizada` era idêntico tendo sido digitado 15 ou 3, e a
+    linha parcial é justamente onde um erro de digitação sobrevive até uma
+    escrita irreversível de estoque.
+
+    Navegador porque nada disto existe no HTML renderizado: a marca de parcial
+    nasce `hidden` e o valor vem do campo, depois da digitação.
+    """
+    page = pagina_de_atendimento
+    page.locator('#id_retirante_nome').fill('Carlos Andrade')
+
+    autorizada = float(
+        page.locator('[data-resumo-linha]').first.get_attribute(
+            'data-resumo-autorizada'
+        )
+    )
+    campo = page.locator('#id_itens-0-quantidade_entregue')
+    justificativa = page.locator('#id_itens-0-justificativa')
+    linha = page.locator('#confirmar-atender-retirada [data-resumo-linha]').first
+    aviso = linha.locator('[data-resumo-parcial]')
+    gatilho = page.locator('[data-modal-trigger="confirmar-atender-retirada"]')
+
+    def abrir():
+        gatilho.click()
+        page.wait_for_function(
+            "document.getElementById('confirmar-atender-retirada').matches(':modal')"
+        )
+
+    def fechar():
+        page.keyboard.press('Escape')
+        page.wait_for_function(
+            "!document.getElementById('confirmar-atender-retirada').open"
+        )
+
+    # Entrega integral: nada de aviso de parcial.
+    campo.fill(str(autorizada))
+    abrir()
+    assert aviso.is_hidden(), (
+        'entrega integral não é parcial, e o resumo não pode sugerir que seja'
+    )
+    assert (
+        'Carlos Andrade'
+        in page.locator(
+            '#confirmar-atender-retirada [data-resumo-retirante-de]'
+        ).inner_text()
+    )
+    fechar()
+
+    # Entrega parcial com justificativa: aviso visível, com o texto digitado.
+    campo.fill(str(autorizada / 2))
+    justificativa.fill('Faltou material no estoque físico.')
+    abrir()
+    assert aviso.is_visible(), (
+        'entrega menor que a autorizada tem de aparecer como parcial'
+    )
+    assert 'Faltou material no estoque físico.' in aviso.inner_text(), (
+        'a justificativa é obrigatória exatamente nesta linha e some justamente '
+        'no instante da confirmação'
+    )
+    fechar()
+
+    # Parcial sem justificativa não chega ao resumo: `validarFormId` barra a
+    # abertura do modal enquanto o formulário estiver inválido, e a
+    # justificativa é `required` justamente quando a linha é parcial. Medido —
+    # o gatilho não abre o diálogo neste estado. O texto de fallback do resumo
+    # ("sem justificativa") existe como defesa, não como estado alcançável.
+    justificativa.fill('')
+    gatilho.click()
+    assert page.locator('#confirmar-atender-retirada').get_attribute('open') is None, (
+        'linha parcial sem justificativa é formulário inválido; o modal de '
+        'confirmação não pode abrir sobre um estado que o envio vai recusar'
+    )

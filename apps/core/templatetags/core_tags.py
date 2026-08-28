@@ -189,15 +189,15 @@ _VARIANTES_BOTAO: dict[str, str] = {
         'active:bg-danger-active focus-visible:ring-danger-accent'
     ),
     'danger-outline': (
-        'bg-surface text-danger-text border border-danger-border-strong '
+        'bg-surface text-danger-text border border-danger-accent '
         'hover:bg-danger-subtle focus-visible:ring-danger-accent'
     ),
     'warning-outline': (
-        'bg-surface text-warning-text-strong border border-warning-border-strong '
+        'bg-surface text-warning-text-strong border border-warning-text-subtle '
         'hover:bg-warning-muted focus-visible:ring-warning'
     ),
     'return-outline': (
-        'bg-surface text-return-text-strong border border-return-border '
+        'bg-surface text-return-text-strong border border-return '
         'hover:bg-return-subtle focus-visible:ring-return'
     ),
     'return': (
@@ -212,6 +212,26 @@ _VARIANTES_BOTAO: dict[str, str] = {
         'bg-transparent text-primary-text hover:underline focus-visible:ring-border-focus'
     ),
 }
+# Borda das variantes de contorno: a mesma regra que `border-control` (slate-500)
+# atende nos campos e no `secondary`. Sobre `bg-surface` a borda é a única
+# delimitação do controle, e a WCAG 1.4.11 pede 3:1 — medido contra branco, os
+# `-border-strong` que viviam aqui davam 1,92:1 (red-300), 1,45:1 (amber-300) e
+# 1,26:1 (teal-200). Quatro dos cinco gatilhos de workflow da tela de detalhe
+# usam estas variantes, ou seja, as ações destrutivas eram os controles menos
+# visíveis da página — no galpão, sob luz alta, e para quem tem sensibilidade a
+# contraste reduzida.
+#
+# Os degraus escolhidos, medidos sobre branco: `danger-accent` (red-500) 3,82:1
+# e `return` (teal-600) 3,66:1.
+#
+# `warning-outline` é a exceção e vale a explicação: a família âmbar **não tem
+# nenhum token de borda que passe**. `warning` (amber-500) dá 2,15:1, e o âmbar
+# claro o bastante para continuar âmbar não alcança 3:1 sobre branco — é limite
+# do matiz, não degrau esquecido. Os únicos membros ≥3:1 da família são os
+# tokens de texto, já alaranjados; daí `warning-text-subtle` (amber-700,
+# 5,05:1), que deixa a borda na mesma família do texto do próprio botão.
+#
+# `test_borda_de_controle_passa_em_1411` trava a reincidência.
 _TAMANHOS_BOTAO = {'sm': 'px-3 py-2 text-xs', 'md': 'px-3 py-2 text-sm'}
 
 
@@ -260,6 +280,14 @@ _PAINEL_DECISAO = {
     'info': 'bg-primary-subtle border-primary-border text-primary-text-strong',
     'warning': 'bg-warning-subtle border-warning-border text-warning-text-strong',
     'danger': 'bg-danger-subtle border-danger-border text-danger-text-strong',
+    # `return` existe pela Regra da Reversão Não é Erro. O estorno é reversão
+    # operacional, e vivia em `danger`: painel, gatilho e ícone vermelhos para
+    # uma operação cujo estado resultante o `_estado_badge.html` carimba em
+    # `teal-strong` — o DESIGN.md diz "nunca vermelho" sobre esse mesmo carimbo.
+    # A mesma operação tinha dois sistemas de cor, e a devolução já havia sido
+    # movida para teal na #136 exatamente por esta regra.
+    # Texto sobre a lavagem medido em 9,08:1.
+    'return': 'bg-return-subtle border-return-border text-return-text-strong',
 }
 _PAINEL_DECISAO_FALLBACK = 'bg-danger border-danger-hover text-text-on-primary'
 
@@ -278,8 +306,9 @@ def classes_painel_decisao(variant: str = '') -> dict[str, Any]:
     `_icone_nivel.html` herdam por `currentColor`. É o mesmo arranjo que a #124
     fixou para o `alert.html`.
 
-    A entrada é vocabulário de design system (`info`/`warning`/`danger`), nunca
-    um enum de domínio — o partial de domínio resolve o estado antes de chamar.
+    A entrada é vocabulário de design system (`info`/`warning`/`danger`/`return`),
+    nunca um enum de domínio — o partial de domínio resolve o estado antes de
+    chamar.
 
     Variante fora do catálogo cai na Decisão A-1 (docs/design-system.md, falha
     alta): fundo `danger` preenchido em vez de `-subtle`, para que a caixa grite

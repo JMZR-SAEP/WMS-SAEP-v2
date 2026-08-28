@@ -8,7 +8,8 @@
   dizia "baixa estoque das quantidades entregues" sem repetir uma única
   quantidade. Ela confirmava de memória, e a operação não tem desfazer.
 
-  Params: linhas (pares item/form, o mesmo `zip` que o formulário percorre).
+  Params: linhas (pares item/form, o mesmo `zip` que o formulário percorre) e
+  `cabecalho` (o form dos dados da retirada), herdados do contexto da tela.
 
   A quantidade entregue **não** é renderizada pelo servidor. Ela é o valor que
   está no campo agora, e o campo é editado pelo Alpine da linha (`x-model`)
@@ -26,27 +27,80 @@
   `aria-hidden` no fallback "—" não cabe: se o JS não rodar, o traço é a
   informação honesta ("esta tela não sabe dizer"), e o rodapé continua
   descrevendo a consequência.
+
+  **O que a recapitulação passou a repetir (fase 2 da Etapa 6).** Ela repetia só
+  os números e deixava de fora justamente o que faz uma entrega estar errada:
+
+  - **quais linhas são parciais.** No formulário a linha parcial acende uma dica
+    âmbar e torna a justificativa obrigatória; no resumo `— saco / de 15
+    autorizada` era idêntico tendo sido digitado 15 ou 3. A marca de parcial é
+    calculada aqui do mesmo jeito que na linha (entregue < autorizada), a partir
+    do valor vivo do campo;
+  - **a justificativa dessas linhas.** Era obrigatória exatamente nas linhas com
+    maior chance de erro de digitação, e sumia no instante da confirmação;
+  - **o retirante.** `PRODUCT.md` é explícito que quem retira pode não ser o
+    beneficiário — é fato de auditoria, não conveniência.
+
+  O que **não** entrou, de propósito: reformatar em JS o número que a pessoa
+  digitou para casar com o `formatar_quantidade` do vizinho. A política de
+  formatação vive em `apps/core/quantidades.py` e o próprio módulo se descreve
+  como "três faces da mesma política" (filtro, `step` do campo, valor inicial);
+  escrevê-la de novo em JavaScript criaria uma quarta face numa linguagem que
+  não consegue importar a política, e a divergência apareceria no lugar mais
+  caro possível. Fica registrado como dívida.
 {% endcomment %}
-{% load core_tags %}
+{% load core_tags l10n %}
 
 <dl class="divide-y divide-border rounded-lg border border-border text-sm">
   {% for item, form in linhas %}
-    <div class="flex items-baseline justify-between gap-4 px-3 py-2">
-      <dt class="min-w-0 text-text-secondary">{{ item.material.nome }}</dt>
-      <dd class="shrink-0 text-right tabular-nums" translate="no">
-        <span
-          data-resumo-entregue-de="{{ form.quantidade_entregue.auto_id }}"
-          class="text-base font-semibold text-text-primary"
-        >—</span>
-        <span class="text-text-tertiary">{{ item.material.get_unidade_display }}</span>
-        <span class="block text-xs text-text-tertiary">
-          de {{ item.quantidade_autorizada|formatar_quantidade:item.material.unidade }} autorizada
+    <div
+      class="px-3 py-2"
+      data-resumo-linha
+      data-resumo-autorizada="{{ item.quantidade_autorizada|unlocalize }}"
+    >
+      <div class="flex items-baseline justify-between gap-4">
+        <dt class="min-w-0 text-text-secondary">{{ item.material.nome }}</dt>
+        <dd class="shrink-0 text-right tabular-nums" translate="no">
+          <span
+            data-resumo-entregue-de="{{ form.quantidade_entregue.auto_id }}"
+            class="text-base font-semibold text-text-primary"
+          >—</span>
+          <span class="text-text-tertiary">{{ item.material.get_unidade_display }}</span>
+          <span class="block text-xs text-text-tertiary">
+            de {{ item.quantidade_autorizada|formatar_quantidade:item.material.unidade }} autorizada
+          </span>
+        </dd>
+      </div>
+      {% comment %}
+        A marca de parcial e a justificativa começam escondidas e são reveladas
+        por `sincronizarResumo` só quando a linha de fato for parcial. `hidden`
+        do HTML, e não `x-show`: este corpo não está dentro de um escopo Alpine
+        que conheça a linha do formulário — quem faz a ponte é o `id` do campo,
+        como no resto do resumo.
+      {% endcomment %}
+      <p
+        data-resumo-parcial
+        hidden
+        class="mt-1 flex items-start gap-1.5 text-xs text-warning-text-subtle"
+      >
+        {% include "components/_icone_nivel.html" with variant="warning" class="mt-0.5 h-3.5 w-3.5 shrink-0" %}
+        <span>
+          Entrega parcial —
+          <span data-resumo-justificativa-de="{{ form.justificativa.auto_id }}">sem justificativa</span>
         </span>
-      </dd>
+      </p>
     </div>
   {% endfor %}
 </dl>
 
-<p class="mt-4 text-sm text-text-secondary">
+<p class="mt-4 flex flex-wrap items-baseline gap-x-2 text-sm">
+  <span class="text-text-tertiary">Retirante:</span>
+  <span
+    data-resumo-retirante-de="{{ cabecalho.retirante_nome.auto_id }}"
+    class="min-w-0 font-semibold text-text-primary"
+  >—</span>
+</p>
+
+<p class="mt-2 text-sm text-text-secondary">
   A reserva não entregue de cada item é liberada de volta ao saldo disponível.
 </p>

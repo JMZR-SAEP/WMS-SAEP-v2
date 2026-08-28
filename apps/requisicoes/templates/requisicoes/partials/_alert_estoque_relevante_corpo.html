@@ -1,0 +1,60 @@
+{% comment %}
+  Corpo do alerta EST-07 dentro de um evento da timeline: o saldo físico caiu
+  abaixo do reservado, e o rótulo do evento sozinho não diz o que houve nem o
+  que fazer (issue #111).
+
+  Params: evento (TimelineRequisicao com `metadata`) e
+  `pode_consultar_saidas_excepcionais` (bool, do contexto da tela).
+
+  Este texto vivia numa caixa desenhada à mão em `_timeline.html`, com os
+  tokens de `warning` mas sem o glifo de `components/_icone_nivel.html` — ou
+  seja, a severidade comunicada só por cor, que é exatamente o motivo pelo qual
+  o parâmetro `icone` de `components/alert.html` foi removido na #127. Estava
+  também em 12px, abaixo do corpo do sistema, carregando três frases de
+  instrução operacional, e com `rounded-md` (raio de controle) numa caixa que
+  não é controle.
+
+  **A rota de saída (fase 2 da Etapa 6).** O alerta nomeava a saída excepcional
+  e os materiais em texto puro, dizia que a separação fica bloqueada até a
+  divergência ser resolvida, e não oferecia caminho para lugar nenhum — medido,
+  zero links no feed inteiro. Quem lê isso no celular, em pé no galpão, tinha de
+  decorar o número e ir procurá-lo numa mesa. O quarto princípio do PRODUCT.md
+  pede evidenciar divergência para conferência humana; evidência sem rota é beco
+  sem saída.
+
+  O link é uma **ação ao pé do alerta**, e não a palavra sublinhada no meio da
+  frase: alvo clicável tem piso de 44px no sistema inteiro
+  (`test_nenhum_controle_abaixo_do_piso_de_44px`), e esticar um trecho de prosa
+  até 44px quebraria a entrelinha do parágrafo. Ao pé, ele é um alvo de verdade
+  — que é justamente o que a cena do galpão precisa.
+
+  Condicionado à permissão porque `detalhe_saida_excepcional_view` exige
+  `pode_consultar_saidas_excepcionais`: um link incondicional levaria o
+  solicitante da requisição direto a um 403. Sem a permissão, o alerta continua
+  como era, nomeando a saída em texto.
+
+  A origem "Importação SCPI" não ganha link: o metadata traz `importacao_id`,
+  mas não há rota que abra uma importação específica.
+
+{% endcomment %}
+<p class="font-medium">
+  {% if evento.metadata.numero_publico %}Saída excepcional {{ evento.metadata.numero_publico }}{% else %}Importação SCPI{% endif %}
+  deixou o saldo físico abaixo do reservado.
+</p>
+{% if evento.metadata.materiais %}
+  <ul class="mt-1 list-disc space-y-0.5 pl-4">
+    {% for material in evento.metadata.materiais %}
+      <li>{{ material.codigo }} — {{ material.nome }}</li>
+    {% endfor %}
+  </ul>
+{% endif %}
+<p class="mt-1">
+  A separação para retirada fica bloqueada até a divergência ser resolvida ou
+  esta requisição ser cancelada.
+</p>
+{% if evento.metadata.saida_excepcional_id and pode_consultar_saidas_excepcionais %}
+  <a
+    href="{% url 'estoque:detalhe_saida_excepcional' evento.metadata.saida_excepcional_id %}"
+    class="mt-1 inline-flex min-h-11 items-center font-medium underline underline-offset-2 hover:text-warning-text-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning focus-visible:ring-offset-1"
+  >Ver a saída excepcional {{ evento.metadata.numero_publico }}</a>
+{% endif %}

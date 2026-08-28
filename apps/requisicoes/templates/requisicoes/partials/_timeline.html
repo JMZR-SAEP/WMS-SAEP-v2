@@ -1,11 +1,21 @@
 {% comment %}
 Feed de timeline da requisição. Mais recente primeiro.
 Parâmetro: eventos (lista de TimelineRequisicao com select_related('ator')).
+
+Posição do trilho vertical: ele tem de passar pelo centro do marcador, que é o
+motivo do `ring-4 ring-surface` do marcador — o anel branco existe para o
+trilho ser interrompido por dentro do ponto. A conta é
+`5rem` (coluna 1) + `1rem` (`sm:gap-x-4`) + `0.3125rem` (metade de `w-2.5`) =
+`6.3125rem`. O valor anterior era `5.25rem`, ou seja, 84px contra os 101px do
+centro do marcador — medido no navegador a 1024px. O trilho não passava por
+marcador nenhum e ficava como uma linha slate-200 solta à esquerda.
+
+Se a coluna 1 ou o `gap-x` mudarem, esta conta muda junto.
 {% endcomment %}
 {% if eventos %}
   <div class="relative">
-    {# linha vertical da timeline (apenas sm+) #}
-    <span class="hidden sm:absolute sm:left-[5.25rem] sm:top-1 sm:bottom-1 sm:block sm:w-px sm:bg-border" aria-hidden="true"></span>
+    {# trilho vertical (apenas sm+) — ver a conta de `left` no comentário acima #}
+    <span class="hidden sm:absolute sm:left-[6.3125rem] sm:top-1 sm:bottom-1 sm:block sm:w-px sm:bg-border" aria-hidden="true"></span>
     <ol class="relative space-y-5 sm:space-y-4" aria-label="Histórico da requisição">
       {% for evento in eventos %}
       <li class="relative grid grid-cols-1 gap-1 sm:grid-cols-[5rem_auto_1fr] sm:items-baseline sm:gap-x-4 sm:gap-y-0">
@@ -41,30 +51,19 @@ Parâmetro: eventos (lista de TimelineRequisicao com select_related('ator')).
           {% endif %}
           {% if evento.evento == "atualizacao_estoque_relevante" %}
             {% comment %}
-              EST-07: o saldo físico caiu abaixo do reservado. O rótulo do evento
-              sozinho não diz o que houve nem o que fazer — ver issue #111.
+              EST-07: o saldo físico caiu abaixo do reservado (issue #111).
+
+              `components/alert.html` e não a caixa desenhada à mão que vivia
+              aqui: ela usava os tokens de `warning` sem o glifo de nível, ou
+              seja, severidade só por cor. O componente traz o glifo e o corpo
+              em 14px.
+
+              `role="note"` sobrescreve o `alert` que a variante `warning`
+              assumiria. `role="alert"` é região viva assertiva, e isto é um
+              evento passado num histórico estático — a página pode ter vários,
+              e todos seriam anunciados no carregamento.
             {% endcomment %}
-            <div class="mt-1 rounded-md border border-warning-border bg-warning-subtle px-2.5 py-1.5 text-xs text-warning-text-strong leading-relaxed">
-              <p class="font-medium">
-                {% if evento.metadata.numero_publico %}
-                  Saída excepcional {{ evento.metadata.numero_publico }}
-                {% else %}
-                  Importação SCPI
-                {% endif %}
-                deixou o saldo físico abaixo do reservado.
-              </p>
-              {% if evento.metadata.materiais %}
-                <ul class="mt-1 list-disc space-y-0.5 pl-4">
-                  {% for material in evento.metadata.materiais %}
-                    <li>{{ material.codigo }} — {{ material.nome }}</li>
-                  {% endfor %}
-                </ul>
-              {% endif %}
-              <p class="mt-1">
-                A separação para retirada fica bloqueada até a divergência ser
-                resolvida ou esta requisição ser cancelada.
-              </p>
-            </div>
+            {% include "components/alert.html" with variant="warning" role="note" body_template="requisicoes/partials/_alert_estoque_relevante_corpo.html" class="mt-2" %}
           {% endif %}
         </div>
       </li>

@@ -255,10 +255,32 @@
         </p>
       </div>
 
-      <div class="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
+      {% comment %}
+        Duas colunas no máximo, e a autorização ocupa a linha inteira.
+
+        A grade de três colunas iguais era uma afirmação de equivalência sobre
+        três operações que não são equivalentes: autorizar reserva saldo,
+        retornar é totalmente reversível e recusar encerra a requisição em
+        definitivo. Medido a 1440: os três cartões a 383×154px e os três botões
+        a 349×44px, com as lavagens `info` e `danger` a 1,00:1 de contraste uma
+        da outra e o mesmo glifo circular nas duas. Dessaturada, a grade não
+        dizia qual botão encerra a requisição.
+
+        Pior a 1024, onde ela caía para duas colunas: "Recusar" aterrissava
+        diretamente sob "Autorizar", mesma coluna, no momento em que o chefe de
+        setor varre uma fila.
+
+        O `lg:col-span-2` do cartão de autorizar dá ao caminho primário uma
+        pegada própria e tira os dois desfechos opostos da mesma coluna. O
+        `h-full` do wrapper mantém a cadeia de altura até o painel colorido —
+        ver a nota em `_painel_decisao.html`.
+      {% endcomment %}
+      <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {% if pode_autorizar %}
           {% url 'requisicoes:autorizar' requisicao.pk as autorizar_url %}
+          <div class="h-full lg:col-span-2">
           {% include "requisicoes/partials/_confirmacao_acao.html" with registro=registro layout="card" variant_token="info" modal_id="confirmar-autorizar" titulo="Autorização integral" conteudo="Aprove a requisição e reserve o saldo necessário para todos os itens." botao_label="Autorizar" botao_variant="primary" modal_titulo="Autorizar requisição?" modal_descricao="Reserva o saldo necessário para todos os itens sem alterar o saldo físico." action_url=autorizar_url confirm_label="Confirmar autorização" confirm_variant="primary" icon_variant="info" hidden_inputs=autorizar_hidden_inputs role="alertdialog" loading_label="Autorizando…" %}
+          </div>
         {% endif %}
 
         {% if pode_retornar %}
@@ -327,7 +349,7 @@
   {% if pode_estornar %}
     {% modal_copy "estornar" as estornar_copy %}
     {% url 'requisicoes:estornar' requisicao.pk as estornar_url %}
-    {% include "requisicoes/partials/_confirmacao_acao.html" with registro=registro layout="banner" variant_token="danger" heading_id="estornar-titulo" modal_id="estornar-modal" titulo=estornar_copy.titulo conteudo=estornar_copy.descricao|add:" "|add:estornar_copy.consequencia|add:" "|add:estornar_copy.painel_extra botao_label="Estornar requisição" botao_variant="danger-outline" botao_icon="components/icons/estornar.svg" modal_titulo=estornar_copy.titulo modal_descricao=estornar_copy.descricao modal_consequencia=estornar_copy.consequencia action_url=estornar_url confirm_label=estornar_copy.confirm_label confirm_variant="danger" icon_variant=estornar_copy.icon_variant form=estorno_form form_body_template="requisicoes/partials/_modal_form_estorno.html" role="alertdialog" corpo_com_campo_focavel=True loading_label="Estornando…" %}
+    {% include "requisicoes/partials/_confirmacao_acao.html" with registro=registro layout="banner" variant_token="return" heading_id="estornar-titulo" modal_id="estornar-modal" titulo=estornar_copy.titulo conteudo=estornar_copy.descricao|add:" "|add:estornar_copy.consequencia|add:" "|add:estornar_copy.painel_extra botao_label="Estornar requisição" botao_variant="return-outline" botao_icon="components/icons/estornar.svg" modal_titulo=estornar_copy.titulo modal_descricao=estornar_copy.descricao modal_consequencia=estornar_copy.consequencia action_url=estornar_url confirm_label=estornar_copy.confirm_label confirm_variant="return" icon_variant=estornar_copy.icon_variant form=estorno_form form_body_template="requisicoes/partials/_modal_form_estorno.html" role="alertdialog" corpo_com_campo_focavel=True loading_label="Estornando…" %}
   {% endif %}
 
   {% if pode_copiar %}

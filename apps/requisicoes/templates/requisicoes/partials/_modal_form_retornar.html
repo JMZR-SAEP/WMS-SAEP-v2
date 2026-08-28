@@ -1,13 +1,24 @@
-<label for="modal-retornar-observacao" class="block text-sm font-medium text-text-primary">
+{% comment %}
+  Corpo do modal de retorno para rascunho. Params: observacao_retorno (opcional).
+
+  Rótulo e ajuda na grafia de `components/form_field.html` — ver a nota em
+  `_modal_form_recusar.html`. Sem asterisco: a observação é opcional.
+
+  O `value` existe mesmo sem caminho de 422 nesta ação (a view redireciona em
+  vez de re-renderizar o corpo). É o único dos cinco corpos que não conseguia
+  devolver o que a pessoa digitou, e a assimetria não tinha razão: no dia em
+  que `retornar_rascunho_view` ganhar um 422, o corpo já sabe se recompor.
+{% endcomment %}
+<label for="modal-retornar-observacao" class="rotulo-campo">
   Observação do retorno
 </label>
-<p id="modal-retornar-hint" class="mt-1 text-xs text-text-secondary">
+<p id="modal-retornar-observacao-ajuda" class="mt-1 text-xs text-text-tertiary">
   Opcional. A requisição volta a ser rascunho visível apenas ao criador.
 </p>
 <textarea
   id="modal-retornar-observacao"
   name="observacao"
   rows="4"
-  aria-describedby="modal-retornar-hint"
-  class="campo mt-3"
-></textarea>
+  aria-describedby="modal-retornar-observacao-ajuda"
+  class="campo"
+>{{ observacao_retorno|default_if_none:"" }}</textarea>

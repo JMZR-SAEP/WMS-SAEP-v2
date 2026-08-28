@@ -22,6 +22,7 @@ import pytest
 from django.template.loader import render_to_string
 
 from apps.core.tests.marcacao import atributo, elementos
+from apps.requisicoes.presentation import MODAL_COPY
 
 BASE_DIR = pathlib.Path(__file__).resolve().parents[3]
 PAINEL = 'requisicoes/partials/_painel_decisao.html'
@@ -30,8 +31,18 @@ PARTIAIS_DE_DOMINIO = (
     'apps/requisicoes/templates/requisicoes/partials/_painel_decisao.html',
     'apps/requisicoes/templates/requisicoes/partials/_confirmacao_acao.html',
 )
-VARIANTES = ('info', 'warning', 'danger')
+# `return` é variante de painel desde que o estorno saiu de `danger`: sem ela
+# aqui, a única superfície teal do painel não passava por nenhuma das guardas de
+# nome acessível, glifo e cor herdada que as outras três atravessam.
+VARIANTES = ('info', 'warning', 'danger', 'return')
 DESCONHECIDAS = ('', 'primary', 'success', 'nao-existe')
+
+# Início do `<path>` de cada glifo do catálogo que o painel pode escolher:
+# `devolver.svg` na variante `return` e `alerta.svg` no fallback e em `danger`.
+# Comparar o desenho renderizado, e não o nome do arquivo, é o que faz o teste
+# medir o glifo que chega ao HTML.
+PATH_DEVOLVER = 'M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62'
+PATH_ALERTA = 'M18 10A8 8 0 1 1 2 10a8 8 0 0 1 16 0Z'
 
 
 def _render(layout='card', variant_token='info', **extra):
@@ -375,3 +386,65 @@ def test_o_botao_do_painel_sempre_anuncia_que_abre_um_modal(layout):
 def test_botao_aria_haspopup_deixou_de_ser_parametro():
     for caminho in (BASE_DIR / 'apps').rglob('*.html'):
         assert 'botao_aria_haspopup' not in caminho.read_text(encoding='utf-8'), caminho
+
+
+def test_estorno_nao_usa_o_vocabulario_de_perigo():
+    """Reversão operacional nunca é vermelha (DESIGN.md, Regra da Reversão Não é Erro).
+
+    O estorno vivia inteiro em `danger` — painel, gatilho, ícone e botão de
+    confirmação — enquanto `_estado_badge.html` carimbava o estado resultante
+    "Estornada" em `teal-strong`, e o DESIGN.md diz "nunca vermelho" sobre esse
+    carimbo. A ação e o seu efeito diziam coisas opostas, e o comentário de
+    `_modal_icon.html` chegava a se contradizer dentro do próprio arquivo: a
+    linha de `danger` listava "estornar" e a de `return`, logo abaixo, dizia que
+    reversão operacional não usa o vocabulário de perigo.
+
+    A devolução já havia feito este caminho na #136; o estorno é a outra
+    reversão e ficou para trás.
+    """
+
+    assert MODAL_COPY['estornar']['icon_variant'] == 'return'
+
+    detalhe = (
+        BASE_DIR / 'apps/requisicoes/templates/requisicoes/detalhe.html'
+    ).read_text()
+    banner = next(
+        linha
+        for linha in detalhe.splitlines()
+        if 'heading_id="estornar-titulo"' in linha
+    )
+    for esperado in (
+        'variant_token="return"',
+        'botao_variant="return-outline"',
+        'confirm_variant="return"',
+    ):
+        assert esperado in banner, (
+            f'banner do estorno sem {esperado} — a Regra da Reversão Não é Erro '
+            'vale para as quatro superfícies da ação, não só para o ícone'
+        )
+    assert 'danger' not in banner, (
+        'o banner do estorno voltou a carregar vocabulário de perigo: '
+        f'{banner.strip()[:200]}'
+    )
+
+
+def test_o_painel_em_return_resolve_a_superficie_teal_e_o_glifo_de_devolucao():
+    """O guarda acima lê `detalhe.html` como texto: prova a fiação, não o HTML.
+
+    `variant_token="return"` escrito no template e `return` resolvido em
+    superfície e glifo são duas coisas diferentes — entre elas estão
+    `classes_painel_decisao` e `_icone_nivel.html`, e é onde uma variante nova
+    cai silenciosamente no fallback sem que nenhuma string mude. Aqui o painel é
+    renderizado e o que se cobra é o que chega ao HTML.
+    """
+    html = _render(layout='banner', variant_token='return')
+
+    assert 'bg-return-subtle' in html
+    assert 'border-return-border' in html
+    assert 'text-return-text-strong' in html
+    assert 'danger' not in html, html
+
+    # Seta de devolução, não o círculo de alerta: é o glifo que separa reversão
+    # operacional de perigo, e o único sinal não-cromático do painel.
+    assert PATH_DEVOLVER in html
+    assert PATH_ALERTA not in html

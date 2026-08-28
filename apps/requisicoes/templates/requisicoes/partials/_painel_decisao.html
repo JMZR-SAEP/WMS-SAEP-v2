@@ -60,6 +60,19 @@ O painel não recebe classe de cor nem de descrição do chamador. Pela Regra do
 Chrome Sem Parâmetro, se ele precisasse de um parâmetro que descreve conteúdo
 em vez de estrutura, a abstração estaria errada — foi o que `desc_class` e
 `bg_class` eram antes de morrerem.
+
+Altura no layout `card`: `h-full` mais coluna flex com o bloco de texto em
+`flex-auto`. Os três cards de decisão vivem numa `grid` em detalhe.html, e o
+item da grade é o `<div x-data>` de `_confirmacao_acao.html` — que estica por
+`align-items: stretch`. O painel colorido dentro dele não esticava: medido a
+202px de coluna, os wrappers davam 214px e os painéis 194/214/194, ou seja,
+duas das três caixas terminavam 20px acima do fim da linha, com os botões em
+alturas diferentes. `flex-auto` e não `flex-1` pela mesma razão que a cadeia do
+modal usa: `flex-basis: 0%` contra altura indefinida colapsa no Safari.
+
+Título com o mesmo peso nos dois layouts (`font-semibold`). O card usava
+`font-medium` e o banner `font-semibold` para o mesmo papel; o `block` do `<h3>`
+era redundante — `<h3>` já é bloco.
 {% endcomment %}
 {% classes_painel_decisao variant_token as painel %}
 {% if layout == 'banner' %}
@@ -67,9 +80,17 @@ em vez de estrutura, a abstração estaria errada — foi o que `desc_class` e
   {% if painel.conhecida %}aria-labelledby="{{ heading_id }}"{% else %}role="alert" aria-labelledby="{{ heading_id }}" data-painel-variant="{{ painel.variante }}"{% endif %}
   class="mb-6 flex flex-col gap-3 rounded-xl border p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6 {{ painel.superficie }}"
 >
+  {% comment %}
+    `max-w-prose` no banner: medido a 1440, a descrição do estorno saía com 138
+    a 177 caracteres por linha, contra os 65–75 que o DESIGN.md fixa para prosa
+    (§Typography). O banner tem 1232px de largura e o botão fica na ponta
+    direita; sem o teto, o olho atravessa a largura inteira para ler três
+    sentenças. No layout `card` a coluna já é estreita e o teto nunca pega, por
+    isso ele mora só aqui.
+  {% endcomment %}
   <div class="flex min-w-0 items-start gap-2">
     {% include "components/_icone_nivel.html" with variant=variant_token class="mt-0.5 h-4 w-4 shrink-0" %}
-    <div class="min-w-0">
+    <div class="min-w-0 max-w-prose">
       {% if not painel.conhecida %}<p class="text-sm font-semibold">Aviso indisponível</p>{% endif %}
       <h2 id="{{ heading_id }}" class="text-sm font-semibold">{{ titulo }}</h2>
       <p class="mt-1 text-sm">{{ conteudo }}</p>
@@ -81,13 +102,13 @@ em vez de estrutura, a abstração estaria errada — foi o que `desc_class` e
 <div
   {% if painel.conhecida %}role="group"{% else %}role="alert" data-painel-variant="{{ painel.variante }}"{% endif %}
   aria-labelledby="{{ modal_id }}-painel-titulo"
-  class="rounded-xl border p-4 shadow-sm {{ painel.superficie }}"
+  class="flex h-full flex-col rounded-xl border p-4 shadow-sm {{ painel.superficie }}"
 >
-  <div class="flex items-start gap-2">
+  <div class="flex flex-auto items-start gap-2">
     {% include "components/_icone_nivel.html" with variant=variant_token class="mt-0.5 h-4 w-4 shrink-0" %}
     <div class="min-w-0">
       {% if not painel.conhecida %}<p class="text-sm font-semibold">Aviso indisponível</p>{% endif %}
-      <h3 id="{{ modal_id }}-painel-titulo" class="block text-sm font-medium">{{ titulo }}</h3>
+      <h3 id="{{ modal_id }}-painel-titulo" class="text-sm font-semibold">{{ titulo }}</h3>
       <p class="mt-1 text-sm">{{ conteudo }}</p>
     </div>
   </div>
