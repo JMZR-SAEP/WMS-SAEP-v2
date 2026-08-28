@@ -45,7 +45,9 @@ colors:
   return: "oklch(60% 0.118 184.704)"
   return-subtle: "oklch(98.4% 0.014 180.72)"
   return-muted: "oklch(95.3% 0.051 180.801)"
+  return-muted-strong: "oklch(91% 0.096 180.426)"
   return-border: "oklch(91% 0.096 180.426)"
+  return-border-strong: "oklch(85.5% 0.138 181.071)"
   return-text: "oklch(51.1% 0.096 186.391)"
   return-text-strong: "oklch(38.6% 0.063 188.416)"
   surface: "#fff"
@@ -340,7 +342,7 @@ Borda é estrutural, não decorativa: 1px sólido em toda superfície de papel c
 
 ### Chips (badges de estado)
 - **Style:** pill (`9999px`), fundo `-muted` (shade 100), texto `-text-strong` (shade 900), `ring-1 ring-inset` na cor `-border` (shade 200). 0.75rem semibold, sem caixa alta.
-- **Variantes fortes** (`blue-strong`, `amber-strong`, `red-strong`): sobem um degrau — fundo 200, ring 300 — para o estado que precisa se destacar dentro de uma lista de badges.
+- **Variantes fortes** (`blue-strong`, `amber-strong`, `red-strong`, `teal-strong`): sobem um degrau — fundo 200, ring 300 — para o estado que precisa se destacar dentro de uma lista de badges. `teal-strong` é o carimbo de "Estornada": no varrimento de uma listagem, o fundo `-muted` do teal fica a ΔL 0,009 / ΔC 0,007 do verde de "Atendida" — dois desfechos opostos com o mesmo carimbo. Subir para o fundo 200 leva o par a ΔL 0,052 / ΔC 0,052 (Δh 24° preservado), distinguível num relance. A Regra da Reversão Não é Erro continua: teal mais forte, nunca vermelho.
 - **Contrato:** o badge não conhece enum de domínio. Partials de domínio mapeiam estado → `variant`/`label`/`role`/`aria_label` antes do include. A variante desconhecida cai num badge vermelho preenchido escrito "Indisponível" — falha visível, nunca silenciosa.
 
 ### Cards / Containers

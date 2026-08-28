@@ -38,7 +38,7 @@ CLASSE_DE_PALETA_RE = re.compile(r'(?:bg|text|border|ring|divide)-[a-z]+-\d+')
 
 # Só a cadeia de variantes abre ramo. As condicionais internas de `role`,
 # `aria_label`, `prefixo_sr` e `label` são `{% if %}` também, então contar tag
-# genérica daria muito mais que 14 — e o primeiro `</span>` fecha um filho
+# genérica daria muito mais que 15 — e o primeiro `</span>` fecha um filho
 # `sr-only`, não a raiz. Por isso a fatia é pelos marcadores da cadeia.
 MARCADOR_DE_RAMO_RE = re.compile(r'\{%\s*(?:if|elif)\s+variant\s*==|\{%\s*else\s*%\}')
 
@@ -49,7 +49,7 @@ BLOCO_DE_COMENTARIO_RE = re.compile(
     r'\{%\s*comment\s*%\}.*?\{%\s*endcomment\s*%\}', re.S
 )
 
-TOTAL_DE_RAMOS = 14
+TOTAL_DE_RAMOS = 15
 
 VARIANTES_CONHECIDAS = [
     'slate',
@@ -62,6 +62,7 @@ VARIANTES_CONHECIDAS = [
     'red-strong',
     'orange',
     'teal',
+    'teal-strong',
     'indigo',
     'violet',
     'yellow',
@@ -155,6 +156,14 @@ def _texto_visivel(raiz):
             ],
         ),
         ('teal', ['bg-return-muted', 'text-return-text-strong', 'ring-return-border']),
+        (
+            'teal-strong',
+            [
+                'bg-return-muted-strong',
+                'text-return-text-strong',
+                'ring-return-border-strong',
+            ],
+        ),
         # Fora do mapeamento da issue #86 — permanecem cru de propósito.
         ('orange', ['bg-orange-100', 'text-orange-900', 'ring-orange-200']),
         ('indigo', ['bg-indigo-100', 'text-indigo-900', 'ring-indigo-200']),
@@ -386,7 +395,7 @@ def test_nenhuma_variante_de_catalogo_contem_dois_pontos():
     )
 
 
-# ─── Guarda de rótulo longo nos 14 ramos (issue #121) ─────────────────────
+# ─── Guarda de rótulo longo nos 15 ramos (issue #121) ─────────────────────
 
 
 def _fatias_por_ramo(conteudo):
