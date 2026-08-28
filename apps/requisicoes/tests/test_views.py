@@ -5010,7 +5010,10 @@ def test_button_tem_variante_return_outline():
         {'variant': 'return-outline', 'label': 'Registrar devolução'},
     )
     assert 'text-return-text-strong' in html
-    assert 'border-return-border' in html
+    # `border-return` (teal-600, 3,66:1) e não `border-return-border` (teal-200,
+    # 1,26:1): sobre `bg-surface` a borda é a única delimitação do controle, e a
+    # WCAG 1.4.11 pede 3:1 — ver test_borda_de_controle_passa_em_1411.
+    assert 'border-return ' in html
     assert 'min-h-11' in html
 
 

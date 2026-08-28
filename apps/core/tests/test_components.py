@@ -1,5 +1,6 @@
 """Testes diretos de components/button.html (sem DB, sem view)."""
 
+import math
 import re
 from collections.abc import Mapping
 from pathlib import Path
@@ -103,7 +104,7 @@ def test_disabled_false_nao_aplica_atributo_na_tag():
         (
             'danger-outline',
             [
-                'border-danger-border-strong',
+                'border-danger-accent',
                 'text-danger-text',
                 'hover:bg-danger-subtle',
             ],
@@ -1545,6 +1546,112 @@ def test_mecanismo_de_campo_enxerga_classe_condicional():
     limpo = TAGS_DJANGO.sub(' ', atributos)
     assert 'campo' not in limpo
     assert any(borda in limpo for borda in _BORDAS_DE_CONTROLE)
+
+
+def _oklch_para_srgb(L: float, C: float, h_graus: float) -> tuple[float, float, float]:
+    """Converte oklch para sRGB com gama, na mesma matemática que o navegador usa."""
+
+    h = math.radians(h_graus)
+    a, b = C * math.cos(h), C * math.sin(h)
+    longa = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3
+    media = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3
+    curta = (L - 0.0894841775 * a - 1.2914855480 * b) ** 3
+    lineares = (
+        4.0767416621 * longa - 3.3077115913 * media + 0.2309699292 * curta,
+        -1.2684380046 * longa + 2.6097574011 * media - 0.3413193965 * curta,
+        -0.0041960863 * longa - 0.7034186147 * media + 1.7076147010 * curta,
+    )
+
+    def codificar(u: float) -> float:
+        u = max(0.0, min(1.0, u))
+        return 12.92 * u if u <= 0.0031308 else 1.055 * u ** (1 / 2.4) - 0.055
+
+    return tuple(codificar(x) for x in lineares)
+
+
+def _luminancia(rgb: tuple[float, float, float]) -> float:
+    def linearizar(u: float) -> float:
+        return u / 12.92 if u <= 0.04045 else ((u + 0.055) / 1.055) ** 2.4
+
+    r, g, b = (linearizar(x) for x in rgb)
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def _razao_sobre_branco(rgb: tuple[float, float, float]) -> float:
+    return 1.05 / (_luminancia(rgb) + 0.05)
+
+
+def _resolver_cor(token: str) -> tuple[float, float, float]:
+    """Resolve `--color-<token>` até o oklch da paleta.
+
+    O alias mora em `input.css` (`--color-danger-accent: var(--color-red-500)`)
+    e o valor concreto só existe no `app.css` compilado, que é onde o Tailwind
+    emite a paleta. Por isso o teste lê os dois arquivos.
+    """
+
+    raiz = Path(__file__).resolve().parents[3]
+    fonte = (raiz / _INPUT_CSS).read_text()
+    compilado = (raiz / 'apps/core/static/core/css/app.css').read_text()
+
+    alias = re.search(rf'--color-{re.escape(token)}:\s*var\(--([\w-]+)\)', fonte)
+    nome = alias.group(1) if alias else f'color-{token}'
+    valor = re.search(rf'--{re.escape(nome)}:\s*oklch\(([^)]+)\)', compilado)
+    assert valor, f'não achei o oklch de --{nome} no app.css'
+
+    partes = valor.group(1).replace('%', '').split()
+    L = float(partes[0]) / 100
+    C = float(partes[1])
+    h = float(partes[2])
+    return _oklch_para_srgb(L, C, h)
+
+
+def test_borda_de_controle_passa_em_1411():
+    """Botão de fundo branco tem a borda como única delimitação — 3:1 (WCAG 1.4.11).
+
+    É a mesma regra que `DESIGN.md` justifica nominalmente para `border-control`
+    (slate-500, 4,77:1): onde a borda é a única pista de que existe um controle,
+    ela precisa dos 3:1 de contraste não-textual.
+
+    As variantes de contorno viviam nos `-border-strong`, que são shades 200/300
+    escolhidos para separar superfícies, não para desenhar controles: medidos
+    sobre branco davam 1,92:1 (red-300), 1,45:1 (amber-300) e 1,26:1 (teal-200).
+    Como quatro dos cinco gatilhos de workflow da tela de detalhe usam estas
+    variantes, as ações destrutivas eram os controles menos visíveis da página.
+
+    O teste calcula o contraste de verdade a partir do token, em vez de fixar o
+    nome da classe: trocar `border-danger-accent` por outro shade que também
+    passe continua válido, e trocar por um que não passe quebra aqui.
+    """
+
+    raiz = Path(__file__).resolve().parents[3]
+    fonte = (raiz / 'apps/core/templatetags/core_tags.py').read_text()
+    bloco = fonte[fonte.index('_VARIANTES_BOTAO') : fonte.index('_TAMANHOS_BOTAO')]
+
+    reprovadas: list[str] = []
+    verificadas = 0
+    for nome, classes_da_variante in re.findall(
+        r"'([\w-]+)': \(\s*((?:'[^']*'\s*)+)\)", bloco
+    ):
+        texto = ' '.join(re.findall(r"'([^']*)'", classes_da_variante))
+        if 'bg-surface' not in texto:
+            continue
+        borda = re.search(r'\bborder-([\w-]+)', texto)
+        if not borda:
+            continue
+        verificadas += 1
+        razao = _razao_sobre_branco(_resolver_cor(borda.group(1)))
+        if razao < 3.0:
+            reprovadas.append(f'{nome}: border-{borda.group(1)} = {razao:.2f}:1')
+
+    assert verificadas >= 4, (
+        f'esperava ao menos 4 variantes de fundo branco, achei {verificadas} — '
+        'a varredura provavelmente parou de casar com o formato do dicionário'
+    )
+    assert not reprovadas, (
+        'Borda de controle abaixo dos 3:1 da WCAG 1.4.11 sobre bg-surface. '
+        'Onde a borda é a única delimitação do controle, ela precisa ser vista: '
+        f'{reprovadas}'
+    )
 
 
 def test_nenhum_rotulo_de_campo_escrito_a_mao():

@@ -189,15 +189,15 @@ _VARIANTES_BOTAO: dict[str, str] = {
         'active:bg-danger-active focus-visible:ring-danger-accent'
     ),
     'danger-outline': (
-        'bg-surface text-danger-text border border-danger-border-strong '
+        'bg-surface text-danger-text border border-danger-accent '
         'hover:bg-danger-subtle focus-visible:ring-danger-accent'
     ),
     'warning-outline': (
-        'bg-surface text-warning-text-strong border border-warning-border-strong '
+        'bg-surface text-warning-text-strong border border-warning-text-subtle '
         'hover:bg-warning-muted focus-visible:ring-warning'
     ),
     'return-outline': (
-        'bg-surface text-return-text-strong border border-return-border '
+        'bg-surface text-return-text-strong border border-return '
         'hover:bg-return-subtle focus-visible:ring-return'
     ),
     'return': (
@@ -212,6 +212,26 @@ _VARIANTES_BOTAO: dict[str, str] = {
         'bg-transparent text-primary-text hover:underline focus-visible:ring-border-focus'
     ),
 }
+# Borda das variantes de contorno: a mesma regra que `border-control` (slate-500)
+# atende nos campos e no `secondary`. Sobre `bg-surface` a borda é a única
+# delimitação do controle, e a WCAG 1.4.11 pede 3:1 — medido contra branco, os
+# `-border-strong` que viviam aqui davam 1,92:1 (red-300), 1,45:1 (amber-300) e
+# 1,26:1 (teal-200). Quatro dos cinco gatilhos de workflow da tela de detalhe
+# usam estas variantes, ou seja, as ações destrutivas eram os controles menos
+# visíveis da página — no galpão, sob luz alta, e para quem tem sensibilidade a
+# contraste reduzida.
+#
+# Os degraus escolhidos, medidos sobre branco: `danger-accent` (red-500) 3,82:1
+# e `return` (teal-600) 3,66:1.
+#
+# `warning-outline` é a exceção e vale a explicação: a família âmbar **não tem
+# nenhum token de borda que passe**. `warning` (amber-500) dá 2,15:1, e o âmbar
+# claro o bastante para continuar âmbar não alcança 3:1 sobre branco — é limite
+# do matiz, não degrau esquecido. Os únicos membros ≥3:1 da família são os
+# tokens de texto, já alaranjados; daí `warning-text-subtle` (amber-700,
+# 5,05:1), que deixa a borda na mesma família do texto do próprio botão.
+#
+# `test_borda_de_controle_passa_em_1411` trava a reincidência.
 _TAMANHOS_BOTAO = {'sm': 'px-3 py-2 text-xs', 'md': 'px-3 py-2 text-sm'}
 
 
