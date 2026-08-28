@@ -9,8 +9,7 @@
   {% include "components/page_header.html" with titulo="Movimentações" class="mb-2" %}
   <p class="mb-6 max-w-3xl text-sm text-text-secondary">
     Histórico imutável das movimentações de estoque visíveis ao seu papel. Filtre por
-    material, tipo, período{% if mostrar_filtro_setor %} ou setor{% endif %}; o recorte
-    fica na URL e pode ser compartilhado.
+    material, tipo, período{% if mostrar_filtro_setor %} ou setor{% endif %}.
   </p>
 
   {% url 'estoque:historico_movimentacoes' as url_movimentacoes %}
@@ -50,7 +49,23 @@
     {% endcomment %}
     {% include "components/filter_presets_periodo.html" with presets=presets_periodo target_id="resultados-movimentacoes" %}
 
-    {% include "components/filter_checkbox_group.html" with legend="Tipo" name="tipos" opcoes=tipos_opcoes selecionados=filtros.tipos %}
+    {% comment %}
+      Agrupa os 7 tipos por origem, espelhando `_TIPOS_ORIGEM_REQUISICAO` e
+      `_TIPOS_ORIGEM_SAIDA` em apps/estoque/models.py — a mesma partição que a
+      constraint `movimentacao_tipo_origem_coerente` já exige do ledger, e que
+      a coluna "Origem" do cartão exibe (issue #160). As 7 caixas e os 7
+      valores da querystring seguem intactos — só a apresentação ganha dois
+      fieldset/legend. `agrupar_opcoes` erra alto se a partição sair de
+      sincronia com `TipoMovimentacaoEstoque`.
+
+      A tag fica DENTRO de `partialdef campos`: o fragmento é reemitido
+      sozinho via hx-swap-oob (oob_campos) nas respostas HTMX, e o que mora
+      acima do partialdef não roda nesse caminho — mesma armadilha dos
+      `{% templatetag openblock %} url ... as ... {% templatetag closeblock %}`
+      documentados mais abaixo.
+    {% endcomment %}
+    {% agrupar_opcoes tipos_opcoes "De requisição" "reserva liberacao consumo devolucao estorno_requisicao" "De saída excepcional" "saida_excepcional estorno_saida" as tipos_grupos %}
+    {% include "components/filter_checkbox_group.html" with legend="Tipo" name="tipos" grupos=tipos_grupos selecionados=filtros.tipos %}
 
     {# Preserva ordenação corrente ao submeter os filtros #}
     {% if ordem == 'asc' %}<input type="hidden" name="ordem" value="asc">{% endif %}

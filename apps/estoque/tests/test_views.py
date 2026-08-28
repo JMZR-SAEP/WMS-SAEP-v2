@@ -1768,6 +1768,29 @@ class TestHistoricoImportacoesScpiView:
         resp = client.get(self.URL)
         assert resp.status_code == 200
 
+    def test_h1_e_title_repetem_o_rotulo_da_navegacao(self, client, superuser):
+        """Rótulo do link tem de ser o rótulo do destino (issue #160).
+
+        O H1 dizia "Importação SCPI — Histórico" enquanto o item de nav diz
+        "Histórico de importações SCPI": quem clica perde a confirmação de que
+        chegou no lugar certo. A fonte única do rótulo é `NAVEGACAO`, em
+        `apps/core/templatetags/core_tags.py` — o teste lê de lá em vez de
+        repetir a string, para que renomear na nav quebre aqui.
+        """
+        from apps.core.templatetags.core_tags import NAVEGACAO
+
+        rotulo = next(
+            item['rotulo']
+            for secao in NAVEGACAO
+            for item in secao['itens']
+            if item['url_name'] == 'estoque:historico_importacoes_scpi'
+        )
+        client.force_login(superuser)
+        html = client.get(self.URL).content.decode()
+        assert f'>{rotulo}</h1>' in html
+        assert f'<title>{rotulo} — WMS-SAEP</title>' in html
+        assert 'Importação SCPI — Histórico' not in html
+
     def test_exibe_metadados_da_importacao(self, client, superuser, estoque_principal):
         from apps.estoque.models import ImportacaoSCPI, StatusImportacaoSCPI
 
@@ -2242,7 +2265,7 @@ class TestListaMateriaisView:
         # 3ª coluna em xl/1280px), porque o cartão do catálogo passou no critério
         # de densidade de DESIGN.md §A Regra do Cartão Único (issue #159).
         assert '<article' in conteudo
-        assert 'grid items-start gap-3 sm:grid-cols-2 xl:grid-cols-3' in conteudo
+        assert 'grid gap-3 sm:grid-cols-2 xl:grid-cols-3' in conteudo
         assert '<table' not in conteudo
         # Quantidades empilhadas, não em `grid grid-cols-3` interno (issue #159):
         # a 322px de cartão (o que a variante densa dá a 1280px) três colunas
@@ -2521,6 +2544,26 @@ class TestHistoricoMovimentacoesView:
         client.force_login(chefe_almoxarifado)
         response = client.get(URL_MOVIMENTACOES)
         assert URL_MOVIMENTACOES.encode() in response.content
+
+    def test_texto_de_apoio_orienta_sem_narrar_implementacao(
+        self, client, chefe_almoxarifado
+    ):
+        """Único texto de ajuda da tela (issue #160).
+
+        Metade dele explicava que o recorte "fica na URL e pode ser
+        compartilhado" — comportamento de querystring, que nenhum papel do
+        PRODUCT.md pediu. Sobra o que orienta: o que a tela mostra e por onde
+        filtrar.
+        """
+        client.force_login(chefe_almoxarifado)
+        html = client.get(URL_MOVIMENTACOES).content.decode()
+        assert 'fica na URL' not in html
+        assert 'pode ser compartilhado' not in html
+        assert (
+            'Histórico imutável das movimentações de estoque visíveis ao seu papel.'
+            in html
+        )
+        assert 'Filtre por' in html
 
     def test_comentarios_dos_partials_nao_vazam_para_a_tela(
         self, client, superuser, requisicao_autorizada
@@ -2940,6 +2983,127 @@ class TestHistoricoMovimentacoesFiltrosPartials:
             'name="tipos"',
         ):
             assert campo in content
+
+
+class TestHistoricoMovimentacoesGruposDeTipo:
+    """Partição do fieldset "Tipo" por origem da movimentação (issue #160).
+
+    Os 7 tipos vinham numa fileira única enquanto o fieldset menor — os 8
+    estados do histórico de requisições — já tinha ganhado a partição na issue
+    #154. Aqui a partição espelha `_TIPOS_ORIGEM_REQUISICAO`/`_TIPOS_ORIGEM_SAIDA`
+    de `apps/estoque/models.py`, a mesma que a constraint
+    `movimentacao_tipo_origem_coerente` exige do ledger.
+    """
+
+    LEGENDA_REQUISICAO = '>De requisição</legend>'
+    LEGENDA_SAIDA = '>De saída excepcional</legend>'
+
+    def _fonte_do_template(self):
+        return (
+            Path(__file__).resolve().parent.parent
+            / 'templates'
+            / 'estoque'
+            / 'historico_movimentacoes.html'
+        ).read_text()
+
+    def test_fieldset_de_tipo_ganha_os_dois_grupos(self, client, superuser):
+        client.force_login(superuser)
+        html = client.get(URL_MOVIMENTACOES).content.decode()
+        assert '>Tipo</legend>' in html
+        assert self.LEGENDA_REQUISICAO in html
+        assert self.LEGENDA_SAIDA in html
+
+    def test_grupos_preservam_as_7_caixas_e_os_7_valores(self, client, superuser):
+        """Só a apresentação muda: mesmo `name`, mesmos 7 valores, mesma
+        querystring que o uso plano produzia."""
+        from apps.estoque.models import TipoMovimentacaoEstoque
+
+        client.force_login(superuser)
+        html = client.get(URL_MOVIMENTACOES).content.decode()
+        assert html.count('name="tipos"') == 7
+        assert html.count('type="checkbox"') == 7
+        for tipo in TipoMovimentacaoEstoque:
+            assert f'value="{tipo.value}"' in html
+
+    def test_particao_do_template_espelha_as_constantes_de_origem(self):
+        """Guarda de drift na fonte: a partição escrita no template tem de ser
+        exatamente `_TIPOS_ORIGEM_REQUISICAO`/`_TIPOS_ORIGEM_SAIDA`, senão o
+        espelho que o comentário promete deixou de valer em silêncio."""
+        from apps.estoque.models import _TIPOS_ORIGEM_REQUISICAO, _TIPOS_ORIGEM_SAIDA
+
+        chamada = re.search(
+            r'{% agrupar_opcoes tipos_opcoes(.+?)as tipos_grupos %}',
+            self._fonte_do_template(),
+            re.S,
+        )
+        assert chamada is not None
+        argumentos = re.findall(r'"([^"]*)"', chamada.group(1))
+        assert argumentos[0] == 'De requisição'
+        assert argumentos[2] == 'De saída excepcional'
+        assert argumentos[1].split() == [t.value for t in _TIPOS_ORIGEM_REQUISICAO]
+        assert argumentos[3].split() == [t.value for t in _TIPOS_ORIGEM_SAIDA]
+
+    def test_particao_cobre_exatamente_os_tipos_canonicos(self):
+        """Mudou `TipoMovimentacaoEstoque` sem mexer nas constantes de origem,
+        `agrupar_opcoes` erra alto em vez de sumir com uma caixa."""
+        from apps.core.templatetags.core_tags import agrupar_opcoes
+        from apps.estoque.models import (
+            _TIPOS_ORIGEM_REQUISICAO,
+            _TIPOS_ORIGEM_SAIDA,
+            TipoMovimentacaoEstoque,
+        )
+
+        grupos = agrupar_opcoes(
+            TipoMovimentacaoEstoque.choices,
+            'De requisição',
+            ' '.join(t.value for t in _TIPOS_ORIGEM_REQUISICAO),
+            'De saída excepcional',
+            ' '.join(t.value for t in _TIPOS_ORIGEM_SAIDA),
+        )
+        assert [legenda for legenda, _ in grupos] == [
+            'De requisição',
+            'De saída excepcional',
+        ]
+        assert [len(pares) for _, pares in grupos] == [5, 2]
+
+    def test_querystring_de_tipo_continua_filtrando_e_marcando(
+        self, client, superuser, requisicao_autorizada
+    ):
+        client.force_login(superuser)
+        com = client.get(URL_MOVIMENTACOES, {'tipos': 'reserva'}, follow=True)
+        sem = client.get(URL_MOVIMENTACOES, {'tipos': 'consumo'}, follow=True)
+        assert com.context['page_obj'].paginator.count >= 1
+        assert sem.context['page_obj'].paginator.count == 0
+        html = com.content.decode()
+        idx = html.index('value="reserva"')
+        assert 'checked' in html[idx : html.index('>', idx) + 1]
+
+    def test_reemite_oob_do_caminho_htmx_traz_os_grupos(
+        self, client, superuser, requisicao_autorizada
+    ):
+        """`agrupar_opcoes` vive DENTRO de `partialdef campos`.
+
+        O fragmento é reemitido sozinho via `hx-swap-oob` nas respostas HTMX, e
+        o que mora acima do partialdef não roda nesse caminho — a tag colocada
+        lá em cima devolveria o reemite sem grupos, e a fileira única voltaria
+        assim que o operador aplicasse o primeiro filtro.
+        """
+        client.force_login(superuser)
+        parcial = client.get(
+            URL_MOVIMENTACOES, {'tipos': 'reserva'}, HTTP_HX_REQUEST='true'
+        ).content.decode()
+        assert 'id="resultados-movimentacoes-campos"' in parcial
+        assert 'hx-swap-oob="true"' in parcial
+        assert self.LEGENDA_REQUISICAO in parcial
+        assert self.LEGENDA_SAIDA in parcial
+        assert parcial.count('name="tipos"') == 7
+
+    def test_comentario_da_particao_nao_vaza_para_a_tela(self, client, superuser):
+        # Comentário multilinha precisa ser {% comment %}, não {# #}.
+        client.force_login(superuser)
+        html = client.get(URL_MOVIMENTACOES).content.decode()
+        assert '_TIPOS_ORIGEM_REQUISICAO' not in html
+        assert 'agrupar_opcoes' not in html
 
 
 class TestHistoricoMovimentacoesResponsivo:
