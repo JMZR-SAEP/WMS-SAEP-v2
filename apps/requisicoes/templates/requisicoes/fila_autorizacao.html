@@ -34,21 +34,22 @@
           </p>
         </div>
 
+        {# Rótulo rebaixado (issue #158): `Rótulo: valor` inline, sem caixa alta, `<dl>/<dt>/<dd>` preservado. Ver DESIGN.md §A Regra da Caixa Alta Estrutural. #}
         <dl class="mt-4 grid grid-cols-2 gap-3 text-sm">
-          <div>
-            <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Beneficiário</dt>
-            <dd class="mt-0.5 text-text-primary">
+          <div class="flex gap-x-2">
+            <dt class="shrink-0 text-text-tertiary">Beneficiário:</dt>
+            <dd class="min-w-0 text-text-primary">
               {{ req.beneficiario.nome }}
               <span class="text-text-tertiary">({{ req.beneficiario.matricula }})</span>
             </dd>
           </div>
-          <div>
-            <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Setor</dt>
-            <dd class="mt-0.5 text-text-primary">{{ req.setor_beneficiario.nome }}</dd>
+          <div class="flex gap-x-2">
+            <dt class="shrink-0 text-text-tertiary">Setor:</dt>
+            <dd class="min-w-0 text-text-primary">{{ req.setor_beneficiario.nome }}</dd>
           </div>
-          <div>
-            <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Itens</dt>
-            <dd class="mt-0.5 tabular-nums text-text-primary">{{ req.quantidade_itens }}</dd>
+          <div class="flex gap-x-2">
+            <dt class="shrink-0 text-text-tertiary">Itens:</dt>
+            <dd class="min-w-0 tabular-nums text-text-primary">{{ req.quantidade_itens }}</dd>
           </div>
         </dl>
 

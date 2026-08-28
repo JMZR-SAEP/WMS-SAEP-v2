@@ -64,18 +64,19 @@
             {% endif %}
           </div>
 
+          {# Rótulo rebaixado (issue #158): `Rótulo: valor` inline, sem caixa alta, `<dl>/<dt>/<dd>` preservado. Ver DESIGN.md §A Regra da Caixa Alta Estrutural. #}
           <dl class="mt-4 grid grid-cols-3 gap-3 text-sm">
-            <div>
-              <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Físico</dt>
-              <dd class="mt-0.5 tabular-nums text-text-primary">{{ saldo.saldo_fisico|formatar_quantidade:saldo.material.unidade }} {{ saldo.material.unidade }}</dd>
+            <div class="flex gap-x-2">
+              <dt class="shrink-0 text-text-tertiary">Físico:</dt>
+              <dd class="min-w-0 tabular-nums text-text-primary">{{ saldo.saldo_fisico|formatar_quantidade:saldo.material.unidade }} {{ saldo.material.unidade }}</dd>
             </div>
-            <div>
-              <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Reservado</dt>
-              <dd class="mt-0.5 tabular-nums text-text-primary">{{ saldo.saldo_reservado|formatar_quantidade:saldo.material.unidade }} {{ saldo.material.unidade }}</dd>
+            <div class="flex gap-x-2">
+              <dt class="shrink-0 text-text-tertiary">Reservado:</dt>
+              <dd class="min-w-0 tabular-nums text-text-primary">{{ saldo.saldo_reservado|formatar_quantidade:saldo.material.unidade }} {{ saldo.material.unidade }}</dd>
             </div>
-            <div>
-              <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Disponível</dt>
-              <dd class="mt-0.5 tabular-nums {% if saldo.divergente_calculado %}text-danger-text font-semibold{% else %}text-text-primary{% endif %}">
+            <div class="flex gap-x-2">
+              <dt class="shrink-0 text-text-tertiary">Disponível:</dt>
+              <dd class="min-w-0 tabular-nums {% if saldo.divergente_calculado %}text-danger-text font-semibold{% else %}text-text-primary{% endif %}">
                 {{ saldo.saldo_disponivel_calculado|formatar_quantidade:saldo.material.unidade }} {{ saldo.material.unidade }}
               </dd>
             </div>

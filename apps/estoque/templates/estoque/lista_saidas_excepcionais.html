@@ -35,18 +35,19 @@
             <span class="shrink-0">{% include "estoque/partials/_estado_saida_badge.html" with saida=saida %}</span>
           </div>
 
-          <dl class="mt-4 space-y-3 text-sm">
-            <div>
-              <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Motivo</dt>
-              <dd class="mt-0.5 line-clamp-2 text-text-primary">{{ saida.motivo }}</dd>
+          {# Rótulo rebaixado (issue #158): `Rótulo: valor` inline, sem caixa alta, `<dl>/<dt>/<dd>` preservado. Ver DESIGN.md §A Regra da Caixa Alta Estrutural. #}
+          <dl class="mt-4 space-y-1 text-sm">
+            <div class="flex gap-x-2">
+              <dt class="shrink-0 text-text-tertiary">Motivo:</dt>
+              <dd class="min-w-0 line-clamp-2 text-text-primary">{{ saida.motivo }}</dd>
             </div>
-            <div>
-              <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Registrado por</dt>
-              <dd class="mt-0.5 text-text-primary">{{ saida.registrado_por.nome }}</dd>
+            <div class="flex gap-x-2">
+              <dt class="shrink-0 text-text-tertiary">Registrado por:</dt>
+              <dd class="min-w-0 text-text-primary">{{ saida.registrado_por.nome }}</dd>
             </div>
-            <div>
-              <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Itens</dt>
-              <dd class="mt-0.5 tabular-nums text-text-primary">{{ saida.quantidade_itens }}</dd>
+            <div class="flex gap-x-2">
+              <dt class="shrink-0 text-text-tertiary">Itens:</dt>
+              <dd class="min-w-0 tabular-nums text-text-primary">{{ saida.quantidade_itens }}</dd>
             </div>
           </dl>
 

@@ -76,27 +76,28 @@
   </span>
 </div>
 
+{# Rótulo rebaixado (issue #158): `Rótulo: valor` inline, sem caixa alta, `<dl>/<dt>/<dd>` preservado. Ver DESIGN.md §A Regra da Caixa Alta Estrutural. #}
 <dl class="mt-4 grid grid-cols-2 gap-3 text-sm">
   {# Material primeiro e em linha inteira: é o dado que manda o auxiliar até a prateleira. #}
-  <div class="col-span-2">
-    <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Material</dt>
-    <dd class="mt-0.5 break-words text-text-primary">
+  <div class="col-span-2 flex gap-x-2">
+    <dt class="shrink-0 text-text-tertiary">Material:</dt>
+    <dd class="min-w-0 break-words text-text-primary">
       {{ req.primeiro_material_nome|default:"—" }}
       {% if req.quantidade_itens > 1 %}
         <span class="text-text-tertiary">e mais {{ req.quantidade_itens|add:"-1" }}</span>
       {% endif %}
     </dd>
   </div>
-  <div>
-    <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Beneficiário</dt>
-    <dd class="mt-0.5 text-text-primary">
+  <div class="flex gap-x-2">
+    <dt class="shrink-0 text-text-tertiary">Beneficiário:</dt>
+    <dd class="min-w-0 text-text-primary">
       {{ req.beneficiario.nome }}
       <span class="text-text-tertiary">({{ req.beneficiario.matricula }})</span>
     </dd>
   </div>
-  <div>
-    <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Setor</dt>
-    <dd class="mt-0.5 text-text-primary">{{ req.setor_beneficiario.nome }}</dd>
+  <div class="flex gap-x-2">
+    <dt class="shrink-0 text-text-tertiary">Setor:</dt>
+    <dd class="min-w-0 text-text-primary">{{ req.setor_beneficiario.nome }}</dd>
   </div>
 </dl>
 

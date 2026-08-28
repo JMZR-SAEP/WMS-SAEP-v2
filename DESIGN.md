@@ -201,7 +201,7 @@ Os controles são diretos e sinalizáveis: cada botão diz o que faz, e quando n
 **Key Characteristics:**
 - Papel frio sobre papel branco, borda de 1px, sombra reservada a overlays
 - Cor exclusivamente semântica: seis famílias de estado, zero cor decorativa
-- Corpo em 14px, rótulos estruturais em 12px caixa alta, tipografia do sistema sem webfont
+- Corpo em 14px, rótulos estruturais impressos uma vez em 12px caixa alta (rótulo repetido por registro fica inline em caixa normal), tipografia do sistema sem webfont
 - Escala MD2 de elevação com quatro degraus e nada entre eles
 - Raio que cresce com a superfície: controle 6px → campo 8px → papel 12px → modal 16px
 - Alvo de toque de 44px e anel de foco visível em todo controle interativo
@@ -261,7 +261,9 @@ Uma paleta de trabalho: um azul de carimbo, um grafite de registro, um papel fri
 
 ### Named Rules
 
-**A Regra da Caixa Alta Estrutural.** Caixa alta é exclusiva de rótulo de estrutura — `<th>`, `<label>`, cabeçalho de seção de menu. Nome de material, nome de pessoa, número de requisição e texto de estado nunca sobem para maiúsculas: são dados, e dado em caixa alta perde legibilidade e perde o desenho da palavra.
+**A Regra da Caixa Alta Estrutural.** Caixa alta é exclusiva de rótulo de estrutura **impresso uma vez** — `<th>` de cabeçalho de coluna, `<label>` de campo, cabeçalho de seção de menu. Nome de material, nome de pessoa, número de requisição e texto de estado nunca sobem para maiúsculas: são dados, e dado em caixa alta perde legibilidade e perde o desenho da palavra.
+
+O que a regra **não** autoriza é o rótulo repetido por registro. O `<dt>` de um `<dl>` dentro de um cartão de listagem não é cabeçalho de coluna: ele reimprime o mesmo texto a cada um dos 25 cartões da página, e em caixa alta some o ganho de densidade que a Regra dos 14px existe para defender. Esses rótulos ficam em caixa normal, cinza de metadado (`text-text-tertiary`), na mesma linha do valor (`Setor: Obras`) — continuam `<dt>`/`<dd>` para o leitor de tela, mas não vestem a tipografia de `<label>` (`text-xs font-medium uppercase tracking-wide`). Um campo que o recorte já fixa — o setor quando há filtro de setor ativo ou papel restrito ao próprio setor, o beneficiário em "Minhas requisições" quando coincide com o criador — é suprimido na tela, não só rebaixado (lógica de tela, `card_abertura` segue sem parâmetro, guardrail da #83).
 
 **A Regra dos 14px.** O corpo do sistema é 0.875rem, não 1rem. É uma decisão de densidade operacional — uma fila com 20 requisições precisa caber na tela do chefe de setor. Subir o corpo para 1rem quebra a densidade de todas as listas de uma vez; se um texto precisa de mais presença, mude o peso ou o tom, não o tamanho.
 
