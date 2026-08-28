@@ -4,6 +4,7 @@ from typing import Any
 
 from django.core.exceptions import NON_FIELD_ERRORS, ImproperlyConfigured
 from django import template
+from django.core.paginator import Page
 from django.forms import BoundField
 from django.template.loader import render_to_string
 from django.utils.functional import Promise
@@ -889,3 +890,39 @@ def agrupar_opcoes(
             f'agrupar_opcoes: valores não agrupados: {sorted(faltando)}.'
         )
     return grupos
+
+
+# 1 vizinho de cada lado e 1 extremo: no máximo 7 entradas (`1 … 19 20 21 … 40`),
+# das quais 5 são alvos de 44px e 2 são reticências estreitas — ~276px, que cabem
+# nos ~327px de conteúdo de um viewport de 375px sem quebrar linha. O default do
+# Django (3 e 2) dá até 13 entradas, que no celular viram três linhas de números.
+# A mesma tela é operada em pé no galpão.
+_VIZINHOS_DE_PAGINA = 1
+_EXTREMOS_DE_PAGINA = 1
+
+
+@register.simple_tag
+def faixa_paginas(page_obj: Page) -> list[Any]:
+    """Faixa elidida de números de página de `components/pagination.html`.
+
+    Existe porque `Paginator.get_elided_page_range` **exige** o número da página
+    e o template não sabe passar argumento para um método: chamada de
+    `page_obj.paginator.get_elided_page_range` direto do template resolveria sem
+    argumento, o Django assumiria a página 1, e toda página que não fosse a
+    primeira mostraria a faixa de outra — com a página atual às vezes fora dela.
+
+    Devolve a faixa nativa, sem traduzir: inteiros e `Paginator.ELLIPSIS` nas
+    lacunas, que o template distingue comparando com `page_obj.paginator.ELLIPSIS`.
+    Nenhum dicionário de apoio — o marcador de lacuna é da API do Django, e
+    reembrulhá-lo criaria um segundo vocabulário para a mesma coisa.
+
+    `list` e não o gerador: o template itera uma vez, mas um gerador exposto ao
+    contexto é a coisa que esvazia em silêncio se alguém iterar duas vezes.
+    """
+    return list(
+        page_obj.paginator.get_elided_page_range(
+            page_obj.number,
+            on_each_side=_VIZINHOS_DE_PAGINA,
+            on_ends=_EXTREMOS_DE_PAGINA,
+        )
+    )

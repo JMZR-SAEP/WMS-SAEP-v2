@@ -5,17 +5,49 @@ Paginação server-side reutilizável. Recebe `page_obj` (Paginator page),
 `querystring_filtros` (querystring atual sem `page`) para preservar os
 filtros ativos ao navegar. Alvos de toque min-h-11, focáveis.
 
-`aria_label` nomeia o <nav> e **só** o <nav>: cada include de `button.html`
-abaixo zera o parâmetro explicitamente. `{% templatetag openblock %} include
+`aria_label` nomeia o <nav> e **só** o <nav>: os includes de "Anterior" e
+"Próxima" zeram o parâmetro explicitamente. `{% templatetag openblock %} include
 {% templatetag closeblock %}` sem `only` repassa o contexto inteiro, e
 `button.html` emite `aria-label` quando encontra a variável — sem o `=None`,
 os dois controles anunciavam "Paginação do histórico de requisições" em vez de
 "Anterior"/"Próxima", sobrescrevendo o texto visível para quem usa leitor de
 tela. Travado em `TestPaginationHref.test_nome_acessivel_dos_controles_*`.
+
+Os números de página são a exceção: eles *passam* `aria_label`, o seu próprio
+("Página 7"), porque o texto visível é um algarismo solto — nome acessível
+pobre num leitor de tela, que anunciaria só "7, link". O rótulo contém o texto
+visível, então continua satisfazendo o Label in Name (WCAG 2.5.3).
+
+## Números de página (issue #160)
+
+Antes só existiam "Anterior" e "Próxima". Com 2 páginas isso basta; com 40,
+chegar na página 30 custava 29 cliques — e nenhum elemento carregava
+`aria-current`, então quem usa leitor de tela não tinha marca de "estou aqui"
+fora da frase do contador.
+
+A faixa vem de `{% templatetag openblock %} faixa_paginas {% templatetag
+closeblock %}` (core_tags), que embrulha `Paginator.get_elided_page_range` —
+a API nativa, que já devolve `Paginator.ELLIPSIS` nas lacunas. Ela **exige** o
+número da página, e é por isso que a chamada não cabe no template: sem
+argumento o Django assume a página 1, e a faixa exibida seria a de outra página
+que não a atual, em toda página que não fosse a primeira.
+
+A página atual não é link: é um `<span aria-current="page">`. Link para onde já
+se está é destino falso para quem navega por teclado e ruído para todo mundo.
+A reticência é decorativa — `aria-hidden`, sem foco, sem alvo: quem lê a tela
+ouve os números que pode alcançar, não o buraco entre eles.
+
+O carimbo da página atual é grafite preenchido (`bg-text-secondary`, a mesma
+superfície da variante `neutral` de `button.html`), e não o `bg-bg-subtle` do
+item ativo da side nav: `bg-bg-subtle` é exatamente o hover da variante `ghost`
+dos outros números, e "em que página estou" ficaria idêntico a "onde o ponteiro
+está". Grafite também mantém a Regra do Sinal Único — cor de marca aqui não
+responderia a nenhuma pergunta de estado do domínio.
 {% endcomment %}
+{% load core_tags %}
 {% if page_obj.paginator.num_pages > 1 %}
   <nav
-    class="mt-6 flex items-center justify-between gap-3"
+    class="mt-6 flex flex-wrap items-center justify-between gap-3"
     aria-label="{{ aria_label|default:'Paginação' }}"
   >
     <p class="text-sm text-text-secondary">
@@ -42,14 +74,15 @@ tela. Travado em `TestPaginationHref.test_nome_acessivel_dos_controles_*`.
          — `add('?page=', 2)` tenta `int('?page=')`, falha, tenta `str + int`,
          falha de novo, e **devolve string vazia em silêncio**. Com href vazio,
          `button.html` cai no ramo <button> e a paginação inteira deixa de
-         navegar sem quebrar nada visível.
+         navegar sem quebrar nada visível. Vale para os números de página pelo
+         mesmo motivo — inclusive no `aria-label`, que é `add` de string.
 
       Os três casos estão travados em test_components.py.
     {% endcomment %}
     {% with filtros_ativos=querystring_filtros|default:"" %}
     {% with separador=filtros_ativos|yesno:"&," %}
     {% with base_url="?"|add:filtros_ativos|add:separador|add:"page=" %}
-    <div class="flex items-center gap-2">
+    <div class="flex flex-wrap items-center gap-2">
       {% if page_obj.has_previous %}
         {% with pagina_anterior=page_obj.previous_page_number|stringformat:"s" %}
           {% with href_anterior=base_url|add:pagina_anterior %}
@@ -59,6 +92,26 @@ tela. Travado em `TestPaginationHref.test_nome_acessivel_dos_controles_*`.
       {% else %}
         {% include "components/button.html" with variant="secondary" label="Anterior" disabled=True aria_label=None %}
       {% endif %}
+
+      {% faixa_paginas page_obj as paginas %}
+      <ol class="flex flex-wrap items-center gap-1">
+        {% for numero in paginas %}
+          <li>
+            {% if numero == page_obj.paginator.ELLIPSIS %}
+              <span class="px-1 text-sm text-text-tertiary" aria-hidden="true">{{ numero }}</span>
+            {% elif numero == page_obj.number %}
+              <span
+                aria-current="page"
+                class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md bg-text-secondary px-3 py-2 text-sm font-medium tabular-nums text-text-on-primary"
+              >{{ numero }}</span>
+            {% else %}
+              {% with pagina=numero|stringformat:"s" %}
+                {% include "components/button.html" with variant="ghost" label=numero href=base_url|add:pagina aria_label="Página "|add:pagina class="min-w-11 tabular-nums" %}
+              {% endwith %}
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ol>
 
       {% if page_obj.has_next %}
         {% with pagina_proxima=page_obj.next_page_number|stringformat:"s" %}

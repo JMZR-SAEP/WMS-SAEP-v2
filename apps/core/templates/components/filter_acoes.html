@@ -11,10 +11,11 @@ recorte: URL limpa, 25 linhas sem filtro na tela e o campo ainda exibindo
 "Obras" com "Rascunho" marcado. O próximo "Aplicar filtros" reenviava, em
 silêncio, o filtro que a pessoa acabara de limpar.
 
-Numa tela cujo texto promete que "o recorte fica na URL e pode ser
-compartilhado", o painel não pode discordar da URL. A navegação nativa
-rerenderiza o formulário inteiro pelo servidor, que é a única fonte capaz de
-deixar campos, resultados e URL coerentes de uma vez.
+A URL é a fonte de verdade do recorte (`apps/core/querystring.py`, e a
+seção URL Strategy de `.design/INFORMATION_ARCHITECTURE.md`), então o painel
+não pode discordar dela. A navegação nativa rerenderiza o formulário inteiro
+pelo servidor, que é a única fonte capaz de deixar campos, resultados e URL
+coerentes de uma vez.
 
 ## Por que o wrapper OOB envolve só o "Limpar"
 

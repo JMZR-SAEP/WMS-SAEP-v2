@@ -3,12 +3,13 @@
 import math
 import re
 from collections.abc import Mapping
+from html.parser import HTMLParser
 from pathlib import Path
 
 import pytest
 from django.template.loader import render_to_string
 
-from apps.core.templatetags.core_tags import _VARIANTES_BOTAO
+from apps.core.templatetags.core_tags import _VARIANTES_BOTAO, faixa_paginas
 from apps.core.tests.marcacao import (
     TAGS_DJANGO,
     atributo,
@@ -934,6 +935,7 @@ _INCLUDE_DO_ESTADO_VAZIO = re.compile(
     r'\{%\s*include\s+(["\'])components/empty_state\.html\1(?P<args>.*?)%\}', re.S
 )
 _MINIMO_DE_CHAMADORES_DO_ESTADO_VAZIO = 11
+_FRAGMENTOS_DE_GRADE = ('cards_abertura', 'cards_abertura_denso')
 
 
 def _clones_do_estado_vazio(caminho: str, texto: str) -> list[str]:
@@ -1329,11 +1331,13 @@ class TestPaginationHref:
     param de navegar — sem erro, sem log, sem teste vermelho.
     """
 
-    def _render(self, numero_pagina, **ctx):
+    CONTROLES = '<div class="flex flex-wrap items-center gap-2">'
+
+    def _render(self, numero_pagina, *, total=30, por_pagina=10, **ctx):
         from django.core.paginator import Paginator
         from django.template.loader import render_to_string
 
-        paginator = Paginator(list(range(30)), 10)
+        paginator = Paginator(list(range(total)), por_pagina)
         return render_to_string(
             'components/pagination.html',
             {
@@ -1346,17 +1350,132 @@ class TestPaginationHref:
     def _hrefs(self, html):
         return re.findall(r'href="([^"]*)"', html)
 
+    def _lista(self, html):
+        """O bloco <ol> dos números, sem "Anterior"/"Próxima"."""
+        return html.split('<ol ')[1].split('</ol>')[0]
+
+    def _faixa(self, html):
+        """Texto visível de cada item da faixa, na ordem do DOM."""
+        return re.findall(r'>([^<>]+)</(?:a|span)>', self._lista(html))
+
     def test_href_carrega_o_numero_da_pagina(self):
+        # 3 páginas, na 2: Anterior, número 1, número 3, Próxima — a 2 é o
+        # marcador estático de página atual, e marcador não tem href.
         hrefs = self._hrefs(self._render(2))
-        assert hrefs == ['?page=1', '?page=3']
+        assert hrefs == ['?page=1', '?page=1', '?page=3', '?page=3']
 
     def test_href_preserva_filtros_ativos(self):
         html = self._render(2, querystring_filtros='texto=a+b&setor=1')
         hrefs = self._hrefs(html)
-        assert len(hrefs) == 2
+        assert len(hrefs) == 4
         for href in hrefs:
             assert 'texto=a+b' in href
             assert 'setor=1' in href
+
+    def test_numero_de_pagina_carrega_a_querystring_de_filtros(self):
+        """O número é o atalho novo; sem filtro no href ele desfaz o recorte.
+
+        O guarda amarra o número visível ao `page=` do próprio href: um link
+        rotulado "19" que aponta para outra página passaria em qualquer
+        asserção de contagem.
+        """
+        import html as html_lib
+
+        html = self._render(20, total=400, querystring_filtros='texto=a+b&setor=1')
+        numeros = re.findall(r'<a\s+href="([^"]*)"[^>]*>(\d+)</a>', self._lista(html))
+        assert [rotulo for _, rotulo in numeros] == ['1', '19', '21', '40']
+        for href, rotulo in numeros:
+            cru = html_lib.unescape(href)
+            assert f'page={rotulo}' in cru
+            assert 'texto=a+b' in cru and 'setor=1' in cru
+
+    def test_pagina_atual_nao_e_link_e_carrega_aria_current(self):
+        """Link para onde já se está é destino falso; e sem `aria-current` a
+        faixa inteira é uma fileira de números sem "você está aqui".
+        """
+        html = self._render(20, total=400)
+        assert html.count('aria-current="page"') == 1
+
+        marcador = re.search(
+            r'<span\s+aria-current="page"(.*?)>(\d+)</span>', html, re.S
+        )
+        assert marcador, html
+        assert marcador.group(2) == '20'
+        assert 'href' not in marcador.group(1)
+        assert '?page=20' not in html
+
+        # `bg-bg-subtle` é o hover da variante `ghost` dos outros números: usá-lo
+        # aqui faria "em que página estou" ficar idêntico a "onde o ponteiro está".
+        assert 'bg-text-secondary' in marcador.group(1)
+        assert 'bg-bg-subtle' not in marcador.group(1)
+
+    def test_reticencia_e_decorativa(self):
+        html = self._render(20, total=400)
+        reticencias = re.findall(r'<span([^>]*)>…</span>', html)
+        assert len(reticencias) == 2
+        for atributos in reticencias:
+            assert 'aria-hidden="true"' in atributos
+            assert 'tabindex' not in atributos
+            assert 'href' not in atributos
+        assert '>…</a>' not in html
+
+    def test_faixa_elidida_nao_explode_com_40_paginas(self):
+        """Sete entradas no pior caso — cinco alvos de 44px e duas reticências.
+
+        Com o default do Django (`on_each_side=3, on_ends=2`) seriam 13, que a
+        375px viram três linhas de números empurrando "Próxima" para fora do
+        alcance do polegar.
+        """
+        html = self._render(20, total=400)
+        assert self._faixa(html) == ['1', '…', '19', '20', '21', '…', '40']
+
+    def test_faixa_usa_a_pagina_corrente_e_nao_o_default_do_django(self):
+        """`get_elided_page_range()` sem argumento pagina a partir da 1.
+
+        O template não sabe passar argumento para método, então a chamada sem a
+        tag resolveria para a faixa da página 1 — em toda página que não fosse a
+        primeira, a faixa mostrada seria a de outra página, com a atual às vezes
+        fora dela. Aqui a página 20 de 40 não pode trazer a vizinhança da 1.
+        """
+        from django.core.paginator import Paginator
+
+        paginator = Paginator(list(range(400)), 10)
+        faixa = faixa_paginas(paginator.page(20))
+        assert [str(item) for item in faixa] == [
+            '1',
+            '…',
+            '19',
+            '20',
+            '21',
+            '…',
+            '40',
+        ]
+        assert faixa != faixa_paginas(paginator.page(1))
+        assert 20 in faixa
+
+        html = self._render(20, total=400)
+        assert '?page=2"' not in html
+
+    def test_nome_acessivel_do_numero_diz_pagina(self):
+        """ "7" sozinho é nome acessível pobre; e o rótulo tem de conter o texto
+        visível, senão quebra o Label in Name (WCAG 2.5.3).
+        """
+        html = self._render(20, total=400)
+        rotulos = re.findall(r'aria-label="([^"]*)"', self._lista(html))
+        assert rotulos == ['Página 1', 'Página 19', 'Página 21', 'Página 40']
+        for rotulo, visivel in zip(rotulos, ['1', '19', '21', '40'], strict=True):
+            assert rotulo.endswith(visivel)
+
+    def test_numero_respeita_o_piso_de_toque(self):
+        """A varredura de markup isenta `button.html` (lá `variant` é runtime),
+        então o piso dos números só se prova no render.
+        """
+        lista = self._lista(self._render(20, total=400))
+        classes_dos_numeros = re.findall(r'<a[^>]*class="([^"]*)"', lista)
+        assert len(classes_dos_numeros) == 4
+        for valor in classes_dos_numeros:
+            assert 'min-h-11' in valor
+            assert 'min-w-11' in valor
 
     def test_ampersand_dos_filtros_nao_e_escapado_duas_vezes(self):
         """`&amp;amp;` faz o navegador ler um parâmetro chamado `amp;setor`.
@@ -1378,7 +1497,8 @@ class TestPaginationHref:
             assert params['setor'] == ['1']
 
     def test_sem_filtros_nao_deixa_e_comercial_solto(self):
-        assert self._hrefs(self._render(2)) == ['?page=1', '?page=3']
+        for href in self._hrefs(self._render(2)):
+            assert re.fullmatch(r'\?page=\d+', href), href
 
     def test_nome_acessivel_dos_controles_e_anterior_e_proxima(self):
         """O `aria_label` do include nomeia o <nav>, não os botões.
@@ -1389,13 +1509,19 @@ class TestPaginationHref:
         "Paginação do histórico de requisições" — em vez de "Anterior" e
         "Próxima". O texto visível continuava certo; só quem usa leitor de tela
         perdia a única pista de qual controle avança e qual volta.
+
+        Os números *têm* `aria-label`, o seu próprio ("Página 19"): o vazamento
+        que este guarda persegue é o rótulo do <nav>, não a existência do
+        atributo.
         """
         html = self._render(2, aria_label='Paginação do histórico de requisições')
 
         assert html.count('aria-label="Paginação do histórico de requisições"') == 1
-        assert 'aria-label' in html.split('<div class="flex items-center gap-2">')[0]
-        controles = html.split('<div class="flex items-center gap-2">')[1]
-        assert 'aria-label' not in controles
+        assert 'aria-label' in html.split(self.CONTROLES)[0]
+        controles = html.split(self.CONTROLES)[1]
+        assert 'Paginação do histórico de requisições' not in controles
+        for rotulo in re.findall(r'aria-label="([^"]*)"', controles):
+            assert rotulo.startswith('Página '), rotulo
         assert 'Anterior' in controles
         assert 'Próxima' in controles
 
@@ -1403,16 +1529,19 @@ class TestPaginationHref:
         """Nos extremos os controles são <button disabled>, mesmo caminho."""
         for numero in (1, 3):
             html = self._render(numero, aria_label='Paginação das movimentações')
-            controles = html.split('<div class="flex items-center gap-2">')[1]
-            assert 'aria-label' not in controles
+            controles = html.split(self.CONTROLES)[1]
+            assert 'Paginação das movimentações' not in controles
 
     def test_extremos_desabilitam_em_vez_de_gerar_href_vazio(self):
         primeira = self._render(1)
         ultima = self._render(3)
-        assert self._hrefs(primeira) == ['?page=2']
-        assert self._hrefs(ultima) == ['?page=2']
+        # na 1: números 2 e 3 + "Próxima"; na 3: números 1 e 2 + "Anterior"
+        assert self._hrefs(primeira) == ['?page=2', '?page=3', '?page=2']
+        assert self._hrefs(ultima) == ['?page=2', '?page=1', '?page=2']
         assert 'href=""' not in primeira
         assert 'href=""' not in ultima
+        assert primeira.count('aria-current="page"') == 1
+        assert ultima.count('aria-current="page"') == 1
 
 
 class TestOrdenacaoDataContagem:
@@ -2984,6 +3113,56 @@ class TestMecanismoDaBarraDeFiltros:
         assert _slots_oob_faltando(self.BARRA_COMPLETA) == []
 
 
+def _checkboxes_por_label_com_piso(html: str) -> tuple[int, list[str]]:
+    """Percorre `html` e devolve (nº de checkboxes, valores sem piso herdado).
+
+    Um checkbox "com piso" é o que tem, entre seus ancestrais abertos, uma
+    `<label>` cujo `class` declara `min-h-11`. `<input>` é elemento vazio e o
+    template não o fecha, então a pilha é montada só com as tags de abertura e
+    fechamento das demais — `HTMLParser` já entrega `handle_startendtag` à parte
+    caso o template passe a usar `/>`.
+    """
+
+    class _Sonda(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.pilha: list[tuple[str, str]] = []
+            self.total = 0
+            self.sem_piso: list[str] = []
+
+        def _visitar_input(self, attrs):
+            atributos = dict(attrs)
+            if atributos.get('type') != 'checkbox':
+                return
+            self.total += 1
+            tem_piso = any(
+                tag == 'label' and 'min-h-11' in (classe or '').split()
+                for tag, classe in self.pilha
+            )
+            if not tem_piso:
+                self.sem_piso.append(atributos.get('value', '<sem value>'))
+
+        def handle_starttag(self, tag, attrs):
+            if tag == 'input':
+                self._visitar_input(attrs)
+                return
+            self.pilha.append((tag, dict(attrs).get('class', '')))
+
+        def handle_startendtag(self, tag, attrs):
+            if tag == 'input':
+                self._visitar_input(attrs)
+
+        def handle_endtag(self, tag):
+            for indice in range(len(self.pilha) - 1, -1, -1):
+                if self.pilha[indice][0] == tag:
+                    del self.pilha[indice:]
+                    return
+
+    sonda = _Sonda()
+    sonda.feed(html)
+    return sonda.total, sonda.sem_piso
+
+
 class TestFilterCheckboxGroupAgrupado:
     """components/filter_checkbox_group.html: suporte a grupos opcionais sem
     quebrar o uso plano (issue #154)."""
@@ -3072,6 +3251,36 @@ class TestFilterCheckboxGroupAgrupado:
 
     def test_uso_agrupado_preserva_alvo_de_toque(self):
         assert self._render_agrupado().count('min-h-11') == 8
+
+    @pytest.mark.parametrize('modo', ['plano', 'agrupado'])
+    def test_todo_checkbox_esta_dentro_da_label_que_carrega_o_piso(self, modo):
+        """O `min-h-11` fica na label que *embrulha* o input, não solto na tela.
+
+        Os dois testes acima contam ocorrências de `min-h-11`, e contagem não
+        prova aninhamento: um piso declarado num irmão da label passaria por
+        eles com o alvo real ainda em 20px. A auditoria da Etapa 5 levantou
+        exatamente essa dúvida — "o padrão documentado é `size-5` dentro de uma
+        label de 44px, e a label cumpre o piso, mas o alvo do `input` em si não;
+        vale confirmar se a label realmente embrulha a área toda" (issue #160).
+
+        Confirmado por medição no navegador, com o `app.css` compilado: a label
+        renderiza 44px de altura e 80 a 184px de largura conforme o rótulo, o
+        input renderiza 20×20px, e as oito sondas por label (quatro cantos,
+        acima e abaixo do input, o vão do `gap-2` e o centro) resolvem todas
+        para a label — em 15 labels, 120 sondas, zero fora. Clique sintético em
+        cada uma das 120 alterna o checkbox. O piso não estava só no papel: a
+        caixa de 44px inteira é área clicável, porque `elementFromPoint` dentro
+        dela devolve a própria label e a label ativa o controle que embrulha.
+
+        O que este guarda trava é o aninhamento, que é o que a medição depende:
+        se alguém tirar o input de dentro da label (`for=`/`id=` em vez de
+        embrulhar), a contagem de `min-h-11` continua igual e o alvo cai para
+        20px sem ruído.
+        """
+        html = self._render_plano() if modo == 'plano' else self._render_agrupado()
+        checkboxes, sem_piso = _checkboxes_por_label_com_piso(html)
+        assert checkboxes > 0
+        assert sem_piso == []
 
     def test_agrupar_opcoes_particiona_preservando_rotulos(self):
         grupos = self._grupos()
@@ -3269,6 +3478,15 @@ def test_include_de_badge_detecta_role_depois_de_percent_no_argumento():
     assert 'role=' in encontro.group(0)
 
 
+def _corpo_do_chrome(nome: str) -> str:
+    """Corpo de um `{% partialdef %}` de components/table.html, sem espaço em volta."""
+    raiz = Path(__file__).resolve().parents[3]
+    chrome = (raiz / 'apps/core/templates/components/table.html').read_text()
+    abertura = '{% partialdef ' + nome + ' %}'
+    inicio = chrome.index(abertura) + len(abertura)
+    return chrome[inicio : chrome.index('{% endpartialdef %}', inicio)].strip()
+
+
 def test_cards_abertura_denso_e_estrutura_pura_e_de_uso_restrito():
     """`#cards_abertura_denso` (issue #159) é fragmento irmão de estrutura pura.
 
@@ -3285,18 +3503,11 @@ def test_cards_abertura_denso_e_estrutura_pura_e_de_uso_restrito():
       de DESIGN.md; um terceiro fragmento, não.
     """
     raiz = Path(__file__).resolve().parents[3]
-    chrome = (raiz / 'apps/core/templates/components/table.html').read_text()
 
-    def _corpo(nome: str) -> str:
-        inicio = chrome.index('{% partialdef ' + nome + ' %}') + len(
-            '{% partialdef ' + nome + ' %}'
-        )
-        return chrome[inicio : chrome.index('{% endpartialdef %}', inicio)].strip()
+    denso = _corpo_do_chrome('cards_abertura_denso')
+    normal = _corpo_do_chrome('cards_abertura')
 
-    denso = _corpo('cards_abertura_denso')
-    normal = _corpo('cards_abertura')
-
-    assert denso == '<div class="grid items-start gap-3 sm:grid-cols-2 xl:grid-cols-3">'
+    assert denso == '<div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">'
     assert normal.replace('2xl:grid-cols-3', 'xl:grid-cols-3') == denso
     assert '{{' not in denso and '{%' not in denso
 
@@ -3309,3 +3520,33 @@ def test_cards_abertura_denso_e_estrutura_pura_e_de_uso_restrito():
         if '#cards_abertura_denso' in p.read_text()
     ]
     assert usos == ['apps/estoque/templates/estoque/lista_materiais.html'], usos
+
+
+def test_grade_de_cartoes_alinha_a_base_em_vez_do_topo():
+    """Item 4 da issue #160: os fragmentos de grade não carregam `items-start`.
+
+    Com `items-start`, cartões de alturas diferentes na mesma linha não alinham
+    embaixo — 256 a 276px de variação medidos no histórico a 375px, porque a
+    subline do material só aparece quando a requisição tem um item só. Um degrau
+    de 20px entre dois cartões vizinhos não é lido como "este tem menos
+    conteúdo", é lido como desalinho. Sem a classe, a grade volta ao `stretch`
+    padrão: mesma altura por linha, base alinhada, e a folga sobrando no rodapé
+    do cartão mais curto — o conteúdo não se redistribui porque o `<article>`
+    não é flex column.
+
+    O guarda existe para a decisão não voltar em silêncio, e vale só para os
+    dois containers de grade: `items-start` dentro dos cartões (containers
+    `flex`) é outra coisa e continua correto.
+    """
+    grades = {nome: _corpo_do_chrome(nome) for nome in _FRAGMENTOS_DE_GRADE}
+
+    for nome, corpo in grades.items():
+        assert corpo.startswith('<div class="grid '), f'{nome} deixou de ser grade'
+        assert 'items-start' not in corpo, (
+            f'{nome} voltou a alinhar pelo topo; a base rasgada foi decidida '
+            'contra na issue #160'
+        )
+
+    denso, normal = grades['cards_abertura_denso'], grades['cards_abertura']
+    assert normal == '<div class="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">'
+    assert normal.replace('2xl:grid-cols-3', 'xl:grid-cols-3') == denso
