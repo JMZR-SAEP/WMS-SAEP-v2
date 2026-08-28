@@ -63,15 +63,26 @@
           </div>
         </div>
 
-        <dl class="mt-4 space-y-3 text-sm">
-          <div>
-            <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Beneficiário</dt>
-            <dd class="mt-0.5 text-text-primary">
+        {% comment %}
+          Rótulo rebaixado (issue #158): `Beneficiário: valor` numa linha, sem
+          caixa alta, preservando `<dl>/<dt>/<dd>`. Ver DESIGN.md §A Regra da
+          Caixa Alta Estrutural.
+
+          Quando criador e beneficiário coincidem — o caso mais comum aqui, o
+          usuário requisitando para si — o par não informa nada que o título e a
+          data já não fixem, e o `<dl>` inteiro sai.
+        {% endcomment %}
+        {% if req.criador_id != req.beneficiario_id %}
+        <dl class="mt-4 space-y-1 text-sm">
+          <div class="flex gap-x-2">
+            <dt class="shrink-0 text-text-tertiary">Beneficiário:</dt>
+            <dd class="min-w-0 text-text-primary">
               {{ req.beneficiario.nome }}
               <span class="text-text-tertiary">({{ req.beneficiario.matricula }})</span>
             </dd>
           </div>
         </dl>
+        {% endif %}
 
         {# Afordância do cartão, não um controle: o link do título já carrega o nome acessível. #}
         <p class="mt-4 flex items-center gap-1 text-sm font-medium text-primary" aria-hidden="true">Ver detalhes <span>&rarr;</span></p>

@@ -1357,6 +1357,20 @@ def historico_requisicoes_view(request):
         if setor_bruto.isdigit():
             setor = int(setor_bruto)
 
+    eh_chefe_de_setor = (
+        papel.setor_chefiado_ativo_id is not None and not papel.eh_chefe_de_almoxarifado
+    )
+    # SETOR só é redundante no cartão quando o recorte fixa o setor do item:
+    # filtro de setor ativo, ou papel de chefe restrito ao setor chefiado. Uma
+    # requisição que o chefe criou fora do setor chefiado continua exibindo o
+    # campo — o selector inclui a cláusula de criador. Ver issue #158.
+    if setor is not None:
+        setor_fixo_id = setor
+    elif eh_chefe_de_setor:
+        setor_fixo_id = papel.setor_chefiado_ativo_id
+    else:
+        setor_fixo_id = None
+
     visiveis = historico_requisicoes_visiveis_para(request.user.pk)
     requisicoes = filtrar_historico_requisicoes(
         visiveis,
@@ -1401,9 +1415,6 @@ def historico_requisicoes_view(request):
     # remonta querystring à mão. Teto de 3 chips por tela; papel sem direito ao
     # recorte não vê o chip.
     chips_filtro = []
-    eh_chefe_de_setor = (
-        papel.setor_chefiado_ativo_id is not None and not papel.eh_chefe_de_almoxarifado
-    )
     if eh_chefe_de_setor:
         chips_filtro.append(
             montar_chip(
@@ -1444,6 +1455,7 @@ def historico_requisicoes_view(request):
         'page_obj': resultado.page_obj,
         'is_htmx': resultado.is_htmx,
         'mostrar_filtro_setor': mostrar_filtro_setor,
+        'setor_fixo_id': setor_fixo_id,
         'setores_disponiveis': setores_disponiveis,
         'chips_filtro': chips_filtro,
         'presets_periodo': presets_periodo,

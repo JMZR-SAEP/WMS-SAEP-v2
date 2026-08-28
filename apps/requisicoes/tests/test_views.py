@@ -3814,6 +3814,38 @@ class TestHistoricoRequisicoesFiltros:
             is False
         )
 
+    def test_cartao_omite_setor_quando_recorte_fixa_o_setor_do_chefe(
+        self, client, chefe_obras, usuario_ti, setor_obras
+    ):
+        """Chefe de setor sem filtro: cartão do próprio setor não repete SETOR."""
+        Requisicao.objects.create(
+            estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+            numero_publico='REQ-2026-3001',
+            criador=chefe_obras,
+            beneficiario=chefe_obras,
+            setor_beneficiario=setor_obras,
+        )
+        _login(client, chefe_obras)
+        resp = client.get(URL_HISTORICO_REQUISICOES)
+        assert resp.context['setor_fixo_id'] == setor_obras.pk
+        assert '>Setor:<' not in resp.content.decode()
+
+    def test_cartao_mantem_setor_no_que_o_chefe_criou_fora_do_setor(
+        self, client, chefe_obras, usuario_ti, setor_ti
+    ):
+        """Requisição criada pelo chefe fora do setor chefiado: SETOR não é
+        redundante e continua no cartão (regressão do achado P2 do PR #44)."""
+        Requisicao.objects.create(
+            estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+            numero_publico='REQ-2026-3002',
+            criador=chefe_obras,
+            beneficiario=usuario_ti,
+            setor_beneficiario=setor_ti,
+        )
+        _login(client, chefe_obras)
+        resp = client.get(URL_HISTORICO_REQUISICOES)
+        assert '>Setor:<' in resp.content.decode()
+
     def test_chefe_setor_nao_filtra_por_setor_via_querystring(
         self, client, chefe_obras, req_historico_obras, req_historico_ti, setor_ti
     ):

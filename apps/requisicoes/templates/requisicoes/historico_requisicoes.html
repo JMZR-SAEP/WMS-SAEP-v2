@@ -114,25 +114,41 @@
             </div>
           </div>
 
+          {% comment %}
+            Rótulo rebaixado (issue #158): par empilhado com `<dt>` em caixa
+            alta era a gramática do `<th>` de tabela impressa uma vez por coluna,
+            aqui repetida 25×. Num cartão o rótulo repete por registro, então
+            vira `Rótulo: valor` numa linha — sem caixa alta, em cinza de
+            metadado, e ainda `<dl>/<dt>/<dd>` para leitor de tela. Ver DESIGN.md
+            §A Regra da Caixa Alta Estrutural.
+
+            SETOR só some quando o recorte fixa o setor DAQUELE cartão:
+            `setor_fixo_id` é o filtro de setor ativo ou o setor chefiado. Uma
+            requisição que o chefe criou fora do setor chefiado tem
+            `setor_beneficiario_id` diferente e mantém o campo — ali o valor não
+            é redundante (ver test_historico_chefe_setor_ve_o_que_criou_fora).
+          {% endcomment %}
           <dl class="mt-4 grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Solicitante</dt>
-              <dd class="mt-0.5 text-text-primary">{{ req.criador.nome }}</dd>
+            <div class="flex gap-x-2">
+              <dt class="shrink-0 text-text-tertiary">Solicitante:</dt>
+              <dd class="min-w-0 text-text-primary">{{ req.criador.nome }}</dd>
             </div>
-            <div>
-              <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Beneficiário</dt>
-              <dd class="mt-0.5 text-text-primary">{{ req.beneficiario.nome }}</dd>
+            <div class="flex gap-x-2">
+              <dt class="shrink-0 text-text-tertiary">Beneficiário:</dt>
+              <dd class="min-w-0 text-text-primary">{{ req.beneficiario.nome }}</dd>
             </div>
-            <div>
-              <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Setor</dt>
-              <dd class="mt-0.5 text-text-primary">{{ req.setor_beneficiario.nome }}</dd>
+            {% if req.setor_beneficiario_id != setor_fixo_id %}
+            <div class="flex gap-x-2">
+              <dt class="shrink-0 text-text-tertiary">Setor:</dt>
+              <dd class="min-w-0 text-text-primary">{{ req.setor_beneficiario.nome }}</dd>
             </div>
-            <div>
-              <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Material</dt>
-              <dd class="mt-0.5 text-text-primary">
+            {% endif %}
+            <div class="flex gap-x-2">
+              <dt class="shrink-0 text-text-tertiary">Material:</dt>
+              <dd class="min-w-0 text-text-primary">
                 {{ req.quantidade_itens }} {{ req.quantidade_itens|pluralize:"item,itens" }}
                 {% if req.quantidade_itens == 1 %}
-                  <span class="mt-0.5 block break-words text-xs text-text-tertiary">{{ req.primeiro_material_nome }}</span>
+                  <span class="block break-words text-xs text-text-tertiary">{{ req.primeiro_material_nome }}</span>
                 {% endif %}
               </dd>
             </div>
