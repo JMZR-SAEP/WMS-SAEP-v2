@@ -163,8 +163,19 @@
     só ficava invisível porque o conteúdo não chegava ao teto; a linha de
     identidade da #138 o alcançou, e `test_navegador_modal_scroll.py` acusou.
 
-    Hoje o `<dialog>` é a coluna flex, e o wrapper é `flex-1 min-h-0` dentro
+    Hoje o `<dialog>` é a coluna flex, e o wrapper é `flex-auto min-h-0` dentro
     dela: não há segundo teto para divergir do primeiro.
+
+    `flex-auto` (`flex: 1 1 auto`) e não `flex-1` (`flex: 1 1 0%`): o `<dialog>`
+    tem altura `fit-content` do agente de usuário, ou seja, indefinida. Contra
+    altura indefinida o Safari resolve `flex-basis: 0%` como 0 e não como o
+    conteúdo — a caixa inteira colapsava para a linha das bordas (~2px) e o
+    modal abria invisível. `flex-basis: auto` parte do tamanho do conteúdo nos
+    dois motores, e o `flex-grow`/`flex-shrink` com `min-h-0` continua dando a
+    rolagem interna quando o conteúdo passa do teto. A cadeia toda
+    (`<form>`/wrapper, `[data-modal-body]` e a região rolável de
+    `_modal_body.html`) usa `flex-auto` pelo mesmo motivo — a percentagem
+    indefinida cascateia.
 
     `open:flex` e não `flex`: a regra do agente de usuário que esconde diálogo
     fechado é `dialog:not([open]) { display: none }`, e um `display` de autor
@@ -204,7 +215,7 @@
       {% endcomment %}
     <div
       @keydown.enter="bloquearSubmitImplicito($event)"
-      class="flex min-h-0 flex-1 flex-col"
+      class="flex min-h-0 flex-auto flex-col"
     >
       {% include "components/_modal_body.html" %}
     </div>
@@ -238,7 +249,7 @@
         a operação é confirmada por uma tecla apertada antes da leitura.
       {% endcomment %}
       @keydown.enter="bloquearSubmitImplicito($event)"
-      class="flex min-h-0 flex-1 flex-col"
+      class="flex min-h-0 flex-auto flex-col"
     >
       {% csrf_token %}
       {% for nome, valor in hidden_inputs.items %}
