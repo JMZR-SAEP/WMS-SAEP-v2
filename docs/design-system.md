@@ -360,7 +360,7 @@ Família `filter_*`, montada por composição explícita na tela chamadora.
 | `_modal_icon.html` | Ícone semântico do header de modal |
 | `_icone_nivel.html` | Glifo de severidade em `currentColor`, compartilhado pelo banner e pelo painel de decisão |
 | `alert.html` | Banner de aviso estático de página ou formulário: glifo de nível, mensagem e um `role` — `alert` em `warning`/`danger`, `status` em `info`/`success` — que o chamador pode sobrescrever. Faz só isso |
-| `badge.html` | Pill de estado. 13 variantes visuais, zero conhecimento de domínio |
+| `badge.html` | Pill de estado. 14 variantes visuais, zero conhecimento de domínio |
 | `empty_state.html` | Estado vazio com causa distinguida, nível de cabeçalho parametrizável (`nivel_titulo`, default 2) e CTA opcional |
 
 Fora de `components/`: `core/partials/_messages.html` (flash messages do Django) e
@@ -422,6 +422,32 @@ desconhecida.
 `apps/core/tests/test_paridade_feedback.py` lê esta tabela e compara com os dois
 templates renderizados **e** com a expectativa aprovada no próprio teste. As
 três pontas precisam concordar: mudar tabela e templates juntos não passa.
+
+### Badge forte para desfecho oposto no varrimento
+
+`badge.html` tem quatro variantes fortes — `blue-strong`, `amber-strong`,
+`red-strong`, `teal-strong` — que sobem um degrau na escala de sufixos: fundo
+`-muted-strong` (shade 200) e ring `-border-strong` (shade 300).
+
+`teal-strong` nasceu na issue #157. No varrimento de uma listagem, o fundo
+`-muted` (teal-100) de "Estornada" fica a ΔL 0,009 / ΔC 0,007 / Δh 24° do verde
+`success-muted` (green-100) de "Atendida" — dois desfechos opostos do documento,
+entrega feita e entrega revertida, com carimbo perceptualmente igual. Subir
+"Estornada" para `teal-strong` (teal-200) leva o par a ΔL 0,052 / ΔC 0,052, com
+o Δh de 24° preservado. Texto `return-text-strong` (teal-900) sobre teal-200
+mede 7,5:1 — acima do piso de 4,5:1.
+
+Os tokens `--color-return-muted-strong` (teal-200) e
+`--color-return-border-strong` (teal-300) vivem em `input.css`, no mesmo molde
+de `primary`/`warning`/`danger`. A variante é aplicada por
+`requisicoes/partials/_estado_badge.html` (estado `estornada`) e
+`estoque/partials/_estado_saida_badge.html` (estado `estornada` da saída
+excepcional). A Regra da Reversão Não é Erro continua intacta: teal mais forte,
+nunca vermelho.
+
+O par `blue`/`blue-strong` de "Autorizada" vs "Pronta para retirada" na fila de
+atendimento foi medido junto: ΔL 0,050 / ΔC 0,027, mesmo passo de lightness que
+a correção de "Estornada", e já distinguível num relance — segue sem mudança.
 
 ### Vocabulário de severidade do ícone de modal
 

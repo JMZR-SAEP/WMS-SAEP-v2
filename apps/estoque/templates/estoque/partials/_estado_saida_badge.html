@@ -14,7 +14,7 @@ Passa `prefixo_sr` no lugar.
   {% if estado == 'registrada' %}
     {% include "components/badge.html" with variant="blue-strong" label=label prefixo_sr="Estado: " %}
   {% elif estado == 'estornada' %}
-    {% include "components/badge.html" with variant="teal" label=label prefixo_sr="Estado: " %}
+    {% include "components/badge.html" with variant="teal-strong" label=label prefixo_sr="Estado: " %}
   {% else %}
     {% include "components/badge.html" with variant="desconhecida:"|add:estado label=label prefixo_sr="Estado: " %}
   {% endif %}

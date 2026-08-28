@@ -143,6 +143,8 @@ TOKENS_NOVOS = [
     '--color-warning-text-strong',
     '--color-success-text-emphasis',
     '--color-success-text-strong',
+    '--color-return-muted-strong',
+    '--color-return-border-strong',
     '--color-return-text-strong',
 ]
 
@@ -153,6 +155,8 @@ UTILITIES_ESPERADAS = [
     'bg-primary-muted-strong',
     'bg-danger-muted-strong',
     'bg-warning-muted-strong',
+    'bg-return-muted-strong',
+    'ring-return-border-strong',
     'text-primary-text-strong',
     'text-danger-text-strong',
     'text-warning-text-strong',

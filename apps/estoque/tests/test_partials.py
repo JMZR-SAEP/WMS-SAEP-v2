@@ -141,12 +141,14 @@ def test_saida_registrada_mantem_blue_strong():
     assert 'bg-primary-muted-strong' in html
 
 
-def test_saida_estornada_continua_teal():
-    """`estornada` passava pelo `{% else %}` antigo — precisa de ramo explícito
-    novo com o `teal` de hoje, senão o grito pintaria todo estorno de vermelho.
+def test_saida_estornada_usa_teal_forte():
+    """`estornada` tem ramo explícito próprio (senão o grito pintaria todo
+    estorno de vermelho). Desde a issue #157 sobe para `teal-strong` — fundo
+    shade 200 — para não empatar no varrimento com o verde de "Atendida".
     """
     html = _render_saida('estornada')
-    assert 'bg-return-muted' in html
+    assert 'bg-return-muted-strong' in html
+    assert 'ring-return-border-strong' in html
     assert 'Indisponível' not in html
 
 

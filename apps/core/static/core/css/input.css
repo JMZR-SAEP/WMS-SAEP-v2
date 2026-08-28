@@ -85,7 +85,9 @@
   --color-return-active:     var(--color-teal-800);
   --color-return-subtle:     var(--color-teal-50);
   --color-return-muted:      var(--color-teal-100);
+  --color-return-muted-strong: var(--color-teal-200);
   --color-return-border:     var(--color-teal-200);
+  --color-return-border-strong: var(--color-teal-300);
   --color-return-text:       var(--color-teal-700);
   --color-return-text-strong: var(--color-teal-900);
 
