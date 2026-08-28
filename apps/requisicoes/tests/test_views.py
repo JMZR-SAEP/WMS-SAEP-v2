@@ -4347,11 +4347,17 @@ def test_timeline_mostra_origem_saida_excepcional_e_orientacao(
     assert response.status_code == 200
 
     timeline = _bloco_timeline(response.content.decode())
-    assert 'Saída excepcional SXP-2026-000042' in timeline
+    assert 'Saída excepcional SXP-2026-000042' in ' '.join(timeline.split())
     assert 'deixou o saldo físico abaixo do reservado' in timeline
     assert f'{material_disponivel.codigo} — {material_disponivel.nome}' in timeline
-    assert 'A separação para retirada fica bloqueada até a divergência ser' in timeline
-    assert 'resolvida ou esta requisição ser cancelada' in timeline
+    # Espaço em branco normalizado: a versão anterior procurava o trecho literal
+    # e, com isso, obrigava o template a manter a frase numa linha física — um
+    # teste ditando a formatação do HTML que ele mede.
+    corrido = ' '.join(timeline.split())
+    assert (
+        'A separação para retirada fica bloqueada até a divergência ser '
+        'resolvida ou esta requisição ser cancelada' in corrido
+    )
 
 
 @pytest.mark.django_db

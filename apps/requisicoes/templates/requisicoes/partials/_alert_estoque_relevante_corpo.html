@@ -36,9 +36,6 @@
   A origem "Importação SCPI" não ganha link: o metadata traz `importacao_id`,
   mas não há rota que abra uma importação específica.
 
-  A primeira frase fica numa linha só porque
-  `test_timeline_mostra_origem_saida_excepcional_e_orientacao` procura o trecho
-  literal no HTML, e a quebra do template entra no meio dele.
 {% endcomment %}
 <p class="font-medium">
   {% if evento.metadata.numero_publico %}Saída excepcional {{ evento.metadata.numero_publico }}{% else %}Importação SCPI{% endif %}
@@ -52,7 +49,8 @@
   </ul>
 {% endif %}
 <p class="mt-1">
-  A separação para retirada fica bloqueada até a divergência ser resolvida ou esta requisição ser cancelada.
+  A separação para retirada fica bloqueada até a divergência ser resolvida ou
+  esta requisição ser cancelada.
 </p>
 {% if evento.metadata.saida_excepcional_id and pode_consultar_saidas_excepcionais %}
   <a

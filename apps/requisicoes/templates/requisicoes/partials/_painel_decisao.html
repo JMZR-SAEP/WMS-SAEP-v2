@@ -80,9 +80,17 @@ era redundante — `<h3>` já é bloco.
   {% if painel.conhecida %}aria-labelledby="{{ heading_id }}"{% else %}role="alert" aria-labelledby="{{ heading_id }}" data-painel-variant="{{ painel.variante }}"{% endif %}
   class="mb-6 flex flex-col gap-3 rounded-xl border p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6 {{ painel.superficie }}"
 >
+  {% comment %}
+    `max-w-prose` no banner: medido a 1440, a descrição do estorno saía com 138
+    a 177 caracteres por linha, contra os 65–75 que o DESIGN.md fixa para prosa
+    (§Typography). O banner tem 1232px de largura e o botão fica na ponta
+    direita; sem o teto, o olho atravessa a largura inteira para ler três
+    sentenças. No layout `card` a coluna já é estreita e o teto nunca pega, por
+    isso ele mora só aqui.
+  {% endcomment %}
   <div class="flex min-w-0 items-start gap-2">
     {% include "components/_icone_nivel.html" with variant=variant_token class="mt-0.5 h-4 w-4 shrink-0" %}
-    <div class="min-w-0">
+    <div class="min-w-0 max-w-prose">
       {% if not painel.conhecida %}<p class="text-sm font-semibold">Aviso indisponível</p>{% endif %}
       <h2 id="{{ heading_id }}" class="text-sm font-semibold">{{ titulo }}</h2>
       <p class="mt-1 text-sm">{{ conteudo }}</p>
