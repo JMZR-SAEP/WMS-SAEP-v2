@@ -2574,6 +2574,20 @@ class TestFilterShellDisclosure:
         """Parado, apontava para baixo aberto e fechado."""
         assert 'group-open:rotate-180' in self._fonte()
 
+    def test_open_do_html_nao_depende_de_tem_filtro_ativo(self):
+        """O `<details>` server-rendered nasce SEMPRE fechado no mobile, com ou
+        sem filtro ativo (issue #155): sem filtro é a entrada padrão e a que
+        mais paga em espaço abaixo da dobra. Quem reabre no desktop é o
+        `x-init`; o `<summary>` mantém o resumo do recorte com o painel fechado.
+        """
+        fonte = self._fonte()
+        abertura = fonte[fonte.index('{% partialdef abertura %}') :]
+        abertura = abertura[: abertura.index('{% endpartialdef %}')]
+        tag = abertura[abertura.index('<details') :]
+        tag = tag[: tag.index('\n>') + 2]
+        assert ' open' not in tag
+        assert 'tem_filtro_ativo' not in tag
+
 
 # ---------------------------------------------------------------------------
 # Gate #152: todo template que empurra URL nova via HTMX (`hx-push-url`) reemite

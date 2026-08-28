@@ -5,7 +5,7 @@ nativo do Django 6 (mesmo padrão "abertura" de components/table.html,
 issue #83). Não conhece campos de domínio — só a moldura HTMX/disclosure.
 
 Fragmento (só abertura — fechamento fica literal na tela chamadora):
-  abertura        <details open><summary>Filtros...</summary>
+  abertura        <details><summary>Filtros...</summary>
                   <div class="sm:block!"><form method=get hx-get hx-target
                   hx-push-url>
   campos_abertura <div id="{{ target_id }}-campos"><div class="grid ...">
@@ -35,10 +35,11 @@ Parâmetros:
                      também raiz do id `{{ target_id }}-campos` (via
                      `campos_abertura`) e `{{ target_id }}-resumo` (via
                      `resumo`)
-  tem_filtro_ativo   (opcional, só `abertura`/`resumo`) controla o estado
-                     inicial do disclosure no mobile (fechado por padrão,
-                     aberto quando não há filtro ativo — issue #145) e o
-                     texto do resumo em `<summary>`
+  tem_filtro_ativo   (opcional, só `abertura`/`resumo`) hoje só controla o
+                     texto do resumo em `<summary>`; o disclosure server-rendered
+                     nasce SEMPRE fechado no mobile, com ou sem filtro (issue
+                     #155 — sem filtro é a entrada padrão e a que mais paga em
+                     espaço; o `x-init` reabre no desktop)
   qtd_filtros_ativos (opcional, só `abertura`/`resumo`) quantidade de filtros
                      ativos, exibida no resumo em `<summary>` ("Filtros · N
                      ativos") — sem isso só o texto "Filtros" aparece
@@ -87,11 +88,16 @@ Uso canônico:
 
   Sincronizar o atributo `open` resolve na fonte, porque `open` é o estado
   real do disclosure. `x-init` roda de qualquer forma no load — inclusive no
-  desktop — então o HTML nasce fechado no mobile com filtro ativo (issue
-  #145: painel aberto por padrão empurrava o primeiro resultado ~1 viewport
-  abaixo da dobra) e o próprio `x-init` reabre no desktop antes da primeira
-  pintura visível. Sem filtro ativo, nasce aberto — não há custo de espaço
-  a evitar.
+  desktop — então o HTML nasce SEMPRE fechado no mobile e o próprio `x-init`
+  reabre no desktop (>=40rem) antes da primeira pintura visível.
+
+  O server-render nunca nasce com `open`, com ou sem filtro ativo (issue
+  #155). A #145 media só o caminho COM filtro; concluiu que sem filtro
+  "nasce aberto — não há custo de espaço a evitar". Há custo, e é o caso
+  que mais paga: sem filtro é a entrada padrão, e a 375x812 com dados de
+  `seed_dev` o painel aberto empurrava o primeiro cartão ~1,58 viewport
+  abaixo da dobra. O `<summary>` carrega o resumo do recorte, então o painel
+  fechado não esconde qual filtro está aplicado.
 
   Escuta os dois sinais de propósito: `change` da media query é o correto e
   suficiente num navegador de verdade; `resize` cobre ambientes que mudam a
@@ -101,7 +107,6 @@ Uso canônico:
 {% endcomment %}
 <details
   class="group mb-6"
-  {% if not tem_filtro_ativo %}open{% endif %}
   x-data
   x-init="
     const consultaDesktop = window.matchMedia('(min-width: 40rem)');
