@@ -500,6 +500,15 @@ def estornar_saida_excepcional_view(request, pk: int):
                 confirm_variant='return',
                 icon_variant=copy['icon_variant'],
                 acao_erro='estornar a saída',
+                # Os dois vêm do include de `detalhe_saida_excepcional.html` e
+                # não têm default útil aqui: sem `loading_label` a segunda
+                # tentativa perde o rótulo de progresso e vira um botão que só
+                # escurece, e sem `corpo_com_campo_focavel` a região rolável
+                # reganha `tabindex="0"` — uma parada de tabulação a mais antes
+                # do `<textarea>` que o corpo já tem. O 422 devolve o mesmo
+                # modal, não um parente.
+                loading_label='Estornando…',
+                corpo_com_campo_focavel=True,
                 contexto_form={'justificativa': justificativa},
             )
         pres = traduz_erro_dominio(exc)

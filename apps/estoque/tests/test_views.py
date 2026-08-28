@@ -1035,6 +1035,41 @@ class TestEstornarSaidaExcepcionalView:
         assert 'bg-return' in classe
         assert 'danger' not in classe, classe
 
+    def test_o_422_conserva_o_progresso_e_o_foco_do_modal_que_abriu(
+        self, client, chefe_almoxarifado, saida_registrada
+    ):
+        """`loading_label` e `corpo_com_campo_focavel` também são o mesmo modal.
+
+        Os dois vêm do include em `detalhe_saida_excepcional.html` e a view monta
+        o corpo do 422 por conta própria: omiti-los cai no default, e a segunda
+        tentativa — a que a pessoa faz já tendo errado uma vez — perde o rótulo
+        de progresso do botão e ganha uma parada de tabulação antes do
+        `<textarea>` que o corpo já tem.
+        """
+        client.force_login(chefe_almoxarifado)
+        conteudo = client.post(
+            self._url(saida_registrada.pk),
+            data={'justificativa': ''},
+            HTTP_HX_REQUEST='true',
+        ).content.decode('utf-8')
+
+        (confirmar,) = [
+            atributos
+            for _, atributos, _ in elementos(conteudo, 'button')
+            if 'data-modal-confirm' in {nome for nome, _ in pares(atributos)}
+        ]
+        assert atributo(confirmar, 'data-submit-loading-label') == 'Estornando…'
+
+        rolaveis = [
+            atributos
+            for _, atributos, _ in elementos(conteudo, 'div')
+            if 'overflow-y-auto' in (atributo(atributos, 'class') or '')
+        ]
+        assert rolaveis, 'corpo do 422 sem região rolável'
+        for atributos in rolaveis:
+            assert atributo(atributos, 'tabindex') is None
+            assert atributo(atributos, 'aria-labelledby') is None
+
     def test_htmx_erro_preserva_justificativa_digitada(
         self, client, chefe_almoxarifado, saida_registrada
     ):
