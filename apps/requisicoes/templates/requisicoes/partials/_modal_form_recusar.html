@@ -1,7 +1,18 @@
-<label for="modal-recusar-motivo" class="block text-sm font-medium text-text-primary">
-  Motivo da recusa <span aria-hidden="true" class="text-danger-accent">*</span>
+{% comment %}
+  Corpo do modal de recusa. Params: id, erro, motivo_recusa.
+
+  Rótulo, texto de ajuda e marcador de obrigatório seguem a mesma grafia de
+  `components/form_field.html` — `.rotulo-campo` (que já carrega a régua até o
+  elemento seguinte), ajuda em `text-text-tertiary` sob o id `<campo>-ajuda`, e
+  o asterisco com `ml-0.5`. O `<textarea>` não passa por `form_field.html`
+  porque não há BoundField aqui: o motivo é lido de `request.POST` direto pela
+  view, sem Form. Sem o Form, o componente não tem o que renderizar — mas a
+  aparência do campo não é privilégio de quem tem Form.
+{% endcomment %}
+<label for="modal-recusar-motivo" class="rotulo-campo">
+  Motivo da recusa <span class="ml-0.5 text-danger-accent" aria-hidden="true">*</span>
 </label>
-<p id="modal-recusar-hint" class="mt-1 text-xs text-text-secondary">
+<p id="modal-recusar-motivo-ajuda" class="mt-1 text-xs text-text-tertiary">
   Obrigatório. A recusa encerra a requisição sem reservar ou baixar estoque.
 </p>
 <textarea
@@ -9,7 +20,7 @@
   name="motivo"
   rows="4"
   aria-required="true"
-  aria-describedby="modal-recusar-hint{% if erro %} {{ id }}-erro{% endif %}"
+  aria-describedby="modal-recusar-motivo-ajuda{% if erro %} {{ id }}-erro{% endif %}"
   {% if erro %}aria-invalid="true"{% endif %}
-  class="campo mt-3"
+  class="campo"
 >{{ motivo_recusa|default_if_none:"" }}</textarea>

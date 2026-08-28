@@ -16,7 +16,18 @@ Os parâmetros abaixo são repassados diretamente a components/modal.html:
   modal_titulo, modal_descricao, modal_consequencia, registro, action_url,
   confirm_label, confirm_variant, icon_variant, form_body_template,
   hidden_inputs, erro, motivo_recusa, form, abrir_ao_carregar, role,
-  corpo_com_campo_focavel
+  corpo_com_campo_focavel, loading_label
+
+  `loading_label` está na lista porque as cinco chamadas o passam. Ele chegava
+  ao modal só pela herança de contexto do `{% templatetag openblock %} include
+  {% templatetag closeblock %}` sem `only` — o mesmo acidente que o parágrafo
+  sobre `registro` descreve logo abaixo, e o que a #137 fechou para este mesmo
+  parâmetro.
+
+O wrapper leva `h-full`: no layout `card` ele é o item de uma `grid` em
+detalhe.html e estica por `align-items: stretch`, mas a altura só chega ao
+painel colorido se ele puder herdá-la. Ver a nota de altura em
+`_painel_decisao.html`.
 
   `registro` é obrigatório (#138). Vem pronto do contexto da view
   (`registro_requisicao`, em `_detalhe_context`) e é repassado explicitamente
@@ -56,7 +67,7 @@ Uso (banner):
      form_body_template="requisicoes/partials/_modal_form_estorno.html"
      role="alertdialog" corpo_com_campo_focavel=True %}
 {% endcomment %}
-<div x-data="modalController({ id: '{{ modal_id }}', focoFallbackSeletor: '.app-bar__title' })">
+<div x-data="modalController({ id: '{{ modal_id }}', focoFallbackSeletor: '.app-bar__title' })" class="h-full">
   {% include "requisicoes/partials/_painel_decisao.html" %}
-  {% include "components/modal.html" with id=modal_id titulo=modal_titulo descricao=modal_descricao consequencia=modal_consequencia registro=registro action_url=action_url confirm_label=confirm_label confirm_variant=confirm_variant icon_variant=icon_variant form_body_template=form_body_template hidden_inputs=hidden_inputs erro=erro motivo_recusa=motivo_recusa form=form abrir_ao_carregar=abrir_ao_carregar role=role corpo_com_campo_focavel=corpo_com_campo_focavel %}
+  {% include "components/modal.html" with id=modal_id titulo=modal_titulo descricao=modal_descricao consequencia=modal_consequencia registro=registro action_url=action_url confirm_label=confirm_label confirm_variant=confirm_variant icon_variant=icon_variant form_body_template=form_body_template hidden_inputs=hidden_inputs erro=erro motivo_recusa=motivo_recusa form=form abrir_ao_carregar=abrir_ao_carregar role=role corpo_com_campo_focavel=corpo_com_campo_focavel loading_label=loading_label %}
 </div>

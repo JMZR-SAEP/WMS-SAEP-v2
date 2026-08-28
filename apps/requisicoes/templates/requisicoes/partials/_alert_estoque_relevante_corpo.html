@@ -1,0 +1,38 @@
+{% comment %}
+  Corpo do alerta EST-07 dentro de um evento da timeline: o saldo físico caiu
+  abaixo do reservado, e o rótulo do evento sozinho não diz o que houve nem o
+  que fazer (issue #111).
+
+  Params: evento (TimelineRequisicao com `metadata`).
+
+  Este texto vivia numa caixa desenhada à mão em `_timeline.html`, com os
+  tokens de `warning` mas sem o glifo de `components/_icone_nivel.html` — ou
+  seja, a severidade comunicada só por cor, que é exatamente o motivo pelo qual
+  o parâmetro `icone` de `components/alert.html` foi removido na #127. Estava
+  também em 12px, abaixo do corpo do sistema, carregando três frases de
+  instrução operacional, e com `rounded-md` (raio de controle) numa caixa que
+  não é controle.
+{% endcomment %}
+<p class="font-medium">
+  {% if evento.metadata.numero_publico %}
+    Saída excepcional {{ evento.metadata.numero_publico }}
+  {% else %}
+    Importação SCPI
+  {% endif %}
+  deixou o saldo físico abaixo do reservado.
+</p>
+{% if evento.metadata.materiais %}
+  <ul class="mt-1 list-disc space-y-0.5 pl-4">
+    {% for material in evento.metadata.materiais %}
+      <li>{{ material.codigo }} — {{ material.nome }}</li>
+    {% endfor %}
+  </ul>
+{% endif %}
+{% comment %}
+  A frase fica numa linha só: `test_timeline_mostra_origem_saida_excepcional_e_orientacao`
+  procura o trecho literal no HTML, e a quebra de linha do template entra no
+  meio dele.
+{% endcomment %}
+<p class="mt-1">
+  A separação para retirada fica bloqueada até a divergência ser resolvida ou esta requisição ser cancelada.
+</p>

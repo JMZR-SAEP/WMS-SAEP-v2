@@ -1,6 +1,6 @@
 {% comment %}
   Fragment do corpo do modal de estorno (TR-021).
-  Params: estorno_form, requisicao, itens_a_estornar
+  Params: estorno_form, requisicao, itens_a_estornar, id, erro
 
   Sem parágrafo próprio repetindo a consequência do estorno (#135): o
   cabeçalho do modal (`descricao`, vindo de `MODAL_COPY['estornar']`) já diz
@@ -16,6 +16,15 @@
   líquida já foi devolvida por inteiro. Nesse caso a lista some em vez de
   renderizar uma caixa vazia — o estorno segue sendo a operação que encerra a
   requisição, e é isso que a descrição do cabeçalho diz.
+
+  `aria-invalid` no ramo de erro: era o único dos cinco corpos de modal que não
+  marcava o campo. `estornar_requisicao_view` devolve 422 com o Form, a caixa
+  de erro aparece no cabeçalho e o `<textarea>` continuava sem marca — ou seja,
+  `.campo[aria-invalid='true']` nunca pintava a borda, e o erro existia para o
+  leitor de tela e não para o olho. É também a primeira perna de
+  `focarPrimeiroCampo` (`modal.js`), que sem ela caía no fallback genérico.
+
+  Rótulo e asterisco na grafia de `components/form_field.html`.
 {% endcomment %}
 {% load core_tags %}
 
@@ -37,9 +46,8 @@
   {% endif %}
 
   <div>
-    <label for="modal-estornar-justificativa"
-           class="block text-sm font-medium text-text-primary">
-      Justificativa <span aria-hidden="true" class="text-danger-accent">*</span>
+    <label for="modal-estornar-justificativa" class="rotulo-campo">
+      Justificativa <span class="ml-0.5 text-danger-accent" aria-hidden="true">*</span>
     </label>
     <textarea
       id="modal-estornar-justificativa"
@@ -47,7 +55,8 @@
       rows="3"
       aria-required="true"
       autocomplete="off"
-      class="campo mt-1"
+      {% if erro %}aria-invalid="true" aria-describedby="{{ id }}-erro"{% endif %}
+      class="campo"
       placeholder="Motivo obrigatório do estorno"
     >{{ estorno_form.justificativa.value|default_if_none:"" }}</textarea>
   </div>

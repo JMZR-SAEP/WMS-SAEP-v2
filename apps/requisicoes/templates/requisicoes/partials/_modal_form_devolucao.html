@@ -1,21 +1,31 @@
 {% comment %}
   Fragment do corpo do modal de devolução (TR-020).
   Params: form, item, entregue_liquida, requisicao, id, erro
+
+  Rótulos em `.rotulo-campo` e asterisco com `ml-0.5`, na grafia de
+  `components/form_field.html`. A cópia à mão da tipografia de rótulo era
+  `font-semibold` onde o sistema usa `font-medium`, e escapava do guarda
+  `test_nenhum_rotulo_de_campo_escrito_a_mao` justamente por essa letra.
+
+  A linha "Entregue líquida disponível" tem `id` e entra no `aria-describedby`
+  da quantidade: é o teto que o `max` do input aplica, e sem a amarração ele
+  existia só para quem enxerga o parágrafo acima do campo.
 {% endcomment %}
 {% load core_tags l10n %}
 
 <div class="space-y-4">
   <p class="text-sm text-text-secondary">
     Material: <span class="font-semibold">{{ item.material.nome }}</span><br>
-    Entregue líquida disponível:
-    <span class="font-semibold tabular-nums">{{ entregue_liquida|formatar_quantidade:item.material.unidade }}</span>
-    {{ item.material.get_unidade_display }}
+    <span id="modal-devolver-quantidade-{{ item.pk }}-ajuda">
+      Entregue líquida disponível:
+      <span class="font-semibold tabular-nums">{{ entregue_liquida|formatar_quantidade:item.material.unidade }}</span>
+      {{ item.material.get_unidade_display }}
+    </span>
   </p>
 
   <div>
-    <label for="modal-devolver-quantidade-{{ item.pk }}"
-           class="block text-xs font-semibold uppercase tracking-wide text-text-tertiary">
-      Quantidade devolvida <span aria-hidden="true" class="text-danger-accent">*</span>
+    <label for="modal-devolver-quantidade-{{ item.pk }}" class="rotulo-campo">
+      Quantidade devolvida <span class="ml-0.5 text-danger-accent" aria-hidden="true">*</span>
     </label>
     <input
       type="number"
@@ -27,14 +37,14 @@
       autocomplete="off"
       value="{{ form.quantidade.value|default_if_none:'' }}"
       aria-required="true"
-      {% if erro %}aria-invalid="true" aria-describedby="{{ id }}-erro"{% endif %}
-      class="campo mt-1"
+      aria-describedby="modal-devolver-quantidade-{{ item.pk }}-ajuda{% if erro %} {{ id }}-erro{% endif %}"
+      {% if erro %}aria-invalid="true"{% endif %}
+      class="campo"
     >
   </div>
 
   <div>
-    <label for="modal-devolver-observacao-{{ item.pk }}"
-           class="block text-xs font-semibold uppercase tracking-wide text-text-tertiary">
+    <label for="modal-devolver-observacao-{{ item.pk }}" class="rotulo-campo">
       Observação
     </label>
     <textarea
@@ -42,7 +52,7 @@
       name="observacao"
       rows="2"
       autocomplete="off"
-      class="campo mt-1"
+      class="campo"
       placeholder="Opcional"
     >{{ form.observacao.value|default_if_none:"" }}</textarea>
   </div>

@@ -1,8 +1,16 @@
+{% comment %}
+  Corpo do modal de cancelamento. Params: id, erro,
+  cancelamento_requer_justificativa, justificativa_cancelamento.
+
+  Rótulo, ajuda e asterisco na grafia de `components/form_field.html` — ver a
+  nota em `_modal_form_recusar.html` sobre por que o componente não é chamado
+  aqui (a justificativa vem de `request.POST`, sem Form).
+{% endcomment %}
 {% if cancelamento_requer_justificativa %}
-  <label for="modal-cancelar-justificativa" class="block text-sm font-medium text-text-primary">
-    Justificativa do cancelamento <span aria-hidden="true" class="text-danger-accent">*</span>
+  <label for="modal-cancelar-justificativa" class="rotulo-campo">
+    Justificativa do cancelamento <span class="ml-0.5 text-danger-accent" aria-hidden="true">*</span>
   </label>
-  <p id="modal-cancelar-hint" class="mt-1 text-xs text-text-secondary">
+  <p id="modal-cancelar-justificativa-ajuda" class="mt-1 text-xs text-text-tertiary">
     Obrigatória para requisições autorizadas ou prontas para retirada.
   </p>
   <textarea
@@ -10,9 +18,9 @@
     name="justificativa"
     rows="4"
     aria-required="true"
-    aria-describedby="modal-cancelar-hint{% if erro %} {{ id }}-erro{% endif %}"
+    aria-describedby="modal-cancelar-justificativa-ajuda{% if erro %} {{ id }}-erro{% endif %}"
     {% if erro %}aria-invalid="true"{% endif %}
-    class="campo mt-3"
+    class="campo"
   >{{ justificativa_cancelamento|default_if_none:"" }}</textarea>
 {% else %}
   <p class="rounded-lg border border-border bg-bg-page px-3 py-2.5 text-sm text-text-secondary">

@@ -1558,16 +1558,59 @@ def test_nenhum_rotulo_de_campo_escrito_a_mao():
 
     Só `<label>` é varrido: a mesma tipografia é usada legitimamente em `<dt>`
     de lista de dados, que é termo de definição e não rótulo de controle.
+
+    O critério é "a label declara tipografia própria", e não "a label copiou
+    exatamente as classes de `.rotulo-campo`". A primeira versão exigia as três
+    classes `text-xs`, `font-medium` e `uppercase` juntas, e os cinco corpos de
+    modal de `requisicoes/partials/` passavam por baixo: quatro traziam
+    `text-sm font-medium text-text-primary` (nenhuma das três) e o de devolução
+    trazia `font-semibold` no lugar de `font-medium` — uma letra de diferença
+    para a regra sumir. O teste passava verde com a régua quebrada em cinco
+    arquivos.
+
+    Uma label de campo legítima ou tem `rotulo-campo`, ou tem `sr-only` (caso em
+    que o rótulo não aparece e não há tipografia a herdar), ou não declara
+    tipografia nenhuma. Qualquer classe de fonte, tamanho ou caixa fora disso é
+    a régua voltando a não ter dono.
+
+    Rótulo de **opção** fica de fora, e o marcador é `flex`/`inline-flex`: ali a
+    label embrulha o próprio controle numa linha de 44px (checkbox de filtro,
+    radio de modo de criação). Ela não é o rótulo acima de um campo, e a caixa
+    alta de bloco de `.rotulo-campo` estaria errada. É a mesma exceção que o
+    parágrafo do `<dt>` acima descreve, por um motivo diferente.
     """
 
     raiz = Path(__file__).resolve().parents[3]
-    tipografia_de_rotulo = {'text-xs', 'font-medium', 'uppercase'}
+    prefixos_de_tipografia = ('text-', 'font-', 'uppercase', 'tracking-', 'leading-')
+    # `text-left/center/right` alinham, não tipografam.
+    alinhamento = {'text-left', 'text-center', 'text-right', 'text-justify'}
+    # Dívida conhecida, com dono: a Etapa 7 do plano
+    # `docs/plans/audit-frontend-restante.md` faz em estoque o que a Etapa 6 fez
+    # em requisições. Estes quatro rótulos são o mesmo defeito, e a lista existe
+    # para o guarda entrar em vigor agora em vez de esperar a etapa seguinte.
+    # Some quando a Etapa 7 fechar; não acrescente linha nova a ela.
+    divida_etapa_7 = {
+        'apps/estoque/templates/estoque/preview_importacao_scpi.html',
+        'apps/estoque/templates/estoque/partials/_modal_form_estorno_saida.html',
+    }
     infratores: list[str] = []
     for caminho in (raiz / 'apps').rglob('*.html'):
+        relativo = str(caminho.relative_to(raiz))
+        if relativo in divida_etapa_7:
+            continue
         texto = caminho.read_text()
         for _, atributos, numero in elementos(texto, 'label'):
-            if tipografia_de_rotulo <= classes(atributos):
-                infratores.append(f'{caminho.relative_to(raiz)}:{numero}')
+            presentes = classes(atributos)
+            if presentes & {'rotulo-campo', 'sr-only', 'flex', 'inline-flex'}:
+                continue
+            tipografia = {
+                classe
+                for classe in presentes
+                if classe.startswith(prefixos_de_tipografia)
+                and classe not in alinhamento
+            }
+            if tipografia:
+                infratores.append(f'{relativo}:{numero} ({sorted(tipografia)})')
 
     assert not infratores, (
         'Rótulo de campo escrito à mão; use class="rotulo-campo" (definido em '
