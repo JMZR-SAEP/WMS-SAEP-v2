@@ -12,7 +12,11 @@ from django.template.loader import render_to_string
 
 BASE_DIR = pathlib.Path(__file__).resolve().parents[3]
 PARTIAL = 'components/_icone_nivel.html'
-VARIANTES = ('info', 'success', 'warning', 'danger')
+# `return` está aqui porque o partial a conhece: é a família de reversão
+# operacional, não um nível de severidade, e entrou pelo painel de decisão do
+# estorno. Fora da lista, a única variante com glifo próprio ficava sem nenhuma
+# das garantias que as outras têm (um `<svg>`, decorativo, cor herdada).
+VARIANTES = ('info', 'success', 'warning', 'danger', 'return')
 
 
 def _render(**ctx) -> str:

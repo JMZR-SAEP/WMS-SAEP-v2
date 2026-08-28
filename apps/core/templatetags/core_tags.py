@@ -306,8 +306,9 @@ def classes_painel_decisao(variant: str = '') -> dict[str, Any]:
     `_icone_nivel.html` herdam por `currentColor`. É o mesmo arranjo que a #124
     fixou para o `alert.html`.
 
-    A entrada é vocabulário de design system (`info`/`warning`/`danger`), nunca
-    um enum de domínio — o partial de domínio resolve o estado antes de chamar.
+    A entrada é vocabulário de design system (`info`/`warning`/`danger`/`return`),
+    nunca um enum de domínio — o partial de domínio resolve o estado antes de
+    chamar.
 
     Variante fora do catálogo cai na Decisão A-1 (docs/design-system.md, falha
     alta): fundo `danger` preenchido em vez de `-subtle`, para que a caixa grite

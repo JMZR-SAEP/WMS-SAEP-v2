@@ -31,8 +31,18 @@ PARTIAIS_DE_DOMINIO = (
     'apps/requisicoes/templates/requisicoes/partials/_painel_decisao.html',
     'apps/requisicoes/templates/requisicoes/partials/_confirmacao_acao.html',
 )
-VARIANTES = ('info', 'warning', 'danger')
+# `return` é variante de painel desde que o estorno saiu de `danger`: sem ela
+# aqui, a única superfície teal do painel não passava por nenhuma das guardas de
+# nome acessível, glifo e cor herdada que as outras três atravessam.
+VARIANTES = ('info', 'warning', 'danger', 'return')
 DESCONHECIDAS = ('', 'primary', 'success', 'nao-existe')
+
+# Início do `<path>` de cada glifo do catálogo que o painel pode escolher:
+# `devolver.svg` na variante `return` e `alerta.svg` no fallback e em `danger`.
+# Comparar o desenho renderizado, e não o nome do arquivo, é o que faz o teste
+# medir o glifo que chega ao HTML.
+PATH_DEVOLVER = 'M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62'
+PATH_ALERTA = 'M18 10A8 8 0 1 1 2 10a8 8 0 0 1 16 0Z'
 
 
 def _render(layout='card', variant_token='info', **extra):
@@ -416,3 +426,25 @@ def test_estorno_nao_usa_o_vocabulario_de_perigo():
         'o banner do estorno voltou a carregar vocabulário de perigo: '
         f'{banner.strip()[:200]}'
     )
+
+
+def test_o_painel_em_return_resolve_a_superficie_teal_e_o_glifo_de_devolucao():
+    """O guarda acima lê `detalhe.html` como texto: prova a fiação, não o HTML.
+
+    `variant_token="return"` escrito no template e `return` resolvido em
+    superfície e glifo são duas coisas diferentes — entre elas estão
+    `classes_painel_decisao` e `_icone_nivel.html`, e é onde uma variante nova
+    cai silenciosamente no fallback sem que nenhuma string mude. Aqui o painel é
+    renderizado e o que se cobra é o que chega ao HTML.
+    """
+    html = _render(layout='banner', variant_token='return')
+
+    assert 'bg-return-subtle' in html
+    assert 'border-return-border' in html
+    assert 'text-return-text-strong' in html
+    assert 'danger' not in html, html
+
+    # Seta de devolução, não o círculo de alerta: é o glifo que separa reversão
+    # operacional de perigo, e o único sinal não-cromático do painel.
+    assert PATH_DEVOLVER in html
+    assert PATH_ALERTA not in html

@@ -632,6 +632,11 @@ def test_sem_ancora_geral_o_item_segue_sem_link():
         ('info', 'bg-primary-subtle border-primary-border text-primary-text-strong'),
         ('warning', 'bg-warning-subtle border-warning-border text-warning-text-strong'),
         ('danger', 'bg-danger-subtle border-danger-border text-danger-text-strong'),
+        # `return` entrou com o estorno, que saiu de `danger` pela Regra da
+        # Reversão Não é Erro. Sem esta linha o mapa tinha uma quarta entrada
+        # que nenhum teste resolvia — e `conhecida` valendo `True` para ela era
+        # justamente o que separava o painel teal do fundo de grito da A-1.
+        ('return', 'bg-return-subtle border-return-border text-return-text-strong'),
     ],
 )
 def test_painel_decisao_resolve_a_variante_conhecida(variant, esperado):
@@ -647,8 +652,8 @@ def test_painel_decisao_resolve_a_variante_conhecida(variant, esperado):
 def test_painel_decisao_desconhecido_grita_em_cor_preenchida(variant):
     """Decisão A-1: falha alta, nunca plausível.
 
-    `success` está aqui de propósito: o painel de decisão declara três
-    variantes, e uma quarta plausível não pode virar um painel verde silencioso.
+    `success` está aqui de propósito: o painel de decisão declara quatro
+    variantes, e uma quinta plausível não pode virar um painel verde silencioso.
     """
     from apps.core.templatetags.core_tags import classes_painel_decisao
 
@@ -677,7 +682,7 @@ def test_painel_decisao_nao_emite_cor_crua_de_paleta():
         r'\b(?:bg|text|border)-'
         r'(?:blue|red|amber|green|teal|slate|orange|indigo|violet|yellow)-\d{2,3}\b'
     )
-    for variant in ('info', 'warning', 'danger', 'desconhecida'):
+    for variant in ('info', 'warning', 'danger', 'return', 'desconhecida'):
         assert not cru.search(classes_painel_decisao(variant)['superficie'])
 
 
