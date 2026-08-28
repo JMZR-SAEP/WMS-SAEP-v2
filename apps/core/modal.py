@@ -46,6 +46,8 @@ def render_modal_erro(
     cancel_label: str = 'Voltar',
     icon_variant: str | None = None,
     acao_erro: str = '',
+    loading_label: str = '',
+    corpo_com_campo_focavel: bool = False,
     contexto_form: dict[str, Any] | None = None,
 ) -> HttpResponse:
     """Renderiza o corpo do modal com erro e devolve 422.
@@ -92,6 +94,16 @@ def render_modal_erro(
     que a hierarquia tipográfica não a deixe mais apagada que os dados que ela
     qualifica — ver `components/_modal_body.html`.
 
+    `loading_label` e `corpo_com_campo_focavel` existem aqui porque o 422 tem de
+    devolver o mesmo modal, não um parente dele. Sem o primeiro, o botão de
+    confirmar do re-render perdia o `data-submit-loading-label`, e a segunda
+    tentativa — a que acontece depois de já ter dado errado uma vez — era a
+    única sem rótulo de progresso. Sem o segundo, `_modal_body.html` emitia o
+    `tabindex="0"` da região rolável em todo re-render, inclusive nos corpos que
+    já têm `<textarea>`/`<input>` dentro e que suprimem o atributo no render
+    inicial: o modal com erro tinha uma parada de tabulação a mais que o modal
+    sem erro, exatamente enquanto a pessoa corrige o campo.
+
     Os parâmetros restantes espelham `components/modal.html` e
     `components/_modal_body.html` (de onde vem `acao_erro`), porque o fragment
     devolvido tem de reconstruir o mesmo cabeçalho e o mesmo rodapé.
@@ -116,6 +128,8 @@ def render_modal_erro(
         'confirm_variant': confirm_variant,
         'cancel_label': cancel_label,
         'icon_variant': icon_variant,
+        'loading_label': loading_label,
+        'corpo_com_campo_focavel': corpo_com_campo_focavel,
     }
     if acao_erro:
         contexto['acao_erro'] = acao_erro

@@ -938,6 +938,10 @@ def cancelar_requisicao_view(request, pk: int):
                     confirm_label=copy['confirmar'],
                     confirm_variant='danger',
                     icon_variant=copy['icon_variant'],
+                    loading_label='Cancelando…',
+                    # Este ramo é o da justificativa obrigatória, ou seja, o
+                    # corpo trocado tem `<textarea>`.
+                    corpo_com_campo_focavel=True,
                     contexto_form={
                         'justificativa_cancelamento': justificativa,
                         'cancelamento_requer_justificativa': True,
@@ -1011,6 +1015,8 @@ def recusar_requisicao_view(request, pk: int):
                 confirm_label=copy['confirm_label'],
                 confirm_variant='danger',
                 icon_variant=copy['icon_variant'],
+                loading_label='Recusando…',
+                corpo_com_campo_focavel=True,
                 contexto_form={'motivo_recusa': motivo},
             )
         return _render_detalhe(
@@ -1114,8 +1120,10 @@ def registrar_devolucao_view(request, pk: int, item_pk: int) -> HttpResponse:
                     registro=registro_requisicao(requisicao),
                     erro='Item não pertence à requisição informada.',
                     confirm_label=copy['confirm_label'],
+                    confirm_variant='return',
                     icon_variant=copy['icon_variant'],
                     acao_erro='registrar a devolução',
+                    loading_label='Registrando…',
                 )
             entregues = entregue_liquida_por_requisicao(requisicao_id=pk)
             return render_modal_erro(
@@ -1130,8 +1138,14 @@ def registrar_devolucao_view(request, pk: int, item_pk: int) -> HttpResponse:
                 erro=form,
                 form_body_template=('requisicoes/partials/_modal_form_devolucao.html'),
                 confirm_label=copy['confirm_label'],
+                # `return` e não o default `primary` do helper: o render inicial
+                # (detalhe.html) usa teal, e a Regra da Reversão Não é Erro não
+                # pode cair justamente no caminho de erro.
+                confirm_variant='return',
                 icon_variant=copy['icon_variant'],
                 acao_erro='registrar a devolução',
+                loading_label='Registrando…',
+                corpo_com_campo_focavel=True,
                 contexto_form={
                     'form': form,
                     'item': item,
@@ -1191,6 +1205,8 @@ def estornar_requisicao_view(request, pk: int) -> HttpResponse:
                 confirm_variant='danger',
                 icon_variant=copy['icon_variant'],
                 acao_erro='estornar a requisição',
+                loading_label='Estornando…',
+                corpo_com_campo_focavel=True,
                 contexto_form={
                     'estorno_form': form,
                     'itens_a_estornar': itens_a_estornar,
