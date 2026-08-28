@@ -2115,11 +2115,18 @@ class TestListaMateriaisView:
         conteudo = client.get(URL_MATERIAIS).content.decode()
         # <article> literal aqui: o estilo do cartão depende do estado de
         # divergência, então esta tela não usa o #card_abertura do chrome. O
-        # container, esse sim, é o chrome — não tinha nada de condicional e a
-        # cópia da string de grade não acompanharia uma mudança de breakpoint.
+        # container, esse sim, é o chrome — a variante densa (#cards_abertura_denso,
+        # 3ª coluna em xl/1280px), porque o cartão do catálogo passou no critério
+        # de densidade de DESIGN.md §A Regra do Cartão Único (issue #159).
         assert '<article' in conteudo
-        assert 'grid items-start gap-3 sm:grid-cols-2 2xl:grid-cols-3' in conteudo
+        assert 'grid items-start gap-3 sm:grid-cols-2 xl:grid-cols-3' in conteudo
         assert '<table' not in conteudo
+        # Quantidades empilhadas, não em `grid grid-cols-3` interno (issue #159):
+        # a 322px de cartão (o que a variante densa dá a 1280px) três colunas
+        # internas quebravam `Disponível: 50 un`, órfã da unidade.
+        assert 'mt-4 space-y-1 text-sm' in conteudo
+        assert 'grid grid-cols-3' not in conteudo
+        assert conteudo.count('tabular-nums whitespace-nowrap') == 3
 
     def test_catalogo_pagina_em_vez_de_despejar_o_scpi_inteiro(
         self, client, chefe_almoxarifado, estoque_principal

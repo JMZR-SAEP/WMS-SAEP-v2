@@ -34,18 +34,20 @@
   {% if saldos %}
 
     {% comment %}
-      O container é o chrome (`#cards_abertura`): não há nada de condicional
-      nele, e a cópia da string de grade que morava aqui já não acompanharia uma
-      mudança de breakpoint. Só o <article> fica literal, porque a borda e o
-      fundo dependem do estado de domínio (divergência crítica) e
-      `#card_abertura` é string fixa por contrato da #83.
+      O container é o chrome (`#cards_abertura_denso`): não há nada de
+      condicional nele, e a cópia da string de grade que morava aqui já não
+      acompanharia uma mudança de breakpoint. A variante densa (3ª coluna em
+      `xl`/1280px) vale porque o cartão do catálogo passou no critério de
+      densidade — DESIGN.md §A Regra do Cartão Único, issue #159. Só o <article>
+      fica literal, porque a borda e o fundo dependem do estado de domínio
+      (divergência crítica) e `#card_abertura` é string fixa por contrato da #83.
 
       Sem `aria-label` no <article>: ele substituía o nome acessível do cartão
       pelo rótulo genérico, apagando o código do material — que é a identidade
       do registro. O badge "Divergente" ao lado já diz o estado, e diz para
       todos, não só para leitor de tela.
     {% endcomment %}
-    {% include "components/table.html#cards_abertura" %}
+    {% include "components/table.html#cards_abertura_denso" %}
       {% for saldo in saldos %}
         <article
           class="rounded-xl border {% if saldo.divergente_calculado %}border-danger-border-strong bg-danger-subtle{% else %}border-border bg-surface{% endif %} p-4 shadow-sm"
@@ -65,18 +67,23 @@
           </div>
 
           {# Rótulo rebaixado (issue #158): `Rótulo: valor` inline, sem caixa alta, `<dl>/<dt>/<dd>` preservado. Ver DESIGN.md §A Regra da Caixa Alta Estrutural. #}
-          <dl class="mt-4 grid grid-cols-3 gap-3 text-sm">
+          {# Quantidades empilhadas, não em `grid grid-cols-3` (issue #159): a 322px de #}
+          {# cartão — o que a variante densa dá a 1280px — três colunas internas #}
+          {# apertavam `Disponível: 50 un` e a unidade caía sozinha na linha de baixo, #}
+          {# justo a coluna que precisa alinhar. Empilhado, cada `<dd>` tem a largura #}
+          {# do cartão e valor+unidade ficam juntos. #}
+          <dl class="mt-4 space-y-1 text-sm">
             <div class="flex gap-x-2">
               <dt class="shrink-0 text-text-tertiary">Físico:</dt>
-              <dd class="min-w-0 tabular-nums text-text-primary">{{ saldo.saldo_fisico|formatar_quantidade:saldo.material.unidade }} {{ saldo.material.unidade }}</dd>
+              <dd class="tabular-nums whitespace-nowrap text-text-primary">{{ saldo.saldo_fisico|formatar_quantidade:saldo.material.unidade }} {{ saldo.material.unidade }}</dd>
             </div>
             <div class="flex gap-x-2">
               <dt class="shrink-0 text-text-tertiary">Reservado:</dt>
-              <dd class="min-w-0 tabular-nums text-text-primary">{{ saldo.saldo_reservado|formatar_quantidade:saldo.material.unidade }} {{ saldo.material.unidade }}</dd>
+              <dd class="tabular-nums whitespace-nowrap text-text-primary">{{ saldo.saldo_reservado|formatar_quantidade:saldo.material.unidade }} {{ saldo.material.unidade }}</dd>
             </div>
             <div class="flex gap-x-2">
               <dt class="shrink-0 text-text-tertiary">Disponível:</dt>
-              <dd class="min-w-0 tabular-nums {% if saldo.divergente_calculado %}text-danger-text font-semibold{% else %}text-text-primary{% endif %}">
+              <dd class="tabular-nums whitespace-nowrap {% if saldo.divergente_calculado %}text-danger-text font-semibold{% else %}text-text-primary{% endif %}">
                 {{ saldo.saldo_disponivel_calculado|formatar_quantidade:saldo.material.unidade }} {{ saldo.material.unidade }}
               </dd>
             </div>
