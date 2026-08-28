@@ -221,7 +221,7 @@ Uma paleta de trabalho: um azul de carimbo, um grafite de registro, um papel fri
 ### Secondary
 - **Verde de Baixa Concluída** (`{colors.success}`, green-600): requisição atendida, saldo disponível, confirmação. Aparece como ícone e como badge; raramente preenche um botão.
 - **Âmbar de Pendência** (`{colors.warning}`, amber-500): a decisão está com alguém. Fila de autorização, saldo insuficiente inline, alerta de importação SCPI que exige confirmação consciente.
-- **Vermelho de Recusa** (`{colors.danger}`, red-600): negação, erro de validação, divergência, estorno, sair. Única família além de `primary` com escala de botão completa (`hover`/`active`), porque só ela também é ação.
+- **Vermelho de Recusa** (`{colors.danger}`, red-600): negação, erro de validação, divergência, sair. Única família além de `primary` com escala de botão completa (`hover`/`active`), porque só ela também é ação.
 
 ### Tertiary
 - **Teal de Reversão** (`{colors.return}`, teal-600): devolução e reversão operacional. Existe precisamente para não usar vermelho num evento legítimo.
