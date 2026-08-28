@@ -34,20 +34,6 @@ Repositório de contexto único. Use `docs/agents/domain.md` como guia de roteam
 
 Se a documentação e a memória divergirem, confie primeiro na documentação/código vivos e atualize a memória do Serena quando a decisão for durável.
 
-### Handoff de design
-
-Para trabalho de UI/frontend, use `.design/` como handoff de design obrigatório antes de implementar ou revisar telas.
-
-Leia primeiro os arquivos aplicáveis:
-
-- `.design/INFORMATION_ARCHITECTURE.md` para rotas, navegação, hierarquia de páginas, fluxos de usuário, labels e estratégia de URL.
-- `.design/TASKS.md` para o breakdown atual de construção de UI gerado a partir dos briefs.
-- `.design/<area>/DESIGN_BRIEF.md` para UX, layout, interação, responsividade, acessibilidade, copy e decisões de fora do escopo específicas de cada tela.
-
-`.design/` orienta implementação e revisão, mas não sobrepõe ADRs aceitos, `docs/design-system.md`, `docs/CONVENTIONS.md`, regras de domínio, testes ou código vivo. Se `.design/` conflitar com essas fontes, exponha o conflito antes de implementar.
-
-Ao implementar UI a partir de `.design/`, mantenha o escopo restrito ao brief/task referenciado, a menos que o usuário peça expansão explicitamente.
-
 ### Convenções de código
 
 Não duplique regras do projeto aqui. Use estas fontes:
@@ -56,7 +42,8 @@ Não duplique regras do projeto aqui. Use estas fontes:
 - Contrato service/policy/exceção de domínio: ADR-0011.
 - Estratégia de testes: ADR-0010.
 - Frontend server-rendered e design system: `docs/design-system.md` e ADR-0008.
-- Handoff de UI/frontend: `.design/`, especialmente `.design/INFORMATION_ARCHITECTURE.md`, `.design/TASKS.md` e o `.design/<area>/DESIGN_BRIEF.md` relevante.
+- Vocabulário de interface, labels de UI e regras de URL: `docs/CONVENTIONS.md`.
+- Regras nomeadas de layout, cor, tipografia e componentes: `DESIGN.md`.
 - Contrato de dados de seed/dev: ADR-0009.
 
 ## Comandos do projeto

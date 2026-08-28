@@ -23,7 +23,7 @@ Arquivos auditados:
 
 1. **Dismiss de flash messages foi decidido e nunca implementado.** `docs/CONVENTIONS.md:174-181`
    está certo como intenção; `_messages.html` é que está incompleto. Corrigir o código, não o doc.
-   `docs/plans/77-alert-component.md:70-73` e `.design/TASKS.md:23` afirmam falsamente que já existe.
+   `docs/plans/77-alert-component.md:70-73` afirma falsamente que já existe. (`.design/TASKS.md` dizia o mesmo; a pasta foi removida em 2026-08-28.)
 2. **Divergência SCPI exige decisão do chefe de almoxarifado.** Logo `variant="warning"` está
    correto em `preview_importacao_scpi.html:270` — não trocar o token. O que falta é a copy nomear
    o dono da decisão e a próxima ação (conferir e ajustar no SCPI).

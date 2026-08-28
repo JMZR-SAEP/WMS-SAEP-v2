@@ -4927,7 +4927,7 @@ def test_listagens_tem_html_balanceado(
 
 
 # ---------------------------------------------------------------------------
-# Título de tela — contrato de slots do base_auth (.design/topbar)
+# Título de tela — contrato de slots documentado em base_auth.html
 # ---------------------------------------------------------------------------
 
 
@@ -5711,8 +5711,8 @@ def test_modal_de_rascunho_diz_rascunho_e_nao_vaza_o_pk(
 ):
     """O rascunho tem modal e não tem número — e o fallback não é o `__str__`.
 
-    `str(requisicao)` devolve `Rascunho #<pk>`, e a P3-01 de
-    `.design/detalhe-requisicao/DESIGN_BRIEF.md` diz que PK interno não vaza
+    `str(requisicao)` devolve `Rascunho #<pk>`, e `docs/CONVENTIONS.md`
+    §Identificadores na interface diz que PK interno não vaza
     para UI. Quem responde "qual documento?" aqui é o beneficiário e o setor.
     """
     _login(client, solicitante)

@@ -2,7 +2,7 @@
 - Última verificação: 2026-05-26.
 - Confirmar branch antes de commit. Nunca commitar diretamente em `main`; nomes de branch devem usar `feat/`, `fix/`, `docs/`, `refactor/`, `test/` ou `chore/` conforme AGENTS.md.
 - Antes de codar, usar Serena para navegação de projeto/código e Context7 para documentação atual de bibliotecas/frameworks externos quando relevante.
-- Para UI/frontend, ler `.design/INFORMATION_ARCHITECTURE.md`, `.design/TASKS.md` e o `DESIGN_BRIEF.md` da área antes de implementar/revisar. `.design/` não supera ADRs, `docs/design-system.md`, `docs/CONVENTIONS.md`, regras de domínio, testes ou código vivo.
+- Para UI/frontend, ler `DESIGN.md` (regras nomeadas), `docs/design-system.md` (tokens e componentes) e `docs/CONVENTIONS.md` (§URLs, §Vocabulário de interface) antes de implementar/revisar. A pasta `.design/` foi removida em 2026-08-28: estava desatualizada desde a Regra do Cartão Único (#83) e o conteúdo ainda válido migrou para esses três documentos.
 - Para mudanças em model/schema neste contexto dev efêmero, rodar `rtk make setup` antes da validação final; migrations locais são artefatos gerados, não artefatos normais de entrega.
 - Para mudanças de CI/tooling, manter `pyproject.toml`, `uv.lock`, `.github/workflows/ci.yml`, `docs/ci-pipeline.md` e memórias Serena alinhados.
 - Rodar regras de qualidade ao tocar CI/tooling: `rtk uv run ruff format --check .`, `rtk uv run ruff check .`, `rtk uv run mypy apps`.

@@ -4,6 +4,23 @@ Contexto para atacar os achados da auditoria de documentação em PRs posteriore
 conversas novas. Auditoria feita em **2026-08-19**, somente leitura, sobre
 `main` em `2740bc8`.
 
+## Superseded em 2026-08-28 — `.design/` foi apagada
+
+A pasta `.design/` inteira (11 `.md` + 20 screenshots) foi removida do repo. Motivo:
+os briefs de 2026-05 especificavam listagem em `<table>`, contrariando a Regra do
+Cartão Único (`DESIGN.md` §Layout, #83); os 3 arquivos de TASKS tinham 60 caixas
+abertas e nenhum trabalho pendente real; e a auditoria de 2026-07 estava com todos
+os achados corrigidos.
+
+O conteúdo ainda válido migrou para `docs/CONVENTIONS.md` (§URLs, §Vocabulário de
+interface, §Identificadores na interface). As referências em `AGENTS.md`,
+`PRODUCT.md`, `README.md`, `.coderabbit.yaml`, `.claude/skills/nova-slice/SKILL.md`,
+templates e `presentation.py` foram repontadas no mesmo commit.
+
+**Fecha destes itens:** B3 (corrigir a IA), C3 (arquivar os TASKS), C4 (resolver os
+conflitos de `.design/TASKS.md`) e a seção "Conflitos `.design/` × fonte superior".
+Tudo abaixo que cite caminho em `.design/` é histórico, não acionável.
+
 ## De onde isso vem
 
 Relatório completo foi gravado **só no scratchpad da sessão** (efêmero, já perdido).

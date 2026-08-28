@@ -46,8 +46,8 @@ def registro_saida_excepcional(saida) -> dict[str, str]:
     """Linha de identidade da saída no cabeçalho do modal de estorno (#138).
 
     `identificador` é o número público, com "Sem número" no lugar do `__str__`
-    do model (`Saída #<pk>`) pela mesma regra que vale na requisição — P3-01 de
-    `.design/detalhe-requisicao/DESIGN_BRIEF.md`, PK interno não vaza para UI.
+    do model (`Saída #<pk>`) pela mesma regra que vale na requisição —
+    `docs/CONVENTIONS.md` §Identificadores na interface: PK interno não vaza para UI.
     O cabeçalho da própria tela já resolve a ausência como "—"; aqui a linha é
     lida fora de contexto de tabela, então diz a palavra.
 

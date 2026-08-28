@@ -840,7 +840,7 @@ de "qual documento é este" é a divergência que a #135 fechou para título e
 descrição.
 
 > **`identificador` nunca sai do `__str__` do model.** `str(requisicao)` devolve
-> `Rascunho #<pk>`, e a P3-01 de `.design/detalhe-requisicao/DESIGN_BRIEF.md`
+> `Rascunho #<pk>`, e `docs/CONVENTIONS.md` §Identificadores na interface
 > diz que PK interno não vaza para UI. O fallback é o literal `"Rascunho"`
 > (requisição) ou `"Sem número"` (saída excepcional), e quem responde "qual
 > documento?" nesse caso é o `contexto`. O `__str__` continua servindo admin e

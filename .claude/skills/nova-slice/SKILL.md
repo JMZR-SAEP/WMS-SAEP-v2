@@ -24,10 +24,11 @@ Não abra editor antes de responder estas quatro perguntas:
    os seis papéis. Se a ação não está na matriz, **pare e pergunte** — matriz
    e código não podem divergir por decisão sua.
 3. **Que invariantes precisam valer?** `docs/matriz-invariantes.md`.
-4. **É UI?** Então leia, nesta ordem: `.design/INFORMATION_ARCHITECTURE.md`,
-   `.design/<area>/DESIGN_BRIEF.md` e `.design/TASKS.md`. Mantenha o escopo no
-   brief referenciado. Se `.design/` conflitar com ADR, design system ou regra
-   de domínio, **exponha o conflito antes de implementar**.
+4. **É UI?** Então leia, nesta ordem: `DESIGN.md` (regras nomeadas de layout,
+   cor e tipografia), `docs/design-system.md` (tokens e índice de componentes)
+   e `docs/CONVENTIONS.md` §URLs e §Vocabulário de interface. Se o que a issue
+   pede conflitar com uma regra nomeada, **exponha o conflito antes de
+   implementar** — regra nomeada carrega a medição que a justifica.
 
 Escreva em uma frase o que a fatia faz e qual estado ela move. Se não couber
 numa frase, são duas fatias.

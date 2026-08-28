@@ -3,7 +3,7 @@ Título de tela, dentro do <main>.
 
 Existe porque o `<h1>` de uma tela principal não pertence à barra de aplicação:
 `base_auth.html` documenta que o leading default é a brand e que só subtela troca
-por nav-icon + título (`.design/topbar/DESIGN_BRIEF.md`, API de slots). Uma tela
+por nav-icon + título (API de slots documentada no próprio `base_auth.html`). Uma tela
 principal que sobrescreve `topbar_leading` some com a brand, entrega o `<main>`
 sem cabeçalho nenhum para navegação por landmark e ainda espreme o título num
 elemento com `text-overflow: ellipsis`.
