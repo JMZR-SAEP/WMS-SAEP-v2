@@ -2121,6 +2121,12 @@ class TestListaMateriaisView:
         assert '<article' in conteudo
         assert 'grid items-start gap-3 sm:grid-cols-2 xl:grid-cols-3' in conteudo
         assert '<table' not in conteudo
+        # Quantidades empilhadas, não em `grid grid-cols-3` interno (issue #159):
+        # a 322px de cartão (o que a variante densa dá a 1280px) três colunas
+        # internas quebravam `Disponível: 50 un`, órfã da unidade.
+        assert 'mt-4 space-y-1 text-sm' in conteudo
+        assert 'grid grid-cols-3' not in conteudo
+        assert conteudo.count('tabular-nums whitespace-nowrap') == 3
 
     def test_catalogo_pagina_em_vez_de_despejar_o_scpi_inteiro(
         self, client, chefe_almoxarifado, estoque_principal

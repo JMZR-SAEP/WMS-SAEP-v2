@@ -67,18 +67,23 @@
           </div>
 
           {# Rótulo rebaixado (issue #158): `Rótulo: valor` inline, sem caixa alta, `<dl>/<dt>/<dd>` preservado. Ver DESIGN.md §A Regra da Caixa Alta Estrutural. #}
-          <dl class="mt-4 grid grid-cols-3 gap-3 text-sm">
+          {# Quantidades empilhadas, não em `grid grid-cols-3` (issue #159): a 322px de #}
+          {# cartão — o que a variante densa dá a 1280px — três colunas internas #}
+          {# apertavam `Disponível: 50 un` e a unidade caía sozinha na linha de baixo, #}
+          {# justo a coluna que precisa alinhar. Empilhado, cada `<dd>` tem a largura #}
+          {# do cartão e valor+unidade ficam juntos. #}
+          <dl class="mt-4 space-y-1 text-sm">
             <div class="flex gap-x-2">
               <dt class="shrink-0 text-text-tertiary">Físico:</dt>
-              <dd class="min-w-0 tabular-nums text-text-primary">{{ saldo.saldo_fisico|formatar_quantidade:saldo.material.unidade }} {{ saldo.material.unidade }}</dd>
+              <dd class="tabular-nums whitespace-nowrap text-text-primary">{{ saldo.saldo_fisico|formatar_quantidade:saldo.material.unidade }} {{ saldo.material.unidade }}</dd>
             </div>
             <div class="flex gap-x-2">
               <dt class="shrink-0 text-text-tertiary">Reservado:</dt>
-              <dd class="min-w-0 tabular-nums text-text-primary">{{ saldo.saldo_reservado|formatar_quantidade:saldo.material.unidade }} {{ saldo.material.unidade }}</dd>
+              <dd class="tabular-nums whitespace-nowrap text-text-primary">{{ saldo.saldo_reservado|formatar_quantidade:saldo.material.unidade }} {{ saldo.material.unidade }}</dd>
             </div>
             <div class="flex gap-x-2">
               <dt class="shrink-0 text-text-tertiary">Disponível:</dt>
-              <dd class="min-w-0 tabular-nums {% if saldo.divergente_calculado %}text-danger-text font-semibold{% else %}text-text-primary{% endif %}">
+              <dd class="tabular-nums whitespace-nowrap {% if saldo.divergente_calculado %}text-danger-text font-semibold{% else %}text-text-primary{% endif %}">
                 {{ saldo.saldo_disponivel_calculado|formatar_quantidade:saldo.material.unidade }} {{ saldo.material.unidade }}
               </dd>
             </div>
