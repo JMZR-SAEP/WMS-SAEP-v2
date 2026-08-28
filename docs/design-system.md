@@ -460,9 +460,9 @@ parâmetro, e três dos oito consumidores reais não passavam nada.
 |---|---|---|---|
 | `info` | círculo de informação | azul | ação neutra, sem consequência a destacar |
 | `warning` | triângulo de atenção | âmbar | pede cuidado redobrado antes de confirmar |
-| `danger` | círculo de alerta | vermelho | recusar/cancelar/estornar: encerram ou revertem, mas a trilha é append-only |
+| `danger` | círculo de alerta | vermelho | recusar/cancelar: encerram a requisição, mas a trilha é append-only |
 | `descarte` | lixeira | vermelho | reservada à única operação que remove um registro sem rastro (descarte de rascunho sem número público) |
-| `return` | seta de devolução | teal | devolução operacional — Regra da Reversão Não é Erro |
+| `return` | seta de devolução | teal | devolução **e estorno** — reversão operacional, Regra da Reversão Não é Erro |
 
 Todos os cinco glifos saem do registry `{% icon %}` (`core_tags.py`), nunca de
 SVG inline — era assim que `_modal_icon.html` tinha dois mecanismos de ícone
@@ -475,12 +475,23 @@ Mapa por consumidor (os 8 reais, não o componente isolado):
 | descartar rascunho | `descarte` | única remoção sem rastro do sistema |
 | cancelar rascunho/requisição | `danger` | encerra, preserva o número público |
 | recusar requisição | `danger` | encerra, não reserva nem baixa estoque |
-| estornar requisição / estornar saída excepcional | `danger` | reverte, grava movimentação reversora |
+| estornar requisição / estornar saída excepcional | `return` | reversão operacional; grava movimentação reversora, nunca vermelho |
 | registrar devolução | `return` | reversão operacional, nunca vermelho |
 | enviar / separar para retirada / autorizar | `info` | fluxo neutro, sem consequência a destacar |
 | retornar para rascunho | `warning` | pede ajuste, atenção redobrada |
 | confirmar registro de retirada | `warning` | baixa estoque físico, "não pode ser desfeita" |
 | confirmar importação SCPI | `danger` | única escrita irreversível declarada do sistema, sem aprovação humana depois |
+
+**O estorno saiu de `danger` (Etapa 6, fase 2).** A tabela acima listava
+"estornar" em `danger` enquanto a linha de `return`, duas células abaixo, dizia
+que reversão operacional nunca usa o vocabulário de erro — e
+`_estado_badge.html` já carimbava o estado resultante "Estornada" em
+`teal-strong`, com a Regra da Reversão Não é Erro dizendo "nunca vermelho" sobre
+esse mesmo carimbo. A ação e o seu efeito diziam coisas opostas, e a devolução
+já havia feito esse mesmo caminho na #136. Painel, gatilho, ícone e botão de
+confirmação do estorno passaram a teal; `classes_painel_decisao` ganhou a
+variante `return` e `_icone_nivel.html` ganhou o glifo. O vermelho volta a
+significar só negação, falha e divergência.
 
 Duas coisas que a tabela corrige em relação ao que existia antes da #136:
 
@@ -1114,8 +1125,8 @@ Confirmação de ação irreversível:
 
 ```django
 <div x-data="modalController({ id: 'confirmar-estorno' })">
-  {% include "components/button.html" with variant="danger-outline" label="Estornar" data_modal_trigger="confirmar-estorno" %}
-  {% include "components/modal.html" with id="confirmar-estorno" titulo="Estornar requisição?" descricao="O estorno reverte toda a entregue líquida ao saldo físico do estoque e encerra a requisição." consequencia="Esta operação é irreversível." registro=registro action_url=url_estornar confirm_label="Confirmar estorno" confirm_variant="danger" icon_variant="danger" form_body_template="requisicoes/partials/_modal_form_estorno.html" %}
+  {% include "components/button.html" with variant="return-outline" label="Estornar" data_modal_trigger="confirmar-estorno" %}
+  {% include "components/modal.html" with id="confirmar-estorno" titulo="Estornar requisição?" descricao="O estorno reverte toda a entregue líquida ao saldo físico do estoque e encerra a requisição." consequencia="Esta operação é irreversível." registro=registro action_url=url_estornar confirm_label="Confirmar estorno" confirm_variant="return" icon_variant="return" form_body_template="requisicoes/partials/_modal_form_estorno.html" %}
 </div>
 ```
 

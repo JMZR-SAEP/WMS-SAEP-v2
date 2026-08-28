@@ -22,6 +22,7 @@ import pytest
 from django.template.loader import render_to_string
 
 from apps.core.tests.marcacao import atributo, elementos
+from apps.requisicoes.presentation import MODAL_COPY
 
 BASE_DIR = pathlib.Path(__file__).resolve().parents[3]
 PAINEL = 'requisicoes/partials/_painel_decisao.html'
@@ -375,3 +376,43 @@ def test_o_botao_do_painel_sempre_anuncia_que_abre_um_modal(layout):
 def test_botao_aria_haspopup_deixou_de_ser_parametro():
     for caminho in (BASE_DIR / 'apps').rglob('*.html'):
         assert 'botao_aria_haspopup' not in caminho.read_text(encoding='utf-8'), caminho
+
+
+def test_estorno_nao_usa_o_vocabulario_de_perigo():
+    """Reversão operacional nunca é vermelha (DESIGN.md, Regra da Reversão Não é Erro).
+
+    O estorno vivia inteiro em `danger` — painel, gatilho, ícone e botão de
+    confirmação — enquanto `_estado_badge.html` carimbava o estado resultante
+    "Estornada" em `teal-strong`, e o DESIGN.md diz "nunca vermelho" sobre esse
+    carimbo. A ação e o seu efeito diziam coisas opostas, e o comentário de
+    `_modal_icon.html` chegava a se contradizer dentro do próprio arquivo: a
+    linha de `danger` listava "estornar" e a de `return`, logo abaixo, dizia que
+    reversão operacional não usa o vocabulário de perigo.
+
+    A devolução já havia feito este caminho na #136; o estorno é a outra
+    reversão e ficou para trás.
+    """
+
+    assert MODAL_COPY['estornar']['icon_variant'] == 'return'
+
+    detalhe = (
+        BASE_DIR / 'apps/requisicoes/templates/requisicoes/detalhe.html'
+    ).read_text()
+    banner = next(
+        linha
+        for linha in detalhe.splitlines()
+        if 'heading_id="estornar-titulo"' in linha
+    )
+    for esperado in (
+        'variant_token="return"',
+        'botao_variant="return-outline"',
+        'confirm_variant="return"',
+    ):
+        assert esperado in banner, (
+            f'banner do estorno sem {esperado} — a Regra da Reversão Não é Erro '
+            'vale para as quatro superfícies da ação, não só para o ícone'
+        )
+    assert 'danger' not in banner, (
+        'o banner do estorno voltou a carregar vocabulário de perigo: '
+        f'{banner.strip()[:200]}'
+    )

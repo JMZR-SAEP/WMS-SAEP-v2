@@ -1202,7 +1202,10 @@ def estornar_requisicao_view(request, pk: int) -> HttpResponse:
                 erro=form,
                 form_body_template='requisicoes/partials/_modal_form_estorno.html',
                 confirm_label=copy['confirm_label'],
-                confirm_variant='danger',
+                # `return` e não `danger`: mesma razão pela qual a devolução
+                # passa a sua própria variante aqui — o 422 devolve o mesmo
+                # modal, e a cor da ação é parte dele.
+                confirm_variant='return',
                 icon_variant=copy['icon_variant'],
                 acao_erro='estornar a requisição',
                 loading_label='Estornando…',

@@ -280,6 +280,14 @@ _PAINEL_DECISAO = {
     'info': 'bg-primary-subtle border-primary-border text-primary-text-strong',
     'warning': 'bg-warning-subtle border-warning-border text-warning-text-strong',
     'danger': 'bg-danger-subtle border-danger-border text-danger-text-strong',
+    # `return` existe pela Regra da Reversão Não é Erro. O estorno é reversão
+    # operacional, e vivia em `danger`: painel, gatilho e ícone vermelhos para
+    # uma operação cujo estado resultante o `_estado_badge.html` carimba em
+    # `teal-strong` — o DESIGN.md diz "nunca vermelho" sobre esse mesmo carimbo.
+    # A mesma operação tinha dois sistemas de cor, e a devolução já havia sido
+    # movida para teal na #136 exatamente por esta regra.
+    # Texto sobre a lavagem medido em 9,08:1.
+    'return': 'bg-return-subtle border-return-border text-return-text-strong',
 }
 _PAINEL_DECISAO_FALLBACK = 'bg-danger border-danger-hover text-text-on-primary'
 

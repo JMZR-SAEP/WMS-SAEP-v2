@@ -11,9 +11,12 @@
     warning   triângulo âmbar de atenção — pede cuidado redobrado antes de
               confirmar (ex. retornar para rascunho, atender retirada, que
               baixa estoque físico).
-    danger    círculo vermelho de alerta — recusar/cancelar/estornar. Encerram
-              ou revertem, mas a trilha é append-only: nenhuma delas apaga um
-              registro (CONTEXT.md).
+    danger    círculo vermelho de alerta — recusar/cancelar. Encerram a
+              requisição, mas a trilha é append-only: nenhuma delas apaga um
+              registro (CONTEXT.md). O estorno saiu daqui: esta linha listava
+              "estornar" enquanto a linha de `return` logo abaixo dizia que
+              reversão operacional nunca usa o vocabulário de perigo — os dois
+              parágrafos deste mesmo comentário se contradiziam.
     descarte  lixeira vermelha — reservada à única operação que remove um
               registro sem rastro: o descarte de rascunho sem número público.
               Antes do #136, `danger` inteiro usava este glifo, e cancelar/
@@ -21,6 +24,9 @@
               delas apagasse nada.
     return    seta teal de devolução — Regra da Reversão Não é Erro: reversão
               operacional nunca usa o vocabulário visual de erro/perigo.
+              Devolução e estorno. O estado que o estorno produz já era
+              carimbado em `teal-strong` pelo `_estado_badge.html`; a ação
+              agora diz a mesma coisa que o seu efeito.
 
   Variante fora do catálogo cai na Decisão A-1 (docs/design-system.md): fundo
   cheio de grito (não a lavagem `-muted` das variantes conhecidas), `role`

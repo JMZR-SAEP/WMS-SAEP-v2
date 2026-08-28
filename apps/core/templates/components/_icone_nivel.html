@@ -17,16 +17,22 @@ Sempre aria-hidden: quem anuncia o nível é o role da caixa. Ícone com nome
 acessível duplicaria o anúncio em toda faixa e todo painel.
 
 Parâmetros:
-  variant  (opcional) info | success | warning | danger. Qualquer outro valor —
-           inclusive vazio — cai no glifo de exclamação, o mesmo de danger: a
-           caixa que grita por variante desconhecida continua com sinal
-           não-cromático.
+  variant  (opcional) info | success | warning | danger | return. Qualquer outro
+           valor — inclusive vazio — cai no glifo de exclamação, o mesmo de
+           danger: a caixa que grita por variante desconhecida continua com
+           sinal não-cromático.
+
+           `return` não é nível de severidade — é a família de reversão
+           operacional, e entra aqui porque o painel de decisão do estorno
+           precisa do glifo teal em vez do círculo de alerta. `alert.html` não
+           conhece a variante e continua não conhecendo: passá-la a ele cai na
+           Decisão A-1, como qualquer valor fora do catálogo dele.
   class    (opcional) classe de dimensão e alinhamento do chamador
            (ex. "mt-0.5 h-4 w-4 shrink-0")
 {% endcomment %}
 {% load core_tags %}
 {% comment %}
-  Os quatro glifos vêm do catálogo (`{% templatetag openblock %} icon
+  Os glifos vêm do catálogo (`{% templatetag openblock %} icon
   {% templatetag closeblock %}`), não de `<path>` inline. As cópias inline que
   moravam aqui já haviam divergido do catálogo no espaçamento do path — a mesma
   classe de deriva do spinner do autocomplete, onde a cópia divergente era a que
@@ -35,6 +41,8 @@ Parâmetros:
 {% endcomment %}
 {% if variant == 'success' %}
   {% icon "sucesso" class=class %}
+{% elif variant == 'return' %}
+  {% icon "devolver" class=class %}
 {% elif variant == 'warning' %}
   {% icon "atencao" class=class %}
 {% elif variant == 'info' %}

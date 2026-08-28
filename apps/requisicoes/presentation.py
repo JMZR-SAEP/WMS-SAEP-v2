@@ -138,7 +138,12 @@ MODAL_COPY: dict[str, dict[str, str]] = {
         # justificativa que só fazia sentido *antes* de abrir o modal.
         'painel_extra': 'A justificativa é obrigatória e fica registrada na timeline.',
         'confirm_label': 'Confirmar estorno',
-        'icon_variant': 'danger',
+        # 'return', não 'danger': o estorno é reversão operacional, e a Regra da
+        # Reversão Não é Erro reserva o vermelho para negação, falha e
+        # divergência. O estado resultante já era carimbado em `teal-strong`
+        # pelo `_estado_badge.html`, então a ação e o seu efeito diziam coisas
+        # opostas. Mesmo caminho que a devolução fez na #136.
+        'icon_variant': 'return',
     },
     'devolucao': {
         'titulo': 'Registrar devolução',

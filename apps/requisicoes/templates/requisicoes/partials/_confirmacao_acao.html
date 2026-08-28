@@ -57,13 +57,13 @@ Uso (card):
 
 Uso (banner):
   {% include "requisicoes/partials/_confirmacao_acao.html" with
-     layout="banner" variant_token="danger" heading_id="estornar-titulo"
+     layout="banner" variant_token="return" heading_id="estornar-titulo"
      modal_id="estornar-modal" titulo="Estornar requisição" conteudo="..."
-     botao_label="Estornar requisição" botao_variant="danger-outline"
+     botao_label="Estornar requisição" botao_variant="return-outline"
      botao_icon="components/icons/estornar.svg"
      modal_titulo="Estornar requisição" modal_descricao="..."
      action_url=estornar_url confirm_label="Confirmar estorno"
-     confirm_variant="danger" icon_variant="danger" form=estorno_form
+     confirm_variant="return" icon_variant="return" form=estorno_form
      form_body_template="requisicoes/partials/_modal_form_estorno.html"
      role="alertdialog" corpo_com_campo_focavel=True %}
 {% endcomment %}
