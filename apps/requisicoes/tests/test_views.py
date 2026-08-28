@@ -4355,6 +4355,53 @@ def test_timeline_mostra_origem_saida_excepcional_e_orientacao(
 
 
 @pytest.mark.django_db
+def test_link_da_saida_excepcional_respeita_quem_pode_consultar(
+    client, solicitante, aux_almoxarifado, setor_obras, material_disponivel
+):
+    """A rota de saída do alerta EST-07 existe só para quem pode abrir o destino.
+
+    O alerta nomeava a saída e os materiais em texto puro e não oferecia rota
+    para nada — quem lê no galpão tinha de decorar o número. Mas
+    `detalhe_saida_excepcional_view` exige `pode_consultar_saidas_excepcionais`,
+    então um link incondicional levaria o solicitante da própria requisição a um
+    403: uma rota que promete e não entrega é pior que texto.
+    """
+    metadata = {
+        # A saída em si não precisa existir: o template só monta a URL, e é a
+        # emissão (ou não) do link que este teste mede.
+        'saida_excepcional_id': 7,
+        'numero_publico': 'SXP-2026-000042',
+        'materiais': [
+            {'codigo': material_disponivel.codigo, 'nome': material_disponivel.nome}
+        ],
+    }
+    req = _req_com_evento_divergencia(
+        solicitante=solicitante,
+        setor_obras=setor_obras,
+        material=material_disponivel,
+        ator=solicitante,
+        metadata=metadata,
+    )
+    url_destino = reverse('estoque:detalhe_saida_excepcional', kwargs={'pk': 7})
+    url_detalhe = reverse('requisicoes:detalhe', kwargs={'pk': req.pk})
+
+    # Solicitante: não pode consultar saídas excepcionais, então não recebe link.
+    _login(client, solicitante)
+    timeline = _bloco_timeline(client.get(url_detalhe).content.decode())
+    assert 'Saída excepcional SXP-2026-000042' in timeline, (
+        'sem permissão o número continua nomeado, só não vira rota'
+    )
+    assert url_destino not in timeline
+
+    # Almoxarifado: é quem resolve a divergência, e recebe a rota.
+    _login(client, aux_almoxarifado)
+    timeline = _bloco_timeline(client.get(url_detalhe).content.decode())
+    assert url_destino in timeline, (
+        'quem pode resolver a divergência precisa chegar à saída que a causou'
+    )
+
+
+@pytest.mark.django_db
 def test_timeline_mostra_origem_importacao_scpi_sem_numero_publico(
     client, solicitante, setor_obras, material_disponivel
 ):

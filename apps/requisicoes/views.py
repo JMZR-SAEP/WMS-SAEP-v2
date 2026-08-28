@@ -133,6 +133,8 @@ def _detalhe_context(
     justificativa_cancelamento: str = '',
     cancelamento_modal_aberto: bool = False,
 ):
+    from apps.estoque.policies import pode_consultar_saidas_excepcionais
+
     papel = papel_efetivo(request.user)
     acoes = acoes_disponiveis(papel, requisicao)
     itens = list(requisicao.itens.select_related('material').all())
@@ -170,6 +172,13 @@ def _detalhe_context(
         'requisicao': requisicao,
         'itens': itens,
         'eventos': eventos,
+        # A timeline linka o número da saída excepcional que causou a
+        # divergência EST-07 — mas só para quem pode abrir a tela de destino.
+        # `detalhe_saida_excepcional_view` exige
+        # `pode_consultar_saidas_excepcionais`, então um link incondicional
+        # levaria o solicitante da requisição direto a um 403. Sem a permissão,
+        # o número continua em texto, que é o que ele já era.
+        'pode_consultar_saidas_excepcionais': pode_consultar_saidas_excepcionais(papel),
         # Linha de identidade dos seis modais desta tela (#138). Uma chave só
         # no contexto, passada explicitamente por cada `{% include %}` — a tela
         # não escreve "qual requisição é esta" seis vezes.
