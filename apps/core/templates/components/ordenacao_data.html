@@ -9,9 +9,9 @@ Parâmetros:
   url_ordenacao   (obrigatório) URL que inverte a ordem, já montada pela view
   ordem           (obrigatório) 'asc' ou 'desc' — ordem corrente
   target_id       (obrigatório) id do wrapper alvo do swap HTMX (sem #)
-  page_obj        (obrigatório) page_obj da listagem, pra decidir se mostra
-                  a contagem aqui (só quando não há paginação visível) e pra
-                  fonte da contagem em si (`page_obj.paginator.count`)
+  page_obj        (obrigatório) page_obj da listagem, fonte da contagem
+                  visível: `page_obj.paginator.count` (tamanho do recorte) e
+                  `page_obj.object_list|length` (quantos nesta página)
   rotulo_contagem (obrigatório) par "singular,plural" pro filtro `pluralize`,
                   ex. "requisição,requisições"
 
@@ -26,18 +26,24 @@ Uso:
   do bloco `{% if page_obj.object_list %}` das duas telas de histórico. A
   região sr-only continua como está, para o anúncio do swap.
 
-  Só aparece aqui quando `pagination.html` não vai mostrar a mesma contagem
-  (num_pages > 1 já tem "Página X de Y · N itens" lá embaixo) — senão o
-  número se repete na tela com rótulos quase iguais.
+  A contagem aparece SEMPRE (issue #156), nos dois casos:
+    - sem paginação: "35 requisições" — tamanho do recorte;
+    - com paginação: "25 de 35 requisições" — quantos nesta página `de`
+      quantos no recorte inteiro.
+  O rodapé de `pagination.html` segue com "Página X de Y", que é navegação,
+  não contagem: quando há paginação os dois números não são a mesma coisa —
+  um é o tamanho do recorte, o outro a posição dentro dele. Sem o `<span>`
+  vazio de layout que segurava o lado esquerdo, o `<p>` da contagem é sempre
+  o primeiro filho e o `justify-between` mantém o controle de ordem à direita.
 {% endcomment %}
 <div class="mb-3 flex items-center justify-between gap-3">
-  {% if page_obj.paginator.num_pages == 1 %}
-    <p class="text-sm text-text-secondary">
+  <p class="text-sm text-text-secondary">
+    {% if page_obj.paginator.num_pages == 1 %}
       <span class="font-medium tabular-nums">{{ page_obj.paginator.count }}</span> {{ page_obj.paginator.count|pluralize:rotulo_contagem }}
-    </p>
-  {% else %}
-    <span></span>
-  {% endif %}
+    {% else %}
+      <span class="font-medium tabular-nums">{{ page_obj.object_list|length }}</span> de <span class="font-medium tabular-nums">{{ page_obj.paginator.count }}</span> {{ page_obj.paginator.count|pluralize:rotulo_contagem }}
+    {% endif %}
+  </p>
   {% comment %}
     O rótulo nomeia o **destino**, não o estado corrente. Era o inverso: com
     `ordem='desc'` o botão dizia "Mais recentes primeiro ↓" — que é o que a tela

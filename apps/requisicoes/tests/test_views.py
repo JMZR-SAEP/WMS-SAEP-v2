@@ -4574,6 +4574,50 @@ def test_historico_contagem_visivel_em_resposta_htmx(
     assert 'requisição' in trecho
 
 
+def _extrai_linha_da_contagem(html):
+    idx_ordenacao = html.index('Mais antigas primeiro')
+    linha = html.rindex('<div', 0, idx_ordenacao)
+    return html[linha:idx_ordenacao]
+
+
+@pytest.mark.django_db
+def test_historico_contagem_com_paginacao_diz_pagina_e_recorte(
+    client, superuser, solicitante, setor_obras
+):
+    """Issue #156: com paginação a linha de cima mostrava `<span>` vazio e a
+    contagem do recorte só reaparecia no rodapé. Agora diz
+    "25 de 26 requisições" — quantos nesta página `de` quantos no recorte —
+    nos dois caminhos de render.
+    """
+    Requisicao.objects.bulk_create(
+        Requisicao(
+            estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+            numero_publico=f'REQ-2026-90{n:02d}',
+            criador=solicitante,
+            beneficiario=solicitante,
+            setor_beneficiario=setor_obras,
+        )
+        for n in range(26)
+    )
+    _login(client, superuser)
+
+    esperado = (
+        'tabular-nums">25</span> de <span class="font-medium tabular-nums">26</span>'
+    )
+
+    completa = client.get(reverse('requisicoes:historico'))
+    assert completa.context['page_obj'].paginator.num_pages == 2
+    trecho_completa = _extrai_linha_da_contagem(completa.content.decode())
+    assert esperado in trecho_completa
+    assert 'requisições' in trecho_completa
+    assert '<span></span>' not in trecho_completa
+
+    parcial = client.get(
+        reverse('requisicoes:historico'), headers={'hx-request': 'true'}
+    ).content.decode()
+    assert esperado in _extrai_linha_da_contagem(parcial)
+
+
 @pytest.mark.django_db
 def test_historico_ordenacao_disponivel_no_mobile(
     client, superuser, req_historico_obras
