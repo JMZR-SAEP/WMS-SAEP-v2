@@ -819,10 +819,7 @@ def test_minhas_renderiza_um_cartao_por_requisicao(
     """
     _login(client, solicitante)
     conteudo = client.get(reverse('requisicoes:minhas')).content.decode()
-    assert (
-        '<div class="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">'
-        in conteudo
-    )
+    assert '<div class="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">' in conteudo
     assert (
         conteudo.count('<article class="relative rounded-xl border border-border') == 1
     )
