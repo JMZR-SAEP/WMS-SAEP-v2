@@ -122,9 +122,11 @@
             metadado, e ainda `<dl>/<dt>/<dd>` para leitor de tela. Ver DESIGN.md
             §A Regra da Caixa Alta Estrutural.
 
-            SETOR só aparece quando o recorte não o fixa: com filtro de setor
-            ativo, ou com papel restrito ao próprio setor (`mostrar_filtro_setor`
-            falso), repetir um valor único nos 25 cartões não informa nada.
+            SETOR só some quando o recorte fixa o setor DAQUELE cartão:
+            `setor_fixo_id` é o filtro de setor ativo ou o setor chefiado. Uma
+            requisição que o chefe criou fora do setor chefiado tem
+            `setor_beneficiario_id` diferente e mantém o campo — ali o valor não
+            é redundante (ver test_historico_chefe_setor_ve_o_que_criou_fora).
           {% endcomment %}
           <dl class="mt-4 grid grid-cols-2 gap-3 text-sm">
             <div class="flex gap-x-2">
@@ -135,7 +137,7 @@
               <dt class="shrink-0 text-text-tertiary">Beneficiário:</dt>
               <dd class="min-w-0 text-text-primary">{{ req.beneficiario.nome }}</dd>
             </div>
-            {% if mostrar_filtro_setor and not filtros.setor %}
+            {% if req.setor_beneficiario_id != setor_fixo_id %}
             <div class="flex gap-x-2">
               <dt class="shrink-0 text-text-tertiary">Setor:</dt>
               <dd class="min-w-0 text-text-primary">{{ req.setor_beneficiario.nome }}</dd>
