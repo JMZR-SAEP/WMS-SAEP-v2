@@ -2299,6 +2299,59 @@ class TestHistoricoMovimentacoesView:
         assert response.context['page_obj'].paginator.count == 0
         assert b'Nenhuma movimenta' in response.content
 
+    def test_heading_do_cartao_distingue_lancamentos_do_mesmo_minuto(
+        self,
+        client,
+        superuser,
+        requisicao_autorizada,
+        material_disponivel,
+        estoque_principal,
+    ):
+        """`date:"d/m/Y H:i"` tem precisão de minuto — um atendimento gera várias
+        movimentações do mesmo material na mesma transação. O número do
+        lançamento entra em `sr-only` para o nome acessível não colidir.
+        """
+        import re
+        from decimal import Decimal
+
+        from apps.estoque.models import MovimentacaoEstoque, TipoMovimentacaoEstoque
+
+        req, _ = requisicao_autorizada
+        # `criado_em` é `auto_now_add`: as duas criadas em sequência caem no
+        # mesmo minuto, que é exatamente a colisão que o número do lançamento
+        # resolve.
+        movs = [
+            MovimentacaoEstoque.objects.create(
+                tipo=TipoMovimentacaoEstoque.CONSUMO,
+                material=material_disponivel,
+                estoque=estoque_principal,
+                delta_fisico=Decimal('-1'),
+                delta_reservado=Decimal('-1'),
+                requisicao=req,
+                ator=superuser,
+            )
+            for _ in range(2)
+        ]
+
+        client.force_login(superuser)
+        html = client.get(URL_MOVIMENTACOES).content.decode()
+
+        headings = re.findall(r'<h2[^>]*>(.*?)</h2>', html, re.S)
+        nomes_acessiveis = [
+            ' '.join(re.sub(r'<[^>]+>', '', h).split()) for h in headings
+        ]
+        # todo nome acessível é único, apesar de material e minuto repetidos
+        assert len(set(nomes_acessiveis)) == len(nomes_acessiveis)
+        nomes_das_criadas = [
+            n for m in movs for n in nomes_acessiveis if f'lançamento {m.pk} em ' in n
+        ]
+        assert len(nomes_das_criadas) == 2
+        # sem o número do lançamento os dois colidiriam: mesmo material, mesmo minuto
+        sem_lancamento = [
+            re.sub(r' — lançamento \d+ em ', ' em ', n) for n in nomes_das_criadas
+        ]
+        assert sem_lancamento[0] == sem_lancamento[1]
+
     def test_paginacao_usa_componente_com_rotulo_e_aria_label_proprios(
         self,
         client,
