@@ -84,7 +84,7 @@ As duas fases abaixo ficam como registro do que foi rodado.
 
 ### Fase 1 — audit
 
-```bash
+```text
 /impeccable audit apps/core/templates/components/table.html apps/core/templates/components/pagination.html apps/core/templates/components/page_header.html apps/core/templates/components/ordenacao_data.html apps/core/templates/components/icons/
 ```
 
@@ -108,7 +108,7 @@ As duas fases abaixo ficam como registro do que foi rodado.
 
 ### Fase 2 — critique
 
-```bash
+```text
 /impeccable critique apps/core/templates/components/table.html apps/core/templates/components/pagination.html apps/core/templates/components/page_header.html apps/core/templates/components/ordenacao_data.html
 ```
 
@@ -125,7 +125,7 @@ Sobre o cartão já corrigido. Leitura de UX, não de conformidade:
 
 ### Fase 1 — audit
 
-```bash
+```text
 /impeccable audit apps/requisicoes/templates/requisicoes/partials/
 ```
 
@@ -142,7 +142,7 @@ Sobre o cartão já corrigido. Leitura de UX, não de conformidade:
 
 ### Fase 2 — critique
 
-```bash
+```text
 /impeccable critique apps/requisicoes/templates/requisicoes/partials/_painel_decisao.html apps/requisicoes/templates/requisicoes/partials/_timeline.html apps/requisicoes/templates/requisicoes/partials/_modal_corpo_atender_retirada.html
 ```
 
@@ -158,7 +158,7 @@ Sobre os fluxos de decisão da requisição:
 
 ### Fase 1 — audit
 
-```bash
+```text
 /impeccable audit apps/estoque/templates/estoque/partials/
 ```
 
@@ -173,7 +173,7 @@ sobrou referência.)
 
 ### Fase 2 — critique
 
-```bash
+```text
 /impeccable critique apps/estoque/templates/estoque/partials/_modal_corpo_confirmar_importacao.html apps/estoque/templates/estoque/partials/_alert_divergencias_corpo.html apps/estoque/templates/estoque/partials/_delta_movimentacao.html
 ```
 
@@ -189,7 +189,7 @@ Sobre o fluxo de importação SCPI, que é onde o operador toma decisão de verd
 
 ### Fase 1 — audit
 
-```bash
+```text
 /impeccable audit
 ```
 
@@ -201,7 +201,7 @@ Sem alvo — varredura das 19 telas já auditadas, agora sobre a base refeita. V
 
 ### Fase 2 — critique
 
-```bash
+```text
 /impeccable critique
 ```
 

@@ -1,7 +1,8 @@
 # Audit — Etapa 5: Listagem em cartões
 
 **Alvos:** `components/table.html`, `components/pagination.html`, `components/page_header.html`,
-`components/ordenacao_data.html`, `components/icons/` (4 partials + 15 svg)
+`components/ordenacao_data.html`, `components/icons/` (4 partials — `_check.html` removido nesta
+etapa, ver P3 abaixo — + 15 svg)
 **Data:** 2026-08-27 · **Plano:** `docs/plans/audit-frontend-restante.md` § Etapa 5, Fase 1
 
 Verificação: markup lido; 8 telas renderizadas via `django.test.Client` com usuário do
@@ -44,7 +45,8 @@ O que falha é a borda do sistema:
 ## Sumário executivo
 
 - Score: **13/20** (Aceitável)
-- 12 achados: **2 P1**, **6 P2**, **4 P3**
+- 13 achados: **3 P1**, **6 P2**, **4 P3** (a paginação das três listagens é P1 pelo custo em
+  produção, com rota de correção via `/impeccable optimize` — daí a marca P1→P2 no placar)
 - Críticos:
   1. Nome acessível errado nos dois controles de paginação, em 5 telas (P1)
   2. Foco perdido a cada troca de ordenação (P1)
