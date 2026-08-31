@@ -521,6 +521,159 @@ def estornar_saida_excepcional_view(request, pk: int):
     )
 
 
+TEMPLATE_PREVIEW_SCPI = 'estoque/preview_importacao_scpi.html'
+
+# Ordem canônica da querystring do preview SCPI (issue #152). Multi-valor:
+# `status` — a chave que os chips de recorte ligam e desligam.
+ORDEM_QUERYSTRING_PREVIEW_SCPI = ('status',)
+
+# Allowlist do recorte por status: valor fora daqui é ignorado, não erra.
+# Só os status que a conferência recorta — `divergente` e `novo`, os mesmos
+# dos chips. `ok` fica de fora de propósito: recortar para ver só as linhas
+# que batem não tem valor de conferência, e aceitá-lo prendia o link
+# compartilhado (`?status=ok`) num recorte sem chip ativo nem porta de volta.
+STATUS_PREVIEW_SCPI = ('divergente', 'novo')
+
+ERRO_ARQUIVO_SEM_LINHAS = (
+    'O arquivo não contém linhas de dados após o cabeçalho. '
+    'Verifique se há registros abaixo do cabeçalho e envie novamente.'
+)
+
+
+def _contexto_preview_scpi(request, *, linhas, nome_arquivo):
+    """Contexto da conferência: contagens do arquivo inteiro, recorte da URL.
+
+    As três contagens descrevem sempre o arquivo inteiro — elas são a âncora da
+    conferência e não podem encolher junto com o recorte. `linhas` no contexto
+    é só o que a lista exibe.
+    """
+    total = len(linhas)
+    divergencias = sum(1 for linha in linhas if linha.status == 'divergente')
+    novos = sum(1 for linha in linhas if linha.status == 'novo')
+
+    # A tela existe para evidenciar delta: divergência e material novo primeiro,
+    # linha "OK" por último. Na ordem do arquivo, conferir 12 divergências num
+    # CSV de 800 linhas é caçar. Ordenação estável, então dentro de cada grupo a
+    # ordem do arquivo é preservada — o operador confere contra o papel na mesma
+    # sequência em que ele foi impresso.
+    prioridade_status = {'divergente': 0, 'novo': 1, 'ok': 2}
+    linhas = sorted(linhas, key=lambda linha: prioridade_status.get(linha.status, 3))
+
+    # Recorte por status: estado de URL, não de JavaScript (issue #152). Sem
+    # nenhum status selecionado a lista é o arquivo inteiro.
+    selecionados = {
+        s for s in request.GET.getlist('status') if s in STATUS_PREVIEW_SCPI
+    }
+    exibidas = (
+        [linha for linha in linhas if linha.status in selecionados]
+        if selecionados
+        else linhas
+    )
+
+    # Chips de recorte (issue #153) resolvidos pelo mesmo mecanismo do ledger:
+    # cada um aponta para a URL canônica do estado oposto.
+    chips_filtro = [
+        montar_chip(
+            request,
+            id='so-divergencias',
+            rotulo='Só divergências',
+            glifo='⚠',
+            chave='status',
+            valores=['divergente'],
+            ordem_chaves=ORDEM_QUERYSTRING_PREVIEW_SCPI,
+            chaves_multivalor=('status',),
+        ),
+        montar_chip(
+            request,
+            id='so-novos',
+            rotulo='Só materiais novos',
+            glifo='+',
+            chave='status',
+            valores=['novo'],
+            ordem_chaves=ORDEM_QUERYSTRING_PREVIEW_SCPI,
+            chaves_multivalor=('status',),
+        ),
+    ]
+
+    return {
+        'em_conferencia': True,
+        'linhas': exibidas,
+        'exibidas': len(exibidas),
+        'tem_recorte': bool(selecionados),
+        'chips_filtro': chips_filtro,
+        'is_htmx': bool(request.htmx),
+        'total': total,
+        'divergencias': divergencias,
+        'novos': novos,
+        'nome_arquivo': nome_arquivo,
+        'registro': registro_arquivo_scpi(nome_arquivo),
+        'pode_confirmar': True,
+    }
+
+
+def _reabrir_preview_scpi(request):
+    """Reabre a conferência pendente (bytes na sessão) para um GET.
+
+    O recorte por status é estado de URL, então o clique num chip é um GET e
+    cai aqui: o preview é regerado do mesmo arquivo que a sessão guarda para a
+    confirmação. Sem conferência pendente, a tela é o formulário de upload —
+    o estado inicial.
+    """
+    import base64
+
+    from apps.core.exceptions import DadosInvalidos
+    from apps.estoque.selectors import gerar_preview_importacao_scpi
+
+    conteudo_b64 = request.session.get('scpi_preview_bytes')
+    if not conteudo_b64:
+        request.session.pop('scpi_preview_nome', None)
+        return render(request, TEMPLATE_PREVIEW_SCPI, {})
+
+    # A URL é a fonte de verdade do recorte (issue #152): no caminho nativo
+    # redireciona 302 para a forma canônica; no HTMX ela volta no HX-Push-Url.
+    url_canonica = caminho_canonico(
+        request,
+        ordem_chaves=ORDEM_QUERYSTRING_PREVIEW_SCPI,
+        chaves_multivalor=('status',),
+    )
+    if not request.htmx and request.get_full_path() != url_canonica:
+        return redirect(url_canonica)
+
+    estoque = Estoque.objects.filter(ativo=True).first()
+    if estoque is None:
+        return render(
+            request,
+            TEMPLATE_PREVIEW_SCPI,
+            {'erro_arquivo': 'Não há estoque ativo configurado.'},
+        )
+
+    try:
+        linhas = gerar_preview_importacao_scpi(
+            conteudo_bytes=base64.b64decode(conteudo_b64),
+            estoque_id=estoque.pk,
+        )
+    except DadosInvalidos as exc:
+        return render(request, TEMPLATE_PREVIEW_SCPI, {'erro_arquivo': str(exc)})
+
+    if not linhas:
+        return render(
+            request, TEMPLATE_PREVIEW_SCPI, {'erro_arquivo': ERRO_ARQUIVO_SEM_LINHAS}
+        )
+
+    contexto = _contexto_preview_scpi(
+        request,
+        linhas=linhas,
+        nome_arquivo=request.session.get('scpi_preview_nome', 'importacao.csv'),
+    )
+    template = (
+        f'{TEMPLATE_PREVIEW_SCPI}#resultados' if request.htmx else TEMPLATE_PREVIEW_SCPI
+    )
+    resposta = render(request, template, contexto)
+    if request.htmx:
+        resposta['HX-Push-Url'] = url_canonica
+    return resposta
+
+
 @login_required
 @require_http_methods(['GET', 'POST'])
 def preview_importacao_scpi_view(request):
@@ -535,9 +688,7 @@ def preview_importacao_scpi_view(request):
         raise PermissionDenied(str(exc))
 
     if request.method == 'GET':
-        request.session.pop('scpi_preview_bytes', None)
-        request.session.pop('scpi_preview_nome', None)
-        return render(request, 'estoque/preview_importacao_scpi.html', {})
+        return _reabrir_preview_scpi(request)
 
     arquivo = request.FILES.get('arquivo')
     if not arquivo:
@@ -579,12 +730,7 @@ def preview_importacao_scpi_view(request):
         return render(
             request,
             'estoque/preview_importacao_scpi.html',
-            {
-                'erro_arquivo': (
-                    'O arquivo não contém linhas de dados após o cabeçalho. '
-                    'Verifique se há registros abaixo do cabeçalho e envie novamente.'
-                )
-            },
+            {'erro_arquivo': ERRO_ARQUIVO_SEM_LINHAS},
         )
 
     import base64
@@ -592,30 +738,10 @@ def preview_importacao_scpi_view(request):
     request.session['scpi_preview_bytes'] = base64.b64encode(conteudo).decode('ascii')
     request.session['scpi_preview_nome'] = arquivo.name
 
-    total = len(linhas)
-    divergencias = sum(1 for linha in linhas if linha.status == 'divergente')
-    novos = sum(1 for linha in linhas if linha.status == 'novo')
-
-    # A tela existe para evidenciar delta: divergência e material novo primeiro,
-    # linha "OK" por último. Na ordem do arquivo, conferir 12 divergências num
-    # CSV de 800 linhas é caçar. Ordenação estável, então dentro de cada grupo a
-    # ordem do arquivo é preservada — o operador confere contra o papel na mesma
-    # sequência em que ele foi impresso.
-    prioridade_status = {'divergente': 0, 'novo': 1, 'ok': 2}
-    linhas = sorted(linhas, key=lambda linha: prioridade_status.get(linha.status, 3))
-
     return render(
         request,
         'estoque/preview_importacao_scpi.html',
-        {
-            'linhas': linhas,
-            'total': total,
-            'divergencias': divergencias,
-            'novos': novos,
-            'nome_arquivo': arquivo.name,
-            'registro': registro_arquivo_scpi(arquivo.name),
-            'pode_confirmar': True,
-        },
+        _contexto_preview_scpi(request, linhas=linhas, nome_arquivo=arquivo.name),
     )
 
 

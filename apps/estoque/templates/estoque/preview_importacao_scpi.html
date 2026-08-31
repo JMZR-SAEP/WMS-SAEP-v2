@@ -13,7 +13,7 @@
   </p>
 
   {# ── Upload (estado inicial) ─────────────────────────────────────────── #}
-  {% if not linhas and not erro_arquivo %}
+  {% if not em_conferencia and not erro_arquivo %}
     <section
       class="mb-8 rounded-xl border-2 border-dashed border-border bg-surface px-6 py-10 shadow-sm
              transition-colors duration-150 motion-reduce:transition-none"
@@ -149,9 +149,18 @@
       no carregamento não dispara `aria-live`. Mesmo padrão GOV.UK de
       components/error_summary.html. O anel usa `focus:`, não `focus-visible:`,
       que não casa em foco que não veio do teclado.
+
+      As três contagens são a âncora da conferência: num CSV de centenas de
+      linhas elas sumiam na segunda tela e só reapareciam dentro do modal
+      (issue #162). Por isso o invólucro `sticky` logo abaixo da barra de
+      aplicação — `--app-bar-height` é a mesma medida que a sidebar usa —, com
+      fundo opaco para o conteúdo passar por baixo. `z-10` é o degrau de barra
+      de chrome da escala fechada do DESIGN.md: acima do conteúdo, abaixo de
+      popover ancorado (`z-20`) e da barra de aplicação (`z-30`).
     {% endcomment %}
+    <div class="sticky top-[var(--app-bar-height)] z-10 -mx-2 mb-4 bg-bg-page px-2 py-2">
     <div
-      class="mb-4 flex flex-wrap gap-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-border-focus focus:ring-offset-1"
+      class="flex flex-wrap gap-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-border-focus focus:ring-offset-1"
       role="status"
       aria-live="polite"
       tabindex="-1"
@@ -226,6 +235,25 @@
         </form>
       </div>
     </div>
+    </div>{# /invólucro sticky da barra de resumo #}
+
+    {% comment %}
+      Os dois alertas qualificam as contagens logo acima — o que é uma
+      divergência e de quem é a decisão. No rodapé eles chegavam depois de
+      centenas de linhas, ou seja, depois de a decisão já estar tomada (issue
+      #162). `id` no bloco, não em cada alerta: o botão de confirmar o
+      referencia por aria-describedby e os alertas são condicionais. O bloco
+      existe sempre; vazio, o aria-describedby simplesmente não anuncia nada.
+    {% endcomment %}
+    <div id="alertas-importacao" class="mb-4 flex flex-col gap-3">
+      {% if novos > 0 %}
+        {% include "components/alert.html" with variant="info" body_template="estoque/partials/_alert_novos_materiais_corpo.html" %}
+      {% endif %}
+      {% if divergencias > 0 %}
+        {# role="status" explícito: preserva o anúncio não-assertivo original (divergência é esperada no preview, não bloqueante); o automático de variant=warning seria role="alert" #}
+        {% include "components/alert.html" with variant="warning" role="status" body_template="estoque/partials/_alert_divergencias_corpo.html" %}
+      {% endif %}
+    </div>
 
     {# Legenda #}
     {% comment %}
@@ -252,12 +280,29 @@
     </div>
 
     {% comment %}
-      Chegar aqui já garante `linhas`: o ramo de upload cobre a lista vazia sem
-      erro, e o de erro cobre a lista vazia com erro — inclusive o arquivo que
-      só tem cabeçalho, roteado para lá pela view. Não existe estado vazio
-      nesta altura da tela; o que existia era marcação inalcançável.
+      Chips de recorte por status (issues #153/#162): acima da lista, recortam
+      o arquivo inteiro. Um CSV de 300 linhas rende 61 telas, e a maioria delas
+      é linha "OK" — o recorte é o que torna a conferência navegável sem rolar
+      a lista inteira. Vivem fora de #resultados-preview-scpi → reemitidos via
+      hx-swap-oob no partial `resultados` (oob_chips).
     {% endcomment %}
+    {% include "components/filter_chips.html" with chips=chips_filtro target_id="resultados-preview-scpi" %}
 
+    {% comment %}
+      Contagem do recorte aplicado. `role="status"` já implica `aria-live`
+      polite sem declarar o atributo — o único `aria-live=` da tela segue sendo
+      o da barra de resumo. Vive fora do alvo do swap e é atualizado por
+      hx-swap-oob, senão a live region trocada de elemento não anuncia.
+    {% endcomment %}
+    <p id="resumo-recorte-preview" role="status" class="mb-3 text-sm text-text-tertiary">{% if tem_recorte %}Exibindo {{ exibidas }} de {{ total }} linha{{ total|pluralize:"s" }}.{% endif %}</p>
+
+      {# Wrapper estável do swap HTMX: alvo persistente. O fragmento `resultados` entrega só o conteúdo interno. #}
+      <div id="resultados-preview-scpi">
+      {% partialdef resultados %}
+      {% if not linhas %}
+        {% url 'estoque:preview_importacao_scpi' as url_preview_sem_recorte %}
+        {% include 'components/empty_state.html' with icone='components/icons/_funil.html' titulo='Nenhuma linha neste recorte' descricao='O arquivo não tem linhas com o status selecionado.' cta_url=url_preview_sem_recorte cta_label='Ver todas as linhas' cta_secundario=True %}
+      {% endif %}
       {# Uma renderização só, em qualquer largura (DESIGN.md §A Regra do Cartão Único). #}
       <div class="space-y-3">
         {% for linha in linhas %}
@@ -351,38 +396,36 @@
         {% endfor %}
       </div>
 
+      {% comment %}
+        Em resposta HTMX, reemite os chips como swap out-of-band: eles vivem
+        fora de #resultados-preview-scpi, então precisam ser atualizados à parte
+        para refletir o estado ativo e a URL de alternância (regressão #143).
+      {% endcomment %}
+      {% if is_htmx %}{% include "components/filter_chips.html" with chips=chips_filtro target_id="resultados-preview-scpi" oob_chips=True %}{% endif %}
+      {% if is_htmx %}
+      {# Só o conteúdo da live region é trocado; o elemento com role="status" permanece no DOM. #}
+      <span hx-swap-oob="innerHTML:#resumo-recorte-preview">{% if tem_recorte %}Exibindo {{ exibidas }} de {{ total }} linha{{ total|pluralize:"s" }}.{% endif %}</span>
+      {% endif %}
+      {% endpartialdef %}
+      {% partial resultados %}
+      </div>{# /wrapper do swap HTMX #}
 
     {# CTA: confirmação da importação #}
-    {% comment %}
-      `id` no bloco, não em cada alerta: o botão de confirmar o referencia por
-      aria-describedby, e os alertas são condicionais. Sem isso, quem navega por
-      teclado vai da barra de resumo direto ao botão e grava sem passar pela
-      copy que diz de quem é a decisão. O bloco existe sempre; vazio, o
-      aria-describedby simplesmente não anuncia nada.
-    {% endcomment %}
-    <div id="alertas-importacao" class="mt-6 flex flex-col gap-3">
-      {% if novos > 0 %}
-        {% include "components/alert.html" with variant="info" body_template="estoque/partials/_alert_novos_materiais_corpo.html" %}
-      {% endif %}
-      {% if divergencias > 0 %}
-        {# role="status" explícito: preserva o anúncio não-assertivo original (divergência é esperada no preview, não bloqueante); o automático de variant=warning seria role="alert" #}
-        {% include "components/alert.html" with variant="warning" role="status" body_template="estoque/partials/_alert_divergencias_corpo.html" %}
-      {% endif %}
-    </div>
-
     {% if pode_confirmar %}
       {% comment %}
-        Barra fixa no rodapé abaixo de sm, mesmo padrão de atender_retirada.html:
-        um CSV do SCPI traz centenas de linhas, e o botão de confirmar ficava
-        depois de todas elas. z-10 para ficar acima do conteúdo e abaixo de
-        qualquer popover ancorado (z-20).
+        Barra de ação ancorada em TODAS as larguras (issue #162). Abaixo de sm
+        ela é `fixed`, mesmo padrão de atender_retirada.html; de sm para cima
+        vira `sticky bottom-0` — antes o `sm:static` deixava justamente o
+        desktop, que é a cena real deste ritual, como a única largura sem barra,
+        com o botão no fim de centenas de linhas. z-10 para ficar acima do
+        conteúdo e abaixo de qualquer popover ancorado (z-20).
 
         E confirmação por modal, não submit direto: esta é a única escrita
         irreversível do sistema, e era a única sem porta. O `descricao` do modal
         não repete o resumo — quem faz isso é o corpo, com os números.
       {% endcomment %}
       <div
-        class="fixed inset-x-0 bottom-0 z-10 mt-6 flex flex-nowrap items-center justify-end gap-2 border-t border-border bg-surface px-4 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] sm:static sm:z-auto sm:gap-3 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:pb-0"
+        class="fixed inset-x-0 bottom-0 z-10 mt-6 flex flex-nowrap items-center justify-end gap-2 border-t border-border bg-surface px-4 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] sm:sticky sm:inset-x-auto sm:gap-3 sm:rounded-t-lg sm:px-4 sm:py-3 sm:pb-3 sm:shadow-sm"
         x-data="modalController({ id: 'confirmar-importacao-scpi' })"
       >
         {% include "components/button.html" with variant="primary" label="Confirmar importação" icon_template="components/icons/confirmar.svg" data_modal_trigger="confirmar-importacao-scpi" aria_describedby="alertas-importacao" class="shrink-0" %}

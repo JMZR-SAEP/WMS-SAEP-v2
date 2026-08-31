@@ -1507,6 +1507,207 @@ class TestPreviewImportacaoScpiView:
         assert b'CADPRO' in resp.content or b'inv' in resp.content.lower()
 
 
+class TestRecorteEAncoraDoPreviewScpi:
+    """Recorte por status e âncoras da conferência SCPI (issue #162).
+
+    Um CSV de 300 linhas rende ~61 telas e quase todas são linha "OK". Sem
+    recorte, sem contagem que acompanhe a rolagem e sem barra de ação acima de
+    `sm`, a conferência vira caçada. Os casos abaixo prendem as quatro decisões:
+    o recorte vive na URL, as contagens descrevem o arquivo inteiro, os alertas
+    chegam antes da lista e as duas barras ficam ancoradas.
+    """
+
+    URL = '/estoque/importacao-scpi/pre-visualizacao/'
+
+    def _subir_csv(self, client, superuser, material_scpi, material_scpi_critico):
+        """Sobe um CSV com um de cada status: divergente, novo e ok."""
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        client.force_login(superuser)
+        csv_bytes = (
+            f'CADPRO;DENOMINACAO;QUAN3\n'
+            f'{material_scpi_critico.codigo};Saldo igual;2.000\n'
+            f'000.000.999;Material Novo;5.000\n'
+            f'{material_scpi.codigo};Saldo diferente;250.000\n'
+        ).encode('utf-8')
+        arquivo = SimpleUploadedFile('teste.csv', csv_bytes, content_type='text/csv')
+        return client.post(self.URL, {'arquivo': arquivo})
+
+    def test_preview_oferece_recorte_reusando_o_componente_de_chips(
+        self, client, superuser, estoque_principal, material_scpi, material_scpi_critico
+    ):
+        """Os dois recortes que a conferência pede, no componente que já existe.
+
+        Marcação nova para chip seria um segundo vocabulário de recorte na
+        mesma aplicação; `components/filter_chips.html` já é o daqui.
+        """
+        conteudo = self._subir_csv(
+            client, superuser, material_scpi, material_scpi_critico
+        ).content.decode()
+
+        assert 'id="filter-chips"' in conteudo
+        assert 'Só divergências' in conteudo
+        assert 'Só materiais novos' in conteudo
+        assert 'status=divergente' in conteudo
+        assert 'status=novo' in conteudo
+
+    def test_recorte_e_estado_de_url_e_sobrevive_ao_link_compartilhado(
+        self, client, superuser, estoque_principal, material_scpi, material_scpi_critico
+    ):
+        """Abrir a URL do recorte devolve o recorte, não a lista inteira.
+
+        O clique no chip é um GET: a conferência é regerada do arquivo que a
+        sessão guarda para a confirmação, e a URL — não um estado de
+        JavaScript — decide o que a lista mostra (issue #152).
+        """
+        self._subir_csv(client, superuser, material_scpi, material_scpi_critico)
+
+        resp = client.get(self.URL, {'status': 'divergente'})
+
+        assert resp.status_code == 200
+        assert [linha.status for linha in resp.context['linhas']] == ['divergente']
+        assert material_scpi.codigo.encode() in resp.content
+        assert material_scpi_critico.codigo.encode() not in resp.content
+
+    def test_querystring_do_recorte_e_normalizada_por_302(
+        self, client, superuser, estoque_principal, material_scpi, material_scpi_critico
+    ):
+        """Mesmo recorte lógico, mesma URL — senão o link deixa de ser recorte."""
+        self._subir_csv(client, superuser, material_scpi, material_scpi_critico)
+
+        resp = client.get(f'{self.URL}?status=novo&status=&status=divergente')
+
+        assert resp.status_code == 302
+        assert resp['Location'] == f'{self.URL}?status=divergente&status=novo'
+
+    def test_status_ok_fica_fora_da_allowlist_e_nao_prende_o_recorte(
+        self, client, superuser, estoque_principal, material_scpi, material_scpi_critico
+    ):
+        """`?status=ok` não é recorte: mostra o arquivo inteiro, sem trava.
+
+        Não há chip "só OK" nem CTA de volta quando a lista não é vazia, então
+        aceitar `ok` deixava o link compartilhado preso nesse recorte.
+        """
+        self._subir_csv(client, superuser, material_scpi, material_scpi_critico)
+
+        resp = client.get(self.URL, {'status': 'ok'})
+
+        assert resp.status_code == 200
+        assert resp.context['tem_recorte'] is False
+        assert resp.context['exibidas'] == resp.context['total'] == 3
+
+    def test_contagens_descrevem_o_arquivo_inteiro_mesmo_sob_recorte(
+        self, client, superuser, estoque_principal, material_scpi, material_scpi_critico
+    ):
+        """A barra de resumo é a âncora da conferência, não o rodapé da lista.
+
+        Se as contagens encolhessem junto com o recorte, o número que a pessoa
+        confere contra o papel mudaria de significado a cada clique de chip.
+        """
+        self._subir_csv(client, superuser, material_scpi, material_scpi_critico)
+
+        resp = client.get(self.URL, {'status': 'divergente'})
+
+        assert resp.context['total'] == 3
+        assert resp.context['divergencias'] == 1
+        assert resp.context['novos'] == 1
+        assert resp.context['exibidas'] == 1
+
+    def test_recorte_vazio_mostra_estado_vazio_com_saida(
+        self, client, superuser, estoque_principal, material_scpi
+    ):
+        """Recorte sem resultado precisa de porta de volta, não de lista muda."""
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        client.force_login(superuser)
+        csv_bytes = (
+            f'CADPRO;DENOMINACAO;QUAN3\n{material_scpi.codigo};Saldo igual;100.000\n'
+        ).encode('utf-8')
+        client.post(
+            self.URL,
+            {'arquivo': SimpleUploadedFile('teste.csv', csv_bytes, 'text/csv')},
+        )
+
+        conteudo = client.get(self.URL, {'status': 'novo'}).content.decode()
+
+        assert 'Nenhuma linha neste recorte' in conteudo
+        assert 'Ver todas as linhas' in conteudo
+
+    def test_htmx_devolve_so_o_fragmento_com_push_url_e_chips_oob(
+        self, client, superuser, estoque_principal, material_scpi, material_scpi_critico
+    ):
+        """Os chips vivem fora do alvo do swap — sem reemite OOB, congelam.
+
+        Mesma regressão da #143: sem o `hx-swap-oob`, o estado ativo e a URL de
+        alternância ficam presos na primeira renderização.
+        """
+        self._subir_csv(client, superuser, material_scpi, material_scpi_critico)
+
+        resp = client.get(
+            self.URL, {'status': 'divergente'}, headers={'hx-request': 'true'}
+        )
+        conteudo = resp.content.decode()
+
+        assert resp['HX-Push-Url'] == f'{self.URL}?status=divergente'
+        assert 'Importação SCPI — Pré-visualização' not in conteudo
+        assert 'hx-swap-oob="true"' in conteudo
+        assert 'hx-swap-oob="innerHTML:#resumo-recorte-preview"' in conteudo
+
+    def test_get_sem_conferencia_pendente_volta_ao_formulario_de_upload(
+        self, client, superuser
+    ):
+        """Sem arquivo na sessão o estado inicial da tela segue sendo o upload."""
+        client.force_login(superuser)
+
+        conteudo = client.get(self.URL).content.decode()
+
+        assert 'Carregar arquivo CSV do SCPI' in conteudo
+        assert 'id="filter-chips"' not in conteudo
+
+    def test_barra_de_acao_fica_ancorada_em_todas_as_larguras(
+        self, client, superuser, estoque_principal, material_scpi, material_scpi_critico
+    ):
+        """`sm:static` deixava o desktop — a cena real do ritual — sem barra.
+
+        O botão de confirmar ficava depois de centenas de linhas exatamente na
+        largura em que a conferência acontece.
+        """
+        conteudo = self._subir_csv(
+            client, superuser, material_scpi, material_scpi_critico
+        ).content.decode()
+
+        assert 'sm:static' not in conteudo
+        assert 'sm:sticky' in conteudo
+
+    def test_barra_de_resumo_acompanha_a_rolagem_abaixo_da_barra_de_aplicacao(
+        self, client, superuser, estoque_principal, material_scpi, material_scpi_critico
+    ):
+        """Sticky ancorado em `--app-bar-height` e no degrau `z-10` da escala.
+
+        A barra de aplicação já ocupa o topo (`z-30`); a de resumo cola logo
+        abaixo dela e fica acima do conteúdo, porém abaixo de popover ancorado
+        (`z-20`) — a escala de empilhamento do DESIGN.md é fechada.
+        """
+        conteudo = self._subir_csv(
+            client, superuser, material_scpi, material_scpi_critico
+        ).content.decode()
+
+        assert 'sticky top-[var(--app-bar-height)] z-10' in conteudo
+
+    def test_alertas_qualificam_as_contagens_antes_da_lista(
+        self, client, superuser, estoque_principal, material_scpi, material_scpi_critico
+    ):
+        """No rodapé, os dois alertas chegavam depois da decisão já tomada."""
+        conteudo = self._subir_csv(
+            client, superuser, material_scpi, material_scpi_critico
+        ).content.decode()
+
+        assert conteudo.index('id="alertas-importacao"') < conteudo.index(
+            'id="resultados-preview-scpi"'
+        )
+        assert 'aria-describedby="alertas-importacao"' in conteudo
+
+
 class TestConfirmarImportacaoScpiView:
     """Contrato HTTP de confirmar_importacao_scpi_view (POST) + sucesso_importacao_scpi_view (GET)."""
 
