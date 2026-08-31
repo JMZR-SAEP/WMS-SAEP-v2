@@ -1,6 +1,33 @@
-{% comment %}Corpo do alerta de sucesso em confirmar_importacao_scpi.html.{% endcomment %}
-<p class="text-sm font-semibold text-success-text-emphasis">Importação confirmada com sucesso</p>
-<dl class="mt-2 grid grid-cols-3 gap-3 text-sm text-success-text-emphasis">
+{% comment %}
+  Corpo do alerta de sucesso em confirmar_importacao_scpi.html.
+
+  O nome do arquivo quebra em qualquer ponto (`break-all`), e o `<code>` é
+  `inline-block` com `max-w-full`: sem isso ele estourava o alerta e levava a
+  página inteira junto. Medido a 375px — o `<code>` chegava a `right: 404,6px`
+  num viewport de 375, único elemento a transbordar, e produzia barra de
+  rolagem horizontal na página. Nome de arquivo do SCPI não tem espaço para o
+  navegador quebrar sozinho: `SCPI_SALDOS_2026_08_31_ALMOXARIFADO_CENTRAL.csv`
+  é uma palavra só de 46 caracteres.
+
+  A data passa por `date:"d/m/Y H:i"`, a grafia do resto do sistema. Sem o
+  filtro, o `DateTimeField` caía na localização longa do Django e saía
+  "31 de Agosto de 2026 às 09:18" — enquanto o histórico de importações
+  (`historico_importacoes_scpi.html`) imprime o **mesmo campo** como
+  "31/08/2026 09:18". Duas grafias para o mesmo instante em duas telas que a
+  pessoa percorre em sequência: a de sucesso oferece "Ver histórico de
+  importações" como primeira ação.
+
+  Os tokens de cor não se repetem por elemento: `components/alert.html` já
+  entrega `text-success-text-emphasis` na caixa, e redeclará-lo aqui acopla o
+  corpo à variante — um chamador que passasse outra variante teria a cor do
+  texto brigando com a da caixa.
+
+  Caixa alta nos `<dt>` é legítima aqui e não fere a Regra da Caixa Alta
+  Estrutural: são três rótulos impressos **uma vez**, não rótulo repetido por
+  registro de listagem.
+{% endcomment %}
+<p class="font-semibold">Importação confirmada com sucesso</p>
+<dl class="mt-2 grid grid-cols-3 gap-3">
   <div>
     <dt class="text-xs font-medium uppercase tracking-wide">Linhas</dt>
     <dd class="mt-0.5 font-semibold tabular-nums">{{ importacao.total_linhas }}</dd>
@@ -14,7 +41,7 @@
     <dd class="mt-0.5 font-semibold tabular-nums">{{ importacao.total_divergentes }}</dd>
   </div>
 </dl>
-<p class="mt-2 text-xs text-success-text-emphasis">
-  Arquivo: <code class="font-mono">{{ importacao.arquivo_nome }}</code> —
-  Importado em {{ importacao.importado_em }}
+<p class="mt-2 text-xs">
+  Arquivo: <code class="inline-block max-w-full break-all font-mono" translate="no">{{ importacao.arquivo_nome }}</code>
+  — Importado em <span class="tabular-nums">{{ importacao.importado_em|date:"d/m/Y H:i" }}</span>
 </p>

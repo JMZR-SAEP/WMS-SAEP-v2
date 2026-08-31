@@ -326,3 +326,101 @@ def test_delta_sem_unidade_ainda_degrada_para_o_numero_certo():
     )
     assert '+1<' in html.replace(' ', '')
     assert ',000' not in html
+
+
+# ─── Alertas do fluxo SCPI ─────────────────────────────────────────────────
+
+
+def _render_alerta(variant, body_template, **contexto):
+    """Renderiza o corpo dentro do `alert.html` de verdade.
+
+    Renderizar o corpo isolado esconderia justamente o que estes testes
+    verificam: o que a caixa já entrega e o corpo não deve repetir.
+    """
+    return render_to_string(
+        'components/alert.html',
+        {'variant': variant, 'body_template': body_template, **contexto},
+    )
+
+
+def _render_erro_scpi(titulo='Erro ao processar o arquivo', detalhe='Detalhe.'):
+    return _render_alerta(
+        'danger',
+        'estoque/partials/_alert_erro_scpi_corpo.html',
+        titulo=titulo,
+        detalhe=detalhe,
+    )
+
+
+def test_alerta_de_erro_scpi_serve_as_duas_portas_de_falha():
+    """Uma caixa, dois títulos — era o mesmo partial escrito duas vezes."""
+    leitura = _render_erro_scpi('Erro ao processar o arquivo', 'CSV inválido.')
+    gravacao = _render_erro_scpi('Erro ao confirmar importação', 'Já importado.')
+    assert 'Erro ao processar o arquivo' in leitura
+    assert 'CSV inválido.' in leitura
+    assert 'Erro ao confirmar importação' in gravacao
+    assert 'Já importado.' in gravacao
+
+
+def test_corpo_de_erro_scpi_nao_redeclara_o_token_da_caixa():
+    """Cor de texto é da variante, e a variante é do chamador.
+
+    Redeclarar `text-danger-text-emphasis` no corpo acopla o corpo à variante:
+    um chamador que passasse outra teria a cor do texto brigando com a da
+    caixa. O `alert.html` já entrega o token.
+    """
+    corpo = render_to_string(
+        'estoque/partials/_alert_erro_scpi_corpo.html',
+        {'titulo': 'T', 'detalhe': 'D'},
+    )
+    assert 'text-danger' not in corpo
+    assert 'text-sm' not in corpo
+    # …e a caixa continua entregando os dois.
+    caixa = _render_erro_scpi()
+    assert 'text-danger-text-emphasis' in caixa
+    assert 'text-sm' in caixa
+
+
+def _importacao(nome='SCPI_SALDOS_2026_08_31_ALMOXARIFADO_CENTRAL.csv'):
+    from datetime import datetime
+
+    return SimpleNamespace(
+        total_linhas=7,
+        total_novos=2,
+        total_divergentes=2,
+        arquivo_nome=nome,
+        importado_em=datetime(2026, 8, 31, 9, 18),
+    )
+
+
+def _render_sucesso(**kwargs):
+    return _render_alerta(
+        'success',
+        'estoque/partials/_alert_sucesso_importacao_corpo.html',
+        importacao=_importacao(**kwargs),
+    )
+
+
+def test_alerta_de_sucesso_usa_a_grafia_de_data_do_sistema():
+    """`historico_importacoes_scpi.html` imprime o mesmo campo como d/m/Y H:i.
+
+    Sem o filtro, o `DateTimeField` caía na localização longa do Django —
+    "31 de Agosto de 2026 às 09:18" — e as duas telas mostravam o mesmo
+    instante em grafias diferentes. A de sucesso oferece "Ver histórico de
+    importações" como primeira ação, ou seja, elas são percorridas em
+    sequência.
+    """
+    html = _render_sucesso()
+    assert '31/08/2026 09:18' in html
+    assert 'de Agosto de' not in html
+
+
+def test_nome_de_arquivo_do_alerta_de_sucesso_pode_quebrar():
+    """Medido a 375px: o `<code>` estourava para 404,6px e rolava a página.
+
+    Nome de arquivo do SCPI é uma palavra só de ~46 caracteres, sem espaço
+    onde o navegador possa quebrar sozinho.
+    """
+    html = _render_sucesso()
+    assert 'break-all' in html
+    assert 'max-w-full' in html
