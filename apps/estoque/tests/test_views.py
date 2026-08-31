@@ -1394,6 +1394,10 @@ class TestPreviewImportacaoScpiView:
         A recapitulação repete os números em vez de mandar rolar de volta —
         inclusive os zeros, porque "nenhum material novo" é informação para quem
         confere contra o papel.
+
+        Cada linha diz o que de fato grava (#164): material novo entra com o
+        saldo do SCPI e esse saldo fica fora do histórico; divergência só
+        registra alerta; "linhas lidas" é métrica de parsing e desce a metadado.
         """
         from django.core.files.uploadedfile import SimpleUploadedFile
 
@@ -1406,10 +1410,52 @@ class TestPreviewImportacaoScpiView:
         arquivo = SimpleUploadedFile('teste.csv', csv_bytes, content_type='text/csv')
         conteudo = client.post(self.URL, {'arquivo': arquivo}).content.decode()
 
-        assert 'Materiais novos a criar' in conteudo
-        assert 'Divergências a registrar' in conteudo
-        assert 'Linhas lidas do arquivo' in conteudo
-        assert 'Nenhum saldo do WMS é sobrescrito' in conteudo
+        assert 'material novo entra com o saldo do SCPI' in conteudo
+        assert 'não gera movimentação no histórico' in conteudo
+        assert 'divergência a registrar' in conteudo
+        assert 'o saldo do WMS não muda' in conteudo
+        assert '2 linhas lidas do arquivo' in conteudo
+
+    def test_modal_quantifica_o_saldo_do_unico_material_novo(
+        self, client, superuser, estoque_principal
+    ):
+        """ "1 material novo entra com o saldo do SCPI (5)" (#164).
+
+        Com exatamente um material novo, a recapitulação diz qual saldo entra —
+        o número já não está na tela no momento de confirmar.
+        """
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        client.force_login(superuser)
+        csv_bytes = b'CADPRO;DENOMINACAO;QUAN3\n000.000.777;Bucha;5.000\n'
+        arquivo = SimpleUploadedFile('teste.csv', csv_bytes, content_type='text/csv')
+        conteudo = client.post(self.URL, {'arquivo': arquivo}).content.decode()
+
+        assert '1 material novo entra com o saldo do SCPI (5)' in conteudo
+        assert 'não gera movimentação no histórico' in conteudo
+
+    def test_arquivo_sem_efeito_nao_oferece_confirmacao(
+        self, client, superuser, estoque_principal, material_scpi
+    ):
+        """Arquivo que não muda nada não abre o modal de gravação definitiva (#164).
+
+        Sem divergência e sem material novo não há escrita irreversível: gritar
+        "A gravação não pode ser desfeita" para um no-op gasta o grito. O CTA
+        some e um alerta informativo explica.
+        """
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        client.force_login(superuser)
+        # material_scpi tem saldo físico 100 — o arquivo bate com o WMS.
+        csv_bytes = self._csv_valido(material_scpi.codigo, '100.000')
+        arquivo = SimpleUploadedFile('igual.csv', csv_bytes, content_type='text/csv')
+        resp = client.post(self.URL, {'arquivo': arquivo})
+        conteudo = resp.content.decode()
+
+        assert resp.context['pode_confirmar'] is False
+        assert 'data-modal-trigger="confirmar-importacao-scpi"' not in conteudo
+        assert 'id="confirmar-importacao-scpi"' not in conteudo
+        assert 'Não há nada a importar' in conteudo
 
     def test_modal_do_scpi_nomeia_o_arquivo_na_linha_de_identidade(
         self, client, superuser, estoque_principal, material_scpi

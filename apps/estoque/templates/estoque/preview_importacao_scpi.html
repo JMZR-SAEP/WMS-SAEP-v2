@@ -257,6 +257,16 @@
       existe sempre; vazio, o aria-describedby simplesmente não anuncia nada.
     {% endcomment %}
     <div id="alertas-importacao" class="mb-4 flex flex-col gap-3">
+      {% if novos == 0 and divergencias == 0 %}
+        {% comment %}
+          Arquivo sem efeito: nada a criar, nada a registrar. Não há escrita
+          irreversível, então o CTA de confirmação nem aparece (`pode_confirmar`
+          é falso na view) e este alerta explica por quê — em vez de o modal
+          gritar "A gravação não pode ser desfeita" para um arquivo que não
+          muda nada (#164).
+        {% endcomment %}
+        {% include "components/alert.html" with variant="info" message="Este arquivo confere com o WMS: nenhuma divergência e nenhum material novo. Não há nada a importar — envie outro arquivo se quiser conferir outro recorte." %}
+      {% endif %}
       {% if novos > 0 %}
         {% include "components/alert.html" with variant="info" body_template="estoque/partials/_alert_novos_materiais_corpo.html" %}
       {% endif %}
