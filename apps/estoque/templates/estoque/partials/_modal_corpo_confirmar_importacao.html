@@ -26,6 +26,12 @@
   que zero; aqui as duas linhas aparecem sempre, inclusive os zeros — "nenhum
   material novo" é informação para quem confere.
 
+  O zero sai como `<p>`, fora da `<dl>`: o par `<dt>`/`<dd>` só existe quando há
+  consequência a descrever, e grupo de description list sem nenhum `<dd>` viola
+  o modelo de conteúdo do elemento e some da árvore de acessibilidade como par.
+  A `<dl>` some inteira quando as duas contagens são zero — caso que na prática
+  não abre modal, porque arquivo sem efeito não oferece confirmação.
+
   O nome do arquivo saiu daqui (#138): ele é a identidade do registro sendo
   confirmado, e passou para a linha de identidade do cabeçalho, que é onde todo
   modal do sistema a carrega.
@@ -34,40 +40,46 @@
   `components/_modal_body.html` a renderiza logo abaixo deste corpo, com ênfase
   maior que a das contagens.
 {% endcomment %}
-<dl class="space-y-3 text-sm">
-  <div>
-    <dt class="font-semibold text-text-primary">
-      {% if novos == 0 %}
-        Nenhum material novo a criar
-      {% elif novos == 1 %}
-        1 material novo entra com o saldo do SCPI ({{ linha_nova_unica.saldo_scpi|formatar_quantidade:linha_nova_unica.unidade }})
-      {% else %}
-        {{ novos }} materiais novos entram com o saldo do SCPI
+<div class="space-y-3 text-sm">
+  {% if novos == 0 %}
+    <p class="font-semibold text-text-primary">Nenhum material novo a criar</p>
+  {% endif %}
+  {% if novos > 0 or divergencias > 0 %}
+    <dl class="space-y-3">
+      {% if novos > 0 %}
+        <div>
+          <dt class="font-semibold text-text-primary">
+            {% if novos == 1 %}
+              1 material novo entra com o saldo do SCPI ({{ linha_nova_unica.saldo_scpi|formatar_quantidade:linha_nova_unica.unidade }})
+            {% else %}
+              {{ novos }} materiais novos entram com o saldo do SCPI
+            {% endif %}
+          </dt>
+          <dd class="mt-1 text-text-secondary">
+            O saldo inicial de material novo não gera movimentação no histórico de estoque.
+          </dd>
+        </div>
       {% endif %}
-    </dt>
-    {% if novos > 0 %}
-      <dd class="mt-1 text-text-secondary">
-        O saldo inicial de material novo não gera movimentação no histórico de estoque.
-      </dd>
-    {% endif %}
-  </div>
-  <div>
-    <dt class="font-semibold text-text-primary">
-      {% if divergencias == 0 %}
-        Nenhuma divergência a registrar
-      {% elif divergencias == 1 %}
-        1 divergência a registrar
-      {% else %}
-        {{ divergencias }} divergências a registrar
+      {% if divergencias > 0 %}
+        <div>
+          <dt class="font-semibold text-text-primary">
+            {% if divergencias == 1 %}
+              1 divergência a registrar
+            {% else %}
+              {{ divergencias }} divergências a registrar
+            {% endif %}
+          </dt>
+          <dd class="mt-1 text-text-secondary">
+            Divergência entra como alerta para conferência manual no SCPI — o saldo do WMS não muda.
+          </dd>
+        </div>
       {% endif %}
-    </dt>
-    {% if divergencias > 0 %}
-      <dd class="mt-1 text-text-secondary">
-        Divergência entra como alerta para conferência manual no SCPI — o saldo do WMS não muda.
-      </dd>
-    {% endif %}
-  </div>
-</dl>
+    </dl>
+  {% endif %}
+  {% if divergencias == 0 %}
+    <p class="font-semibold text-text-primary">Nenhuma divergência a registrar</p>
+  {% endif %}
+</div>
 
 <p class="mt-4 text-xs text-text-tertiary">
   {{ total }} linha{{ total|pluralize:"s" }} lida{{ total|pluralize:"s" }} do arquivo.

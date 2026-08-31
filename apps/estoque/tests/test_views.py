@@ -25,6 +25,23 @@ PATH_DEVOLVER = 'M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62'
 PATH_ALERTA = 'M18 10A8 8 0 1 1 2 10a8 8 0 0 1 16 0Z'
 
 
+def assert_todo_dt_tem_dd(html: str) -> None:
+    """Cada grupo de `<dl>` precisa de ao menos um `<dd>`.
+
+    O modelo de conteúdo do elemento pareia nome e valor; `<dt>` sozinho não
+    chega à árvore de acessibilidade como par, e o leitor de tela anuncia um
+    termo sem definição. A varredura é por `<dl>`, contando `<dt>` e `<dd>`
+    dentro dela, porque o pareamento é dentro da lista, não do documento.
+    """
+    for lista in re.findall(r'<dl\b.*?</dl>', html, re.S | re.I):
+        termos = len(re.findall(r'<dt\b', lista, re.I))
+        definicoes = len(re.findall(r'<dd\b', lista, re.I))
+        assert termos <= definicoes, (
+            f'<dl> com {termos} <dt> e {definicoes} <dd>: '
+            f'há termo sem definição.\n{lista}'
+        )
+
+
 class TestListarSaidasExcepcionaisView:
     def test_chefe_almox_acessa_lista(self, client, chefe_almoxarifado):
         client.force_login(chefe_almoxarifado)
@@ -1433,6 +1450,48 @@ class TestPreviewImportacaoScpiView:
 
         assert '1 material novo entra com o saldo do SCPI (5)' in conteudo
         assert 'não gera movimentação no histórico' in conteudo
+
+    def test_recapitulacao_sem_material_novo_nao_deixa_dt_orfao(
+        self, client, superuser, estoque_principal, material_scpi
+    ):
+        """Zero não vira grupo de description list (#164).
+
+        Só divergência: o "nenhum material novo" não tem consequência a
+        descrever, logo não tem `<dd>` — e grupo sem `<dd>` viola o modelo de
+        conteúdo da `<dl>` e some da árvore de acessibilidade como par. O texto
+        continua na tela, como parágrafo.
+        """
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        client.force_login(superuser)
+        arquivo = SimpleUploadedFile(
+            'teste.csv',
+            self._csv_valido(material_scpi.codigo, '150.000'),
+            content_type='text/csv',
+        )
+        conteudo = client.post(self.URL, {'arquivo': arquivo}).content.decode()
+
+        assert 'Nenhum material novo a criar' in conteudo
+        assert 'divergência a registrar' in conteudo
+        assert_todo_dt_tem_dd(conteudo)
+
+    def test_recapitulacao_sem_divergencia_nao_deixa_dt_orfao(
+        self, client, superuser, estoque_principal
+    ):
+        """O espelho do caso acima: só material novo, zero divergência (#164)."""
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        client.force_login(superuser)
+        arquivo = SimpleUploadedFile(
+            'teste.csv',
+            b'CADPRO;DENOMINACAO;QUAN3\n000.000.777;Bucha;5.000\n',
+            content_type='text/csv',
+        )
+        conteudo = client.post(self.URL, {'arquivo': arquivo}).content.decode()
+
+        assert 'Nenhuma divergência a registrar' in conteudo
+        assert 'material novo entra com o saldo do SCPI' in conteudo
+        assert_todo_dt_tem_dd(conteudo)
 
     def test_arquivo_sem_efeito_nao_oferece_confirmacao(
         self, client, superuser, estoque_principal, material_scpi
