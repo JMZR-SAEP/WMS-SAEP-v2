@@ -52,17 +52,26 @@
           {% csrf_token %}
 
           <div>
-            <label
-              for="arquivo"
-              class="mb-1.5 block text-left text-sm font-medium text-text-secondary"
-            >
+            {% comment %}
+              `text-left` sobrevive porque o contêiner do upload é `text-center`
+              e o rótulo não acompanha; é alinhamento, não tipografia, e o
+              guarda de rótulo o admite.
+
+              A coluna de quantidade se chama `QUAN3` no arquivo do SCPI, não
+              `QUANTIDADE`: o leitor aceita cabeçalho que contenha `QUAN3` ou
+              seja exatamente `QT` (`selectors._parse_linhas_csv_scpi`). Quem
+              seguisse esta instrução ao pé da letra recebia "CSV inválido:
+              coluna de quantidade não encontrada" — a tela mandava montar um
+              arquivo que ela mesma recusa.
+            {% endcomment %}
+            <label for="arquivo" class="rotulo-campo text-left">
               Arquivo CSV
               <span class="ml-0.5 text-danger-accent" aria-hidden="true">*</span>
             </label>
             <p id="arquivo-ajuda" class="mb-2 text-left text-xs text-text-tertiary">
               Formato esperado: delimitado por ponto-e-vírgula, com colunas
               <code class="rounded bg-bg-subtle px-1 font-mono" translate="no">CADPRO</code> e
-              <code class="rounded bg-bg-subtle px-1 font-mono" translate="no">QUANTIDADE</code>.
+              <code class="rounded bg-bg-subtle px-1 font-mono" translate="no">QUAN3</code>.
             </p>
             <input
               id="arquivo"
@@ -105,7 +114,7 @@
       {% csrf_token %}
       <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
         <div class="flex-1">
-          <label for="arquivo-retry" class="mb-1.5 block text-sm font-medium text-text-secondary">
+          <label for="arquivo-retry" class="rotulo-campo">
             Arquivo CSV
             <span class="ml-0.5 text-danger-accent" aria-hidden="true">*</span>
           </label>
@@ -163,16 +172,31 @@
         <span class="text-sm text-warning-text-subtle">divergênc{{ divergencias|pluralize:"ia,ias" }}</span>
       </div>
 
-      <div class="flex min-w-0 items-center gap-2 rounded-lg border border-return-border bg-return-subtle px-4 py-2.5 shadow-sm">
-        <svg class="h-4 w-4 shrink-0 text-return" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+      {% comment %}
+        Azul, não teal. "Material novo" aparecia teal aqui, teal na legenda,
+        teal no badge do cartão — e azul no alerta que explica o que vai
+        acontecer com ele, a 30px de distância. Um conceito, duas cores na
+        mesma tela.
+
+        O lado que muda é este, não o alerta, por duas razões. `DESIGN.md`
+        reserva o teal a devolução e reversão operacional ("existe precisamente
+        para não usar vermelho num evento legítimo"), e material novo não é
+        nem uma nem outra — `_badge_tipo_movimentacao.html` já usa teal para
+        `devolucao`, então repeti-lo aqui colide. E `components/alert.html` não
+        tem variante teal: alinhar pelo outro lado significaria inventar uma
+        família de alerta para um caso só.
+      {% endcomment %}
+      <div class="flex min-w-0 items-center gap-2 rounded-lg border border-primary-border bg-primary-subtle px-4 py-2.5 shadow-sm">
+        <svg class="h-4 w-4 shrink-0 text-primary" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
           <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-11.25a.75.75 0 00-1.5 0v2.5h-2.5a.75.75 0 000 1.5h2.5v2.5a.75.75 0 001.5 0v-2.5h2.5a.75.75 0 000-1.5h-2.5v-2.5z" clip-rule="evenodd"/>
         </svg>
-        <span class="text-lg font-bold tabular-nums text-return-text-strong">{{ novos }}</span>
-        <span class="text-sm text-return-text">materia{{ novos|pluralize:"l,is" }} novo{{ novos|pluralize:"s" }}</span>
+        <span class="text-lg font-bold tabular-nums text-primary-text-strong">{{ novos }}</span>
+        <span class="text-sm text-primary-text">materia{{ novos|pluralize:"l,is" }} novo{{ novos|pluralize:"s" }}</span>
       </div>
 
       <div class="ml-auto flex shrink-0 items-center gap-2">
-        <span class="hidden max-w-[12rem] truncate text-xs text-text-disabled sm:block" title="{{ nome_arquivo }}">
+        {# `text-text-disabled` media 2,51:1 sobre `bg-page` — reprova o 4,5:1 da AA, e o nome do arquivo é a identidade do que está na tela. #}
+        <span class="hidden max-w-[12rem] truncate text-xs text-text-tertiary sm:block" title="{{ nome_arquivo }}">
           {{ nome_arquivo }}
         </span>
         <form method="post" enctype="multipart/form-data" class="inline">
@@ -204,7 +228,15 @@
     </div>
 
     {# Legenda #}
-    <div class="mb-3 flex flex-wrap gap-4 text-xs text-text-secondary" aria-label="Legenda de status">
+    {% comment %}
+      `<h2 class="sr-only">` e não `aria-label` no `<div>`: rótulo acessível em
+      elemento genérico sem `role` não tem exposição garantida pela spec ARIA —
+      é o mesmo argumento que `_badge_tipo_movimentacao.html` usa para preferir
+      `prefixo_sr` a `aria-label` num `<span>`. Com o heading, a legenda vira
+      região navegável por heading e o nome sempre é lido.
+    {% endcomment %}
+    <h2 class="sr-only">Legenda de status</h2>
+    <div class="mb-3 flex flex-wrap gap-4 text-xs text-text-secondary">
       <span class="flex items-center gap-1.5">
         <span class="inline-block h-3 w-3 rounded-sm bg-success-muted ring-1 ring-success-border" aria-hidden="true"></span>
         Saldo igual
@@ -214,7 +246,7 @@
         Divergência (SCPI ≠ WMS)
       </span>
       <span class="flex items-center gap-1.5">
-        <span class="inline-block h-3 w-3 rounded-sm bg-return-muted ring-1 ring-return-border" aria-hidden="true"></span>
+        <span class="inline-block h-3 w-3 rounded-sm bg-primary-muted ring-1 ring-primary-border" aria-hidden="true"></span>
         Material novo (apenas no SCPI)
       </span>
     </div>
@@ -226,15 +258,13 @@
       nesta altura da tela; o que existia era marcação inalcançável.
     {% endcomment %}
 
-      {# ── Desktop: tabela ─────────────────────────────────────────────── #}
-
-      {# ── Mobile: cards ───────────────────────────────────────────────── #}
+      {# Uma renderização só, em qualquer largura (DESIGN.md §A Regra do Cartão Único). #}
       <div class="space-y-3">
         {% for linha in linhas %}
           <article
             class="rounded-xl border px-4 py-4 shadow-sm
               {% if linha.status == 'divergente' %}border-warning-border bg-warning-subtle
-              {% elif linha.status == 'novo' %}border-return-border bg-return-subtle
+              {% elif linha.status == 'novo' %}border-primary-border bg-primary-subtle
               {% else %}border-border bg-surface{% endif %}"
           >
             <div class="flex items-start justify-between gap-3">
@@ -245,12 +275,23 @@
                 {% elif linha.status == 'divergente' %}
                   {% include "components/badge.html" with variant="amber" label="Divergência" aria_label="Divergência: saldo SCPI difere do WMS" %}
                 {% else %}
-                  {% include "components/badge.html" with variant="teal" label="Novo" aria_label="Material novo: não existe no WMS" %}
+                  {% include "components/badge.html" with variant="blue" label="Novo" aria_label="Material novo: não existe no WMS" %}
                 {% endif %}
               </span>
             </div>
+            {% comment %}
+              Na linha nova, o nome exibido é a **denominação do SCPI** — a
+              mesma que `confirmar_importacao_scpi` grava
+              (`nome=linha.denominacao_scpi or linha.cadpro`). Antes saía o
+              literal "Novo material", enquanto o alerta logo abaixo prometia
+              criar "com a denominação do SCPI": o operador não tinha como
+              conferir o que ia ser criado, justo na tela que existe para
+              conferir. O `<em class="not-italic">` que embrulhava o literal
+              era ênfase semântica sem ênfase visual, sobre texto que nem era
+              dado.
+            {% endcomment %}
             <p class="mt-1 text-sm text-text-secondary">
-              {% if linha.nome_material %}{{ linha.nome_material }}{% else %}<em class="not-italic text-return-text">Novo material</em>{% endif %}
+              {% firstof linha.nome_material linha.denominacao_scpi linha.cadpro %}
             </p>
             <dl class="mt-3 grid grid-cols-3 gap-2 text-sm">
               {% comment %}
@@ -271,9 +312,24 @@
               </div>
               <div>
                 <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Delta</dt>
-                <dd class="mt-0.5 font-mono tabular-nums font-semibold
-                  {% if linha.delta > 0 %}text-success-text{% elif linha.delta < 0 %}text-danger-text{% else %}text-text-disabled{% endif %}">
-                  {% if linha.delta > 0 %}▲ +{{ linha.delta|formatar_quantidade:linha.unidade }}{% elif linha.delta < 0 %}▼ {{ linha.delta|formatar_quantidade:linha.unidade }}{% else %}—{% endif %}
+                {% comment %}
+                  Cor neutra, como em `_delta_movimentacao.html`. Verde no
+                  delta positivo e vermelho no negativo diziam bom/ruim sobre
+                  uma **divergência**, que não é nem uma coisa nem outra — o
+                  PRODUCT.md a declara "estado normal e esperado". O estado da
+                  linha já é carimbado duas vezes, pela lavagem do cartão e
+                  pelo badge; a Regra do Sinal Único reserva a cor para isso.
+
+                  O triângulo é `aria-hidden`: leitor de tela lia o nome
+                  Unicode do glifo antes do número. A direção já está no sinal
+                  `+`/`−`, que é texto.
+
+                  Zero imprime `0`, não `—`: mesma grafia do ledger, e o
+                  travessão em `text-text-disabled` media 2,63:1 (reprova AA)
+                  para dizer "os saldos batem", que é informação.
+                {% endcomment %}
+                <dd class="mt-0.5 font-mono font-semibold tabular-nums text-text-primary">
+                  {% if linha.delta > 0 %}<span aria-hidden="true">▲</span> +{{ linha.delta|formatar_quantidade:linha.unidade }}{% elif linha.delta < 0 %}<span aria-hidden="true">▼</span> {{ linha.delta|formatar_quantidade:linha.unidade }}{% else %}0{% endif %}
                 </dd>
               </div>
             </dl>
