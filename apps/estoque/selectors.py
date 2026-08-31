@@ -65,6 +65,7 @@ class LinhaPreviewSCPI:
     saldo_scpi: Decimal
     delta: Decimal
     status: str  # 'ok' | 'divergente' | 'novo'
+    unidade: str
 
 
 def _normalizar_csv_scpi(conteudo_bytes: bytes) -> str:
@@ -158,7 +159,11 @@ def gerar_preview_importacao_scpi(
     Compara CADPRO → Material.codigo contra saldo_fisico do estoque indicado.
     Não persiste nenhuma alteração.
     """
-    from apps.estoque.models import Material, SaldoEstoque
+    from apps.estoque.models import (
+        UNIDADE_PADRAO_MATERIAL_SCPI,
+        Material,
+        SaldoEstoque,
+    )
 
     conteudo = _normalizar_csv_scpi(conteudo_bytes)
     linhas_raw = _parse_linhas_csv_scpi(conteudo)
@@ -170,7 +175,7 @@ def gerar_preview_importacao_scpi(
     materiais = {
         m.codigo: m
         for m in Material.objects.filter(codigo__in=cadpros).only(
-            'id', 'codigo', 'nome'
+            'id', 'codigo', 'nome', 'unidade'
         )
     }
     material_ids = [m.id for m in materiais.values()]
@@ -199,6 +204,10 @@ def gerar_preview_importacao_scpi(
                     saldo_scpi=saldo_scpi,
                     delta=saldo_scpi,
                     status='novo',
+                    # Mesma constante que `confirmar_importacao_scpi` grava
+                    # neste material: o preview não pode prometer uma precisão
+                    # diferente da que a criação aplica.
+                    unidade=UNIDADE_PADRAO_MATERIAL_SCPI,
                 )
             )
             continue
@@ -218,6 +227,7 @@ def gerar_preview_importacao_scpi(
                 saldo_scpi=saldo_scpi,
                 delta=delta,
                 status=status,
+                unidade=material.unidade,
             )
         )
 

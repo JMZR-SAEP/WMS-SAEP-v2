@@ -659,12 +659,12 @@ def confirmar_importacao_scpi(
     from apps.accounts.models import User
     from apps.core.exceptions import ConflitoDominio, DadosInvalidos
     from apps.estoque.models import (
+        UNIDADE_PADRAO_MATERIAL_SCPI,
         Estoque,
         ImportacaoSCPI,
         Material,
         SaldoEstoque,
         StatusImportacaoSCPI,
-        UnidadeMedida,
     )
     from apps.estoque.policies import exigir_pode_confirmar_importacao_scpi
     from apps.estoque.selectors import gerar_preview_importacao_scpi
@@ -710,7 +710,7 @@ def confirmar_importacao_scpi(
             material = Material.objects.create(
                 codigo=linha.cadpro,
                 nome=linha.denominacao_scpi or linha.cadpro,
-                unidade=UnidadeMedida.UNIDADE,
+                unidade=UNIDADE_PADRAO_MATERIAL_SCPI,
                 ativo=True,
             )
             SaldoEstoque.objects.create(

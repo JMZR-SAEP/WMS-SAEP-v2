@@ -1,9 +1,30 @@
 {% comment %}
   Item de resultado do autocomplete de material: código + nome + saldo.
-  Compartilhado pelas 2 buscas de material (requisições e saída excepcional),
-  que retornam o saldo em campos JSON diferentes (`saldo_disponivel` vs
-  `saldo_fisico`) — resolvido em runtime via `??`.
+  Compartilhado pelas 2 buscas de material (requisições e saída excepcional).
   Incluído por `components/autocomplete.html` dentro do escopo Alpine `item`/`idx`.
+
+  As duas buscas devolvem **saldos diferentes**, não o mesmo saldo em campos
+  com nomes diferentes:
+
+  - `requisicoes/views.py` manda `saldo_disponivel`, que é
+    `saldo_fisico - saldo_reservado` — o que sobra para reservar;
+  - `estoque/views.py` (saída excepcional) manda `saldo_fisico`, o que existe
+    na prateleira, reservado incluído.
+
+  O rótulo era `disp:` nos dois. Quem registra saída excepcional lia "disp: 44"
+  quando podia haver 10 reservados para requisições já autorizadas — o número
+  que decide a baixa, com o nome errado em cima. Agora cada campo carrega o
+  próprio rótulo, e a palavra é a mesma que o catálogo usa
+  (`estoque/lista_materiais.html`: `Físico:` / `Reservado:` / `Disponível:`),
+  em caixa baixa porque aqui ela vem inline entre parênteses. Quem confere no
+  catálogo e quem busca aqui leem o mesmo termo para a mesma grandeza. `disp`
+  ainda era abreviação que o vocabulário do produto não usa em lugar nenhum.
+
+  O ramo é escolhido pela **presença da chave**, não pelo `??` que estava aqui
+  antes: rótulo e valor têm de sair do mesmo lado do teste, senão volta a ser
+  possível casar o número de um com o nome do outro. `!== undefined` e não
+  falsidade — saldo zero é resposta legítima, e `0 ?? x` já resolvia certo,
+  mas `0 ||` não resolveria.
 
   Piso de cor dentro de `role="option"`: `text-text-secondary`. O saldo vinha
   em `text-text-disabled`, que mede 2.63:1 no fundo branco e 2.42:1 no fundo
@@ -15,4 +36,9 @@
 {% endcomment %}
 <span class="font-medium text-text-primary" x-text="item.codigo"></span>
 <span class="text-text-secondary" x-text="' — ' + item.nome"></span>
-<span class="ml-1 text-xs text-text-secondary" x-text="'(disp: ' + (item.saldo_disponivel ?? item.saldo_fisico) + ' ' + item.unidade + ')'"></span>
+<span
+  class="ml-1 text-xs text-text-secondary"
+  x-text="item.saldo_disponivel !== undefined
+    ? '(disponível: ' + item.saldo_disponivel + ' ' + item.unidade + ')'
+    : '(físico: ' + item.saldo_fisico + ' ' + item.unidade + ')'"
+></span>

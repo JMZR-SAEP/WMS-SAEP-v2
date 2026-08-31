@@ -8,6 +8,7 @@ badge.html propagaria literalmente, calando o grito para leitor de tela)
 trocam para `prefixo_sr` só no ramo do grito.
 """
 
+from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
@@ -355,3 +356,118 @@ def test_nome_de_arquivo_do_alerta_de_sucesso_pode_quebrar():
     html = _render_sucesso()
     assert 'break-all' in html
     assert 'max-w-full' in html
+
+
+# ─── _autocomplete_item_material.html — o rótulo do saldo ──────────────────
+
+
+def _render_item_material():
+    return render_to_string('estoque/partials/_autocomplete_item_material.html', {})
+
+
+def test_item_de_material_nomeia_cada_saldo_pelo_que_ele_e():
+    """As duas buscas devolvem grandezas diferentes, não a mesma com dois nomes.
+
+    `requisicoes` manda `saldo_disponivel` (físico − reservado); `estoque`
+    (saída excepcional) manda `saldo_fisico`, reservado incluído. O rótulo era
+    `disp:` nos dois: quem registrava saída excepcional lia "disp: 44" com 10
+    reservados para requisições já autorizadas.
+    """
+    html = _render_item_material()
+    assert 'disponível: ' in html
+    assert 'físico: ' in html
+    assert 'disp:' not in html
+
+
+def test_item_de_material_nao_deixa_rotulo_e_valor_se_desencontrarem():
+    """Rótulo e valor têm de sair do mesmo lado do teste.
+
+    Com `??`, o valor caía para `saldo_fisico` enquanto o rótulo continuava
+    fixo em outra grandeza. A guarda é estrutural: cada nome de campo aparece
+    exatamente uma vez, ao lado do próprio rótulo.
+    """
+    html = _render_item_material()
+    assert html.count('item.saldo_disponivel + ') == 1
+    assert html.count('item.saldo_fisico + ') == 1
+    assert '??' not in html
+
+
+def test_item_de_material_ramifica_por_presenca_e_nao_por_falsidade():
+    """Saldo zero é resposta legítima e não pode cair no ramo errado."""
+    assert 'item.saldo_disponivel !== undefined' in _render_item_material()
+
+
+def test_item_de_material_respeita_o_piso_de_cor_da_opcao():
+    """`text-text-disabled` mede 2.63:1 no branco e 2.42:1 na opção ativa.
+
+    O saldo é o número que decide a escolha; não pode ficar abaixo do piso.
+    """
+    assert 'text-text-disabled' not in _render_item_material()
+
+
+# ─── _delta_movimentacao.html — precisão por unidade ───────────────────────
+
+
+def _render_delta(valor, unidade='un'):
+    return render_to_string(
+        'estoque/partials/_delta_movimentacao.html',
+        {'valor': Decimal(valor), 'unidade': unidade},
+    )
+
+
+@pytest.mark.parametrize(
+    'valor,unidade,esperado',
+    [
+        ('1.000', 'un', '+1'),
+        ('-3.000', 'un', '-3'),
+        ('15.000', 'un', '+15'),
+        ('2.500', 'kg', '+2.5'),
+        ('-2.500', 'kg', '-2.5'),
+        ('1.000', 'kg', '+1.0'),
+    ],
+)
+def test_delta_usa_a_precisao_da_unidade(valor, unidade, esperado):
+    """O Decimal do banco carrega três casas; a unidade decide quantas valem.
+
+    Sem o filtro, um delta de 1 saía `+1,000` — em pt-BR isso se lê *mil*, e é
+    exatamente o erro que `apps/core/quantidades.py` foi criado para matar em
+    `atender_retirada`. Aqui o número é lido em pé, no galpão, ao lado do
+    material físico.
+
+    A asserção fecha nas duas bordas do `<span>`: `in` sozinho passaria com
+    `+2.5000`, que é justamente a casa a mais que o filtro existe para tirar.
+    """
+    html = _render_delta(valor, unidade).replace(' ', '')
+    assert f'>{esperado}<' in html
+
+
+@pytest.mark.parametrize('valor', ['1.000', '-3.000', '47.000'])
+def test_delta_nunca_imprime_as_tres_casas_cruas(valor):
+    """Guarda de regressão: o `,000` é o defeito, não o formato.
+
+    Vale a grafia com ponto também — se alguém trocar o filtro por um
+    `floatformat` fixo, o zero à direita volta por outra porta.
+    """
+    html = _render_delta(valor)
+    assert ',000' not in html
+    assert '.000' not in html
+
+
+def test_delta_zero_nao_ganha_casa_decimal_da_unidade():
+    """Zero é ausência de movimento, não quantidade medida.
+
+    Em `kg` o filtro devolveria `0.0`; o literal `0` mantém a coluna curta e
+    diz a coisa certa.
+    """
+    html = _render_delta('0.000', 'kg')
+    assert '>0<' in html.replace(' ', '')
+    assert '0.0' not in html
+
+
+def test_delta_sem_unidade_ainda_degrada_para_o_numero_certo():
+    """Chamador que esquecer a unidade não pode reintroduzir o `1,000`."""
+    html = render_to_string(
+        'estoque/partials/_delta_movimentacao.html', {'valor': Decimal('1.000')}
+    )
+    assert '+1<' in html.replace(' ', '')
+    assert ',000' not in html
