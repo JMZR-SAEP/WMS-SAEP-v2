@@ -260,6 +260,53 @@ def test_corpo_de_alerta_flexiona_singular_e_plural(
         assert proibido not in html
 
 
+# ─── _autocomplete_item_material.html — o rótulo do saldo ──────────────────
+
+
+def _render_item_material():
+    return render_to_string('estoque/partials/_autocomplete_item_material.html', {})
+
+
+def test_item_de_material_nomeia_cada_saldo_pelo_que_ele_e():
+    """As duas buscas devolvem grandezas diferentes, não a mesma com dois nomes.
+
+    `requisicoes` manda `saldo_disponivel` (físico − reservado); `estoque`
+    (saída excepcional) manda `saldo_fisico`, reservado incluído. O rótulo era
+    `disp:` nos dois: quem registrava saída excepcional lia "disp: 44" com 10
+    reservados para requisições já autorizadas.
+    """
+    html = _render_item_material()
+    assert 'disponível: ' in html
+    assert 'físico: ' in html
+    assert 'disp:' not in html
+
+
+def test_item_de_material_nao_deixa_rotulo_e_valor_se_desencontrarem():
+    """Rótulo e valor têm de sair do mesmo lado do teste.
+
+    Com `??`, o valor caía para `saldo_fisico` enquanto o rótulo continuava
+    fixo em outra grandeza. A guarda é estrutural: cada nome de campo aparece
+    exatamente uma vez, ao lado do próprio rótulo.
+    """
+    html = _render_item_material()
+    assert html.count('item.saldo_disponivel + ') == 1
+    assert html.count('item.saldo_fisico + ') == 1
+    assert '??' not in html
+
+
+def test_item_de_material_ramifica_por_presenca_e_nao_por_falsidade():
+    """Saldo zero é resposta legítima e não pode cair no ramo errado."""
+    assert 'item.saldo_disponivel !== undefined' in _render_item_material()
+
+
+def test_item_de_material_respeita_o_piso_de_cor_da_opcao():
+    """`text-text-disabled` mede 2.63:1 no branco e 2.42:1 na opção ativa.
+
+    O saldo é o número que decide a escolha; não pode ficar abaixo do piso.
+    """
+    assert 'text-text-disabled' not in _render_item_material()
+
+
 # ─── _delta_movimentacao.html — precisão por unidade ───────────────────────
 
 
