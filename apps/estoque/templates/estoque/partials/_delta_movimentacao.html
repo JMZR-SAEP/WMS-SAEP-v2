@@ -1,12 +1,39 @@
+{% load core_tags %}
 {% comment %}
-Célula de delta assinado. Recebe `valor` (Decimal). Sinal +/− explícito
-(não depende só de cor); zero atenuado em text-text-tertiary (AA: ~4.6:1). tabular-nums para
+Célula de delta assinado. Recebe `valor` (Decimal) e `unidade` (código da
+unidade de medida do material). Sinal +/− explícito (não depende só de cor);
+zero atenuado em text-text-tertiary (AA: ~4.6:1). tabular-nums para
 alinhamento de colunas numéricas.
+
+`formatar_quantidade` e não o valor cru: `delta_fisico` é
+`DecimalField(decimal_places=3)`, e o Decimal que vem do banco carrega as três
+casas. Em pt-BR o separador
+decimal é a vírgula, então um delta de 1 saía escrito `+1,000` — que no
+galpão se lê *mil*. É o mesmo erro que `apps/core/quantidades.py` foi criado
+para matar em `atender_retirada`, e a política dele é a única fonte de
+precisão por unidade no sistema.
+
+A unidade vem do chamador porque a precisão é dela, não do delta: `un` não
+admite casa decimal, `kg`/`l`/`m` admitem uma, o resto vai por casa
+significativa.
+
+O `{% templatetag openblock %} with u=unidade|default:'' {% templatetag closeblock %}`
+não é adorno: argumento de filtro tem resolução estrita, e um chamador que
+esquecesse `unidade` derrubaria a página inteira com `VariableDoesNotExist`
+em vez de imprimir um número. Com o `with`, a variável ausente cai em
+`string_if_invalid` e o filtro degrada para casa significativa — o número
+certo, nunca o `1,000` que a Regra existe para impedir.
+
+O zero segue impresso como literal `0` e não pelo filtro: é ausência de
+movimento, não uma quantidade medida, e não deve ganhar a casa decimal que a
+unidade fracionária imporia.
 {% endcomment %}
-{% if valor > 0 %}
-  <span class="tabular-nums font-medium text-text-primary">+{{ valor }}</span>
-{% elif valor < 0 %}
-  <span class="tabular-nums font-medium text-text-primary">{{ valor }}</span>
-{% else %}
-  <span class="tabular-nums text-text-tertiary">0</span>
-{% endif %}
+{% with u=unidade|default:'' %}
+  {% if valor > 0 %}
+    <span class="tabular-nums font-medium text-text-primary">+{{ valor|formatar_quantidade:u }}</span>
+  {% elif valor < 0 %}
+    <span class="tabular-nums font-medium text-text-primary">{{ valor|formatar_quantidade:u }}</span>
+  {% else %}
+    <span class="tabular-nums text-text-tertiary">0</span>
+  {% endif %}
+{% endwith %}

@@ -127,11 +127,11 @@
             <dl class="mt-3 grid grid-cols-2 gap-3 text-sm">
               <div class="flex gap-x-2">
                 <dt class="shrink-0 text-text-tertiary">Δ Físico:</dt>
-                <dd class="min-w-0">{% include 'estoque/partials/_delta_movimentacao.html' with valor=mov.delta_fisico %}</dd>
+                <dd class="min-w-0">{% include 'estoque/partials/_delta_movimentacao.html' with valor=mov.delta_fisico unidade=mov.material.unidade %}</dd>
               </div>
               <div class="flex gap-x-2">
                 <dt class="shrink-0 text-text-tertiary">Δ Reservado:</dt>
-                <dd class="min-w-0">{% include 'estoque/partials/_delta_movimentacao.html' with valor=mov.delta_reservado %}</dd>
+                <dd class="min-w-0">{% include 'estoque/partials/_delta_movimentacao.html' with valor=mov.delta_reservado unidade=mov.material.unidade %}</dd>
               </div>
               <div class="flex gap-x-2">
                 <dt class="shrink-0 text-text-tertiary">Origem:</dt>

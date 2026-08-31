@@ -253,19 +253,27 @@
               {% if linha.nome_material %}{{ linha.nome_material }}{% else %}<em class="not-italic text-return-text">Novo material</em>{% endif %}
             </p>
             <dl class="mt-3 grid grid-cols-3 gap-2 text-sm">
+              {% comment %}
+                Os dois saldos passam pela mesma política de precisão
+                (`apps/core/quantidades.py`). É a razão de existir desta tela:
+                sem ela, `saldo_wms` chegava do `DecimalField(…,3)` do banco e
+                `saldo_scpi` do CSV, e a comparação saía `WMS 50,000` ao lado
+                de `SCPI 42` — mesma grandeza, duas grafias, e a da esquerda
+                se lê *cinquenta mil* em pt-BR.
+              {% endcomment %}
               <div>
                 <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">WMS</dt>
-                <dd class="mt-0.5 font-mono tabular-nums text-text-primary">{{ linha.saldo_wms }}</dd>
+                <dd class="mt-0.5 font-mono tabular-nums text-text-primary">{{ linha.saldo_wms|formatar_quantidade:linha.unidade }}</dd>
               </div>
               <div>
                 <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">SCPI</dt>
-                <dd class="mt-0.5 font-mono tabular-nums text-text-primary">{{ linha.saldo_scpi }}</dd>
+                <dd class="mt-0.5 font-mono tabular-nums text-text-primary">{{ linha.saldo_scpi|formatar_quantidade:linha.unidade }}</dd>
               </div>
               <div>
                 <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Delta</dt>
                 <dd class="mt-0.5 font-mono tabular-nums font-semibold
                   {% if linha.delta > 0 %}text-success-text{% elif linha.delta < 0 %}text-danger-text{% else %}text-text-disabled{% endif %}">
-                  {% if linha.delta > 0 %}▲ +{{ linha.delta }}{% elif linha.delta < 0 %}▼ {{ linha.delta }}{% else %}—{% endif %}
+                  {% if linha.delta > 0 %}▲ +{{ linha.delta|formatar_quantidade:linha.unidade }}{% elif linha.delta < 0 %}▼ {{ linha.delta|formatar_quantidade:linha.unidade }}{% else %}—{% endif %}
                 </dd>
               </div>
             </dl>

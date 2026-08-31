@@ -8,6 +8,7 @@ badge.html propagaria literalmente, calando o grito para leitor de tela)
 trocam para `prefixo_sr` só no ramo do grito.
 """
 
+from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
@@ -257,3 +258,67 @@ def test_corpo_de_alerta_flexiona_singular_e_plural(
     assert esperado in html
     if proibido is not None:
         assert proibido not in html
+
+
+# ─── _delta_movimentacao.html — precisão por unidade ───────────────────────
+
+
+def _render_delta(valor, unidade='un'):
+    return render_to_string(
+        'estoque/partials/_delta_movimentacao.html',
+        {'valor': Decimal(valor), 'unidade': unidade},
+    )
+
+
+@pytest.mark.parametrize(
+    'valor,unidade,esperado',
+    [
+        ('1.000', 'un', '+1'),
+        ('-3.000', 'un', '-3'),
+        ('15.000', 'un', '+15'),
+        ('2.500', 'kg', '+2.5'),
+        ('-2.500', 'kg', '-2.5'),
+        ('1.000', 'kg', '+1.0'),
+    ],
+)
+def test_delta_usa_a_precisao_da_unidade(valor, unidade, esperado):
+    """O Decimal do banco carrega três casas; a unidade decide quantas valem.
+
+    Sem o filtro, um delta de 1 saía `+1,000` — em pt-BR isso se lê *mil*, e é
+    exatamente o erro que `apps/core/quantidades.py` foi criado para matar em
+    `atender_retirada`. Aqui o número é lido em pé, no galpão, ao lado do
+    material físico.
+    """
+    assert esperado in _render_delta(valor, unidade)
+
+
+@pytest.mark.parametrize('valor', ['1.000', '-3.000', '47.000'])
+def test_delta_nunca_imprime_as_tres_casas_cruas(valor):
+    """Guarda de regressão: o `,000` é o defeito, não o formato.
+
+    Vale a grafia com ponto também — se alguém trocar o filtro por um
+    `floatformat` fixo, o zero à direita volta por outra porta.
+    """
+    html = _render_delta(valor)
+    assert ',000' not in html
+    assert '.000' not in html
+
+
+def test_delta_zero_nao_ganha_casa_decimal_da_unidade():
+    """Zero é ausência de movimento, não quantidade medida.
+
+    Em `kg` o filtro devolveria `0.0`; o literal `0` mantém a coluna curta e
+    diz a coisa certa.
+    """
+    html = _render_delta('0.000', 'kg')
+    assert '>0<' in html.replace(' ', '')
+    assert '0.0' not in html
+
+
+def test_delta_sem_unidade_ainda_degrada_para_o_numero_certo():
+    """Chamador que esquecer a unidade não pode reintroduzir o `1,000`."""
+    html = render_to_string(
+        'estoque/partials/_delta_movimentacao.html', {'valor': Decimal('1.000')}
+    )
+    assert '+1<' in html.replace(' ', '')
+    assert ',000' not in html
