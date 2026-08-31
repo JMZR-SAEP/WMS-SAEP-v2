@@ -392,7 +392,7 @@ class LinhaDivergenteSCPI(models.Model):
         indexes = [
             models.Index(
                 fields=('importacao', 'cadpro'),
-                name='divergencia_scpi_por_importacao',
+                name='divergencia_scpi_importacao',
             ),
         ]
         # Sem unicidade por (importacao, cadpro) de propósito: o CSV do SCPI não
