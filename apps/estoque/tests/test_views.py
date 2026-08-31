@@ -1190,7 +1190,7 @@ class TestPreviewImportacaoScpiView:
         conteudo = self._preview_de_arquivo_so_com_cabecalho(client, superuser)
 
         assert 'id="erro-arquivo-alerta"' in conteudo
-        assert 'aria-describedby="erro-arquivo-alerta"' in conteudo
+        assert 'aria-describedby="erro-arquivo-alerta arquivo-retry-ajuda"' in conteudo
         assert 'autofocus' in conteudo
 
     def test_preview_nao_carrega_estado_vazio_inalcancavel(
@@ -1285,7 +1285,11 @@ class TestPreviewImportacaoScpiView:
         conteudo = client.post(self.URL, {'arquivo': arquivo}).content.decode()
 
         assert 'id="erro-arquivo-alerta"' in conteudo
-        assert 'aria-describedby="erro-arquivo-alerta"' in conteudo
+        # O erro vem antes da ajuda de formato no `aria-describedby` (#164): o
+        # que deu errado, e então o que se espera.
+        assert 'aria-describedby="erro-arquivo-alerta arquivo-retry-ajuda"' in conteudo
+        assert 'id="arquivo-retry-ajuda"' in conteudo
+        assert 'CADPRO' in conteudo
         assert 'aria-live=' not in conteudo
 
     def test_botao_de_confirmar_e_descrito_pelos_alertas_da_importacao(
