@@ -163,7 +163,6 @@ UTILITIES_ESPERADAS = [
     'text-success-text-strong',
     'text-return-text-strong',
     'text-text-on-primary',
-    'text-success-text',
     'text-return-text',
     'border-danger-border-strong',
     'focus-visible:ring-danger-accent',
@@ -179,7 +178,14 @@ UTILITIES_ESPERADAS = [
 # hoje (toda a família info-*, usada só pelo alert/messages "info" que na
 # verdade consome primary-*). Não devem ter utility compilada — se
 # aparecerem, algo (doc, teste) vazou pro scan.
+#
+# `text-success-text` entrou nesta lista na Etapa 7: o único consumidor era o
+# delta positivo do preview do SCPI, pintado de verde. Verde ali dizia "bom"
+# sobre uma divergência, que o PRODUCT.md declara "estado normal e esperado" —
+# a cor saiu e o token ficou sem uso. As famílias `-emphasis` e `-strong` do
+# mesmo verde continuam consumidas.
 UTILITIES_DORMANTES = [
+    '.text-success-text{',
     '.bg-info{',
     '.bg-info-subtle{',
     '.bg-info-muted{',
