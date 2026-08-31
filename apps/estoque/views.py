@@ -551,6 +551,16 @@ def _contexto_preview_scpi(request, *, linhas, nome_arquivo):
     divergencias = sum(1 for linha in linhas if linha.status == 'divergente')
     novos = sum(1 for linha in linhas if linha.status == 'novo')
 
+    # O modal recapitula o saldo do único material novo quando há exatamente um
+    # ("1 material novo entra com o saldo do SCPI (25)", #164). Com mais de um a
+    # recapitulação volta a ser só a contagem — os valores individuais estão nos
+    # cartões logo acima.
+    linha_nova_unica = (
+        next((linha for linha in linhas if linha.status == 'novo'), None)
+        if novos == 1
+        else None
+    )
+
     # A tela existe para evidenciar delta: divergência e material novo primeiro,
     # linha "OK" por último. Na ordem do arquivo, conferir 12 divergências num
     # CSV de 800 linhas é caçar. Ordenação estável, então dentro de cada grupo a
@@ -605,9 +615,14 @@ def _contexto_preview_scpi(request, *, linhas, nome_arquivo):
         'total': total,
         'divergencias': divergencias,
         'novos': novos,
+        'linha_nova_unica': linha_nova_unica,
         'nome_arquivo': nome_arquivo,
         'registro': registro_arquivo_scpi(nome_arquivo),
-        'pode_confirmar': True,
+        # Arquivo sem divergência e sem material novo não grava nada de
+        # irreversível: não há o que confirmar, e o modal de gravação definitiva
+        # fica fora da tela (#164). A recapitulação nos cartões continua servindo
+        # de conferência.
+        'pode_confirmar': bool(novos or divergencias),
     }
 
 

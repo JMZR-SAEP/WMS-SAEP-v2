@@ -701,7 +701,9 @@ def confirmar_importacao_scpi(
     with transaction.atomic():
         if ImportacaoSCPI.objects.filter(arquivo_hash=arquivo_hash).exists():
             raise ConflitoDominio(
-                'Este arquivo já foi importado anteriormente. Reimportação bloqueada.',
+                'Este arquivo já foi importado anteriormente. Consulte o '
+                'resultado no histórico de importações SCPI; para trazer '
+                'saldos novos, exporte um arquivo atualizado do SCPI.',
                 code='reimportacao_bloqueada',
             )
 
@@ -740,7 +742,9 @@ def confirmar_importacao_scpi(
             )
         except IntegrityError:
             raise ConflitoDominio(
-                'Este arquivo já foi importado anteriormente. Reimportação bloqueada.',
+                'Este arquivo já foi importado anteriormente. Consulte o '
+                'resultado no histórico de importações SCPI; para trazer '
+                'saldos novos, exporte um arquivo atualizado do SCPI.',
                 code='reimportacao_bloqueada',
             )
 

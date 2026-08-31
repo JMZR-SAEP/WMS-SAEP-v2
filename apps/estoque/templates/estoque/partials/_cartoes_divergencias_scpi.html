@@ -40,11 +40,17 @@ Quem chama fecha o container: </div>
           <dd class="mt-0.5 font-mono tabular-nums text-text-primary">{{ linha.saldo_scpi }}</dd>
         </div>
         <div>
+          {% comment %}
+            Delta pelo átomo `_delta_movimentacao.html` — a mesma grafia do
+            histórico de movimentações e do preview do SCPI (issue #163):
+            `font-mono`, cor neutra, `▲`/`▼` `aria-hidden` com o sinal `+`/`−`
+            (U+2212) em texto como portador da direção. `LinhaDivergenteSCPI`
+            não guarda unidade (o CSV do SCPI não a informa); sem `unidade` o
+            átomo degrada para casa significativa, que aqui é o número certo e
+            de quebra some o `,000` que o `{{ linha.delta }}` cru imprimia.
+          {% endcomment %}
           <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Delta</dt>
-          <dd class="mt-0.5 font-mono font-semibold tabular-nums
-            {% if linha.delta > 0 %}text-success-text{% elif linha.delta < 0 %}text-danger-text{% else %}text-text-disabled{% endif %}">
-            {% if linha.delta > 0 %}▲ +{{ linha.delta }}{% elif linha.delta < 0 %}▼ {{ linha.delta }}{% else %}—{% endif %}
-          </dd>
+          <dd class="mt-0.5">{% include "estoque/partials/_delta_movimentacao.html" with valor=linha.delta %}</dd>
         </div>
       </dl>
     </article>
