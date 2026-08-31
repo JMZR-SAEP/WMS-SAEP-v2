@@ -220,7 +220,7 @@ Tela de detalhe:
 - badge de `Estornada` deve usar semântica de reversão/teal se houver classe
   equivalente; não criar paleta nova para isso.
 
-Requisitos de acessibilidade (ver `.design/saida-excepcional/DESIGN_BRIEF.md`):
+Requisitos de acessibilidade (ver `docs/design-system.md` §Checklist de revisão — acessibilidade):
 
 - contraste mínimo WCAG AA em textos, badges e botões;
 - todo input deve ter `<label>` explícito;

@@ -351,7 +351,10 @@
 
   /*
     Top App Bar (Material Design 2 — variant regular, behavior pinned)
-    Spec: .design/topbar/DESIGN_BRIEF.md
+    Spec: DESIGN.md (token `app-bar`, elevação 4dp) e docs/design-system.md
+    (§camadas: `.app-bar` em z-30, `.app-bar__menu-wrap` em z-40).
+    API de slots: blocos `topbar_menu`, `topbar_domain`, `topbar_leading` e
+    `topbar_actions`/`topbar_overflow` em apps/core/templates/base_auth.html.
     Filosofia: surface dark (slate-900) com onSurface slate-50, borda + sombra estáticas.
   */
 

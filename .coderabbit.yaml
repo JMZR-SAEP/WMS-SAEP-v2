@@ -199,15 +199,14 @@ reviews:
         matriz de invariantes, transições de requisição e design-system. Se docs
         e código divergem, sinalize explicitamente em vez de normalizar silêncio.
 
-    - path: ".design/**/*.md"
+    - path: "DESIGN.md"
       instructions: >
-        Design briefs definem contratos de UX. Verifique conflito
-        com CONTEXT.md, ADRs aceitas, docs/CONVENTIONS.md, docs/design-system.md,
-        matriz de permissões, matriz de invariantes, transições de requisição e
-        especificações de processo. Revise alinhamento
-        entre decisões de interface, fluxos de navegação, acessibilidade e
-        regras de domínio. Se design e documentação/código divergem, sinalize
-        explicitamente.
+        DESIGN.md define os contratos de UX em regras nomeadas, cada uma com a
+        medição que a justifica. Verifique conflito com CONTEXT.md, ADRs aceitas,
+        docs/CONVENTIONS.md, docs/design-system.md e os templates vivos. Regra
+        nova sem medição, ou medição que o código já contradiz, deve ser
+        sinalizada. Se design e documentação/código divergem, sinalize
+        explicitamente em vez de normalizar silêncio.
 
     - path: "pyproject.toml"
       instructions: >

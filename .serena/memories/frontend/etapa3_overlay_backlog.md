@@ -88,7 +88,7 @@ Decidido junto, sem precisar de HITL:
   quatro modais que a tinham (estorno de requisição, estorno de saída, SCPI, atender retirada).
   Continua dita uma vez só; o painel de decisão concatena `descricao + consequencia + painel_extra`.
 - **`identificador` NUNCA sai do `__str__` do model.** `str(requisicao)` é `Rascunho #<pk>` e a
-  P3-01 de `.design/detalhe-requisicao/DESIGN_BRIEF.md` proíbe PK interno em UI — há teste
+  regra de `docs/CONVENTIONS.md` §Identificadores na interface proíbe PK interno em UI — há teste
   (`test_detalhe_titulo_rascunho_sem_pk`) que pegou isso na primeira tentativa. Fallbacks:
   `"Rascunho"` e `"Sem número"`.
 - **A quantidade da retirada é lida do DOM, não do servidor.** `_modal_corpo_atender_retirada.html`

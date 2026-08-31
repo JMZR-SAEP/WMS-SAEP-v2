@@ -159,7 +159,7 @@ Decisões arquiteturais e contratos de domínio ficam registrados em ADRs e docu
 - [`docs/CONVENTIONS.md`](docs/CONVENTIONS.md) — arquitetura em camadas e convenções de implementação
 - `docs/adr/` — Architecture Decision Records (contrato service/policy/exceção, estratégia de testes, seed de dev, design system)
 - [`docs/design-system.md`](docs/design-system.md) — frontend server-rendered e sistema de design
-- `.design/` — handoff de design (information architecture, briefs por área)
+- [`DESIGN.md`](DESIGN.md) — regras nomeadas de layout, cor, tipografia e componentes
 - `CONTEXT.md` — glossário e linguagem ubíqua do domínio
 
 ## Fluxo de contribuição

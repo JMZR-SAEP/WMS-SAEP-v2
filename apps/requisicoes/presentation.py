@@ -27,8 +27,8 @@ def registro_requisicao(requisicao: Requisicao) -> dict[str, str]:
 
     `identificador` é o número público, e o fallback do rascunho é o literal
     "Rascunho" — **não** `str(requisicao)`, que cairia no `__str__` do model e
-    devolveria `Rascunho #<pk>`. A regra é a P3-01 de
-    `.design/detalhe-requisicao/DESIGN_BRIEF.md`: PK interno não vaza para UI.
+    devolveria `Rascunho #<pk>`. A regra é `docs/CONVENTIONS.md`
+    §Identificadores na interface: PK interno não vaza para UI.
     O `__str__` continua servindo admin e log, que é para onde ele foi escrito.
 
     O rascunho tem modal (descartar, cancelar, enviar) e não tem número —

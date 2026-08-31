@@ -223,6 +223,75 @@ Logout            → messages.info("Sessão encerrada.")
 Acesso sem login  → redirect limpo para login (sem message)
 ```
 
+## URLs
+
+- Slugs em PT-BR (ver `AGENTS.md`, Convenção de idioma). App namespace declarado
+  com `app_name` no `urls.py` do app.
+- O segmento de identificador é sempre o `pk` numérico. **Nunca expor
+  `numero_publico` como segmento de URL** — ele pode ser nulo em rascunho.
+- Sem query params para navegação básica. `?next=<url>` apenas para preservar a
+  origem no link "← Voltar" de uma tela de detalhe.
+- Filtros e ordenação de listagem vivem na querystring (`?estado=`, `?ordem=`).
+  A URL é a fonte de verdade do recorte, e a querystring canônica é montada em
+  `apps/core/querystring.py` — não monte querystring à mão no template.
+
+A consequência de a URL ser a fonte de verdade é que o recorte é compartilhável e
+sobrevive a um reload. Isso é propriedade do sistema, registrada aqui; a tela não
+a explica ao operador (ver "Vocabulário de interface").
+
+## Vocabulário de interface
+
+Labels da UI. Mapeiam os termos do glossário de `CONTEXT.md` para o contexto
+visual — o glossário define o conceito, esta tabela define como ele aparece na
+tela.
+
+| Conceito (CONTEXT.md) | Label na UI | Notas |
+|---|---|---|
+| Requisição | Requisição | Nunca "pedido", "solicitação" |
+| Numero público | REQ-2026-0042 | Formatado; fallback "Rascunho" |
+| Solicitante | (implícito) | Nunca aparece como label de papel |
+| Beneficiário | Beneficiário | Nome + matrícula |
+| Criador | Criado por | Campo de cabeçalho |
+| Setor beneficiário | Setor | No detalhe; no contexto de autorização "Setor" é sempre o do beneficiário |
+| Aguardando autorização | Aguardando autorização | Badge de estado; nunca "pendente" |
+| Pronta para retirada | Pronta para retirada | Nunca "separada", "pronta" sozinho |
+| Chefe de setor | (implícito) | Papel derivado; não aparece como label |
+| Auxiliar de almoxarifado | (implícito) | Idem |
+| Enviar para autorização | Enviar para autorização | Botão; nunca "submeter" |
+| Retornar para rascunho | Retornar para rascunho | Botão; nunca "rejeitar", "voltar" |
+| Separar para retirada | Separar para retirada | Botão |
+| Atendimento parcial | Atendimento parcial | Label de evento de timeline |
+
+### Identificadores na interface
+
+**PK interno nunca vaza para a UI.** O identificador visível de um registro é o
+número público; o fallback quando ele não existe é um literal — `"Rascunho"` na
+requisição, `"Sem número"` na saída excepcional — e nunca o `__str__` do model,
+que devolve `Rascunho #<pk>` / `Saída #<pk>`. O `__str__` serve admin e log, que
+é para onde foi escrito. Quem responde "qual documento é este" quando não há
+número é o contexto (beneficiário, setor, data), não o pk.
+
+A mesma regra governa a URL: o segmento de rota é o `pk`, mas ele não é
+apresentado como identidade em lugar nenhum da tela.
+
+### Texto de apoio de tela
+
+O parágrafo sob o título de uma tela orienta a tarefa de quem opera: o que a
+lista contém e por quais recortes ela se estreita. Ele não narra o mecanismo da
+implementação.
+
+A regra veio de medição de custo (issue #160, 2026-08-28). O histórico de
+requisições e o de movimentações fechavam o parágrafo com "o recorte fica na URL
+e pode ser compartilhado" — era o único texto de ajuda das duas telas, e gastava
+metade dele explicando querystring, que nenhum papel do `PRODUCT.md` pediu. A
+frase saiu das duas; a propriedade continua verdadeira e continua registrada na
+seção URLs acima.
+
+Vale para tela nova: se uma frase do texto de apoio descreve URL, querystring,
+swap parcial ou cache — coisas que o operador não executa —, ela pertence a este
+documento, não à tela. Não é decisão visual (por isso não está no `DESIGN.md`):
+é vocabulário de interface.
+
 ## Checklist ao adicionar uma feature
 
 - O caso de uso vive em `services.py`? A view ficou fina?

@@ -64,14 +64,13 @@ Consequências que o design não pode contrariar:
 
 Não há identidade de marca. O design system declara explicitamente: "não é identidade de marca. É ferramenta de trabalho." Não existem logo, assets de marca ou tipografia própria no repositório.
 
-O sistema visual incumbente está documentado em `docs/design-system.md` (tokens, componentes, padrões de interação) e os handoffs por tela vivem em `.design/`. Princípios já fixados: pragmático, operacional, neutro, simples, progressivo.
+O sistema visual incumbente está documentado em `docs/design-system.md` (tokens, componentes, padrões de interação) e em `DESIGN.md` (regras nomeadas de layout, cor e tipografia). Princípios já fixados: pragmático, operacional, neutro, simples, progressivo.
 
 ## Evidence on Hand
 
 - `CONTEXT.md` — glossário de domínio com diálogo de especialista e ambiguidades resolvidas.
 - `docs/` — ADRs, `CONVENTIONS.md`, `design-system.md`, `matriz-permissoes.md`, `matriz-invariantes.md`, `estado-transicoes-requisicao.md`, processos de almoxarifado e de saída excepcional.
-- `.design/` — `INFORMATION_ARCHITECTURE.md`, `TASKS.md`, `AUDITORIA_UIUX.md` e briefs por área (login, telas operacionais, detalhe da requisição, movimentações, saída excepcional, topbar).
-- `.design/audit-uiux-2026-07/screenshots/` — capturas desktop 1280 e mobile 375 dos fluxos reais.
+- `DESIGN.md` — regras nomeadas do sistema visual, com a medição que justifica cada uma.
 - Suíte de testes e CI verdes como evidência de comportamento.
 
 **Não existe e não deve ser fabricado:** depoimento, cliente, benchmark, número de adoção, preço, licenciamento ou claim de deploy. O produto não tem público externo nem superfície de marketing.
