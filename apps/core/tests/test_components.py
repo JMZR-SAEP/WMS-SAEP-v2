@@ -1837,12 +1837,15 @@ def test_nenhum_rotulo_de_campo_escrito_a_mao():
     alinhamento = {'text-left', 'text-center', 'text-right', 'text-justify'}
     # Dívida conhecida, com dono: a Etapa 7 do plano
     # `docs/plans/audit-frontend-restante.md` faz em estoque o que a Etapa 6 fez
-    # em requisições. Estes quatro rótulos são o mesmo defeito, e a lista existe
+    # em requisições. Estes rótulos são o mesmo defeito, e a lista existe
     # para o guarda entrar em vigor agora em vez de esperar a etapa seguinte.
     # Some quando a Etapa 7 fechar; não acrescente linha nova a ela.
+    #
+    # `_modal_form_estorno_saida.html` saiu daqui: o rótulo dele agora usa
+    # `.rotulo-campo`, como o do irmão `_modal_form_recusar.html`. Falta só o
+    # `preview_importacao_scpi.html`, com os dois rótulos de upload.
     divida_etapa_7 = {
         'apps/estoque/templates/estoque/preview_importacao_scpi.html',
-        'apps/estoque/templates/estoque/partials/_modal_form_estorno_saida.html',
     }
     infratores: list[str] = []
     for caminho in (raiz / 'apps').rglob('*.html'):
