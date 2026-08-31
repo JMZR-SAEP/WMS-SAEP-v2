@@ -61,6 +61,16 @@ urlpatterns = [
         name='historico_importacoes_scpi',
     ),
     path(
+        'importacao-scpi/<int:pk>/',
+        views.detalhe_importacao_scpi_view,
+        name='detalhe_importacao_scpi',
+    ),
+    path(
+        'importacao-scpi/<int:pk>/divergencias/',
+        views.baixar_divergencias_importacao_scpi_view,
+        name='baixar_divergencias_importacao_scpi',
+    ),
+    path(
         'importacao-scpi/<int:pk>/arquivo/',
         views.baixar_arquivo_importacao_scpi_view,
         name='baixar_arquivo_importacao_scpi',

@@ -625,6 +625,7 @@ def sucesso_importacao_scpi_view(request, pk: int):
     from apps.core.exceptions import PermissaoNegada
     from apps.estoque.models import ImportacaoSCPI
     from apps.estoque.policies import exigir_pode_confirmar_importacao_scpi
+    from apps.estoque.selectors import listar_divergencias_importacao_scpi
 
     papel = papel_efetivo(request.user)
     try:
@@ -645,8 +646,114 @@ def sucesso_importacao_scpi_view(request, pk: int):
         {
             'importacao': importacao,
             'sucesso': True,
+            'divergencias': listar_divergencias_importacao_scpi(importacao_id=pk),
         },
     )
+
+
+@login_required
+@require_http_methods(['GET'])
+def detalhe_importacao_scpi_view(request, pk: int):
+    """Endereço durável de uma importação e da lista de divergências dela (#161).
+
+    Atrás da policy do histórico, não da de confirmar: quem confirma é o
+    superusuário, mas quem faz a conferência no SCPI é o chefe de almoxarifado.
+    """
+    from django.http import Http404
+
+    from apps.core.exceptions import PermissaoNegada
+    from apps.estoque.policies import exigir_pode_consultar_historico_scpi
+    from apps.estoque.selectors import (
+        buscar_importacao_scpi,
+        listar_divergencias_importacao_scpi,
+    )
+
+    papel = papel_efetivo(request.user)
+    try:
+        exigir_pode_consultar_historico_scpi(papel)
+    except PermissaoNegada as exc:
+        raise PermissionDenied(str(exc))
+
+    importacao = buscar_importacao_scpi(importacao_id=pk)
+    if importacao is None:
+        raise Http404
+
+    return render(
+        request,
+        'estoque/detalhe_importacao_scpi.html',
+        {
+            'importacao': importacao,
+            'divergencias': listar_divergencias_importacao_scpi(importacao_id=pk),
+        },
+    )
+
+
+# Cabeçalho e delimitador espelham o CSV do próprio SCPI (`;`, colunas em caixa
+# alta): o arquivo é lido de volta na mesma planilha em que o operador abre o
+# extrato do SCPI, e alternar delimitador entre os dois seria armadilha.
+CABECALHO_CSV_DIVERGENCIAS_SCPI = (
+    'CADPRO',
+    'DENOMINACAO',
+    'SALDO_WMS',
+    'SALDO_SCPI',
+    'DELTA',
+)
+
+
+@login_required
+@require_http_methods(['GET'])
+def baixar_divergencias_importacao_scpi_view(request, pk: int):
+    """Exporta em CSV a lista de divergências concluída pelo WMS (#161).
+
+    Não confundir com `baixar_arquivo_importacao_scpi_view`, que devolve o CSV
+    bruto do SCPI — aquele o operador já tem. O que falta a ele é o que o WMS
+    concluiu do arquivo.
+    """
+    import csv
+    import io
+
+    from django.http import Http404, HttpResponse
+
+    from apps.core.exceptions import PermissaoNegada
+    from apps.estoque.policies import exigir_pode_consultar_historico_scpi
+    from apps.estoque.selectors import (
+        buscar_importacao_scpi,
+        listar_divergencias_importacao_scpi,
+    )
+
+    papel = papel_efetivo(request.user)
+    try:
+        exigir_pode_consultar_historico_scpi(papel)
+    except PermissaoNegada as exc:
+        raise PermissionDenied(str(exc))
+
+    importacao = buscar_importacao_scpi(importacao_id=pk)
+    if importacao is None:
+        raise Http404
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, delimiter=';', lineterminator='\r\n')
+    writer.writerow(CABECALHO_CSV_DIVERGENCIAS_SCPI)
+    for linha in listar_divergencias_importacao_scpi(importacao_id=pk):
+        writer.writerow(
+            [
+                linha.cadpro,
+                linha.denominacao,
+                linha.saldo_wms,
+                linha.saldo_scpi,
+                linha.delta,
+            ]
+        )
+
+    # `utf-8-sig`: o destino declarado é a planilha do chefe de almoxarifado, e
+    # sem BOM o Excel em pt-BR lê UTF-8 como Latin-1 e estraga a denominação.
+    resposta = HttpResponse(
+        buffer.getvalue().encode('utf-8-sig'),
+        content_type='text/csv; charset=utf-8',
+    )
+    nome = f'divergencias-importacao-{importacao.pk}.csv'
+    resposta['Content-Disposition'] = f'attachment; filename="{nome}"'
+    return resposta
 
 
 PAGINA_IMPORTACOES_SCPI_TAMANHO = 25

@@ -1,0 +1,52 @@
+{% comment %}
+Lista das divergências gravadas de uma importação SCPI (#161). Recebe
+`divergencias` (queryset de LinhaDivergenteSCPI) e é incluída pela tela de
+sucesso e pelo detalhe do histórico — a mesma lista nos dois lugares, porque a
+segunda existe justamente para a primeira sobreviver ao fechar da aba.
+
+`#cards_abertura`, e não a variante densa: medido pelo critério do DESIGN.md
+§A Regra do Cartão Único. A 322px de cartão a denominação do material não cabe
+em uma linha — é nome de entidade, não valor curto —, e o cartão tem quatro
+campos de dado (CADPRO, WMS, SCPI, delta) além dela. Dois desqualificantes do
+critério, então a 3ª coluna continua em `2xl`.
+
+Quem chama fecha o container: </div>
+{% endcomment %}
+{% include "components/table.html#cards_abertura" %}
+  {% for linha in divergencias %}
+    {% include "components/table.html#card_abertura" %}
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          {% comment %}
+            CADPRO em mono e como título do cartão: é o dado que vai ser
+            digitado no SCPI caractere a caractere, e é por ele que a lista é
+            percorrida. A denominação vem abaixo, para reconhecer o item.
+          {% endcomment %}
+          <h3 class="break-all font-mono text-sm font-semibold text-text-primary">{{ linha.cadpro }}</h3>
+          <p class="mt-1 text-sm text-text-secondary">{{ linha.denominacao|default:"—" }}</p>
+        </div>
+        <span class="shrink-0">
+          {% include "components/badge.html" with variant="amber" label="Divergência" aria_label="Divergência: saldo do SCPI difere do WMS" %}
+        </span>
+      </div>
+
+      <dl class="mt-4 grid grid-cols-3 gap-3 text-sm">
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">WMS</dt>
+          <dd class="mt-0.5 font-mono tabular-nums text-text-primary">{{ linha.saldo_wms }}</dd>
+        </div>
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">SCPI</dt>
+          <dd class="mt-0.5 font-mono tabular-nums text-text-primary">{{ linha.saldo_scpi }}</dd>
+        </div>
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Delta</dt>
+          <dd class="mt-0.5 font-mono font-semibold tabular-nums
+            {% if linha.delta > 0 %}text-success-text{% elif linha.delta < 0 %}text-danger-text{% else %}text-text-disabled{% endif %}">
+            {% if linha.delta > 0 %}▲ +{{ linha.delta }}{% elif linha.delta < 0 %}▼ {{ linha.delta }}{% else %}—{% endif %}
+          </dd>
+        </div>
+      </dl>
+    </article>
+  {% endfor %}
+</div>
