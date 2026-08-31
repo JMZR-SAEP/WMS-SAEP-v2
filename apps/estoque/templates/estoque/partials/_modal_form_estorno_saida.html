@@ -9,19 +9,43 @@
   devolve a caixa aberta, e sem isso ela voltaria em branco — a pessoa
   reescreveria a justificativa a cada recusa do domínio. É o que
   `_modal_form_recusar.html` já faz com `motivo_recusa`.
+
+  Rótulo, ajuda e obrigatoriedade seguem a grafia de `_modal_form_recusar.html`,
+  que é o irmão deste partial — os dois são "um textarea obrigatório dentro de
+  um modal", e estavam escritos de quatro jeitos diferentes:
+
+  - o rótulo era `text-sm font-medium text-text-secondary` escrito à mão, ou
+    seja 14px em caixa normal e grafite médio, enquanto `.rotulo-campo` — a
+    definição única de rótulo de campo do sistema — é 12px em caixa alta e
+    cinza de metadado. Na tela, "Justificativa" saía num registro tipográfico
+    que nenhum outro rótulo do sistema usa, inclusive ao lado dos `MOTIVO` e
+    `OBSERVAÇÃO` da própria tela de detalhe atrás do modal;
+  - o `mt-1` no campo é literalmente uma das quatro convenções de régua que o
+    comentário de `.rotulo-campo` em `input.css` declara extintas. A margem
+    pertence ao rótulo e já vem com ele;
+  - a instrução vivia no `placeholder`, que some no primeiro caractere digitado
+    — justo quando a pessoa ainda está decidindo o que escrever. Vira texto de
+    ajuda visível, amarrado por `aria-describedby`;
+  - `required` nativo virou `aria-required`. A obrigatoriedade é do domínio e
+    já é validada lá (`estornar_saida_excepcional` levanta `DadosInvalidos` com
+    `code='justificativa_vazia'`), e o 422 devolve o modal com a caixa de erro
+    do sistema. O `required` nativo curto-circuitava isso com um balão do
+    navegador que não tem token, não tem `role="alert"` e não se parece com
+    nenhum outro erro do produto.
 {% endcomment %}
 
-<div>
-  <label for="justificativa" class="block text-sm font-medium text-text-secondary">
-    Justificativa <span class="text-danger-accent" aria-hidden="true">*</span>
-  </label>
-  <textarea
-    id="justificativa"
-    name="justificativa"
-    required
-    rows="3"
-    class="campo mt-1"
-    {% if erro %}aria-invalid="true" aria-describedby="{{ id }}-erro"{% endif %}
-    placeholder="Descreva o motivo do estorno…"
-  >{{ justificativa|default_if_none:"" }}</textarea>
-</div>
+<label for="justificativa" class="rotulo-campo">
+  Justificativa <span class="ml-0.5 text-danger-accent" aria-hidden="true">*</span>
+</label>
+<p id="justificativa-ajuda" class="mt-1 text-xs text-text-tertiary">
+  Obrigatória. Descreva o motivo do estorno — ela fica no registro da saída, à vista de quem conferir depois.
+</p>
+<textarea
+  id="justificativa"
+  name="justificativa"
+  rows="3"
+  aria-required="true"
+  aria-describedby="justificativa-ajuda{% if erro %} {{ id }}-erro{% endif %}"
+  {% if erro %}aria-invalid="true"{% endif %}
+  class="campo"
+>{{ justificativa|default_if_none:"" }}</textarea>

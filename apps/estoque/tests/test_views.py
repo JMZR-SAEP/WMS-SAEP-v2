@@ -2713,9 +2713,14 @@ class TestHistoricoMovimentacoesFiltros:
         )
         assert response.status_code == 200
 
-    def test_chip_so_saidas_marca_estado_ativo(
+    def test_chip_de_filtro_marca_estado_ativo(
         self, client, superuser, requisicao_autorizada
     ):
+        """O chip reflete o recorte em vigor, não a última vez que foi clicado.
+
+        `ativo` sai da querystring, então a marca sobrevive a chegar na tela
+        por link, por histórico do navegador ou por recarga.
+        """
         client.force_login(superuser)
         ativo = client.get(
             URL_MOVIMENTACOES,
@@ -2725,12 +2730,15 @@ class TestHistoricoMovimentacoesFiltros:
         assert ativo.context['chips_filtro'][0].ativo is True
         assert inativo.context['chips_filtro'][0].ativo is False
 
-    def test_chip_so_saidas_reemitido_via_oob_no_swap_htmx(
+    def test_chip_de_filtro_reemitido_via_oob_no_swap_htmx(
         self, client, superuser, requisicao_autorizada
     ):
-        # Bug-regressão: o chip vive fora de #resultados-movimentacoes, então
-        # numa resposta HTMX precisa ser reemitido como out-of-band para o
-        # estado ativo e a URL de alternância refletirem o novo recorte.
+        """Bug-regressão: o chip vive fora de `#resultados-movimentacoes`.
+
+        Numa resposta HTMX ele precisa ser reemitido como out-of-band, senão o
+        estado ativo e a URL de alternância ficam com o recorte da primeira
+        renderização full-page enquanto a lista já mostra outro.
+        """
         client.force_login(superuser)
         parcial = client.get(
             URL_MOVIMENTACOES,
@@ -2741,10 +2749,14 @@ class TestHistoricoMovimentacoesFiltros:
         assert b'hx-swap-oob="true"' in parcial
         assert b'aria-current="true"' in parcial
 
-    def test_chip_so_saidas_sem_oob_na_pagina_completa(
+    def test_chip_de_filtro_sem_oob_na_pagina_completa(
         self, client, superuser, requisicao_autorizada
     ):
-        # Render completo: chip único, sem atributo OOB (evita id duplicado).
+        """O par do teste acima: no render completo o chip sai uma vez só.
+
+        Com `hx-swap-oob` numa página inteira, o mesmo `id` apareceria duas
+        vezes no documento e o HTMX passaria a trocar o nó errado.
+        """
         client.force_login(superuser)
         conteudo = client.get(URL_MOVIMENTACOES).content
         assert conteudo.count(b'id="filter-chips"') == 1
@@ -2796,10 +2808,14 @@ class TestHistoricoMovimentacoesFiltros:
         assert '<b>inexistente</b>' not in filtrado
         assert 'Nenhuma movimentação encontrada' not in filtrado
 
-    def test_chip_so_saidas_preserva_filtros_atuais(
+    def test_chip_de_filtro_preserva_filtros_atuais(
         self, client, chefe_almoxarifado, setor_obras
     ):
-        # Bug-regressão: alternar o chip não pode descartar o recorte atual.
+        """Bug-regressão: alternar o chip não pode descartar o recorte atual.
+
+        A URL do chip carrega os filtros em vigor; sem isso, marcar "só saídas"
+        jogava fora busca, ordem e setor que a pessoa acabara de montar.
+        """
         client.force_login(chefe_almoxarifado)
         response = client.get(
             URL_MOVIMENTACOES,
@@ -2916,8 +2932,8 @@ class TestHistoricoMovimentacoesFiltrosPartials:
         # de #resultados-movimentacoes (dentro do <form>), então numa
         # resposta HTMX precisa ser reemitido como out-of-band pra refletir
         # tem_filtro_ativo — senão "Limpar filtros" fica com o estado da
-        # primeira renderização full-page. Mesmo padrão de
-        # _chip_so_saidas.html (oob_chip).
+        # primeira renderização full-page. Mesmo padrão do
+        # components/filter_chips.html, reemitido via hx-swap-oob.
         client.force_login(superuser)
         parcial = client.get(
             URL_MOVIMENTACOES, {'material': 'MAT001'}, HTTP_HX_REQUEST='true'
@@ -3118,18 +3134,21 @@ class TestHistoricoMovimentacoesResponsivo:
         assert b'<details' in response.content
         assert b'<summary' in response.content
 
-    def test_chip_so_saidas_visivel_fora_do_disclosure(
+    def test_chip_de_filtro_visivel_fora_do_disclosure(
         self, client, chefe_almoxarifado
     ):
-        # O chip "só saídas" deve aparecer ANTES do <details> no HTML para
-        # garantir visibilidade permanente no mobile sem abrir o disclosure.
+        """O chip sai antes do `<details>` no HTML.
+
+        No mobile o disclosure de filtros começa fechado; dentro dele, o chip
+        e o recorte que ele anuncia ficariam invisíveis até alguém abrir.
+        """
         client.force_login(chefe_almoxarifado)
         response = client.get(URL_MOVIMENTACOES)
         assert response.status_code == 200
         content = response.content.decode()
         pos_chip = content.find('id="filter-chips"')
         pos_details = content.find('<details')
-        assert pos_chip != -1, 'chip-so-saidas não encontrado'
+        assert pos_chip != -1, 'id="filter-chips" não encontrado'
         assert pos_details != -1, '<details não encontrado'
         assert pos_chip < pos_details, 'chip deve aparecer antes do <details>'
 
@@ -3399,7 +3418,12 @@ class TestHistoricoMovimentacoesFiltrosResponsivo:
         assert 'type="date"' not in fonte
         assert 'type="checkbox"' not in fonte
 
-    def test_chip_so_saidas_composto_fora_do_filter_shell(self):
+    def test_chip_de_filtro_composto_fora_do_filter_shell(self):
+        """Guarda de posição na fonte, par do teste de render acima.
+
+        `components/filter_chips.html` tem de vir antes da abertura do
+        `filter_shell` no template — é o que mantém o chip fora do disclosure.
+        """
         caminho = (
             Path(__file__).resolve().parent.parent
             / 'templates'
