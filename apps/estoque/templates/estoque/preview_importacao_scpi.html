@@ -372,24 +372,15 @@
               <div>
                 <dt class="text-xs font-medium uppercase tracking-wide text-text-secondary">Delta</dt>
                 {% comment %}
-                  Cor neutra, como em `_delta_movimentacao.html`. Verde no
-                  delta positivo e vermelho no negativo diziam bom/ruim sobre
-                  uma **divergência**, que não é nem uma coisa nem outra — o
-                  PRODUCT.md a declara "estado normal e esperado". O estado da
-                  linha já é carimbado duas vezes, pela lavagem do cartão e
-                  pelo badge; a Regra do Sinal Único reserva a cor para isso.
-
-                  O triângulo é `aria-hidden`: leitor de tela lia o nome
-                  Unicode do glifo antes do número. A direção já está no sinal
-                  `+`/`−`, que é texto.
-
-                  Zero imprime `0`, não `—`: mesma grafia do ledger, e o
-                  travessão em `text-text-disabled` media 2,63:1 (reprova AA)
-                  para dizer "os saldos batem", que é informação.
+                  A grafia do delta agora vem inteira do átomo
+                  `_delta_movimentacao.html` — a mesma do histórico de
+                  movimentações (issue #163): `font-mono`, cor neutra, `▲`/`▼`
+                  `aria-hidden` com o sinal em texto como portador acessível da
+                  direção, sinal `−` em U+2212, zero como literal `0`. O átomo
+                  passa por `formatar_quantidade`, então a precisão por unidade
+                  desta tela (a razão de ela existir) segue intacta.
                 {% endcomment %}
-                <dd class="mt-0.5 font-mono font-semibold tabular-nums text-text-primary">
-                  {% if linha.delta > 0 %}<span aria-hidden="true">▲</span> +{{ linha.delta|formatar_quantidade:linha.unidade }}{% elif linha.delta < 0 %}<span aria-hidden="true">▼</span> {{ linha.delta|formatar_quantidade:linha.unidade }}{% else %}0{% endif %}
-                </dd>
+                <dd class="mt-0.5">{% include 'estoque/partials/_delta_movimentacao.html' with valor=linha.delta unidade=linha.unidade %}</dd>
               </div>
             </dl>
           </article>

@@ -123,25 +123,42 @@
               {{ mov.material }}<span class="sr-only"> — lançamento {{ mov.pk }} em {{ mov.criado_em|date:"d/m/Y H:i" }}</span>
             </h2>
 
-            {# Rótulo rebaixado (issue #158): `Rótulo: valor` inline, sem caixa alta, `<dl>/<dt>/<dd>` preservado. Ver DESIGN.md §A Regra da Caixa Alta Estrutural. #}
-            <dl class="mt-3 grid grid-cols-2 gap-3 text-sm">
-              <div class="flex gap-x-2">
-                <dt class="shrink-0 text-text-tertiary">Δ Físico:</dt>
-                <dd class="min-w-0">{% include 'estoque/partials/_delta_movimentacao.html' with valor=mov.delta_fisico unidade=mov.material.unidade %}</dd>
+            {% comment %}
+              Rótulo rebaixado (issue #158): `Rótulo: valor` inline, sem caixa
+              alta, `<dl>/<dt>/<dd>` preservado. Ver DESIGN.md §A Regra da Caixa
+              Alta Estrutural.
+
+              Os dois deltas saem da grade inline e ganham uma faixa numérica
+              própria (issue #163): rótulo acima em `text-xs`, valor em
+              `font-mono` alinhado à direita pelo átomo `_delta_movimentacao.html`
+              — a mesma grafia que o preview do SCPI. Atrás de um rótulo inline
+              de largura variável (`Δ Físico:` vs `Δ Reservado:`), o
+              `tabular-nums` do átomo nunca formava coluna. O rótulo continua em
+              caixa normal e cinza de metadado; o que muda é a geometria do
+              valor. Origem e Ator seguem inline — são texto, não grandeza.
+            {% endcomment %}
+            <dl class="mt-3 text-sm">
+              <div class="grid grid-cols-2 gap-3">
+                <div class="text-right">
+                  <dt class="text-xs text-text-tertiary">Δ Físico</dt>
+                  <dd class="mt-0.5">{% include 'estoque/partials/_delta_movimentacao.html' with valor=mov.delta_fisico unidade=mov.material.unidade %}</dd>
+                </div>
+                <div class="text-right">
+                  <dt class="text-xs text-text-tertiary">Δ Reservado</dt>
+                  <dd class="mt-0.5">{% include 'estoque/partials/_delta_movimentacao.html' with valor=mov.delta_reservado unidade=mov.material.unidade %}</dd>
+                </div>
               </div>
-              <div class="flex gap-x-2">
-                <dt class="shrink-0 text-text-tertiary">Δ Reservado:</dt>
-                <dd class="min-w-0">{% include 'estoque/partials/_delta_movimentacao.html' with valor=mov.delta_reservado unidade=mov.material.unidade %}</dd>
-              </div>
-              <div class="flex gap-x-2">
-                <dt class="shrink-0 text-text-tertiary">Origem:</dt>
-                <dd class="min-w-0 text-text-primary">
-                  {% if mov.requisicao_id %}{{ mov.requisicao.numero_publico|default:"—" }}{% else %}{{ mov.saida_excepcional.numero_publico|default:"—" }}{% endif %}
-                </dd>
-              </div>
-              <div class="flex gap-x-2">
-                <dt class="shrink-0 text-text-tertiary">Ator:</dt>
-                <dd class="min-w-0 text-text-primary">{{ mov.ator.nome }}</dd>
+              <div class="mt-3 grid grid-cols-2 gap-3">
+                <div class="flex gap-x-2">
+                  <dt class="shrink-0 text-text-tertiary">Origem:</dt>
+                  <dd class="min-w-0 text-text-primary">
+                    {% if mov.requisicao_id %}{{ mov.requisicao.numero_publico|default:"—" }}{% else %}{{ mov.saida_excepcional.numero_publico|default:"—" }}{% endif %}
+                  </dd>
+                </div>
+                <div class="flex gap-x-2">
+                  <dt class="shrink-0 text-text-tertiary">Ator:</dt>
+                  <dd class="min-w-0 text-text-primary">{{ mov.ator.nome }}</dd>
+                </div>
               </div>
             </dl>
           </article>
