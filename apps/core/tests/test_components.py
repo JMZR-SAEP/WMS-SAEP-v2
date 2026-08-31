@@ -1835,23 +1835,14 @@ def test_nenhum_rotulo_de_campo_escrito_a_mao():
     prefixos_de_tipografia = ('text-', 'font-', 'uppercase', 'tracking-', 'leading-')
     # `text-left/center/right` alinham, não tipografam.
     alinhamento = {'text-left', 'text-center', 'text-right', 'text-justify'}
-    # Dívida conhecida, com dono: a Etapa 7 do plano
-    # `docs/plans/audit-frontend-restante.md` faz em estoque o que a Etapa 6 fez
-    # em requisições. Estes rótulos são o mesmo defeito, e a lista existe
-    # para o guarda entrar em vigor agora em vez de esperar a etapa seguinte.
-    # Some quando a Etapa 7 fechar; não acrescente linha nova a ela.
-    #
-    # `_modal_form_estorno_saida.html` saiu daqui: o rótulo dele agora usa
-    # `.rotulo-campo`, como o do irmão `_modal_form_recusar.html`. Falta só o
-    # `preview_importacao_scpi.html`, com os dois rótulos de upload.
-    divida_etapa_7 = {
-        'apps/estoque/templates/estoque/preview_importacao_scpi.html',
-    }
+    # A lista de exceção da Etapa 7 fechou: `preview_importacao_scpi.html` e
+    # `_modal_form_estorno_saida.html` eram os últimos rótulos escritos à mão,
+    # e os dois passaram para `.rotulo-campo`. O guarda vale para `apps/`
+    # inteiro, sem escotilha — que era a condição que o comentário anterior
+    # anunciava ("some quando a Etapa 7 fechar").
     infratores: list[str] = []
     for caminho in (raiz / 'apps').rglob('*.html'):
         relativo = str(caminho.relative_to(raiz))
-        if relativo in divida_etapa_7:
-            continue
         texto = caminho.read_text()
         for _, atributos, numero in elementos(texto, 'label'):
             presentes = classes(atributos)
