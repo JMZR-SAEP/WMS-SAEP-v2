@@ -459,6 +459,58 @@ class TestConfirmarImportacaoScpi:
         assert saldo.saldo_fisico == Decimal('42')
         assert saldo.saldo_reservado == Decimal('0')
 
+    def test_preview_anuncia_a_unidade_que_a_confirmacao_vai_gravar(
+        self, db, superuser, estoque_principal
+    ):
+        """O preview decide a precisão de exibição pela unidade da linha.
+
+        Se ela divergisse da que o service grava, o número mostrado antes de
+        confirmar teria precisão diferente do número mostrado depois — a
+        divergência apareceria só com o material já criado. Hoje as duas pontas
+        leem `UNIDADE_PADRAO_MATERIAL_SCPI`; este teste é o que falha se alguém
+        reintroduzir um literal em qualquer uma delas.
+        """
+        from apps.estoque.models import Material
+        from apps.estoque.selectors import gerar_preview_importacao_scpi
+        from apps.estoque.services import confirmar_importacao_scpi
+
+        csv_bytes = self._csv('000.999.201', 'Bucha de nylon S8', '30.000')
+        linha_preview = next(
+            linha
+            for linha in gerar_preview_importacao_scpi(
+                conteudo_bytes=csv_bytes, estoque_id=estoque_principal.pk
+            )
+            if linha.status == 'novo'
+        )
+        confirmar_importacao_scpi(
+            ator_id=superuser.pk,
+            conteudo_bytes=csv_bytes,
+            arquivo_nome='unidade.csv',
+            estoque_id=estoque_principal.pk,
+        )
+        material = Material.objects.get(codigo='000.999.201')
+        assert linha_preview.unidade == material.unidade
+
+    def test_preview_de_material_existente_usa_a_unidade_dele(
+        self, db, superuser, estoque_principal, material_scpi
+    ):
+        """Material já no WMS exibe com a precisão da própria unidade.
+
+        Sem isso, um material em litro cairia na precisão de `un` no preview e
+        `12,5 l` viraria `12` — no lugar onde a conferência com o SCPI acontece.
+        """
+        from apps.estoque.models import UnidadeMedida
+        from apps.estoque.selectors import gerar_preview_importacao_scpi
+
+        material_scpi.unidade = UnidadeMedida.LITRO
+        material_scpi.save(update_fields=['unidade'])
+
+        csv_bytes = self._csv(material_scpi.codigo, material_scpi.nome, '9.500')
+        linha = gerar_preview_importacao_scpi(
+            conteudo_bytes=csv_bytes, estoque_id=estoque_principal.pk
+        )[0]
+        assert linha.unidade == UnidadeMedida.LITRO
+
     def test_material_existente_nao_tem_saldo_alterado(
         self, db, superuser, estoque_principal, material_scpi
     ):

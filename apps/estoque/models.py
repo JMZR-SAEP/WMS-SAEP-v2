@@ -23,6 +23,18 @@ class UnidadeMedida(models.TextChoices):
     LITRO = 'l', 'Litro'
 
 
+#: Unidade com que nasce um material criado pela importação SCPI.
+#:
+#: O SCPI não informa unidade de medida no CSV, então a importação precisa
+#: arbitrar uma. Fonte única de propósito: quem **grava** o material
+#: (``services.confirmar_importacao_scpi``) e quem **mostra o preview** dele
+#: (``selectors.gerar_preview_importacao_scpi``, para decidir a precisão de
+#: exibição da quantidade) têm de concordar — senão o preview promete uma
+#: precisão diferente da que a criação aplica, e a divergência aparece só
+#: depois de gravar.
+UNIDADE_PADRAO_MATERIAL_SCPI = UnidadeMedida.UNIDADE
+
+
 class Material(models.Model):
     """Item do catálogo de materiais do almoxarifado.
 

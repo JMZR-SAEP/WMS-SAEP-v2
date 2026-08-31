@@ -99,7 +99,8 @@
             </div>
             <div class="flex justify-between">
               <dt>Quantidade baixada</dt>
-              <dd class="tabular-nums font-semibold text-text-primary">{{ item.quantidade }}</dd>
+              {# Precisão pela unidade (apps/core/quantidades.py): o Decimal(…,3) cru saía `3,000` para 3 unidades. #}
+              <dd class="tabular-nums font-semibold text-text-primary">{{ item.quantidade|formatar_quantidade:item.material.unidade }}</dd>
             </div>
           </dl>
         </div>
