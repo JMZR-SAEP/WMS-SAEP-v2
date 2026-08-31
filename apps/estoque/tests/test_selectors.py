@@ -984,3 +984,72 @@ class TestFiltrarMovimentacoes:
             setor=None,
         )
         assert resultado.count() == visiveis.count()
+
+
+class TestListarDivergenciasImportacaoScpi:
+    """Ordem e escopo da lista de divergências gravada (#161)."""
+
+    def _importacao(self, superuser, estoque_principal, *, hash_):
+        from apps.estoque.models import ImportacaoSCPI, StatusImportacaoSCPI
+
+        return ImportacaoSCPI.objects.create(
+            arquivo_nome='saldo.csv',
+            arquivo_hash=hash_,
+            importado_por=superuser,
+            estoque=estoque_principal,
+            status=StatusImportacaoSCPI.COM_ALERTAS,
+            total_linhas=3,
+            total_divergentes=3,
+        )
+
+    def _divergencia(self, importacao, cadpro):
+        from apps.estoque.models import LinhaDivergenteSCPI
+
+        return LinhaDivergenteSCPI.objects.create(
+            importacao=importacao,
+            cadpro=cadpro,
+            denominacao=f'Material {cadpro}',
+            saldo_wms=1,
+            saldo_scpi=2,
+            delta=1,
+        )
+
+    @pytest.mark.django_db
+    def test_ordena_por_cadpro(self, superuser, estoque_principal):
+        from apps.estoque.selectors import listar_divergencias_importacao_scpi
+
+        importacao = self._importacao(superuser, estoque_principal, hash_='a' * 64)
+        for cadpro in ('000.000.030', '000.000.010', '000.000.020'):
+            self._divergencia(importacao, cadpro)
+
+        resultado = listar_divergencias_importacao_scpi(importacao_id=importacao.pk)
+        assert [linha.cadpro for linha in resultado] == [
+            '000.000.010',
+            '000.000.020',
+            '000.000.030',
+        ]
+
+    @pytest.mark.django_db
+    def test_nao_vaza_divergencia_de_outra_importacao(
+        self, superuser, estoque_principal
+    ):
+        from apps.estoque.selectors import listar_divergencias_importacao_scpi
+
+        alvo = self._importacao(superuser, estoque_principal, hash_='b' * 64)
+        outra = self._importacao(superuser, estoque_principal, hash_='c' * 64)
+        self._divergencia(alvo, '000.000.011')
+        self._divergencia(outra, '000.000.012')
+
+        resultado = listar_divergencias_importacao_scpi(importacao_id=alvo.pk)
+        assert [linha.cadpro for linha in resultado] == ['000.000.011']
+
+    @pytest.mark.django_db
+    def test_importacao_sem_divergencia_devolve_vazio(
+        self, superuser, estoque_principal
+    ):
+        from apps.estoque.selectors import listar_divergencias_importacao_scpi
+
+        importacao = self._importacao(superuser, estoque_principal, hash_='d' * 64)
+        assert not listar_divergencias_importacao_scpi(
+            importacao_id=importacao.pk
+        ).exists()

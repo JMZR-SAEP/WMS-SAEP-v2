@@ -254,6 +254,19 @@ def buscar_importacao_scpi(*, importacao_id: int):
         return None
 
 
+def listar_divergencias_importacao_scpi(*, importacao_id: int):
+    """Linhas divergentes gravadas na confirmação, na ordem do CADPRO (#161).
+
+    Ordem por CADPRO e não pela ordem do arquivo: a lista existe para ser
+    percorrida contra o SCPI, onde o produto é procurado pelo código.
+    """
+    from apps.estoque.models import LinhaDivergenteSCPI
+
+    return LinhaDivergenteSCPI.objects.filter(importacao_id=importacao_id).order_by(
+        'cadpro', 'id'
+    )
+
+
 def listar_materiais_com_saldo(*, busca: str = ''):
     from django.db.models import (
         BooleanField,

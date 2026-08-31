@@ -773,6 +773,12 @@ NAVEGACAO: list[dict[str, Any]] = [
                 'rotulo': 'Histórico de importações SCPI',
                 'icone': 'historico',
                 'flag': 'pode_consultar_historico_scpi',
+                # O detalhe é filho do histórico, não da importação: a lista de
+                # divergências é consultada depois, por quem confere no SCPI.
+                'url_names_ativos': [
+                    'estoque:historico_importacoes_scpi',
+                    'estoque:detalhe_importacao_scpi',
+                ],
             },
         ],
     },

@@ -3,23 +3,64 @@
 {% block title %}Confirmar Importação SCPI — WMS-SAEP{% endblock %}
 
 {% block content %}
-<div class="max-w-2xl mx-auto">
+{% comment %}
+  Largura condicional: sem divergência a tela é um alerta e uma fileira de
+  botões, e `max-w-screen-xl` deixaria os dois perdidos na página. Com a lista
+  de divergências a tela vira listagem, e a grade de cartões precisa da largura
+  para render duas colunas.
+{% endcomment %}
+<div class="{% if divergencias %}max-w-screen-xl{% else %}max-w-2xl{% endif %} mx-auto">
 
   {% include "components/page_header.html" with titulo="Importação SCPI — Confirmação" class="mb-6" %}
   {% if sucesso %}
     {# ── Sucesso ─────────────────────────────────────────────────────── #}
     {% include "components/alert.html" with variant="success" body_template="estoque/partials/_alert_sucesso_importacao_corpo.html" class="mb-6" %}
 
+    {% if divergencias %}
+      {% comment %}
+        A lista, não a contagem (#161). O ritual existe para produzir os CADPROs
+        a acertar no SCPI, e até aqui a única tela que os mostrava era a
+        pré-visualização — que morre no POST da confirmação.
+      {% endcomment %}
+      <section aria-labelledby="titulo-divergencias" class="mb-6">
+        <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div class="min-w-0">
+            <h2 id="titulo-divergencias" class="text-base font-semibold text-text-primary">Divergências a acertar no SCPI</h2>
+            <p class="mt-1 text-sm text-text-tertiary">
+              A importação não altera saldo. Cada linha abaixo é um produto em que o SCPI e o WMS discordam.
+            </p>
+          </div>
+          {% url 'estoque:baixar_divergencias_importacao_scpi' pk=importacao.pk as url_csv_divergencias %}
+          {% include "components/button.html" with variant="secondary" size="sm" label="Baixar CSV das divergências" href=url_csv_divergencias %}
+        </div>
+
+        {% include "estoque/partials/_cartoes_divergencias_scpi.html" %}
+      </section>
+    {% endif %}
+
     {% url 'estoque:preview_importacao_scpi' as url_preview %}
     {% url 'estoque:historico_importacoes_scpi' as url_historico %}
     {% url 'estoque:lista_materiais' as url_catalogo %}
     {% comment %}
-      Três saídas, não uma. A tela terminava oferecendo só "Nova importação" —
-      depois de gravar, a pessoa que confere no papel não tinha para onde ir
-      conferir o que acabou de gravar.
+      Uma saída primária só (#161). Quando há divergência, o próximo passo é um
+      só: levar a lista para o SCPI. O botão aponta para o detalhe no histórico
+      — o endereço durável da mesma lista, que sobrevive a fechar a aba, ao
+      passo que esta tela some no primeiro reload. Sem divergência não há
+      primeira coisa a fazer com a importação, e o histórico volta a ser a
+      saída primária.
     {% endcomment %}
     <div class="flex flex-wrap gap-3">
-      {% include "components/button.html" with variant="primary" label="Ver histórico de importações" href=url_historico %}
+      {% if divergencias %}
+        {% url 'estoque:detalhe_importacao_scpi' pk=importacao.pk as url_detalhe %}
+        {% if importacao.total_divergentes == 1 %}
+          {% include "components/button.html" with variant="primary" label="Ver a divergência" href=url_detalhe %}
+        {% else %}
+          {% include "components/button.html" with variant="primary" label="Ver as "|add:importacao.total_divergentes|add:" divergências" href=url_detalhe %}
+        {% endif %}
+        {% include "components/button.html" with variant="secondary" label="Ver histórico de importações" href=url_historico %}
+      {% else %}
+        {% include "components/button.html" with variant="primary" label="Ver histórico de importações" href=url_historico %}
+      {% endif %}
       {% include "components/button.html" with variant="secondary" label="Ver catálogo de materiais" href=url_catalogo %}
       {% include "components/button.html" with variant="ghost" label="Nova importação" href=url_preview %}
     </div>

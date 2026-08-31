@@ -8,6 +8,7 @@ from apps.estoque.models import (
     ItemSaidaExcepcional,
     SequenciaSaidaExcepcional,
     ImportacaoSCPI,
+    LinhaDivergenteSCPI,
     MovimentacaoEstoque,
 )
 
@@ -200,8 +201,26 @@ class SequenciaSaidaExcepcionalAdmin(admin.ModelAdmin):
         return False
 
 
+class LinhaDivergenteSCPIInline(admin.TabularInline):
+    """Divergências gravadas na confirmação, só leitura (#161).
+
+    Instantâneo de auditoria: editar aqui reescreveria o que o WMS concluiu do
+    arquivo no instante da importação, e é contra isso que a lista existe.
+    """
+
+    model = LinhaDivergenteSCPI
+    extra = 0
+    fields = ('cadpro', 'denominacao', 'saldo_wms', 'saldo_scpi', 'delta')
+    readonly_fields = fields
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(ImportacaoSCPI)
 class ImportacaoSCPIAdmin(admin.ModelAdmin):
+    inlines = (LinhaDivergenteSCPIInline,)
     list_display = (
         'arquivo_nome',
         'estoque',

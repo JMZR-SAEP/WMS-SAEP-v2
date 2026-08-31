@@ -662,6 +662,7 @@ def confirmar_importacao_scpi(
         UNIDADE_PADRAO_MATERIAL_SCPI,
         Estoque,
         ImportacaoSCPI,
+        LinhaDivergenteSCPI,
         Material,
         SaldoEstoque,
         StatusImportacaoSCPI,
@@ -742,6 +743,30 @@ def confirmar_importacao_scpi(
                 'Este arquivo já foi importado anteriormente. Reimportação bloqueada.',
                 code='reimportacao_bloqueada',
             )
+
+        # A lista de divergências é o produto do ritual (#161). Ela nasce na
+        # mesma transação da confirmação porque a pré-visualização que a exibiu
+        # é efêmera: a sessão do preview morre no POST, e sem esta escrita o
+        # chefe de almoxarifado fica com a contagem e sem os CADPROs. Nada aqui
+        # toca saldo — a conciliação continua sendo humana, no SCPI.
+        LinhaDivergenteSCPI.objects.bulk_create(
+            [
+                LinhaDivergenteSCPI(
+                    importacao=importacao,
+                    cadpro=linha.cadpro,
+                    # Nome do WMS primeiro: é por ele que o material é
+                    # reconhecido no catálogo, e a linha divergente sempre tem
+                    # material. A denominação do SCPI é o reserva para o caso
+                    # de um material sem nome gravado.
+                    denominacao=linha.nome_material or linha.denominacao_scpi,
+                    saldo_wms=linha.saldo_wms,
+                    saldo_scpi=linha.saldo_scpi,
+                    delta=linha.delta,
+                )
+                for linha in linhas
+                if linha.status == 'divergente'
+            ]
+        )
 
         if _pos_importacao_hook is not None:
             _pos_importacao_hook(
