@@ -1,3 +1,4 @@
+{% load core_tags %}
 {% comment %}
   Recapitulação do que a importação vai gravar, dentro do modal de confirmação
   de preview_importacao_scpi.html.
@@ -8,37 +9,66 @@
   software. A recapitulação repete o número em vez de mandar rolar de volta: no
   momento de confirmar, a lista já saiu da tela.
 
+  As três linhas antigas saíam no mesmo `text-base font-semibold` e davam peso
+  igual a três semânticas diferentes (#164):
+
+  - material novo **cria material e grava saldo** — a linha diz o quê grava e
+    quanto ("entra com o saldo do SCPI"), e avisa que esse saldo inicial fica
+    fora do ledger (LED-01 / ADR-0015: o bootstrap da importação SCPI não gera
+    `MovimentacaoEstoque`), para o conferente não procurar a linha em
+    `/estoque/movimentacoes/`;
+  - divergência **registra alerta e não muda saldo** — dito na própria linha;
+  - "linhas lidas do arquivo" **não grava nada** — é métrica de parsing, e
+    desce para `text-xs text-text-tertiary`, sem `<dt>`/`<dd>`.
+
   Espelha os alertas de `_alert_novos_materiais_corpo.html` e
   `_alert_divergencias_corpo.html`, que só aparecem quando a contagem é maior
-  que zero; aqui as três linhas aparecem sempre, inclusive os zeros — "nenhum
+  que zero; aqui as duas linhas aparecem sempre, inclusive os zeros — "nenhum
   material novo" é informação para quem confere.
 
   O nome do arquivo saiu daqui (#138): ele é a identidade do registro sendo
   confirmado, e passou para a linha de identidade do cabeçalho, que é onde todo
-  modal do sistema a carrega. Repetido nos dois lugares, seria a segunda grafia
-  do mesmo dado dentro de uma caixa de 30 linhas.
+  modal do sistema a carrega.
 
   A frase de irreversibilidade também não está aqui: é `consequencia`, e
   `components/_modal_body.html` a renderiza logo abaixo deste corpo, com ênfase
-  maior que a das contagens. Antes ela era a `descricao` do cabeçalho, em
-  `text-sm text-text-secondary` — mais apagada que os números que qualifica.
+  maior que a das contagens.
 {% endcomment %}
-<dl class="space-y-2 text-sm">
-  <div class="flex items-baseline justify-between gap-4">
-    <dt class="text-text-secondary">Materiais novos a criar</dt>
-    <dd class="font-mono text-base font-semibold tabular-nums text-text-primary">{{ novos }}</dd>
+<dl class="space-y-3 text-sm">
+  <div>
+    <dt class="font-semibold text-text-primary">
+      {% if novos == 0 %}
+        Nenhum material novo a criar
+      {% elif novos == 1 %}
+        1 material novo entra com o saldo do SCPI ({{ linha_nova_unica.saldo_scpi|formatar_quantidade:linha_nova_unica.unidade }})
+      {% else %}
+        {{ novos }} materiais novos entram com o saldo do SCPI
+      {% endif %}
+    </dt>
+    {% if novos > 0 %}
+      <dd class="mt-1 text-text-secondary">
+        O saldo inicial de material novo não gera movimentação no histórico de estoque.
+      </dd>
+    {% endif %}
   </div>
-  <div class="flex items-baseline justify-between gap-4">
-    <dt class="text-text-secondary">Divergências a registrar</dt>
-    <dd class="font-mono text-base font-semibold tabular-nums text-text-primary">{{ divergencias }}</dd>
-  </div>
-  <div class="flex items-baseline justify-between gap-4">
-    <dt class="text-text-secondary">Linhas lidas do arquivo</dt>
-    <dd class="font-mono text-base font-semibold tabular-nums text-text-primary">{{ total }}</dd>
+  <div>
+    <dt class="font-semibold text-text-primary">
+      {% if divergencias == 0 %}
+        Nenhuma divergência a registrar
+      {% elif divergencias == 1 %}
+        1 divergência a registrar
+      {% else %}
+        {{ divergencias }} divergências a registrar
+      {% endif %}
+    </dt>
+    {% if divergencias > 0 %}
+      <dd class="mt-1 text-text-secondary">
+        Divergência entra como alerta para conferência manual no SCPI — o saldo do WMS não muda.
+      </dd>
+    {% endif %}
   </div>
 </dl>
 
-<p class="mt-4 text-sm text-text-secondary">
-  Nenhum saldo do WMS é sobrescrito — divergência entra como alerta para
-  conferência manual posterior no SCPI.
+<p class="mt-4 text-xs text-text-tertiary">
+  {{ total }} linha{{ total|pluralize:"s" }} lida{{ total|pluralize:"s" }} do arquivo.
 </p>

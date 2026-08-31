@@ -8,6 +8,7 @@ badge.html propagaria literalmente, calando o grito para leitor de tela)
 trocam para `prefixo_sr` só no ramo do grito.
 """
 
+import re
 from decimal import Decimal
 from types import SimpleNamespace
 
@@ -258,6 +259,19 @@ def test_corpo_de_alerta_flexiona_singular_e_plural(
     assert esperado in html
     if proibido is not None:
         assert proibido not in html
+
+
+@pytest.mark.parametrize('render', [_render_divergencias, _render_novos])
+def test_corpo_de_alerta_do_preview_tem_linha_lider(render):
+    """Os dois alertas do preview ganham linha-líder como os de desfecho (#164).
+
+    `_alert_sucesso_importacao_corpo.html` e `_alert_erro_scpi_corpo.html` já
+    abrem com um `<p class="font-semibold">`; sem isso, os alertas de antes da
+    escrita irreversível — quando ainda há decisão — saíam mais planos que os de
+    depois, invertendo a progressão.
+    """
+    html = render()
+    assert re.search(r'<p[^>]*\bclass="[^"]*\bfont-semibold\b[^"]*"', html), html
 
 
 # ─── Alertas do fluxo SCPI ─────────────────────────────────────────────────

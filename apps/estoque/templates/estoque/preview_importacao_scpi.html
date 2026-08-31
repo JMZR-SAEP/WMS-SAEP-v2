@@ -118,6 +118,17 @@
             Arquivo CSV
             <span class="ml-0.5 text-danger-accent" aria-hidden="true">*</span>
           </label>
+          {% comment %}
+            O retry repete o formato esperado (#164): sem isto, a instrução some
+            justo quando a pessoa precisa dela, logo depois de o arquivo ter sido
+            recusado. Entra no `aria-describedby` depois do texto do erro — o que
+            deu errado, e então o que se espera.
+          {% endcomment %}
+          <p id="arquivo-retry-ajuda" class="mb-2 text-xs text-text-tertiary">
+            Formato esperado: delimitado por ponto-e-vírgula, com colunas
+            <code class="rounded bg-bg-subtle px-1 font-mono" translate="no">CADPRO</code> e
+            <code class="rounded bg-bg-subtle px-1 font-mono" translate="no">QUAN3</code>.
+          </p>
           <input
             id="arquivo-retry"
             type="file"
@@ -126,7 +137,7 @@
             required
             aria-required="true"
             aria-invalid="true"
-            aria-describedby="erro-arquivo-alerta"
+            aria-describedby="erro-arquivo-alerta arquivo-retry-ajuda"
             autofocus
             class="block w-full cursor-pointer rounded-lg border border-danger-border-strong bg-surface
                    px-3 py-2 text-sm text-text-secondary
@@ -246,6 +257,16 @@
       existe sempre; vazio, o aria-describedby simplesmente não anuncia nada.
     {% endcomment %}
     <div id="alertas-importacao" class="mb-4 flex flex-col gap-3">
+      {% if novos == 0 and divergencias == 0 %}
+        {% comment %}
+          Arquivo sem efeito: nada a criar, nada a registrar. Não há escrita
+          irreversível, então o CTA de confirmação nem aparece (`pode_confirmar`
+          é falso na view) e este alerta explica por quê — em vez de o modal
+          gritar "A gravação não pode ser desfeita" para um arquivo que não
+          muda nada (#164).
+        {% endcomment %}
+        {% include "components/alert.html" with variant="info" message="Este arquivo confere com o WMS: nenhuma divergência e nenhum material novo. Não há nada a importar — envie outro arquivo se quiser conferir outro recorte." %}
+      {% endif %}
       {% if novos > 0 %}
         {% include "components/alert.html" with variant="info" body_template="estoque/partials/_alert_novos_materiais_corpo.html" %}
       {% endif %}
@@ -263,12 +284,18 @@
       `prefixo_sr` a `aria-label` num `<span>`. Com o heading, a legenda vira
       região navegável por heading e o nome sempre é lido.
     {% endcomment %}
+    {% comment %}
+      A legenda descreve só os dois estados que o cartão de fato sinaliza com
+      lavagem de cor (#164). A tarja "Saldo igual" prometia um verde
+      (`bg-success-muted`) que o cartão `ok` nunca veste: ele renderiza
+      `border-border bg-surface`, branco, porque a Regra do Sinal Único reserva
+      a cor para o estado que pede atenção — e "saldo igual" é a linha-base
+      silenciosa. Sob luz de galpão, a pessoa procurava o verde da chave e não
+      achava. O badge "OK" no próprio cartão continua nomeando o estado por
+      texto.
+    {% endcomment %}
     <h2 class="sr-only">Legenda de status</h2>
     <div class="mb-3 flex flex-wrap gap-4 text-xs text-text-secondary">
-      <span class="flex items-center gap-1.5">
-        <span class="inline-block h-3 w-3 rounded-sm bg-success-muted ring-1 ring-success-border" aria-hidden="true"></span>
-        Saldo igual
-      </span>
       <span class="flex items-center gap-1.5">
         <span class="inline-block h-3 w-3 rounded-sm bg-warning-muted ring-1 ring-warning-border" aria-hidden="true"></span>
         Divergência (SCPI ≠ WMS)
