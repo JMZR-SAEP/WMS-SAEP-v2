@@ -419,10 +419,10 @@ def _render_delta(valor, unidade='un'):
     'valor,unidade,esperado',
     [
         ('1.000', 'un', '+1'),
-        ('-3.000', 'un', '-3'),
+        ('-3.000', 'un', '−3'),
         ('15.000', 'un', '+15'),
         ('2.500', 'kg', '+2.5'),
-        ('-2.500', 'kg', '-2.5'),
+        ('-2.500', 'kg', '−2.5'),
         ('1.000', 'kg', '+1.0'),
     ],
 )
@@ -434,7 +434,10 @@ def test_delta_usa_a_precisao_da_unidade(valor, unidade, esperado):
     `atender_retirada`. Aqui o número é lido em pé, no galpão, ao lado do
     material físico.
 
-    A asserção fecha nas duas bordas do `<span>`: `in` sozinho passaria com
+    O negativo casa `−` (U+2212), não `-` (U+002D): é o sinal que a issue #163
+    pediu para casar a largura do `+`.
+
+    A asserção fecha nas duas bordas do valor: `in` sozinho passaria com
     `+2.5000`, que é justamente a casa a mais que o filtro existe para tirar.
     """
     html = _render_delta(valor, unidade).replace(' ', '')
@@ -471,3 +474,67 @@ def test_delta_sem_unidade_ainda_degrada_para_o_numero_certo():
     )
     assert '+1<' in html.replace(' ', '')
     assert ',000' not in html
+
+
+# ─── _delta_movimentacao.html — grafia do sinal e da direção (issue #163) ──
+
+
+def test_delta_negativo_usa_minus_sign_e_nao_hifen():
+    """`−` (U+2212) casa a largura do `+`; `-` (U+002D) tem ~4px.
+
+    `formatar_quantidade` devolve o número com U+002D — o átomo tem de removê-lo
+    e repor o U+2212, senão a direção fica pendurada no glifo mais fraco.
+    """
+    html = _render_delta('-3.000', 'un')
+    assert '−' in html
+    assert '−3' in html.replace(' ', '')
+    # O hífen-menos não pode sobrar em nenhum lugar do valor renderizado.
+    assert '-3' not in html
+    assert '>-' not in html.replace(' ', '')
+
+
+def test_delta_direcao_tem_triangulo_aria_hidden_e_sinal_em_texto():
+    """`▲`/`▼` são decoração; o portador acessível da direção é o sinal.
+
+    O leitor de tela lia o nome Unicode do triângulo antes do número — por isso
+    ele é `aria-hidden` e o `+`/`−` fica fora de qualquer `aria-hidden`.
+    """
+    positivo = _render_delta('5.000', 'un').replace(' ', '')
+    assert '<spanaria-hidden="true">▲</span>+5' in positivo
+
+    negativo = _render_delta('-5.000', 'un').replace(' ', '')
+    assert '<spanaria-hidden="true">▼</span>−5' in negativo
+
+
+def test_delta_valor_sai_em_font_mono_um_degrau_acima_dos_vizinhos():
+    """`font-mono` para formar coluna; `font-medium` para pesar mais que
+    `Origem:`/`Ator:` (400). O zero não pesa — nada aconteceu."""
+    assert 'font-mono' in _render_delta('5.000', 'un')
+    assert 'font-medium' in _render_delta('5.000', 'un')
+    assert 'font-medium' in _render_delta('-5.000', 'un')
+    assert 'font-medium' not in _render_delta('0.000', 'un')
+
+
+def test_delta_zero_continua_font_mono_para_nao_quebrar_a_coluna():
+    html = _render_delta('0.000', 'un')
+    assert 'font-mono' in html
+    assert '>0<' in html.replace(' ', '')
+
+
+@pytest.mark.parametrize(
+    'template',
+    [
+        'estoque/preview_importacao_scpi.html',
+        'estoque/historico_movimentacoes.html',
+        'estoque/partials/_cartoes_divergencias_scpi.html',
+    ],
+)
+def test_as_tres_superficies_do_delta_incluem_o_mesmo_atomo(template):
+    """Uma grafia só para a mesma grandeza (issue #163): ledger, preview do SCPI
+    e lista de divergências renderizam o delta pelo mesmo partial."""
+    from pathlib import Path
+
+    fonte = (
+        Path(__file__).resolve().parent.parent / 'templates' / template
+    ).read_text()
+    assert 'estoque/partials/_delta_movimentacao.html' in fonte

@@ -1,17 +1,41 @@
 {% load core_tags %}
 {% comment %}
-Célula de delta assinado. Recebe `valor` (Decimal) e `unidade` (código da
-unidade de medida do material). Sinal +/− explícito (não depende só de cor);
-zero atenuado em text-text-tertiary (AA: ~4.6:1). tabular-nums para
-alinhamento de colunas numéricas.
+Célula de delta assinado — o átomo do livro-razão (issue #163). Recebe `valor`
+(Decimal) e `unidade` (código da unidade de medida do material). É a mesma
+marcação no histórico de movimentações, no preview do SCPI e na lista de
+divergências gravadas: uma grafia só para a mesma grandeza.
+
+── Leitura (issue #163) ──────────────────────────────────────────────────────
+
+`font-mono` + `tabular-nums`: o número forma coluna. Quem chama põe o rótulo
+acima (ou à esquerda com largura fixa) e alinha a célula; assim o `tabular-nums`
+deixa de ser inerte, que era o que acontecia com o rótulo inline de largura
+variável (`Δ Físico:` vs `Δ Reservado:`) na frente do dígito.
+
+`font-medium`: um degrau de peso acima dos vizinhos do cartão (`Origem:`,
+`Ator:`, em 400). O delta é o dado que a tela existe para mostrar.
+
+`▲`/`▼` marcam a direção e são `aria-hidden`: o leitor de tela lia o nome
+Unicode do glifo antes do número. O portador acessível da direção é o sinal em
+texto (`+` / `−`), que continua no fluxo de leitura.
+
+O sinal negativo é `−` (U+2212, MINUS SIGN), não `-` (U+002D, HYPHEN-MINUS):
+U+002D tem cerca de 4px e não casa a largura do `+`, deixando a direção
+pendurada no glifo mais fraco da fonte. `formatar_quantidade` devolve o número
+com U+002D; `cut:"-"` remove esse hífen e o `−` é reposto aqui.
+
+Cor neutra (`text-text-primary`): a direção está no sinal e no triângulo, nunca
+na cor. DESIGN.md §A Regra do Sinal Único reserva a cor para estado, e uma
+divergência do SCPI não é "boa" nem "ruim".
+
+── Precisão por unidade (P0 do audit, PR #50) — inalterada ───────────────────
 
 `formatar_quantidade` e não o valor cru: `delta_fisico` é
 `DecimalField(decimal_places=3)`, e o Decimal que vem do banco carrega as três
-casas. Em pt-BR o separador
-decimal é a vírgula, então um delta de 1 saía escrito `+1,000` — que no
-galpão se lê *mil*. É o mesmo erro que `apps/core/quantidades.py` foi criado
-para matar em `atender_retirada`, e a política dele é a única fonte de
-precisão por unidade no sistema.
+casas. Em pt-BR o separador decimal é a vírgula, então um delta de 1 saía
+escrito `+1,000` — que no galpão se lê *mil*. É o mesmo erro que
+`apps/core/quantidades.py` foi criado para matar em `atender_retirada`, e a
+política dele é a única fonte de precisão por unidade no sistema.
 
 A unidade vem do chamador porque a precisão é dela, não do delta: `un` não
 admite casa decimal, `kg`/`l`/`m` admitem uma, o resto vai por casa
@@ -19,21 +43,24 @@ significativa.
 
 O `{% templatetag openblock %} with u=unidade|default:'' {% templatetag closeblock %}`
 não é adorno: argumento de filtro tem resolução estrita, e um chamador que
-esquecesse `unidade` derrubaria a página inteira com `VariableDoesNotExist`
-em vez de imprimir um número. Com o `with`, a variável ausente cai em
+esquecesse `unidade` derrubaria a página inteira com `VariableDoesNotExist` em
+vez de imprimir um número. Com o `with`, a variável ausente cai em
 `string_if_invalid` e o filtro degrada para casa significativa — o número
-certo, nunca o `1,000` que a Regra existe para impedir.
+certo, nunca o `1,000` que a Regra existe para impedir. É por esse caminho que
+a lista de divergências do SCPI, que não tem unidade, ainda imprime o número
+certo.
 
 O zero segue impresso como literal `0` e não pelo filtro: é ausência de
 movimento, não uma quantidade medida, e não deve ganhar a casa decimal que a
-unidade fracionária imporia.
+unidade fracionária imporia. Fica sem o `font-medium` e sem triângulo — nada
+aconteceu para destacar.
 {% endcomment %}
 {% with u=unidade|default:'' %}
   {% if valor > 0 %}
-    <span class="tabular-nums font-medium text-text-primary">+{{ valor|formatar_quantidade:u }}</span>
+    <span class="font-mono font-medium tabular-nums text-text-primary"><span aria-hidden="true">▲</span> +{{ valor|formatar_quantidade:u }}</span>
   {% elif valor < 0 %}
-    <span class="tabular-nums font-medium text-text-primary">{{ valor|formatar_quantidade:u }}</span>
+    <span class="font-mono font-medium tabular-nums text-text-primary"><span aria-hidden="true">▼</span> −{{ valor|formatar_quantidade:u|cut:"-" }}</span>
   {% else %}
-    <span class="tabular-nums text-text-tertiary">0</span>
+    <span class="font-mono tabular-nums text-text-tertiary">0</span>
   {% endif %}
 {% endwith %}
