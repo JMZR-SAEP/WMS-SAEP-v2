@@ -1580,6 +1580,22 @@ class TestRecorteEAncoraDoPreviewScpi:
         assert resp.status_code == 302
         assert resp['Location'] == f'{self.URL}?status=divergente&status=novo'
 
+    def test_status_ok_fica_fora_da_allowlist_e_nao_prende_o_recorte(
+        self, client, superuser, estoque_principal, material_scpi, material_scpi_critico
+    ):
+        """`?status=ok` não é recorte: mostra o arquivo inteiro, sem trava.
+
+        Não há chip "só OK" nem CTA de volta quando a lista não é vazia, então
+        aceitar `ok` deixava o link compartilhado preso nesse recorte.
+        """
+        self._subir_csv(client, superuser, material_scpi, material_scpi_critico)
+
+        resp = client.get(self.URL, {'status': 'ok'})
+
+        assert resp.status_code == 200
+        assert resp.context['tem_recorte'] is False
+        assert resp.context['exibidas'] == resp.context['total'] == 3
+
     def test_contagens_descrevem_o_arquivo_inteiro_mesmo_sob_recorte(
         self, client, superuser, estoque_principal, material_scpi, material_scpi_critico
     ):

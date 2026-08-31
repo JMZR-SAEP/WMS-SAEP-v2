@@ -527,9 +527,12 @@ TEMPLATE_PREVIEW_SCPI = 'estoque/preview_importacao_scpi.html'
 # `status` — a chave que os chips de recorte ligam e desligam.
 ORDEM_QUERYSTRING_PREVIEW_SCPI = ('status',)
 
-# Status possíveis de uma linha do preview (`LinhaPreviewSCPI.status`). Vale
-# como allowlist do recorte: valor fora daqui é ignorado, não erra.
-STATUS_PREVIEW_SCPI = ('divergente', 'novo', 'ok')
+# Allowlist do recorte por status: valor fora daqui é ignorado, não erra.
+# Só os status que a conferência recorta — `divergente` e `novo`, os mesmos
+# dos chips. `ok` fica de fora de propósito: recortar para ver só as linhas
+# que batem não tem valor de conferência, e aceitá-lo prendia o link
+# compartilhado (`?status=ok`) num recorte sem chip ativo nem porta de volta.
+STATUS_PREVIEW_SCPI = ('divergente', 'novo')
 
 ERRO_ARQUIVO_SEM_LINHAS = (
     'O arquivo não contém linhas de dados após o cabeçalho. '
