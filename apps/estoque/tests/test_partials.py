@@ -288,8 +288,12 @@ def test_delta_usa_a_precisao_da_unidade(valor, unidade, esperado):
     exatamente o erro que `apps/core/quantidades.py` foi criado para matar em
     `atender_retirada`. Aqui o número é lido em pé, no galpão, ao lado do
     material físico.
+
+    A asserção fecha nas duas bordas do `<span>`: `in` sozinho passaria com
+    `+2.5000`, que é justamente a casa a mais que o filtro existe para tirar.
     """
-    assert esperado in _render_delta(valor, unidade)
+    html = _render_delta(valor, unidade).replace(' ', '')
+    assert f'>{esperado}<' in html
 
 
 @pytest.mark.parametrize('valor', ['1.000', '-3.000', '47.000'])
