@@ -5,12 +5,14 @@ auditadas (blocos 1–4 de requisições/auth + blocos A–D de estoque/notifica
 o que sobrou: a camada de tokens, os componentes compartilhados, os partials de domínio e o
 comportamento em JS.
 
-> **Estado deste plano (revisado em 2026-08-27).**
+> **Estado deste plano (revisado em 2026-08-31).**
 >
 > - **Etapas 0–5 concluídas.** Não mexer — ver "Etapas concluídas" abaixo. A Etapa 5 (listagem em
 >   cartões) fechou com audit + correções + critique; o reteste da tabela no catálogo está em
 >   `DESIGN.md`.
-> - **Etapas 6–8 pendentes.** Cada uma tem agora duas fases: `/impeccable audit` (defeito técnico —
+> - **Etapa 7 concluída** (2026-08-31): audit + 6 PRs de correção + critique. Pontuação heurística
+>   23/40; o P0 e os P1 que sobraram viraram as issues #161–#164. Ver "Etapa 7" abaixo.
+> - **Etapas 6 e 8 pendentes.** Cada uma tem duas fases: `/impeccable audit` (defeito técnico —
 >   a11y, responsivo, performance) seguida de `/impeccable critique` (revisão de UX com pontuação
 >   heurística sobre o resultado do audit). A critique fecha a etapa e alimenta o backlog de
 >   `polish` se restar P0/P1.
@@ -39,7 +41,7 @@ mudar.
 | Componentes compartilhados | `apps/core/templates/components/*.html` (25) + `components/icons/` (3 partials + 15 svg) | — |
 | Shell e navegação | `base.html`, `base_auth.html`, `core/_topbar_nav.html`, `core/partials/_side_nav.html`, `core/partials/_messages.html`, `core/partials/_message_item.html` | — |
 | Partials de requisições | `apps/requisicoes/templates/requisicoes/partials/**` (13) | — |
-| Partials de estoque | `apps/estoque/templates/estoque/partials/**` (11) | — |
+| Partials de estoque | `apps/estoque/templates/estoque/partials/**` (10, eram 11) | — |
 | Comportamento | `apps/core/static/core/js/*.js` (7) | 1720 |
 
 Notas:
@@ -154,36 +156,79 @@ Sobre os fluxos de decisão da requisição:
 - `_modal_corpo_atender_retirada`: carga cognitiva do passo de conferência
 - Pontuação heurística + P0/P1
 
-## Etapa 7 — Partials de estoque
+## Etapa 7 — Partials de estoque (concluída em 2026-08-31)
 
-### Fase 1 — audit
+Entregue: audit + 6 PRs de correção + critique. Pontuação heurística **23/40**; snapshot em
+`.impeccable/critique/2026-08-31T16-24-38Z__templates-estoque-partials-delta-movimentacao-html.md`.
 
-```text
-/impeccable audit apps/estoque/templates/estoque/partials/
-```
+### Respostas às perguntas que a etapa fazia
 
-11 partials: `_badge_tipo_movimentacao`, `_estado_saida_badge`, `_delta_movimentacao`, os 5 alerts
-de importação SCPI (`_alert_divergencias_corpo`, `_erro_arquivo_corpo`, `_erro_confirmacao_corpo`,
-`_novos_materiais_corpo`, `_sucesso_importacao_corpo`), `_modal_corpo_confirmar_importacao`,
-`_modal_form_estorno_saida`, `_autocomplete_item_material`.
+**Os 5 alerts do SCPI dizem coisas diferentes ou são o mesmo alert com texto trocado?**
+Três distintos, dois redundantes. `_alert_erro_arquivo_corpo` e `_alert_erro_confirmacao_corpo`
+tinham marcação idêntica e divergiam só no título e no nome da variável; viraram
+`_alert_erro_scpi_corpo.html`, parametrizado por `titulo`/`detalhe`. Os outros três
+(`_divergencias`, `_novos_materiais`, `_sucesso`) têm copy própria com teste. **11 partials → 10.**
 
-Mesma pergunta da etapa 6, mais: os 5 alerts de SCPI dizem coisas diferentes ou são o mesmo alert
-com texto trocado? (`_chip_so_saidas` foi absorvido pelo `filter_chips` genérico — conferir que não
-sobrou referência.)
+**`_chip_so_saidas` deixou referência pendurada?**
+Não em código — `components/filter_chips.html` cobre o caso, e não sobrou include, view ou JS
+apontando para ele. Sobrava resíduo de nomenclatura em seis nomes de teste e dois comentários,
+limpo no PR #52.
 
-### Fase 2 — critique
+**O operador entende o que vai mudar no estoque antes de confirmar?**
+Parcialmente. A ordem de informação do modal (identidade → o que muda → o que **não** muda →
+irreversibilidade) é a melhor peça do fluxo. O que falha é o peso: `Materiais novos a criar`
+(cria saldo), `Divergências a registrar` (registra alerta) e `Linhas lidas do arquivo` (não faz
+nada) saem na mesma tipografia. Issue #164.
 
-```text
-/impeccable critique apps/estoque/templates/estoque/partials/_modal_corpo_confirmar_importacao.html apps/estoque/templates/estoque/partials/_alert_divergencias_corpo.html apps/estoque/templates/estoque/partials/_delta_movimentacao.html
-```
+**O sinal e a magnitude do delta são lidos sem contar dígito?**
+Não. O valor tem o mesmo tamanho, família e cor do texto vizinho; o negativo usa hífen ASCII contra
+um `+` de largura plena; e `tabular-nums` é inerte porque o número fica inline depois de um rótulo
+de largura variável. Issue #163.
 
-Sobre o fluxo de importação SCPI, que é onde o operador toma decisão de verdade:
+**Os alerts como conjunto formam progressão?**
+Não — e a progressão está invertida. Os dois do preview saem idênticos em geometria e sem
+linha-líder; os dois do desfecho têm linha-líder. Ou seja, os que aparecem quando ainda há decisão
+a tomar são os mais planos. Issue #164.
 
-- Confirmação de importação: o operador entende o que vai mudar no estoque antes de confirmar?
-  Divergências e novos materiais apresentados de forma acionável, não como despejo de dados
-- `_delta_movimentacao`: o sinal de entrada/saída e a magnitude são lidos sem contar dígito
-- Os 5 alerts como conjunto: progressão clara (sucesso → atenção → erro) ou cinco caixas parecidas?
-- Pontuação heurística + P0/P1
+### O que a Fase 1 corrigiu
+
+O achado que governou a etapa: `apps/core/quantidades.py` existe para matar o bug do `1,000` que em
+pt-BR se lê *mil*, e **nenhum ponto de estoque tinha adotado a política**. O preview mostrava
+`WMS 50,000` ao lado de `SCPI 42` na tela cuja função inteira é comparar os dois.
+
+| PR | Escopo | Severidade |
+|---|---|---|
+| #50 | Política de precisão por unidade em 4 pontos de render | P0 |
+| #51 | Rótulo do form de estorno volta para `.rotulo-campo` | P1 |
+| #52 | Renomeia testes do chip de filtro extinto | P3 |
+| #53 | Cada saldo do autocomplete leva o próprio rótulo | P1 |
+| #54 | Consolida os alerts de erro + conserta o de sucesso | P1/P2 |
+| #55 | Legibilidade do preview SCPI (7 achados) | P1/P2/P3 |
+
+Efeito colateral que vale registro: a lista `divida_etapa_7` de
+`test_nenhum_rotulo_de_campo_escrito_a_mao` nomeava esta etapa como dona e mandava sumir quando ela
+fechasse. **Fechou** — o guarda vale para `apps/` inteiro agora, sem escotilha.
+
+### P0/P1 que sobraram
+
+Viraram issue própria em vez de entrar em `/impeccable polish`, porque o escopo passa de
+front-end:
+
+- **#161** (P0) — persistir as divergências e entregá-las ao chefe de almoxarifado. O fluxo termina
+  sem produzir a lista de CADPROs que ele veio buscar.
+- **#162** (P1) — recorte e âncora no preview: sem filtro nem paginação, 300 linhas dão ~61 telas; e
+  a barra de ação é `fixed sm:static`, ou seja, o desktop é a única cena sem barra.
+- **#163** (P1) — desenhar `_delta_movimentacao`. O átomo do north star nunca foi desenhado.
+- **#164** (P2) — copy: hierarquia da recapitulação, legenda que promete uma cor que nenhum cartão
+  veste, e a progressão invertida dos alerts.
+
+### Nota de método
+
+A critique rodou em dois sub-agentes isolados (revisão de design / detector + navegador). O
+detector devolveu `[]` nos seis arquivos — um canário sintético confirmou que ele dispara, mas a
+engine estática não resolve utility do Tailwind para cor, então **toda medição de contraste veio do
+navegador**. Vale para as próximas etapas: em template Django + Tailwind, o `[]` do detector não é
+evidência de ausência.
 
 ## Etapa 8 — Passe de regressão
 
@@ -221,9 +266,12 @@ existe (`critique.latest` nulo). Verifica:
 |---|---|---|---|
 | 0–5 | Tokens, ação, feedback, overlay, busca/filtro, listagem em cartões | — | **concluídas** |
 | 6 | Partials de requisições | 13 | audit + critique |
-| 7 | Partials de estoque | 11 | audit + critique |
+| 7 | Partials de estoque | 11 → 10 | **concluída** (23/40) |
 | 8 | Regressão das 19 telas | 19 | audit + critique |
 
-Etapas 0–5 concluídas e congeladas. Nas etapas 6–8 a ordem interna é fixa (audit → correções →
-critique); 6 e 7 dependem das correções de 1–5 já mergeadas, 8 fecha. P0/P1 que
-sobrarem das critiques alimentam `/impeccable polish`.
+Etapas 0–5 e 7 concluídas e congeladas. Nas etapas 6 e 8 a ordem interna é fixa (audit →
+correções → critique); as duas dependem das correções de 1–5 já mergeadas, e a 8 fecha. P0/P1 que
+sobrarem das critiques alimentam `/impeccable polish` ou viram issue própria quando o escopo passa
+de front-end (foi o caso da #161).
+
+A Etapa 7 rodou antes da 6. As duas só dependiam de 1–5, não uma da outra.
