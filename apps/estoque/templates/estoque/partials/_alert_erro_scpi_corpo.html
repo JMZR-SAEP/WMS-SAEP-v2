@@ -1,0 +1,23 @@
+{% comment %}
+  Corpo dos alertas de erro do fluxo de importação SCPI. Um partial para as
+  duas portas de falha, porque elas são a mesma caixa:
+
+  - `preview_importacao_scpi.html` — o arquivo não pôde ser lido;
+  - `confirmar_importacao_scpi.html` — a gravação não pôde ser feita.
+
+  Antes eram `_alert_erro_arquivo_corpo.html` e
+  `_alert_erro_confirmacao_corpo.html`: marcação idêntica, divergindo só no
+  título e no nome da variável. Um dos dois ainda repetia `text-sm` e
+  `text-danger-text-emphasis`, que `components/alert.html` já entrega pela
+  variante — e repetir o token no corpo acopla o corpo à variante, de modo que
+  um chamador que passasse outra variante teria a cor do texto brigando com a
+  da caixa.
+
+  Parâmetros:
+    titulo   (obrigatório) o que falhou, na voz do fluxo ("Erro ao processar o
+             arquivo", "Erro ao confirmar importação")
+    detalhe  (obrigatório) a mensagem que a view já traduziu da exceção de
+             domínio
+{% endcomment %}
+<p class="font-semibold">{{ titulo }}</p>
+<p class="mt-0.5">{{ detalhe }}</p>

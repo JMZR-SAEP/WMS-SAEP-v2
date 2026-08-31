@@ -94,7 +94,7 @@
       `id` amarra o texto do erro ao campo de retry por aria-describedby: o campo
       já tem `autofocus`, e é esse foco que anuncia o erro depois do POST.
     {% endcomment %}
-    {% include "components/alert.html" with variant="danger" id="erro-arquivo-alerta" body_template="estoque/partials/_alert_erro_arquivo_corpo.html" class="mb-6" %}
+    {% include "components/alert.html" with variant="danger" id="erro-arquivo-alerta" body_template="estoque/partials/_alert_erro_scpi_corpo.html" titulo="Erro ao processar o arquivo" detalhe=erro_arquivo class="mb-6" %}
 
     <form
       method="post"

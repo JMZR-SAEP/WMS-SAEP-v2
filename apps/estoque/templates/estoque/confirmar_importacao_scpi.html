@@ -27,7 +27,7 @@
   {% else %}
     {# ── Erro ────────────────────────────────────────────────────────── #}
     {% if erro %}
-      {% include "components/alert.html" with variant="danger" body_template="estoque/partials/_alert_erro_confirmacao_corpo.html" class="mb-6" %}
+      {% include "components/alert.html" with variant="danger" body_template="estoque/partials/_alert_erro_scpi_corpo.html" titulo="Erro ao confirmar importação" detalhe=erro class="mb-6" %}
     {% endif %}
 
     {% url 'estoque:preview_importacao_scpi' as url_preview %}
