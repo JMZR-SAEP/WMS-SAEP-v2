@@ -3129,7 +3129,7 @@ class TestHistoricoMovimentacoesResponsivo:
         content = response.content.decode()
         pos_chip = content.find('id="filter-chips"')
         pos_details = content.find('<details')
-        assert pos_chip != -1, 'chip-so-saidas não encontrado'
+        assert pos_chip != -1, 'id="filter-chips" não encontrado'
         assert pos_details != -1, '<details não encontrado'
         assert pos_chip < pos_details, 'chip deve aparecer antes do <details>'
 
