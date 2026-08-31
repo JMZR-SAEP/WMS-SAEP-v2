@@ -96,7 +96,7 @@ responderia a nenhuma pergunta de estado do domínio.
       {% faixa_paginas page_obj as paginas %}
       <ol class="flex flex-wrap items-center gap-1">
         {% for numero in paginas %}
-          <li>
+          <li{% if numero == page_obj.paginator.ELLIPSIS %} aria-hidden="true"{% endif %}>
             {% if numero == page_obj.paginator.ELLIPSIS %}
               <span class="px-1 text-sm text-text-tertiary" aria-hidden="true">{{ numero }}</span>
             {% elif numero == page_obj.number %}

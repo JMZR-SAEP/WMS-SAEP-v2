@@ -1410,6 +1410,12 @@ class TestPaginationHref:
         assert 'bg-bg-subtle' not in marcador.group(1)
 
     def test_reticencia_e_decorativa(self):
+        """O `<li>` da lacuna sai da árvore junto com o `<span>`.
+
+        Esconder só o `<span>` deixa o `<li>` de pé: o leitor de tela conta
+        "lista, 7 itens" e anuncia dois itens vazios no meio da faixa. Com o
+        `aria-hidden` no item, a contagem passa a ser a dos 5 alvos reais.
+        """
         html = self._render(20, total=400)
         reticencias = re.findall(r'<span([^>]*)>…</span>', html)
         assert len(reticencias) == 2
@@ -1418,6 +1424,15 @@ class TestPaginationHref:
             assert 'tabindex' not in atributos
             assert 'href' not in atributos
         assert '>…</a>' not in html
+
+        itens = re.findall(r'<li([^>]*)>(.*?)</li>', self._lista(html), re.S)
+        ocultos = [atributos for atributos, corpo in itens if '…' in corpo]
+        visiveis = [atributos for atributos, corpo in itens if '…' not in corpo]
+        assert len(ocultos) == 2 and len(visiveis) == 5
+        for atributos in ocultos:
+            assert 'aria-hidden="true"' in atributos
+        for atributos in visiveis:
+            assert 'aria-hidden' not in atributos
 
     def test_faixa_elidida_nao_explode_com_40_paginas(self):
         """Sete entradas no pior caso — cinco alvos de 44px e duas reticências.
