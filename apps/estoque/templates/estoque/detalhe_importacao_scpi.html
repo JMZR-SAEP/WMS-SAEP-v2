@@ -1,0 +1,115 @@
+{% extends "base_auth.html" %}
+{% load core_tags %}
+
+{% block title %}Importação SCPI — WMS-SAEP{% endblock %}
+
+{% block topbar_leading %}
+  {% comment %}
+    Volta direto para o histórico: é a única porta de entrada desta tela além do
+    link da confirmação, e a confirmação não é endereço a que se volte (o
+    preview que a alimentava já não existe).
+  {% endcomment %}
+  <a
+    href="{% url 'estoque:historico_importacoes_scpi' %}"
+    class="app-bar__nav-icon"
+    aria-label="Voltar para o histórico de importações SCPI"
+  >
+    {% icon "voltar" %}
+  </a>
+  <h1 class="app-bar__title">Detalhe da importação SCPI</h1>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-screen-xl mx-auto space-y-6">
+
+  {# Cabeçalho do documento #}
+  <div class="rounded-xl border border-border bg-surface p-6 shadow-sm">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div class="min-w-0">
+        <h2 class="break-all text-xl font-semibold text-text-primary">{{ importacao.arquivo_nome }}</h2>
+        <p class="mt-1 text-sm text-text-tertiary">{{ importacao.importado_em|date:"d/m/Y H:i" }}</p>
+      </div>
+      <span class="shrink-0">
+        {% if importacao.status == 'concluida' %}
+          {% include "components/badge.html" with variant="green" label="Concluída" prefixo_sr="Estado: " %}
+        {% elif importacao.status == 'com_alertas' %}
+          {% include "components/badge.html" with variant="yellow" label="Com alertas" prefixo_sr="Estado: " %}
+        {% else %}
+          {% include "components/badge.html" with variant="desconhecida:"|add:importacao.status label=importacao.get_status_display prefixo_sr="Estado: " %}
+        {% endif %}
+      </span>
+    </div>
+
+    <dl class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div>
+        <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Usuário</dt>
+        <dd class="mt-1 text-sm text-text-primary">{{ importacao.importado_por }}</dd>
+      </div>
+      <div>
+        <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Estoque</dt>
+        <dd class="mt-1 text-sm text-text-primary">{{ importacao.estoque.nome }}</dd>
+      </div>
+      <div>
+        <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Hash</dt>
+        <dd class="mt-1 break-all font-mono text-xs text-text-tertiary">{{ importacao.arquivo_hash }}</dd>
+      </div>
+      <div>
+        <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Linhas</dt>
+        <dd class="mt-1 text-sm tabular-nums text-text-primary">{{ importacao.total_linhas }}</dd>
+      </div>
+      <div>
+        <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Novos</dt>
+        <dd class="mt-1 text-sm tabular-nums text-text-primary">{{ importacao.total_novos }}</dd>
+      </div>
+      <div>
+        <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Divergentes</dt>
+        <dd class="mt-1 text-sm tabular-nums {% if importacao.total_divergentes > 0 %}font-medium text-warning-text{% else %}text-text-primary{% endif %}">{{ importacao.total_divergentes }}</dd>
+      </div>
+    </dl>
+
+    <div class="mt-6 flex flex-wrap gap-3">
+      {% if divergencias %}
+        {% comment %}
+          Saída primária do detalhe é a lista concluída pelo WMS, não o CSV
+          bruto do SCPI: o bruto o operador já tem — foi ele quem o subiu.
+        {% endcomment %}
+        {% url 'estoque:baixar_divergencias_importacao_scpi' pk=importacao.pk as url_csv_divergencias %}
+        {% include "components/button.html" with variant="primary" size="sm" label="Baixar CSV das divergências" href=url_csv_divergencias %}
+      {% endif %}
+      {% if importacao.arquivo %}
+        {% url 'estoque:baixar_arquivo_importacao_scpi' pk=importacao.pk as url_download %}
+        {% include "components/button.html" with variant="secondary" size="sm" label="Baixar CSV enviado" href=url_download aria_label="Baixar CSV enviado de "|add:importacao.arquivo_nome %}
+      {% endif %}
+    </div>
+  </div>
+
+  <section aria-labelledby="titulo-divergencias">
+    <div class="mb-3">
+      <h2 id="titulo-divergencias" class="text-base font-semibold text-text-primary">Divergências a acertar no SCPI</h2>
+      {% if divergencias %}
+        <p class="mt-1 text-sm text-text-tertiary">
+          A importação não altera saldo. Cada linha abaixo é um produto em que o SCPI e o WMS discordam.
+        </p>
+      {% endif %}
+    </div>
+
+    {% if divergencias %}
+      {% include "estoque/partials/_cartoes_divergencias_scpi.html" %}
+    {% elif importacao.total_divergentes > 0 %}
+      {% comment %}
+        Contagem sem lista: importação confirmada antes de #161, quando as linhas
+        divergentes não eram gravadas. Dizer isso é melhor que mostrar lista
+        vazia sob um contador que diz o contrário.
+      {% endcomment %}
+      <p class="text-sm text-text-tertiary">
+        Importação anterior ao registro de divergências: só a contagem foi preservada.
+      </p>
+    {% else %}
+      <p class="text-sm text-text-tertiary">
+        Nenhuma divergência: todos os saldos do arquivo batiam com o WMS.
+      </p>
+    {% endif %}
+  </section>
+
+</div>
+{% endblock %}

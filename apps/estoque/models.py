@@ -340,6 +340,69 @@ class ImportacaoSCPI(models.Model):
         return f'Importação SCPI #{self.pk} — {self.arquivo_nome}'
 
 
+class LinhaDivergenteSCPI(models.Model):
+    """Uma linha do CSV em que o saldo do SCPI difere do saldo do WMS (#161).
+
+    O ritual de importação existe para produzir a lista de CADPROs a acertar no
+    SCPI, e a importação nunca sobrescreve saldo: quem concilia é gente. Antes
+    desta tabela a lista só existia na pré-visualização, que é efêmera — a
+    sessão do preview é descartada na confirmação, e o chefe de almoxarifado
+    saía da tela sabendo que havia N divergências sem saber quais.
+
+    É um instantâneo de auditoria, não uma projeção: os valores são gravados
+    como estavam no instante da confirmação e não acompanham renomeação de
+    material nem movimentação posterior de saldo. Por isso `denominacao` é texto
+    copiado e não FK — o registro tem de continuar legível mesmo que o catálogo
+    mude depois.
+
+    Só linhas divergentes entram aqui. Linha "ok" não é informação, e linha
+    "novo" vira material com saldo no mesmo commit — o resultado dela já é
+    consultável no catálogo.
+    """
+
+    importacao = models.ForeignKey(
+        ImportacaoSCPI,
+        on_delete=models.CASCADE,
+        related_name='divergencias',
+        verbose_name='importação',
+    )
+    cadpro = models.CharField('CADPRO', max_length=32)
+    denominacao = models.CharField('denominação', max_length=255, blank=True)
+    saldo_wms = models.DecimalField(
+        'saldo no WMS',
+        max_digits=12,
+        decimal_places=3,
+    )
+    saldo_scpi = models.DecimalField(
+        'saldo no SCPI',
+        max_digits=12,
+        decimal_places=3,
+    )
+    delta = models.DecimalField(
+        'delta',
+        max_digits=13,
+        decimal_places=3,
+        help_text='saldo do SCPI menos saldo do WMS.',
+    )
+
+    class Meta:
+        verbose_name = 'linha divergente SCPI'
+        verbose_name_plural = 'linhas divergentes SCPI'
+        ordering = ('cadpro', 'id')
+        indexes = [
+            models.Index(
+                fields=('importacao', 'cadpro'),
+                name='divergencia_scpi_importacao',
+            ),
+        ]
+        # Sem unicidade por (importacao, cadpro) de propósito: o CSV do SCPI não
+        # é garantidamente deduplicado, e o instantâneo tem de conseguir gravar
+        # o arquivo como ele veio. Duplicata é evidência, não erro de escrita.
+
+    def __str__(self):
+        return f'{self.cadpro}: SCPI {self.saldo_scpi} × WMS {self.saldo_wms}'
+
+
 class MovimentacaoEstoqueImutavel(Exception):
     """Levantada ao tentar alterar ou excluir um registro de MovimentacaoEstoque.
 

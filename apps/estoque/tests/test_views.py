@@ -1769,6 +1769,48 @@ class TestConfirmarImportacaoScpiView:
             b'sucesso' in resp.content.lower() or b'confirmad' in resp.content.lower()
         )
 
+    def test_sucesso_lista_os_cadpros_divergentes_e_nao_so_a_contagem(
+        self, client, superuser, estoque_principal, material_scpi
+    ):
+        """#161: a lista some com a sessão do preview se a tela não a mostrar."""
+        csv_bytes = (
+            f'CADPRO;DENOMINACAO;QUAN3\n{material_scpi.codigo};Parafuso M6;130.000\n'
+        ).encode('utf-8')
+        self._seed_session(client, superuser, csv_bytes)
+        redirect = client.post(self.URL, {})
+        conteudo = client.get(redirect['Location']).content.decode()
+        assert material_scpi.codigo in conteudo
+        assert 'Divergências a acertar no SCPI' in conteudo
+        assert 'Baixar CSV das divergências' in conteudo
+
+    def test_sucesso_com_divergencia_tem_uma_unica_saida_primaria(
+        self, client, superuser, estoque_principal, material_scpi
+    ):
+        csv_bytes = (
+            f'CADPRO;DENOMINACAO;QUAN3\n{material_scpi.codigo};Parafuso M6;130.000\n'
+        ).encode('utf-8')
+        self._seed_session(client, superuser, csv_bytes)
+        redirect = client.post(self.URL, {})
+        conteudo = client.get(redirect['Location']).content.decode()
+        assert 'Ver a divergência' in conteudo
+        # As outras três saídas continuam na tela, rebaixadas.
+        assert 'Ver histórico de importações' in conteudo
+        assert 'Ver catálogo de materiais' in conteudo
+        assert 'Nova importação' in conteudo
+
+    def test_sucesso_sem_divergencia_nao_renderiza_lista_nem_saida_primaria(
+        self, client, superuser, estoque_principal, material_scpi
+    ):
+        csv_bytes = (
+            f'CADPRO;DENOMINACAO;QUAN3\n{material_scpi.codigo};Parafuso M6;100.000\n'
+        ).encode('utf-8')
+        self._seed_session(client, superuser, csv_bytes)
+        redirect = client.post(self.URL, {})
+        conteudo = client.get(redirect['Location']).content.decode()
+        assert 'Divergências a acertar no SCPI' not in conteudo
+        assert 'Ver a divergência' not in conteudo
+        assert 'Baixar CSV das divergências' not in conteudo
+
     def test_hash_duplicado_retorna_200_com_mensagem_erro(
         self, client, superuser, estoque_principal
     ):
@@ -2072,13 +2114,14 @@ class TestHistoricoImportacoesScpiView:
         client.force_login(superuser)
         conteudo = client.get(self.URL).content.decode()
         assert '<article class="relative rounded-xl border border-border' in conteudo
-        # Esta é a única listagem em cartões cuja ação é um download, não uma
-        # navegação para detalhe: ela mantém o botão explícito e não marca
-        # `data-cartao-link`. Cartão que baixa arquivo ao ser clicado seria
-        # surpresa, não conveniência.
+        # A ação do cartão passou a ser navegação para o detalhe (#161), e não
+        # mais o download do CSV: por isso ele volta a marcar `data-cartao-link`
+        # no título. O botão de download continua explícito ao lado — cartão que
+        # baixa arquivo ao ser clicado seria surpresa, não conveniência, e é
+        # justamente por isso que o alvo do cartão é o detalhe.
         # `(?![\]:])` separa o atributo das ocorrências dentro dos seletores
         # `has-[a[data-cartao-link]]` que o chrome imprime em todo <article>.
-        assert not re.search(r'data-cartao-link(?![\]:])', conteudo)
+        assert re.search(r'data-cartao-link(?![\]:])', conteudo)
         assert 'relatorio.csv' in conteudo
         assert 'Concluída' in conteudo
         assert '<table' not in conteudo
@@ -2123,7 +2166,9 @@ class TestHistoricoImportacoesScpiView:
         url_download = f'/estoque/importacao-scpi/{importacao.pk}/arquivo/'
         assert url_download.encode() in resp.content
         # Nome acessível distingue as linhas: "Baixar" sozinho se repete na coluna.
-        assert b'aria-label="Baixar CSV de com_arquivo.csv"' in resp.content
+        # "enviado" desde #161: o detalhe passou a oferecer um segundo CSV, o das
+        # divergências que o WMS concluiu do arquivo.
+        assert b'aria-label="Baixar CSV enviado de com_arquivo.csv"' in resp.content
 
     def test_nao_exibe_link_quando_importacao_legada(
         self, client, superuser, estoque_principal
@@ -2327,6 +2372,174 @@ class TestBaixarArquivoImportacaoScpiView:
         client.force_login(superuser)
         resp = client.get(self._url(importacao.pk))
         assert resp.status_code == 404
+
+
+class _BaseImportacaoComDivergencias:
+    """Monta uma importação com divergências gravadas, sem passar pelo CSV."""
+
+    def _importacao(self, superuser, estoque_principal, *, divergentes=2):
+        from apps.estoque.models import (
+            ImportacaoSCPI,
+            LinhaDivergenteSCPI,
+            StatusImportacaoSCPI,
+        )
+
+        importacao = ImportacaoSCPI.objects.create(
+            arquivo_nome='saldo_scpi.csv',
+            arquivo_hash='e' * 64,
+            importado_por=superuser,
+            estoque=estoque_principal,
+            status=(
+                StatusImportacaoSCPI.COM_ALERTAS
+                if divergentes
+                else StatusImportacaoSCPI.CONCLUIDA
+            ),
+            total_linhas=10,
+            total_novos=0,
+            total_divergentes=divergentes,
+        )
+        for i in range(divergentes):
+            LinhaDivergenteSCPI.objects.create(
+                importacao=importacao,
+                cadpro=f'000.777.{i:03d}',
+                denominacao=f'Parafuso sextavado {i}',
+                saldo_wms=10,
+                saldo_scpi=13,
+                delta=3,
+            )
+        return importacao
+
+
+class TestDetalheImportacaoScpiView(_BaseImportacaoComDivergencias):
+    """Contrato HTTP de detalhe_importacao_scpi_view (#161)."""
+
+    def _url(self, pk: int) -> str:
+        return f'/estoque/importacao-scpi/{pk}/'
+
+    def test_nao_autenticado_redireciona_para_login(
+        self, client, superuser, estoque_principal
+    ):
+        importacao = self._importacao(superuser, estoque_principal)
+        resp = client.get(self._url(importacao.pk))
+        assert resp.status_code == 302
+        assert '/login/' in resp['Location']
+
+    def test_sem_permissao_retorna_403(
+        self, client, superuser, solicitante, estoque_principal
+    ):
+        importacao = self._importacao(superuser, estoque_principal)
+        client.force_login(solicitante)
+        resp = client.get(self._url(importacao.pk))
+        assert resp.status_code == 403
+
+    def test_chefe_almoxarifado_acessa(
+        self, client, superuser, chefe_almoxarifado, estoque_principal
+    ):
+        """A conferência no SCPI é dele; a policy do detalhe é a do histórico."""
+        importacao = self._importacao(superuser, estoque_principal)
+        client.force_login(chefe_almoxarifado)
+        resp = client.get(self._url(importacao.pk))
+        assert resp.status_code == 200
+
+    def test_pk_inexistente_retorna_404(self, client, superuser):
+        client.force_login(superuser)
+        resp = client.get(self._url(999999))
+        assert resp.status_code == 404
+
+    def test_post_retorna_405(self, client, superuser, estoque_principal):
+        importacao = self._importacao(superuser, estoque_principal)
+        client.force_login(superuser)
+        resp = client.post(self._url(importacao.pk), {})
+        assert resp.status_code == 405
+
+    def test_lista_os_cadpros_divergentes(self, client, superuser, estoque_principal):
+        importacao = self._importacao(superuser, estoque_principal)
+        client.force_login(superuser)
+        conteudo = client.get(self._url(importacao.pk)).content.decode()
+        assert '000.777.000' in conteudo
+        assert '000.777.001' in conteudo
+        assert 'Parafuso sextavado 0' in conteudo
+
+    def test_sem_divergencia_nao_renderiza_lista_nem_botao_de_csv(
+        self, client, superuser, estoque_principal
+    ):
+        importacao = self._importacao(superuser, estoque_principal, divergentes=0)
+        client.force_login(superuser)
+        conteudo = client.get(self._url(importacao.pk)).content.decode()
+        assert 'Baixar CSV das divergências' not in conteudo
+        assert 'Nenhuma divergência' in conteudo
+
+
+class TestBaixarDivergenciasImportacaoScpiView(_BaseImportacaoComDivergencias):
+    """Contrato HTTP da exportação da lista concluída pelo WMS (#161)."""
+
+    def _url(self, pk: int) -> str:
+        return f'/estoque/importacao-scpi/{pk}/divergencias/'
+
+    def test_nao_autenticado_redireciona_para_login(
+        self, client, superuser, estoque_principal
+    ):
+        importacao = self._importacao(superuser, estoque_principal)
+        resp = client.get(self._url(importacao.pk))
+        assert resp.status_code == 302
+        assert '/login/' in resp['Location']
+
+    def test_sem_permissao_retorna_403(
+        self, client, superuser, solicitante, estoque_principal
+    ):
+        importacao = self._importacao(superuser, estoque_principal)
+        client.force_login(solicitante)
+        resp = client.get(self._url(importacao.pk))
+        assert resp.status_code == 403
+
+    def test_pk_inexistente_retorna_404(self, client, superuser):
+        client.force_login(superuser)
+        resp = client.get(self._url(999999))
+        assert resp.status_code == 404
+
+    def test_post_retorna_405(self, client, superuser, estoque_principal):
+        importacao = self._importacao(superuser, estoque_principal)
+        client.force_login(superuser)
+        resp = client.post(self._url(importacao.pk), {})
+        assert resp.status_code == 405
+
+    def test_devolve_csv_com_cabecalho_e_linhas(
+        self, client, chefe_almoxarifado, superuser, estoque_principal
+    ):
+        importacao = self._importacao(superuser, estoque_principal)
+        client.force_login(chefe_almoxarifado)
+        resp = client.get(self._url(importacao.pk))
+        assert resp.status_code == 200
+        assert resp['Content-Type'].startswith('text/csv')
+        assert (
+            resp['Content-Disposition']
+            == f'attachment; filename="divergencias-importacao-{importacao.pk}.csv"'
+        )
+        texto = resp.content.decode('utf-8-sig')
+        linhas = texto.splitlines()
+        assert linhas[0] == 'CADPRO;DENOMINACAO;SALDO_WMS;SALDO_SCPI;DELTA'
+        assert linhas[1] == '000.777.000;Parafuso sextavado 0;10.000;13.000;3.000'
+        assert len(linhas) == 3
+
+    def test_bom_utf8_preserva_acento_na_planilha(
+        self, client, superuser, estoque_principal
+    ):
+        """Sem BOM, o Excel pt-BR lê UTF-8 como Latin-1 e estraga a denominação."""
+        importacao = self._importacao(superuser, estoque_principal, divergentes=0)
+        client.force_login(superuser)
+        resp = client.get(self._url(importacao.pk))
+        assert resp.content.startswith(b'\xef\xbb\xbf')
+
+    def test_importacao_sem_divergencia_devolve_so_o_cabecalho(
+        self, client, superuser, estoque_principal
+    ):
+        importacao = self._importacao(superuser, estoque_principal, divergentes=0)
+        client.force_login(superuser)
+        resp = client.get(self._url(importacao.pk))
+        assert resp.status_code == 200
+        assert resp.content.decode('utf-8-sig').splitlines() == [
+            'CADPRO;DENOMINACAO;SALDO_WMS;SALDO_SCPI;DELTA'
+        ]
 
 
 URL_MATERIAIS = reverse('estoque:lista_materiais')

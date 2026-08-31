@@ -595,6 +595,145 @@ class TestConfirmarImportacaoScpi:
         assert importacao.total_divergentes == 1
 
 
+class TestConfirmarImportacaoScpiDivergenciasPersistidas:
+    """A lista de divergências é gravada com a confirmação (#161)."""
+
+    def _csv(self, cadpro: str, denominacao: str, quantidade: str) -> bytes:
+        return (
+            f'CADPRO;DENOMINACAO;QUAN3\n{cadpro};{denominacao};{quantidade}\n'.encode(
+                'utf-8'
+            )
+        )
+
+    def test_grava_linha_divergente_com_cadpro_saldos_e_delta(
+        self, db, superuser, estoque_principal, material_scpi
+    ):
+        from decimal import Decimal
+
+        from apps.estoque.models import LinhaDivergenteSCPI
+        from apps.estoque.services import confirmar_importacao_scpi
+
+        # material_scpi tem saldo_fisico 100 no WMS.
+        csv_bytes = self._csv(material_scpi.codigo, 'Parafuso M6', '130.000')
+        importacao = confirmar_importacao_scpi(
+            ator_id=superuser.pk,
+            conteudo_bytes=csv_bytes,
+            arquivo_nome='div.csv',
+            estoque_id=estoque_principal.pk,
+        )
+
+        (linha,) = LinhaDivergenteSCPI.objects.filter(importacao=importacao)
+        assert linha.cadpro == material_scpi.codigo
+        assert linha.denominacao == material_scpi.nome
+        assert linha.saldo_wms == Decimal('100.000')
+        assert linha.saldo_scpi == Decimal('130.000')
+        assert linha.delta == Decimal('30.000')
+
+    def test_importacao_sem_divergencia_nao_grava_linha(
+        self, db, superuser, estoque_principal, material_scpi
+    ):
+        from apps.estoque.models import LinhaDivergenteSCPI
+        from apps.estoque.services import confirmar_importacao_scpi
+
+        csv_bytes = self._csv(material_scpi.codigo, 'Parafuso M6', '100.000')
+        importacao = confirmar_importacao_scpi(
+            ator_id=superuser.pk,
+            conteudo_bytes=csv_bytes,
+            arquivo_nome='igual.csv',
+            estoque_id=estoque_principal.pk,
+        )
+        assert importacao.total_divergentes == 0
+        assert not LinhaDivergenteSCPI.objects.filter(importacao=importacao).exists()
+
+    def test_linha_nova_e_linha_ok_nao_viram_divergencia(
+        self, db, superuser, estoque_principal, material_scpi
+    ):
+        """Só `divergente` entra: `ok` não é informação e `novo` já virou catálogo."""
+        from apps.estoque.models import LinhaDivergenteSCPI
+        from apps.estoque.services import confirmar_importacao_scpi
+
+        csv_bytes = (
+            'CADPRO;DENOMINACAO;QUAN3\n'
+            f'{material_scpi.codigo};Parafuso M6;100.000\n'
+            '000.999.910;Material Novo;5.000\n'
+        ).encode('utf-8')
+        importacao = confirmar_importacao_scpi(
+            ator_id=superuser.pk,
+            conteudo_bytes=csv_bytes,
+            arquivo_nome='ok-e-novo.csv',
+            estoque_id=estoque_principal.pk,
+        )
+        assert not LinhaDivergenteSCPI.objects.filter(importacao=importacao).exists()
+
+    def test_contagem_de_linhas_gravadas_bate_com_total_divergentes(
+        self, db, superuser, estoque_principal, material_scpi, material_scpi_critico
+    ):
+        from apps.estoque.models import LinhaDivergenteSCPI
+        from apps.estoque.services import confirmar_importacao_scpi
+
+        csv_bytes = (
+            'CADPRO;DENOMINACAO;QUAN3\n'
+            f'{material_scpi.codigo};Parafuso M6;001.000\n'
+            f'{material_scpi_critico.codigo};Crítico;009.000\n'
+        ).encode('utf-8')
+        importacao = confirmar_importacao_scpi(
+            ator_id=superuser.pk,
+            conteudo_bytes=csv_bytes,
+            arquivo_nome='duas.csv',
+            estoque_id=estoque_principal.pk,
+        )
+        assert importacao.total_divergentes == 2
+        assert LinhaDivergenteSCPI.objects.filter(importacao=importacao).count() == 2
+
+    def test_reimportacao_bloqueada_nao_deixa_divergencia_orfa(
+        self, db, superuser, estoque_principal, material_scpi
+    ):
+        """Mesma transação da confirmação: se ela não vale, a lista não existe."""
+        import pytest
+
+        from apps.core.exceptions import ConflitoDominio
+        from apps.estoque.models import LinhaDivergenteSCPI
+        from apps.estoque.services import confirmar_importacao_scpi
+
+        csv_bytes = self._csv(material_scpi.codigo, 'Parafuso M6', '130.000')
+        confirmar_importacao_scpi(
+            ator_id=superuser.pk,
+            conteudo_bytes=csv_bytes,
+            arquivo_nome='primeira.csv',
+            estoque_id=estoque_principal.pk,
+        )
+        antes = LinhaDivergenteSCPI.objects.count()
+
+        with pytest.raises(ConflitoDominio):
+            confirmar_importacao_scpi(
+                ator_id=superuser.pk,
+                conteudo_bytes=csv_bytes,
+                arquivo_nome='segunda.csv',
+                estoque_id=estoque_principal.pk,
+            )
+        assert LinhaDivergenteSCPI.objects.count() == antes
+
+    def test_denominacao_e_instantaneo_e_nao_acompanha_renomeacao(
+        self, db, superuser, estoque_principal, material_scpi
+    ):
+        """Registro de auditoria: o que foi conferido não muda depois."""
+        from apps.estoque.models import LinhaDivergenteSCPI
+        from apps.estoque.services import confirmar_importacao_scpi
+
+        csv_bytes = self._csv(material_scpi.codigo, 'Parafuso M6', '130.000')
+        importacao = confirmar_importacao_scpi(
+            ator_id=superuser.pk,
+            conteudo_bytes=csv_bytes,
+            arquivo_nome='snap.csv',
+            estoque_id=estoque_principal.pk,
+        )
+        material_scpi.nome = 'Parafuso M6 sextavado'
+        material_scpi.save(update_fields=['nome'])
+
+        (linha,) = LinhaDivergenteSCPI.objects.filter(importacao=importacao)
+        assert linha.denominacao == 'Parafuso M6'
+
+
 class TestConfirmarImportacaoScpiTimelineRequisicoes:
     """atualizacao_estoque_relevante registrado em requisições autorizadas afetadas."""
 

@@ -26,7 +26,15 @@
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
               {# 14px semibold como os outros seis cartões: 12px é tamanho de rótulo estrutural, e mono é uma segunda família que o design system não declara — ela fica reservada ao hash, que é onde caractere a caractere importa. #}
-              <h2 class="break-all text-sm font-semibold text-text-primary">{{ imp.arquivo_nome }}</h2>
+              <h2 class="break-all text-sm font-semibold text-text-primary">
+                {# O link do título é o alvo real; `data-cartao-link` faz o cartão inteiro responder por ele (core/js/cartao-alvo.js). #}
+                <a
+                  href="{% url 'estoque:detalhe_importacao_scpi' pk=imp.pk %}"
+                  data-cartao-link
+                  class="rounded-sm focus-visible:outline-none"
+                  aria-label="Ver detalhe da importação {{ imp.arquivo_nome }}"
+                >{{ imp.arquivo_nome }}</a>
+              </h2>
               <p class="mt-1 text-xs text-text-tertiary">{{ imp.importado_em|date:"d/m/Y H:i" }}</p>
             </div>
             <span class="shrink-0">
@@ -66,7 +74,8 @@
 
           {% if imp.arquivo %}
             {% url 'estoque:baixar_arquivo_importacao_scpi' pk=imp.pk as url_download %}
-            {% include "components/button.html" with variant="secondary" size="sm" label="Baixar CSV" href=url_download aria_label="Baixar CSV de "|add:imp.arquivo_nome class="mt-4" %}
+            {# "enviado", não "CSV" seco (#161): a partir do detalhe existem dois CSVs — o do SCPI que subiu e a lista de divergências que o WMS concluiu. #}
+            {% include "components/button.html" with variant="secondary" size="sm" label="Baixar CSV enviado" href=url_download aria_label="Baixar CSV enviado de "|add:imp.arquivo_nome class="mt-4" %}
           {% else %}
             <p class="mt-4 text-xs text-text-tertiary">Importação anterior ao arquivamento: CSV não disponível.</p>
           {% endif %}
