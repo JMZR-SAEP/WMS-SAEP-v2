@@ -2713,7 +2713,7 @@ class TestHistoricoMovimentacoesFiltros:
         )
         assert response.status_code == 200
 
-    def test_chip_so_saidas_marca_estado_ativo(
+    def test_chip_de_filtro_marca_estado_ativo(
         self, client, superuser, requisicao_autorizada
     ):
         client.force_login(superuser)
@@ -2725,7 +2725,7 @@ class TestHistoricoMovimentacoesFiltros:
         assert ativo.context['chips_filtro'][0].ativo is True
         assert inativo.context['chips_filtro'][0].ativo is False
 
-    def test_chip_so_saidas_reemitido_via_oob_no_swap_htmx(
+    def test_chip_de_filtro_reemitido_via_oob_no_swap_htmx(
         self, client, superuser, requisicao_autorizada
     ):
         # Bug-regressão: o chip vive fora de #resultados-movimentacoes, então
@@ -2741,7 +2741,7 @@ class TestHistoricoMovimentacoesFiltros:
         assert b'hx-swap-oob="true"' in parcial
         assert b'aria-current="true"' in parcial
 
-    def test_chip_so_saidas_sem_oob_na_pagina_completa(
+    def test_chip_de_filtro_sem_oob_na_pagina_completa(
         self, client, superuser, requisicao_autorizada
     ):
         # Render completo: chip único, sem atributo OOB (evita id duplicado).
@@ -2796,7 +2796,7 @@ class TestHistoricoMovimentacoesFiltros:
         assert '<b>inexistente</b>' not in filtrado
         assert 'Nenhuma movimentação encontrada' not in filtrado
 
-    def test_chip_so_saidas_preserva_filtros_atuais(
+    def test_chip_de_filtro_preserva_filtros_atuais(
         self, client, chefe_almoxarifado, setor_obras
     ):
         # Bug-regressão: alternar o chip não pode descartar o recorte atual.
@@ -2916,8 +2916,8 @@ class TestHistoricoMovimentacoesFiltrosPartials:
         # de #resultados-movimentacoes (dentro do <form>), então numa
         # resposta HTMX precisa ser reemitido como out-of-band pra refletir
         # tem_filtro_ativo — senão "Limpar filtros" fica com o estado da
-        # primeira renderização full-page. Mesmo padrão de
-        # _chip_so_saidas.html (oob_chip).
+        # primeira renderização full-page. Mesmo padrão do
+        # components/filter_chips.html, reemitido via hx-swap-oob.
         client.force_login(superuser)
         parcial = client.get(
             URL_MOVIMENTACOES, {'material': 'MAT001'}, HTTP_HX_REQUEST='true'
@@ -3118,7 +3118,7 @@ class TestHistoricoMovimentacoesResponsivo:
         assert b'<details' in response.content
         assert b'<summary' in response.content
 
-    def test_chip_so_saidas_visivel_fora_do_disclosure(
+    def test_chip_de_filtro_visivel_fora_do_disclosure(
         self, client, chefe_almoxarifado
     ):
         # O chip "só saídas" deve aparecer ANTES do <details> no HTML para
@@ -3399,7 +3399,7 @@ class TestHistoricoMovimentacoesFiltrosResponsivo:
         assert 'type="date"' not in fonte
         assert 'type="checkbox"' not in fonte
 
-    def test_chip_so_saidas_composto_fora_do_filter_shell(self):
+    def test_chip_de_filtro_composto_fora_do_filter_shell(self):
         caminho = (
             Path(__file__).resolve().parent.parent
             / 'templates'
