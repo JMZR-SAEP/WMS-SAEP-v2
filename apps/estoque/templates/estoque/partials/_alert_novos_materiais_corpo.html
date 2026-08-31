@@ -1,5 +1,14 @@
-{% comment %}Corpo do alerta de materiais novos no CTA de preview_importacao_scpi.html.{% endcomment %}
-<p class="text-sm">
+{% comment %}
+  Corpo do alerta de materiais novos no CTA de preview_importacao_scpi.html.
+
+  Linha-líder em `font-semibold` como os alertas de desfecho: os quatro alertas
+  do fluxo formam uma progressão, e os dois do preview não podem sair mais
+  planos que os dois de depois (#164).
+{% endcomment %}
+<p class="font-semibold">
+  Materia{{ novos|pluralize:"l,is" }} novo{{ novos|pluralize:"s" }} no arquivo do SCPI
+</p>
+<p class="mt-0.5 text-sm">
   <strong>{{ novos }}</strong> materia{{ novos|pluralize:"l,is" }} novo{{ novos|pluralize:"s" }} {% if novos == 1 %}será criado{% else %}serão criados{% endif %} com a denominação e o saldo inicial do SCPI.
   A unidade entra como “unidade” porque o SCPI não a informa — cabe ao chefe de almoxarifado conferir no catálogo depois da importação.
 </p>
