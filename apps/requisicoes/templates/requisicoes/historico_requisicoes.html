@@ -7,8 +7,7 @@
 {% include "components/page_header.html" with titulo="Histórico de requisições" class="mb-2" %}
 <p class="mb-6 max-w-3xl text-sm text-text-secondary">
   Histórico de requisições visíveis ao seu papel. Filtre por solicitante/beneficiário,
-  estado, período{% if mostrar_filtro_setor %} ou setor{% endif %}; o recorte fica na
-  URL e pode ser compartilhado.
+  estado, período{% if mostrar_filtro_setor %} ou setor{% endif %}.
 </p>
 
 {% url 'requisicoes:historico' as url_historico %}

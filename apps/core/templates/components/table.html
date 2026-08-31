@@ -11,13 +11,33 @@ tabela carregava.
 
 Fragmentos (só abertura — fechamentos ficam literais na tela chamadora):
   cards_abertura        container: grid de cartões, 1 coluna no mobile, 2 a
-                        partir de `sm`, 3 a partir de `2xl`. Fechamento: </div>
+                        partir de `sm`, 3 a partir de `2xl`. Os 1536px do `2xl`
+                        não são alcançados pelo desktop típico do chefe de setor
+                        (1366 ou 1440): quem usa este fragmento fica em duas
+                        colunas na prática, e isso é decisão, não descuido —
+                        ver DESIGN.md §A Regra do Cartão Único (revisitado na
+                        issue #160). Fechamento: </div>
   cards_abertura_denso  igual, mas a 3ª coluna entra em `xl` (1280px). Só para
                         listagem comprovadamente densa pelo critério em
                         DESIGN.md §A Regra do Cartão Único (issue #159). Hoje só
                         `estoque/lista_materiais`. Fechamento literal: </div>
   card_abertura         cartão individual: article.rounded-xl...
                         Fechamento literal: </article>
+
+## A grade não carrega `items-start`
+
+Os dois containers ficam no `stretch` padrão do grid: cartões da mesma linha
+têm a mesma altura e a base alinhada. Com `items-start` cada cartão media a
+própria altura e a linha ficava rasgada embaixo — 256 a 276px de variação
+medidos no histórico a 375px, porque a subline do material só aparece quando a
+requisição tem um item só. Vinte pixels de degrau entre dois cartões vizinhos
+não são lidos como "este tem menos conteúdo", e sim como desalinho.
+
+O conteúdo não se redistribui com a mudança: o `<article>` não é flex column,
+então tudo continua encostado no topo do cartão e a folga cai no rodapé do
+cartão mais curto — respiro, não buraco. `items-start` dentro dos cartões
+(containers `flex`) é outra coisa e continua certo: ali ele impede que o badge
+de estado estique junto com o título de duas linhas.
 
 Nenhum recebe parâmetro — são strings de classe fixas. `cards_abertura_denso` é
 fragmento irmão de estrutura pura (contagem de colunas), não parâmetro. Não
@@ -63,11 +83,11 @@ Uso canônico (dentro de {% partialdef resultados %} da própria tela, GET-only)
   </div>
 {% endcomment %}
 {% partialdef cards_abertura %}
-<div class="grid items-start gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+<div class="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
 {% endpartialdef %}
 
 {% partialdef cards_abertura_denso %}
-<div class="grid items-start gap-3 sm:grid-cols-2 xl:grid-cols-3">
+<div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
 {% endpartialdef %}
 
 {% partialdef card_abertura %}

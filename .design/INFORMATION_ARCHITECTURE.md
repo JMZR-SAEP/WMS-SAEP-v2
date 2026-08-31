@@ -218,6 +218,12 @@ Labels usadas na interface. Mapeiam os termos do `CONTEXT.md` para o contexto vi
 | Separar para retirada | Separar para retirada | Botão |
 | Atendimento parcial | Atendimento parcial | Label de evento de timeline |
 
+### Texto de apoio de tela (2026-08-28, issue #160)
+
+O parágrafo sob o título de uma tela orienta a tarefa de quem opera — o que a lista contém e por quais recortes ela se estreita. Ele não narra o mecanismo da implementação. O histórico de requisições e o de movimentações fechavam o parágrafo com "o recorte fica na URL e pode ser compartilhado": era o único texto de ajuda das duas telas, e gastava metade dele explicando querystring, que nenhum papel do `PRODUCT.md` pediu. A frase saiu das duas na #160 — a propriedade continua verdadeira e continua registrada onde pertence, como princípio de experiência em `movimentacoes-estoque/DESIGN_BRIEF.md` ("Recorte compartilhável sobre estado efêmero") e como regra na seção URL Strategy desta IA.
+
+A regra vale para tela nova: se uma frase do texto de apoio descreve URL, querystring, swap parcial ou cache — coisas que o operador não executa —, ela pertence ao brief ou a esta IA, não à tela. Não virou item do `DESIGN.md` porque não é decisão visual: é vocabulário de interface, e o vocabulário mora aqui.
+
 ## Component Reuse Map
 
 | Componente | Usado em | Variações |
@@ -262,7 +268,7 @@ Labels usadas na interface. Mapeiam os termos do `CONTEXT.md` para o contexto vi
 - Slugs em PT-BR — conforme AGENTS.md.
 - `<id>` é o `pk` numérico da `Requisicao`. Nunca expor `numero_publico` como segmento de URL (pode ser nulo em rascunho).
 - Sem query params para navegação básica. `?next=<url>` apenas para preservar origem no link "← Voltar".
-- Filtros e ordenação nas listas: query params (`?estado=`, `?ordem=`) — fase seguinte.
+- Filtros e ordenação nas listas: query params (`?estado=`, `?ordem=`) — já entregues. A URL é a fonte de verdade do recorte e a querystring canônica é montada em `apps/core/querystring.py`. É aqui que a propriedade fica registrada; a tela não a explica ao operador (ver "Texto de apoio de tela").
 - App namespace: `requisicoes` em `urls.py` com `app_name = 'requisicoes'`.
 - Root URL config inclui: `path('requisicoes/', include('apps.requisicoes.urls'))`.
 
