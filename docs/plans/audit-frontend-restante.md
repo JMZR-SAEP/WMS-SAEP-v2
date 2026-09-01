@@ -12,8 +12,9 @@ comportamento em JS.
 >   `DESIGN.md`.
 > - **Etapa 7 concluída** (2026-08-31): audit + 6 PRs de correção + critique. Pontuação heurística
 >   23/40; o P0 e os P1 que sobraram viraram as issues #161–#164. Ver "Etapa 7" abaixo.
-> - **Etapa 8 concluída** (2026-09-01): audit sem alvo + correções + critique sem alvo. Pontuação
->   heurística **21/40** — a baseline do produto que não existia. Ver "Etapa 8" abaixo.
+> - **Etapa 8 concluída** (2026-09-01): audit sem alvo + correções + critique sem alvo + backlog da
+>   critique executado. Pontuação heurística **21/40** — a baseline do produto que não existia; o
+>   P0, os três P1 e os dois P2 dela foram fechados na sequência. Ver "Etapa 8" abaixo.
 > - **Etapa 6 pendente.** Tem duas fases: `/impeccable audit` (defeito técnico — a11y, responsivo,
 >   performance) seguida de `/impeccable critique` (revisão de UX com pontuação heurística sobre o
 >   resultado do audit). A critique fecha a etapa e alimenta o backlog de `polish` se restar P0/P1.
@@ -309,13 +310,44 @@ trabalho da lane Navegador (ADR-0019).
 - **P2** — custo assumido desta etapa: o `flex-wrap` que consertou o número partido fez o carimbo de
   estado ocupar a linha 1 em uns cartões e a linha 3 em outros.
 
+### O backlog da critique, executado
+
+O P0, os três P1 e os dois P2 foram fechados na mesma etapa, em oito commits.
+
+| Commit | Escopo | Severidade |
+|---|---|---|
+| `f040ece` | `components/quantidade.html` + `formatar` em notação pt-BR + entregue líquida fora de `pode_devolver` | P1 |
+| `df909e0` | Saldo visível nos dois pontos de decisão, erro com os dois números, item marcado, `retornar` liberado ao chefe | **P0** |
+| `a8c21dc` | Contagem nas quatro listagens nuas; ledger e catálogo deixam de terminar em beco | P1 |
+| `e8df9bd` | Modal na saída excepcional, `MOTIVO` sem default real, retirante e devolução lidos na timeline | P1 |
+| `020e675` | Notificações viram cartões com o desfecho no título; `return-strong` separa estorno de devolução | P1/P2 |
+| `3ce426c` | Carimbo de estado com posição fixa até `xl` | P2 |
+| `6a8719d` | Uma gramática de busca, e busca nas três listagens de trabalho | P1 |
+| `83344ca` | Estáticos com hash no nome no piloto | P2 |
+
+**A maior oportunidade era única e foi a primeira.** A quantidade é o dado que este produto existe
+para controlar e recebia tratamento tipográfico em **um** lugar — o modal de retirada. Promovê-la a
+componente consertou de uma vez o alinhamento do catálogo (os três valores começavam em x=330, x=361
+e x=360 no mesmo cartão; agora terminam todos em x=582), a unidade órfã do detalhe, o número nu do
+atendimento e o separador decimal — porque passou a existir um ponto só para consertar.
+
+**Duas decisões de rumo que os testes existentes forçaram**, e as duas estavam certas: as filas têm
+ordem de domínio (FIFO por `atualizado_em`) e não podiam ganhar inversão de ordem, só contagem; e o
+marcador de alvo de cartão só vale dentro do chrome de `#card_abertura`, o que tirou o catálogo da
+lista de cartões clicáveis e lhe deu um link explícito com piso de 44px.
+
+**Uma mudança fora do front-end**, declarada: `pode_retornar_para_rascunho` passou a incluir o chefe
+do setor do beneficiário. A condição é a mesma de autorizar e recusar, então não abre alcance novo —
+quem já podia encerrar a requisição passa a poder devolvê-la. `docs/matriz-permissoes.md` e a TR-006
+de `docs/estado-transicoes-requisicao.md` foram atualizadas.
+
 ### Nota de método
 
-A maior oportunidade é única e resolve várias linhas da tabela heurística de uma vez: **promover a
-quantidade a componente**. O modal de retirada já provou a forma certa — número com peso, unidade
-colada, referência abaixo em menor. Um `quantidade.html` usado nas sete telas conserta de uma vez o
-alinhamento do catálogo, a unidade órfã do detalhe, o número nu do atendimento e o separador
-decimal, porque passaria a existir um ponto só para consertar.
+A critique cobrou o preço de uma correção da própria Fase 1: o `flex-wrap` que consertou o número
+público partido a 375px fez o carimbo de estado ocupar a linha 1 em uns cartões e a linha 3 em
+outros. Vale registrar como padrão de trabalho — correção de defeito medido pode comprar outro
+defeito medido, e a fase seguinte é onde isso aparece. A emenda está em `DESIGN.md`, com o
+deslocamento do carimbo medido em cinco viewports.
 
 ---
 
