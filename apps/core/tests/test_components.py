@@ -3660,3 +3660,47 @@ class TestComponenteQuantidade:
     def test_destaque_reservado_ao_momento_de_confirmacao(self):
         assert 'text-base' in self._render(destaque=True)
         assert 'text-base' not in self._render()
+
+
+def test_cabecalho_de_cartao_nao_vira_linha_antes_de_xl():
+    """A âncora de varredura tem posição fixa dentro do cartão.
+
+    O `flex-wrap` da Etapa 8 consertou o número público partido em duas linhas a
+    375px e comprou outro defeito: `Cancelada` cabia na linha do título e
+    `Aguardando autorização` — o carimbo mais largo do produto, 192px — descia
+    para baixo da data. O carimbo ocupava a linha 1 em uns cartões e a linha 3
+    em outros, e uma âncora que muda de lugar entre vizinhos é pior que uma
+    âncora deslocada.
+
+    O ponto de virada é `xl` por medição, não por gosto: 192 (carimbo) + 12
+    (gap) + 132 (número) + 32 (padding) = 368px de cartão, que em grade de 2
+    colunas só existe a partir de ~1036px de viewport. `sm` põe a mesma
+    instabilidade um breakpoint adiante.
+    """
+    raiz = Path(__file__).resolve().parents[3]
+    cabecalho = re.compile(r'class="flex[^"]*items-start[^"]*justify-between[^"]*"')
+    # O cartão do ledger é a exceção, e por estrutura: ali o carimbo de tipo é o
+    # PRIMEIRO elemento do cabeçalho — quem fica na ponta direita é a data, e o
+    # material é um `<h2>` abaixo dos dois. A âncora de varredura já nasce no
+    # canto superior esquerdo e não se desloca, então empilhar só faria o cartão
+    # crescer. A regra protege a posição do carimbo, não a classe.
+    isento = 'apps/estoque/templates/estoque/historico_movimentacoes.html'
+    infratores = []
+    for caminho in sorted((raiz / 'apps').rglob('*.html')):
+        if str(caminho.relative_to(raiz)) == isento:
+            continue
+        conteudo = _sem_comentarios(caminho.read_text())
+        if 'components/table.html#card_abertura' not in conteudo:
+            continue
+        for numero, linha in enumerate(conteudo.splitlines(), start=1):
+            achado = cabecalho.search(linha)
+            if not achado:
+                continue
+            classes = achado.group(0)
+            if 'xl:flex-row' in classes and 'flex-col' in classes:
+                continue
+            infratores.append(f'{caminho.relative_to(raiz)}:{numero}')
+    assert infratores == [], (
+        'cabeçalho de cartão em linha antes de `xl` — o carimbo de estado muda '
+        f'de posição entre cartões vizinhos. Ver DESIGN.md: {infratores}'
+    )

@@ -45,7 +45,7 @@
         {% include "components/table.html#card_abertura" %}
           {% url 'estoque:detalhe_saida_excepcional' saida.pk as url_detalhe_saida %}
           {% with pk_texto=saida.pk|stringformat:"s" next_encoded=request.get_full_path|urlencode %}
-          <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="flex flex-col gap-2 xl:flex-row xl:items-start xl:justify-between xl:gap-3">
             <div class="min-w-0">
               {# O link do título é o alvo real; `data-cartao-link` faz o cartão inteiro responder por ele (core/js/cartao-alvo.js). #}
               <h2 class="break-words text-sm font-semibold text-text-primary">

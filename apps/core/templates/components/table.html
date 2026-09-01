@@ -71,7 +71,7 @@ Uso canônico (dentro de {% partialdef resultados %} da própria tela, GET-only)
   {% include "components/table.html#cards_abertura" %}
     {% for item in lista %}
       {% include "components/table.html#card_abertura" %}
-        <div class="flex flex-wrap items-start justify-between gap-3">
+        <div class="flex flex-col gap-2 xl:flex-row xl:items-start xl:justify-between xl:gap-3">
           <div class="min-w-0">
             <h2 class="break-words text-sm font-semibold text-text-primary">{{ item.titulo }}</h2>
           </div>

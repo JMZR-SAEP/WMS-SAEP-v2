@@ -350,9 +350,27 @@ caber inteiro (medido: `<h2>` de 40px para 20px). O mesmo vale no `<dl>`: em
 duas colunas a 375px cada célula tem ~145px e `Origem: SXP-2026-000003` quebrava
 o número; em coluna única o cartão cresce 12px (246 → 258px) e nada quebra.
 
+**Emenda (mesma etapa, depois da critique): o carimbo tem posição fixa até
+`xl`.** O `flex-wrap` consertou o número partido e comprou outro defeito, medido
+na critique: `Cancelada` e `Rascunho` cabiam na linha do título enquanto
+`Aguardando autorização` descia para baixo da data. O carimbo de estado — o alvo
+de varredura mais importante da lista — ocupava a linha 1 em uns cartões e a
+linha 3 em outros, e uma âncora que muda de lugar entre vizinhos é pior que uma
+âncora deslocada.
+
+O cabeçalho passa a ser `flex flex-col ... xl:flex-row`. O ponto de virada é
+`xl` e não `sm` por medição: o carimbo mais largo do produto ocupa 192px, o
+número precisa de ~132px e o `gap` de 12 — 336px, mais 32 de padding, dá 368px
+de cartão. Em grade de 2 colunas isso só acontece a partir de ~1036px de
+viewport com a side nav, e `sm` (640px) dá 296px por cartão, ou seja, a mesma
+instabilidade um breakpoint adiante. Medido em `/requisicoes/minhas/`, o
+deslocamento do carimbo em relação ao topo do cartão passou a ter **um valor
+único por viewport** — 68,5px a 375, 700 e 1024; 20,5px a 1366 e 1440 — contra
+dois valores misturados na mesma tela antes.
+
 Consequência para quem escreve tela nova: nenhuma coluna de grade fixa em
-`grid-cols-2` num cartão de listagem, e nenhum cabeçalho de cartão sem
-`flex-wrap`. Um `col-span-2` de campo largo vira `sm:col-span-2`.
+`grid-cols-2` num cartão de listagem, e nenhum cabeçalho de cartão em
+`flex-row` abaixo de `xl`. Um `col-span-2` de campo largo vira `sm:col-span-2`.
 
 **A Regra do Chrome Sem Parâmetro.** Os fragmentos de chrome de listagem não recebem parâmetro de classe. Se um chrome precisa de um parâmetro que descreve conteúdo de célula, a abstração está errada — a célula fica explícita na tela chamadora. Uma variante de estrutura pura (contagem de colunas: `#cards_abertura` vs. `#cards_abertura_denso`) é fragmento irmão de string fixa, não parâmetro, e não fere a regra.
 

@@ -91,7 +91,7 @@
         {% include "components/table.html#card_abertura" %}
           {% url 'requisicoes:detalhe' pk=req.pk as url_detalhe_req %}
           {% with next_encoded=request.get_full_path|urlencode criada_em=req.criado_em|date:"d/m/Y H:i" %}
-          <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="flex flex-col gap-2 xl:flex-row xl:items-start xl:justify-between xl:gap-3">
             <div class="min-w-0">
               {% comment %}
                 Rascunho não tem número público — por decisão de domínio: o
