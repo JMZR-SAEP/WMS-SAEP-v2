@@ -12,10 +12,11 @@ comportamento em JS.
 >   `DESIGN.md`.
 > - **Etapa 7 concluída** (2026-08-31): audit + 6 PRs de correção + critique. Pontuação heurística
 >   23/40; o P0 e os P1 que sobraram viraram as issues #161–#164. Ver "Etapa 7" abaixo.
-> - **Etapas 6 e 8 pendentes.** Cada uma tem duas fases: `/impeccable audit` (defeito técnico —
->   a11y, responsivo, performance) seguida de `/impeccable critique` (revisão de UX com pontuação
->   heurística sobre o resultado do audit). A critique fecha a etapa e alimenta o backlog de
->   `polish` se restar P0/P1.
+> - **Etapa 8 concluída** (2026-09-01): audit sem alvo + correções + critique sem alvo. Pontuação
+>   heurística **21/40** — a baseline do produto que não existia. Ver "Etapa 8" abaixo.
+> - **Etapa 6 pendente.** Tem duas fases: `/impeccable audit` (defeito técnico — a11y, responsivo,
+>   performance) seguida de `/impeccable critique` (revisão de UX com pontuação heurística sobre o
+>   resultado do audit). A critique fecha a etapa e alimenta o backlog de `polish` se restar P0/P1.
 > - Contexto da revisão: `components/table.html` virou chrome de cartões (#83 — não há mais tabela),
 >   entraram `filter_chips.html` e `filter_presets_periodo.html` (#152–#154), `field_error.html` e
 >   `_icone_nivel.html` saíram de markup duplicado (#127).
@@ -230,33 +231,91 @@ engine estática não resolve utility do Tailwind para cor, então **toda mediç
 navegador**. Vale para as próximas etapas: em template Django + Tailwind, o `[]` do detector não é
 evidência de ausência.
 
-## Etapa 8 — Passe de regressão
+## Etapa 8 — Passe de regressão (concluída em 2026-09-01)
 
-### Fase 1 — audit
+Entregue: audit sem alvo + 3 commits de correção + critique sem alvo. Pontuação heurística
+**21/40**; snapshot em `.impeccable/critique/2026-09-01T16-35-35Z__apps.md`.
 
-```text
-/impeccable audit
-```
+Método: 20 telas full-page (o plano dizia 19; o inventário de `templates/` fora de `partials/` dá
+20 — `copiar_confirmacao.html` não tinha entrado na conta), medidas no navegador a 1366×1000 e
+375×812, sob 4 papéis reais, com dataset cobrindo os 8 estados de requisição, 16 materiais, 3
+saídas excepcionais e 1 importação SCPI com divergência. A critique rodou em dois sub-agentes
+isolados (revisão de design / detector + navegador).
 
-Sem alvo — varredura das 19 telas já auditadas, agora sobre a base refeita. Verifica:
+### Respostas às perguntas que a etapa fazia
 
-- Nenhuma tela regrediu com a troca de token ou refatoração de componente
-- Mobile em todas as 19
-- Consistência final entre as 4 listas de requisições e as 3 de estoque, agora todas em cartões
+**Alguma tela regrediu com troca de token ou refatoração de componente?**
+Não por refatoração. Os P0 são de outra natureza: a política de precisão de quantidade da Etapa 7
+**não alcançou as telas que a #161 criou depois**. `_cartoes_divergencias_scpi.html` imprimia os dois
+saldos crus, e com `LANGUAGE_CODE=pt-br` o `DecimalField(decimal_places=3)` saía `820,000` — que em
+pt-BR se lê *oitocentos e vinte mil* —, com o delta ao lado, no mesmo cartão, já obedecendo à
+política.
 
-### Fase 2 — critique
+**Mobile nas 19?**
+Zero rolagem horizontal em 39 das 40 combinações medidas (a exceção: `/requisicoes/7/atender/` a
+375px ficou inalcançável depois que a requisição saiu do estado atendível). Três defeitos reais, os
+três de quebra de identidade: o número público partido em duas linhas quando o badge é longo, o
+`Origem: SXP-2026-000003` partido no meio, e o `<dl>` em `grid-cols-2` fixo dando ~145px por célula.
 
-```text
-/impeccable critique
-```
+**As 7 listagens contam a mesma história?**
+Não, e a divisão era o inverso da necessidade: as duas telas com recorte completo (`historico`,
+`movimentacoes`) têm cartões **inertes**, e as cinco onde se age sobre um registro não tinham como
+achar um registro. As duas telas de **decisão** do fluxo eram as que menos informavam — "Minhas
+requisições" não dizia nada do conteúdo e a fila de autorização dizia só "Itens: N", o mesmo defeito
+que a fila de atendimento já tinha corrigido. Convergido na grafia da fila de atendimento (nome do
+material + "e mais N"). O que sobra é a paridade de filtro/ordenação/contagem, que segue em 2 de 7.
 
-Sem alvo — leitura de UX do produto inteiro depois de tudo refeito. É a baseline heurística que não
-existe (`critique.latest` nulo). Verifica:
+**O detector serve?**
+Não nesta superfície, e agora está quantificado. Seis canários sintéticos isolaram duas cegueiras
+independentes: ele não resolve utility do Tailwind (dispara com `style=` inline, não dispara com
+`text-slate-300`) e as regras estruturais só rodam em documento completo. **82 dos 83 templates são
+fragmentos e 55 dos 83 usam utility de cor.** A nota de método da Etapa 7 vale como regra: em
+template Django + Tailwind, `[]` não é evidência de ausência.
 
-- As 4 listas de requisições e as 3 de estoque contam a mesma história de interação
-- Fluxo completo de ponta a ponta (criar requisição → autorizar → atender) sem degrau de carga
-  cognitiva entre telas
-- Pontuação final do produto + P0/P1 que sobrarem viram entrada de `/impeccable polish`
+### O que a Fase 1 corrigiu
+
+O achado que governou a etapa: **contraste é do par, não do token**. O piso do cinza de metadado do
+`DESIGN.md` tinha sido medido só contra branco (4,76:1); sobre `bg-subtle` dá 4,35:1 e sobre
+`primary-subtle` 4,38:1 — reprova. E `danger-accent` reprova nas quatro superfícies (3,48 a 3,81),
+sendo a cor do asterisco de campo obrigatório, único indicador visual de obrigatoriedade do produto.
+
+| Commit | Escopo | Severidade |
+|---|---|---|
+| `abbd109` | Precisão de quantidade no cartão de divergência; gate do "Nova importação"; CTA de saída excepcional; rótulo `" divergências"`; 13 ocorrências de contraste; 3 defeitos de mobile; convergência das 7 listagens; ordenação e carimbo de inativo no catálogo; páginas 403/404/500 | P0/P1/P2 |
+| `6a79977` | Guardas das páginas de erro e da lista de notificações | — |
+| `586f8cd` | O par `text-tertiary` sobre `primary-subtle` e a afordância do link de notificação | P1 |
+
+Duas regras nomeadas novas no `DESIGN.md` (**A Regra do Cinza Medido**, com a tabela das quatro
+superfícies, e **A Regra da Identidade Que Não Quebra**) e guarda de pares de cor em
+`test_tokens_semanticos.py`, com o limite registrado: o guarda vê par no mesmo elemento, e o caso de
+`atender_retirada.html` — fundo no pai, cor no filho — só apareceu no navegador. Fechar isso é
+trabalho da lane Navegador (ADR-0019).
+
+### P0/P1 que sobraram
+
+- **P0** — o saldo é invisível nos dois pontos em que decide (o autocomplete apaga o saldo ao
+  selecionar o material; a tela de decisão do chefe não exibe saldo nenhum), e a mensagem de erro
+  descarta os dois números que tem em mãos. O chefe fica só com `Recusar`.
+- **P1** — paridade de interação das listagens: filtro, ordenação e contagem seguem em 2 de 7, e as
+  duas telas que os têm são as de cartão inerte.
+- **P1** — a cerimônia da ação segue o template, não a consequência: saída excepcional grava no
+  saldo físico sem confirmação, `Estornar` tem duas apresentações opostas, e devolução e estorno são
+  dois painéis teal adjacentes de geometria quase idêntica.
+- **P1** — retirante, quantidade devolvida e justificativa por item são exigidos, gravados em
+  `TimelineRequisicao.metadata` e nunca exibidos; "entregue líquida" só existe atrás de
+  `pode_devolver`.
+- **P2** — `/notificacoes/` é a única listagem fora do sistema de cartões, com a afordância
+  invertida (o link parece metadado, o descarte parece o link).
+- **P2** — custo assumido desta etapa: o `flex-wrap` que consertou o número partido fez o carimbo de
+  estado ocupar a linha 1 em uns cartões e a linha 3 em outros.
+
+### Nota de método
+
+A maior oportunidade é única e resolve várias linhas da tabela heurística de uma vez: **promover a
+quantidade a componente**. O modal de retirada já provou a forma certa — número com peso, unidade
+colada, referência abaixo em menor. Um `quantidade.html` usado nas sete telas conserta de uma vez o
+alinhamento do catálogo, a unidade órfã do detalhe, o número nu do atendimento e o separador
+decimal, porque passaria a existir um ponto só para consertar.
 
 ---
 
@@ -267,11 +326,13 @@ existe (`critique.latest` nulo). Verifica:
 | 0–5 | Tokens, ação, feedback, overlay, busca/filtro, listagem em cartões | — | **concluídas** |
 | 6 | Partials de requisições | 13 | audit + critique |
 | 7 | Partials de estoque | 11 → 10 | **concluída** (23/40) |
-| 8 | Regressão das 19 telas | 19 | audit + critique |
+| 8 | Regressão das 19 telas | 20 | **concluída** (21/40) |
 
-Etapas 0–5 e 7 concluídas e congeladas. Nas etapas 6 e 8 a ordem interna é fixa (audit →
-correções → critique); as duas dependem das correções de 1–5 já mergeadas, e a 8 fecha. P0/P1 que
-sobrarem das critiques alimentam `/impeccable polish` ou viram issue própria quando o escopo passa
-de front-end (foi o caso da #161).
+Etapas 0–5, 7 e 8 concluídas e congeladas. Na Etapa 6 a ordem interna é fixa (audit → correções →
+critique). P0/P1 que sobrarem das critiques alimentam `/impeccable polish` ou viram issue própria
+quando o escopo passa de front-end (foi o caso da #161).
 
-A Etapa 7 rodou antes da 6. As duas só dependiam de 1–5, não uma da outra.
+As etapas 7 e 8 rodaram antes da 6 — as três só dependiam de 1–5, não uma da outra. A Etapa 8 fechou
+com a 6 ainda pendente por decisão: ela mede as telas full-page, e a 6 mede os partials de
+requisições, que são outra superfície. Rodar a 6 depois não invalida a baseline de 21/40, mas os
+achados dela entram no mesmo backlog.
