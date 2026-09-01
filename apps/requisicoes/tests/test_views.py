@@ -1373,9 +1373,35 @@ def test_retornar_rascunho_beneficiario_redireciona_e_muda_estado(
 
 
 @pytest.mark.django_db
-def test_retornar_rascunho_chefe_nao_pode_retornar(
+def test_retornar_rascunho_chefe_do_setor_pode_devolver(
     client, chefe_obras, req_enviada_solicitante
 ):
+    """Entrou na Etapa 8, por um beco medido no fluxo.
+
+    O chefe autoriza sem ver saldo, a reserva falha, e sem esta porta as únicas
+    saídas eram deixar a requisição parada na fila ou recusar — encerrar em
+    definitivo o pedido de alguém porque a quantidade digitada não cabia no
+    estoque. Devolver para rascunho descreve o que de fato aconteceu.
+    """
+    _login(client, chefe_obras)
+    response = client.post(
+        reverse(
+            'requisicoes:retornar_rascunho', kwargs={'pk': req_enviada_solicitante.pk}
+        )
+    )
+    assert response.status_code in (302, 204)
+    req_enviada_solicitante.refresh_from_db()
+    assert req_enviada_solicitante.estado == EstadoRequisicao.RASCUNHO
+
+
+@pytest.mark.django_db
+def test_retornar_rascunho_chefe_de_outro_setor_nao_pode(
+    client, chefe_obras, setor_ti, req_enviada_solicitante
+):
+    """A condição do chefe é a mesma de recusar: chefiar o setor do
+    beneficiário. Não abre alcance novo."""
+    req_enviada_solicitante.setor_beneficiario = setor_ti
+    req_enviada_solicitante.save(update_fields=['setor_beneficiario'])
     _login(client, chefe_obras)
     response = client.post(
         reverse(
@@ -1579,9 +1605,10 @@ def test_recusar_requisicao_outro_setor_retorna_403(
 
 
 @pytest.mark.django_db
-def test_detalhe_exibe_recusa_para_chefe_e_nao_exibe_retorno(
+def test_detalhe_exibe_recusa_e_retorno_para_chefe(
     client, chefe_obras, req_enviada_solicitante
 ):
+    """O painel de decisão do chefe passa a ter a saída não-terminal."""
     _login(client, chefe_obras)
     response = client.get(
         reverse('requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk})
@@ -1590,9 +1617,9 @@ def test_detalhe_exibe_recusa_para_chefe_e_nao_exibe_retorno(
 
     assert response.status_code == 200
     assert response.context['pode_recusar'] is True
-    assert response.context['pode_retornar'] is False
+    assert response.context['pode_retornar'] is True
     assert 'Confirmar recusa' in html
-    assert 'Confirmar retorno' not in html
+    assert 'Confirmar retorno' in html
     assert 'data-modal-trigger="confirmar-recusar"' in html
     assert 'window.confirm' not in html
     assert html.count('id="decisao-autorizacao-titulo"') == 1
@@ -6010,3 +6037,50 @@ class TestEntregueLiquidaVisivelParaQuemLe:
             reverse('requisicoes:detalhe', kwargs={'pk': req.pk})
         ).content.decode('utf-8')
         assert 'de volta ao estoque' not in html
+
+
+class TestSaldoVisivelNaDecisao:
+    """Autorizar RESERVA estoque, e era a única escrita do produto confirmada
+    com zero números na tela: o modal dizia "reserva o saldo necessário para
+    todos os itens" sem dizer quanto, de quê, nem se existe."""
+
+    def _com_item(self, requisicao, material):
+        requisicao.itens.create(material=material, quantidade_solicitada=Decimal('3'))
+        return requisicao
+
+    @pytest.mark.django_db
+    def test_chefe_ve_o_disponivel_por_item(
+        self, client, chefe_obras, req_enviada_solicitante, material_disponivel
+    ):
+        self._com_item(req_enviada_solicitante, material_disponivel)
+        _login(client, chefe_obras)
+        response = client.get(
+            reverse('requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk})
+        )
+        html = response.content.decode('utf-8')
+        assert 'Disponível' in html
+
+    @pytest.mark.django_db
+    def test_solicitante_em_rascunho_nao_ve_a_coluna(
+        self, client, solicitante, req_rascunho_solicitante
+    ):
+        """Uma consulta a mais só no estado em que ela decide algo."""
+        _login(client, solicitante)
+        response = client.get(
+            reverse('requisicoes:detalhe', kwargs={'pk': req_rascunho_solicitante.pk})
+        )
+        itens = response.context['itens']
+        assert all(getattr(i, 'saldo_disponivel_exibido', None) is None for i in itens)
+
+    @pytest.mark.django_db
+    def test_item_que_barrou_a_reserva_fica_marcado(
+        self, client, chefe_obras, req_enviada_solicitante, material_disponivel
+    ):
+        """A faixa no topo nomeia o material; a marca diz onde ele está."""
+        self._com_item(req_enviada_solicitante, material_disponivel)
+        material_id = req_enviada_solicitante.itens.first().material_id
+        _login(client, chefe_obras)
+        url = reverse('requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk})
+        html = client.get(f'{url}?item_erro={material_id}').content.decode('utf-8')
+        assert 'aria-invalid="true"' in html
+        assert 'border-danger-border-input' in html

@@ -398,6 +398,9 @@ def buscar_materiais_saida_excepcional_view(request):
             'saldo_fisico': formatar_quantidade(
                 saldo_por_material.get(m.pk, 0), m.unidade
             ),
+            # Cru para comparar; o formatado acima é para ler. Ver o par gêmeo
+            # em `apps/requisicoes/views.py`.
+            'saldo_bruto': str(saldo_por_material.get(m.pk, 0)),
         }
         for m in materiais
     ]

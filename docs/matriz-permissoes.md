@@ -53,7 +53,7 @@ Valores: **Sim**, **Não**, **Apenas próprio setor**, **Qualquer setor**, **Ape
 | Ver todos os setores | Não | Não | Não | Sim | Sim | Sim | Operação de Almoxarifado/suporte; rascunho de terceiro segue creator-only. |
 | Editar rascunho | Sim | Sim | Sim | Sim | Sim | Sim | Só criador. |
 | Enviar para autorização | Sim | Sim | Sim | Sim | Sim | Sim | Só criador. |
-| Retornar para rascunho | Sim | Sim | Sim | Sim | Sim | Sim | Criador ou beneficiário enquanto ainda estiver em `aguardando_autorizacao`; depois do retorno, rascunho volta a ser creator-only. |
+| Retornar para rascunho | Sim | Sim | Sim | Sim | Sim | Sim | Criador, beneficiário **ou o chefe do setor do beneficiário**, enquanto ainda estiver em `aguardando_autorizacao`; depois do retorno, rascunho volta a ser creator-only. O chefe entrou na Etapa 8: sem ele, um saldo insuficiente descoberto na confirmação deixava só a recusa — encerrar em definitivo o pedido porque a quantidade não cabia. A condição é a mesma de recusar, então não abre alcance novo. |
 | Cancelar aguardando autorização | Sim | Sim | Sim | Sim | Sim | Sim | Só criador ou beneficiário. |
 | Cancelar autorizada/pronta para retirada | Sim | Sim | Sim | Sim | Sim | Sim | Criador/beneficiário/Almoxarifado; justificativa; libera reserva e não baixa físico. |
 | Copiar atendida ou recusada | Sim | Sim | Sim | Sim | Sim | Sim | Precisa ver origem e poder criar para beneficiário resultante; não copia autorizado/entregue. |

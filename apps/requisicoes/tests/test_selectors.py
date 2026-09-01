@@ -616,7 +616,18 @@ def test_acoes_disponiveis_retorna_frozenset():
                 criador_id=999,
                 beneficiario_id=999,
             ),
-            frozenset({Operacao.RECUSAR, Operacao.AUTORIZAR}),
+            # RETORNAR_PARA_RASCUNHO entrou na Etapa 8: sem ela, um saldo
+            # insuficiente descoberto na confirmação deixava o chefe só com
+            # recusar — encerrar em definitivo o pedido de alguém porque a
+            # quantidade não cabia. A condição é a mesma de recusar, então quem
+            # já podia encerrar passa a poder devolver.
+            frozenset(
+                {
+                    Operacao.RECUSAR,
+                    Operacao.AUTORIZAR,
+                    Operacao.RETORNAR_PARA_RASCUNHO,
+                }
+            ),
             id='chefe_setor_em_aguardando_autorizacao',
         ),
         pytest.param(

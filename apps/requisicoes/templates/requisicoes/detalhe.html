@@ -102,7 +102,16 @@
       {% endcomment %}
       <ul class="divide-y divide-border">
         {% for item in itens %}
-          <li class="py-3 first:pt-0 last:pb-0">
+          {% comment %}
+            O item que barrou a reserva fica marcado. A faixa no topo nomeia o
+            material; a marca diz onde ele está na lista — sem ela o operador
+            lê o nome e volta a varrer os itens com o olho. `aria-invalid` no
+            `<li>` porque o grupo inteiro é o que está inválido, não um campo.
+          {% endcomment %}
+          <li
+            class="py-3 first:pt-0 last:pb-0{% if item.tem_erro %} -mx-3 rounded-lg border border-danger-border-input bg-danger-subtle px-3{% endif %}"
+            {% if item.tem_erro %}aria-invalid="true"{% endif %}
+          >
             <p class="text-sm font-medium text-text-primary">
               {{ item.material.codigo }}
               <span class="font-normal text-text-secondary">— {{ item.material.nome }}</span>
@@ -146,6 +155,25 @@
                     </dd>
                   </div>
                 {% endif %}
+              {% endif %}
+              {% if item.saldo_disponivel_exibido is not None %}
+                {% comment %}
+                  Só no estado em que a decisão reserva saldo. Em âmbar quando
+                  não cobre o solicitado: é o aviso que faltava ANTES da
+                  confirmação — o chefe lia `Saldo insuficiente` depois de
+                  confirmar, numa faixa no topo, e sem `Retornar para rascunho`
+                  disponível sobrava recusar em definitivo.
+                {% endcomment %}
+                <div>
+                  <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Disponível</dt>
+                  <dd class="mt-0.5">
+                    {% if item.saldo_insuficiente %}
+                      {% include "components/quantidade.html" with valor=item.saldo_disponivel_exibido unidade=item.material.unidade unidade_label=item.material.get_unidade_display esquerda=True tom="warning" referencia=item.saldo_motivo|default:"não cobre o solicitado" %}
+                    {% else %}
+                      {% include "components/quantidade.html" with valor=item.saldo_disponivel_exibido unidade=item.material.unidade unidade_label=item.material.get_unidade_display esquerda=True %}
+                    {% endif %}
+                  </dd>
+                </div>
               {% endif %}
               {% if item.entregue_liquida_exibida is not None %}
                 {% comment %}

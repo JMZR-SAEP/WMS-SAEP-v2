@@ -40,6 +40,12 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
      role="group"
      aria-label="Item {{ form_index|add:1 }}"
      data-index="{{ form_index }}"
+     x-data="saldoLinha({
+       saldoTexto: '{{ saldo_item.saldo_disponivel|default:''|escapejs }}',
+       saldoValor: '{{ saldo_item.saldo_bruto|default:''|escapejs }}' || undefined,
+       unidade: '{{ saldo_item.unidade|default:''|escapejs }}',
+     })"
+     @material-selecionado="registrarMaterial($event.detail)"
      {% if delete_field.value %}style="display: none"{% endif %}>
 
   {# Autocomplete de material — hidden field dentro do escopo Alpine para $refs #}
@@ -92,6 +98,16 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
       {% else %}
         <p class="mt-1.5 text-xs text-text-tertiary">Saldo disponível: {{ saldo_item.saldo_disponivel|formatar_quantidade:saldo_item.unidade }} {{ saldo_item.unidade }}</p>
       {% endif %}
+    {% else %}
+      {% comment %}
+        O saldo do material escolhido no cliente. Sem isto, o número que o
+        dropdown mostrava (`disponível: 4530 un`) sumia no instante da seleção —
+        logo antes de digitar a quantidade, que é quando ele decide. `x-cloak`
+        para a linha não piscar vazia antes do Alpine subir.
+      {% endcomment %}
+      <p x-show="saldoTexto" x-cloak class="mt-1.5 text-xs text-text-tertiary">
+        <span x-text="saldoRotulo"></span>: <span class="tabular-nums" x-text="saldoTexto"></span> <span x-text="unidade"></span>
+      </p>
     {% endif %}
   </div>
 
@@ -105,8 +121,19 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
     silenciosamente de quem valida — divergirem seria um campo que aceita no
     cliente o que o Form recusa no servidor.
   {% endcomment %}
-  <div class="w-28 shrink-0">
+  {% comment %}
+    Aviso, não bloqueio: o `max` nativo recusaria o envio no cliente e a fonte
+    de verdade é o `clean()` do formset e a reserva no service. O que faltava
+    era a pessoa **saber** antes de enviar — a mesma gramática reativa do
+    `Entrega parcial — justificativa obrigatória` da tela de atendimento.
+  {% endcomment %}
+  {# `@input` no wrapper, e não `x-model` no campo: o evento borbulha, e assim o componente não precisa de um `attrs_extra` só para se ligar ao próprio escopo. #}
+  <div class="w-28 shrink-0" @input="quantidade = $event.target.value">
     {% include "components/form_field.html" with field=quantidade_field label_override=quantidade_label|default:"Quantidade" %}
+    <p x-show="excedeuSaldo" x-cloak role="status" class="mt-1.5 flex items-start gap-1 text-xs font-medium text-warning-text-subtle">
+      {% icon "atencao" class="mt-0.5 h-3.5 w-3.5 shrink-0" %}
+      <span>Acima do saldo</span>
+    </p>
   </div>
 
   {# Campo DELETE do formset (escondido — controlado por JS/botão) #}

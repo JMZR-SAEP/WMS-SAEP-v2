@@ -273,7 +273,7 @@ def material_eh_elegivel(material: Material) -> bool:
 
 
 def saldos_por_materiais(material_ids: list[int]) -> dict[int, dict]:
-    """Retorna dict {material_id: {elegivel, saldo_disponivel, motivo, unidade}}.
+    """Retorna dict {material_id: {elegivel, saldo_disponivel, saldo_bruto, motivo, unidade}}.
 
     Usado para sinalizar itens inelegíveis no form de edição de rascunho copiado.
 
@@ -309,6 +309,10 @@ def saldos_por_materiais(material_ids: list[int]) -> dict[int, dict]:
             'saldo_disponivel': saldo_disponivel,
             'motivo': motivo,
             'unidade': material.unidade,
+            # O mesmo saldo em notação de máquina, para o aviso client-side de
+            # "acima do saldo" comparar. O template imprime `saldo_disponivel`
+            # já formatado em pt-BR, com vírgula, e `Number()` não lê vírgula.
+            'saldo_bruto': str(saldo_disponivel),
         }
     return resultado
 

@@ -211,6 +211,19 @@
         // até o blur rodar deixava `mensagemPoucosCaracteresVisivel()` piscar
         // "faltam N caracteres" bem onde o listbox acabou de fechar.
         this.focado = false;
+        // Evento que borbulha, e não uma chamada ao escopo pai a partir do
+        // `onSelect`. Uma arrow function escrita dentro da expressão `x-data`
+        // captura o escopo léxico do momento da avaliação; o `with` do Alpine
+        // que dá acesso ao escopo pai já não está ativo quando ela roda, e
+        // referenciar o método do pai lá dentro estoura `is not defined`. O
+        // evento sobe pelo DOM e chega a quem quiser ouvir, sem acoplar o
+        // componente a quem o envolve.
+        this.$el.dispatchEvent(
+          new CustomEvent('material-selecionado', {
+            detail: item,
+            bubbles: true,
+          })
+        );
         this.$nextTick(() => this.$refs.displayInput?.blur());
       },
 

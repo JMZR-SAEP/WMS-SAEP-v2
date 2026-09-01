@@ -187,6 +187,31 @@ def _detalhe_context(
 
     pode_copiar = _pode_copiar_agora(papel, requisicao)
 
+    # Saldo por item quando a decisão é autorizar. Autorizar RESERVA estoque, e
+    # esta era a única escrita do produto confirmada com zero números na tela: o
+    # modal dizia "reserva o saldo necessário para todos os itens" sem dizer
+    # quanto, de quê, nem se existe. O chefe descobria o problema depois de
+    # confirmar. Uma consulta só, e só no estado em que ela decide algo.
+    if Operacao.AUTORIZAR in acoes:
+        saldos = saldos_por_materiais([i.material_id for i in itens])
+        for item in itens:
+            info = saldos.get(item.material_id)
+            if info is None:
+                continue
+            item.saldo_disponivel_exibido = info['saldo_disponivel']
+            item.saldo_insuficiente = (
+                info['saldo_disponivel'] < item.quantidade_solicitada
+            )
+            item.saldo_motivo = info['motivo']
+
+    # `item_erro` chega da querystring quando uma tentativa de autorização
+    # barrou por saldo: o service diz qual material, a view repassa, e a lista
+    # marca a linha. Nada além de marcar — a mensagem já está na faixa.
+    item_erro_bruto = request.GET.get('item_erro', '')
+    item_erro_id = int(item_erro_bruto) if item_erro_bruto.isdigit() else None
+    for item in itens:
+        item.tem_erro = item.material_id == item_erro_id
+
     return {
         'requisicao': requisicao,
         'itens': itens,
@@ -557,6 +582,11 @@ def buscar_materiais(request):
             'saldo_disponivel': formatar_quantidade(
                 saldo_por_material.get(m.pk, 0), m.unidade
             ),
+            # O mesmo saldo em notação de máquina. `saldo_disponivel` já vem
+            # formatado em pt-BR, com vírgula, e `Number()` não lê vírgula — sem
+            # este par o aviso de "acima do saldo" compararia contra NaN e nunca
+            # dispararia. Formatado para ler, cru para comparar.
+            'saldo_bruto': str(saldo_por_material.get(m.pk, 0)),
         }
         for m in materiais
     ]
@@ -684,7 +714,15 @@ def autorizar_requisicao_view(request, pk: int):
         return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
     except ConflitoDominio as exc:
         messages.warning(request, str(exc))
-        return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
+        # O material que barrou a reserva volta na querystring para o detalhe
+        # marcar o item. A faixa no topo diz o que aconteceu; sem isto o
+        # operador ainda precisa varrer a lista de itens com o olho para achar
+        # qual deles a mensagem nomeia.
+        destino = reverse('requisicoes:detalhe', args=[pk])
+        material_id = exc.detalhes.get('material_id')
+        if material_id:
+            destino = f'{destino}?item_erro={material_id}'
+        return htmx_redirect(request, destino)
     except DadosInvalidos as exc:
         messages.error(request, str(exc))
         return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
