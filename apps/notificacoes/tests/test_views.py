@@ -245,3 +245,36 @@ def test_lista_exibe_rotulo_e_link_de_separacao_retirada(
     assert 'Separação para retirada' in corpo
     assert reverse('requisicoes:detalhe', kwargs={'pk': req.pk}) in corpo
     assert 'REQ-2026-000109' in corpo
+
+
+class TestListaNotificacoesEtapa8:
+    """Achados do passe de regressão da Etapa 8."""
+
+    URL = '/notificacoes/'
+
+    def test_timestamp_nao_usa_o_cinza_apagado(
+        self, client, solicitante, notificacao_nao_lida
+    ):
+        """`text-disabled` (slate-400) mede 2,63:1 no branco e reprova o 4,5:1
+        da WCAG 1.4.3. O mesmo achado já tinha sido corrigido nos dois
+        autocompletes e no nome do arquivo do preview SCPI — este era o último
+        sobrevivente, e aqui a data é o que ordena a lista.
+        """
+        client.force_login(solicitante)
+        html = client.get(self.URL).content.decode('utf-8')
+        # `text-text-disabled` segue legítimo em ícone decorativo (`aria-hidden`)
+        # da side nav; o que não pode é carregar texto.
+        data = notificacao_nao_lida.criado_em.strftime('%d/%m/%Y')
+        linha = next(
+            linha for linha in html.splitlines() if data in linha and '<p' in linha
+        )
+        assert 'text-text-disabled' not in linha
+        assert 'text-text-tertiary' in linha
+
+    def test_lista_vazia_usa_o_componente_de_estado_vazio(self, client, solicitante):
+        """Frase cinza solta era o estado vazio fora do componente; as outras
+        listagens usam `empty_state.html`, que tem borda tracejada e ícone."""
+        client.force_login(solicitante)
+        html = client.get(self.URL).content.decode('utf-8')
+        assert 'Nenhuma notificação' in html
+        assert 'border-dashed' in html

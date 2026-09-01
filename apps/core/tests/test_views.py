@@ -155,3 +155,44 @@ def test_home_multi_papel_almox_chefe_vai_para_atendimentos(client):
     resposta = client.get(reverse('core:home'))
     assert resposta.status_code == 302
     assert resposta['Location'] == reverse('requisicoes:atendimentos')
+
+
+# ---------------------------------------------------------------------------
+# Páginas de erro (Etapa 8)
+# ---------------------------------------------------------------------------
+
+
+class TestPaginasDeErro:
+    """403/404/500 eram o HTML cru do Django — sem chrome e sem volta.
+
+    O 403 do produto é rotina, não incidente: papel efetivo é derivado do ator
+    diante de cada registro, então uma tela visível a um papel pode apontar para
+    uma ação que só outro executa.
+    """
+
+    def test_403_e_404_trazem_codigo_titulo_e_saida(self, client, django_user_model):
+        from django.template.loader import render_to_string
+        from django.test import RequestFactory
+
+        usuario = django_user_model.objects.create_user(
+            matricula='ERR001', nome='Usuário Erro', password='x'
+        )
+        request = RequestFactory().get('/rota-inexistente/')
+        request.user = usuario
+
+        for template, codigo in (('403.html', '403'), ('404.html', '404')):
+            html = render_to_string(template, {}, request=request)
+            assert f'Erro {codigo}' in html
+            assert 'Ir para o início' in html
+            assert '<h1' in html
+
+    def test_500_nao_depende_de_context_processor(self):
+        """`django.views.defaults.server_error` renderiza com contexto vazio e
+        sem context processors: `user`, `{% url %}` e as tags da barra não
+        existem ali. Renderizar sem request é o teste."""
+        from django.template.loader import render_to_string
+
+        html = render_to_string('500.html', {})
+        assert 'Erro 500' in html
+        assert 'Ir para o início' in html
+        assert 'app-bar' not in html
