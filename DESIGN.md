@@ -254,12 +254,18 @@ anel de foco e borda de campo, onde o mínimo é o 3:1 da 1.4.11. Texto de perig
 é `danger-text` (red-700, 6,42:1 no branco), inclusive o asterisco de campo
 obrigatório.
 
-| sobre → | `bg-subtle` | `surface` | `bg-page` |
-|---|---|---|---|
-| `text-tertiary` | **4,35** ✗ | 4,76 | 4,55 |
-| `text-secondary` | 9,45 | 10,36 | 9,90 |
-| `danger-accent` | **3,48** ✗ | **3,81** ✗ | **3,64** ✗ |
-| `danger-text` | 5,86 | 6,42 | 6,14 |
+| sobre → | `surface` | `bg-page` | `bg-subtle` | `primary-subtle` |
+|---|---|---|---|---|
+| `text-tertiary` | 4,76 | 4,55 | **4,35** ✗ | **4,38** ✗ |
+| `text-secondary` | 10,35 | 9,90 | 9,45 | 9,51 |
+| `primary-text` | 6,70 | 6,41 | 6,12 | 6,16 |
+| `danger-accent` | **3,81** ✗ | **3,64** ✗ | **3,48** ✗ | **3,52** ✗ |
+| `danger-text` | 6,42 | 6,14 | 5,86 | 5,90 |
+
+A quarta coluna entrou depois da primeira: `primary-subtle` é o fundo da linha
+não lida de `/notificacoes/` e do cartão de material novo do preview SCPI, e a
+primeira medição desta regra não a cobria. O cinza de metadado reprova nas
+**duas** superfícies tingidas do sistema, não só no papel frio sombreado.
 
 `text-disabled` (slate-400, 2,63:1 no branco) não carrega informação em nenhuma
 superfície: serve a ícone decorativo e a separador, nunca a texto.

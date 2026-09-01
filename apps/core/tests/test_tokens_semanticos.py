@@ -392,6 +392,12 @@ PARES_DE_COR_PROIBIDOS = [
         'cinza de metadado sobre papel frio sombreado mede 4,35:1 — abaixo do '
         '4,5:1 da WCAG 1.4.3. Use text-text-secondary (9,45:1).',
     ),
+    (
+        'text-text-tertiary',
+        'bg-primary-subtle',
+        'cinza de metadado sobre papel azulado mede 4,38:1 — abaixo do 4,5:1 '
+        'da WCAG 1.4.3. Use text-text-secondary (9,51:1).',
+    ),
 ]
 
 # `text-danger-accent` como cor de TEXTO. As demais utilities do mesmo token

@@ -36,17 +36,34 @@
                 cima. `min-height` não tem efeito em elemento inline, daí o
                 `inline-flex`.
               {% endcomment %}
+              {% comment %}
+                Azul de link e sublinhado em repouso, não cinza de metadado.
+                Dois motivos medidos: (a) em `text-text-tertiary` este link era
+                tipograficamente idêntico ao carimbo de data logo abaixo — mesmo
+                tamanho, mesmo peso, mesma cor —, então nada o distinguia de
+                texto comum até o hover, enquanto `Marcar como lida` era o único
+                azul da linha; (b) na linha NÃO LIDA o `<li>` veste
+                `bg-primary-subtle`, e ali o cinza de metadado cai para 4,38:1 —
+                reprova o 4,5:1 da WCAG 1.4.3. `primary-text` (blue-700) mede
+                6,16:1 nesse mesmo fundo. Ver DESIGN.md §A Regra do Cinza Medido.
+              {% endcomment %}
               <a
                 href="{% url 'requisicoes:detalhe' pk=notificacao.requisicao_id %}"
-                class="inline-flex items-center min-h-11 text-xs text-text-tertiary hover:underline"
+                class="inline-flex min-h-11 items-center text-xs text-primary-text underline decoration-primary-border-strong underline-offset-2 hover:decoration-primary-text"
               >
                 Requisição {{ notificacao.numero_publico_exibicao }}
               </a>
             {% else %}
               <span class="text-xs text-text-tertiary" aria-hidden="true">&nbsp;</span>
             {% endif %}
-            {# `text-text-tertiary`, não `text-text-disabled`: slate-400 mede 2,63:1 no branco e reprova o 4,5:1 da AA — o mesmo achado já corrigido nos dois autocompletes e no nome do arquivo do preview SCPI. Aqui a data é o que ordena a lista. #}
-            <p class="mt-1 text-xs text-text-tertiary">{{ notificacao.criado_em|date:"d/m/Y H:i" }}</p>
+            {% comment %}
+              `text-text-secondary`, e não o cinza de metadado: a linha não lida
+              veste `bg-primary-subtle`, onde `text-tertiary` mede 4,38:1 e
+              reprova a AA. `text-secondary` mede 9,51:1 nesse fundo e 10,35:1 no
+              branco da linha lida. Antes disto era `text-text-disabled`
+              (2,63:1). Aqui a data é o que ordena a lista.
+            {% endcomment %}
+            <p class="mt-1 text-xs text-text-secondary">{{ notificacao.criado_em|date:"d/m/Y H:i" }}</p>
           </div>
           {% if not notificacao.lida %}
             <form method="post" action="{% url 'notificacoes:marcar_lida' notificacao.pk %}">

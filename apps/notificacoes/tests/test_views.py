@@ -269,7 +269,29 @@ class TestListaNotificacoesEtapa8:
             linha for linha in html.splitlines() if data in linha and '<p' in linha
         )
         assert 'text-text-disabled' not in linha
-        assert 'text-text-tertiary' in linha
+        # `text-secondary`, e não o cinza de metadado: a linha não lida veste
+        # `bg-primary-subtle`, onde `text-tertiary` mede 4,38:1 e reprova.
+        assert 'text-text-secondary' in linha
+
+    def test_link_da_requisicao_nao_se_confunde_com_metadado(
+        self, client, solicitante, notificacao_nao_lida
+    ):
+        """O link vinha em `text-xs text-text-tertiary hover:underline`, ou seja,
+        tamanho, peso e cor idênticos ao carimbo de data logo abaixo: nada o
+        distinguia de texto comum em repouso, enquanto `Marcar como lida` era o
+        único azul da linha. E no fundo `bg-primary-subtle` da linha não lida o
+        cinza reprova a AA (4,38:1)."""
+        import re
+
+        client.force_login(solicitante)
+        html = client.get(self.URL).content.decode('utf-8')
+        alvo = f'/requisicoes/{notificacao_nao_lida.requisicao_id}/'
+        ancora = next(
+            a for a in re.findall(r'<a\b[^>]*>', html, flags=re.S) if alvo in a
+        )
+        assert 'text-primary-text' in ancora
+        assert 'underline' in ancora
+        assert 'text-text-tertiary' not in ancora
 
     def test_lista_vazia_usa_o_componente_de_estado_vazio(self, client, solicitante):
         """Frase cinza solta era o estado vazio fora do componente; as outras
