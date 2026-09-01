@@ -39,6 +39,7 @@
 
   {% if saidas %}
 
+    {% include "components/ordenacao_data.html" with url_ordenacao=url_ordenacao ordem=ordem page_obj=page_obj rotulo_contagem="saída excepcional,saídas excepcionais" %}
     {% include "components/table.html#cards_abertura" %}
       {% for saida in saidas %}
         {% include "components/table.html#card_abertura" %}

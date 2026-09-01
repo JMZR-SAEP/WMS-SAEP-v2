@@ -108,6 +108,25 @@
               <dd class="shrink-0">{% if saldo.divergente_calculado %}{% include "components/quantidade.html" with valor=saldo.saldo_disponivel_calculado unidade=saldo.material.unidade tom="danger" %}{% else %}{% include "components/quantidade.html" with valor=saldo.saldo_disponivel_calculado unidade=saldo.material.unidade %}{% endif %}</dd>
             </div>
           </dl>
+
+          {% comment %}
+            O cartão deixa de ser beco. `Reservado: 2` era um fato sem pergunta
+            respondível: para saber POR QUE 2 estão reservados, o chefe copiava
+            o código e redigitava em Movimentações. O destino é o livro-razão já
+            recortado neste material — a trilha de auditoria que o PRODUCT.md
+            descreve e que terminava em beco nas três telas de estoque.
+
+            Link de verdade com piso de 44px, e não `data-cartao-link`: o
+            `<article>` daqui é literal, porque a borda depende de estado de
+            domínio (divergência crítica) e `#card_abertura` é string fixa por
+            contrato da #83. Sem o chrome, não há alvo de cartão a herdar — o
+            controle carrega o próprio piso.
+          {% endcomment %}
+          <a
+            href="{% url 'estoque:historico_movimentacoes' %}?material={{ saldo.material.codigo|urlencode }}"
+            class="mt-2 inline-flex min-h-11 items-center gap-1 rounded-md text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1"
+            aria-label="Ver movimentações de {{ saldo.material.codigo }} — {{ saldo.material.nome }}"
+          >Ver movimentações <span aria-hidden="true">&rarr;</span></a>
         </article>
       {% endfor %}
     </div>

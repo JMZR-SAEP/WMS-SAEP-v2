@@ -64,13 +64,17 @@ def listar_saidas_excepcionais_view(request):
         raise PermissionDenied(str(exc))
 
     saidas = listar_saidas_excepcionais(request.user.pk)
-    page_obj = paginar(request, saidas, per_page=PAGINA_SAIDAS_EXCEPCIONAIS_TAMANHO)
+    resultado = paginar_com_filtros(
+        request, saidas, per_page=PAGINA_SAIDAS_EXCEPCIONAIS_TAMANHO
+    )
     return render(
         request,
         'estoque/lista_saidas_excepcionais.html',
         {
-            'page_obj': page_obj,
-            'saidas': page_obj.object_list,
+            'page_obj': resultado.page_obj,
+            'saidas': resultado.page_obj.object_list,
+            'ordem': resultado.ordem,
+            'url_ordenacao': resultado.url_ordenacao,
             'pode_registrar': pode_registrar_saida_excepcional(papel),
         },
     )
@@ -198,9 +202,14 @@ def historico_movimentacoes_view(request):
         chaves_multivalor=('tipos',),
     )
 
+    from apps.estoque.policies import pode_consultar_saidas_excepcionais
+
     contexto = {
         'page_obj': resultado.page_obj,
         'is_htmx': resultado.is_htmx,
+        # A origem do ledger vira link, e o destino da saída excepcional tem
+        # policy própria: sem esta flag o link levaria o solicitante a um 403.
+        'pode_consultar_saidas_excepcionais': pode_consultar_saidas_excepcionais(papel),
         'mostrar_filtro_setor': mostrar_filtro_setor,
         'setores_disponiveis': setores_disponiveis,
         'tipos_opcoes': TipoMovimentacaoEstoque.choices,

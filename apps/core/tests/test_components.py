@@ -3425,7 +3425,11 @@ def test_link_de_cartao_tem_o_cartao_como_alvo():
         relativo = str(caminho.relative_to(raiz))
         if relativo == chrome_relativo:
             continue
-        conteudo = caminho.read_text()
+        # `_sem_comentarios` ANTES de contar, e não só depois: um
+        # `{% comment %}` que explica por que a tela NÃO usa o marcador
+        # contém o nome do atributo e fazia o guarda acusar prosa como
+        # marcação. O mesmo texto limpo alimenta as duas checagens abaixo.
+        conteudo = _sem_comentarios(caminho.read_text())
         ocorrencias = len(atributo_marcador.findall(conteudo))
         if not ocorrencias:
             continue
@@ -3437,7 +3441,7 @@ def test_link_de_cartao_tem_o_cartao_como_alvo():
         # dentro de uma faixa `#card_abertura` … `</article>`, senão o alvo real
         # volta a ser a âncora de texto e a isenção do piso de 44px fica sem
         # lastro (mesma faixa que `_clicaveis_sem_piso` usa).
-        limpo = _sem_comentarios(conteudo)
+        limpo = conteudo
         faixas = _faixas_de_cartao(limpo)
         for _, atributos, numero in elementos(limpo, 'a'):
             if not _tem_atributo(atributos, 'data-cartao-link'):
@@ -3446,12 +3450,24 @@ def test_link_de_cartao_tem_o_cartao_como_alvo():
                 f'{relativo}:{numero} data-cartao-link fora de um cartão'
             )
 
-    # As seis listagens navegáveis. O histórico de importações entrou na #161,
+    # As sete listagens navegáveis. O histórico de importações entrou na #161,
     # quando a importação ganhou detalhe: até ali a única ação do cartão era um
     # download, que não é navegação. O botão de download continua explícito ao
-    # lado — é o alvo do cartão que passou a ser o detalhe. Ledger e catálogo
-    # ficam de fora de propósito: não têm detalhe para onde ir.
-    assert len(telas_marcadas) == 6, telas_marcadas
+    # lado — é o alvo do cartão que passou a ser o detalhe.
+    #
+    # O LEDGER entrou na Etapa 8. A justificativa anterior — "não tem detalhe
+    # para onde ir" — não se sustentava: `Origem: REQ-2026-000005` já É a
+    # identidade do documento que causou o lançamento, e imprimi-la como texto
+    # obrigava a guardar o número e digitá-lo em outra tela. O alvo do cartão é
+    # esse documento; quando é uma saída excepcional e o ator não tem a policy
+    # do destino, o cartão fica inerte em vez de levar a um 403.
+    #
+    # O CATÁLOGO continua fora, e por um motivo estrutural, não por falta de
+    # destino: o `<article>` de lá é literal, porque a borda depende de estado
+    # de domínio (divergência crítica) e `#card_abertura` é string fixa por
+    # contrato da #83. Sem o chrome não há alvo de cartão a herdar, então ele
+    # ganhou um link explícito com piso de 44px para o ledger filtrado.
+    assert len(telas_marcadas) == 7, telas_marcadas
 
 
 def test_isencao_de_cartao_so_vale_para_o_atributo_exato():

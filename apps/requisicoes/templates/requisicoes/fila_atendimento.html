@@ -9,6 +9,7 @@
 </p>
 
 {% if requisicoes %}
+  {% include "components/ordenacao_data.html" with page_obj=page_obj rotulo_contagem="requisição,requisições" %}
   {% include "components/table.html#cards_abertura" %}
     {% for req in requisicoes %}
       {% comment %}

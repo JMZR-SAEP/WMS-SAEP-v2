@@ -660,11 +660,22 @@ def minhas_requisicoes_view(request):
         quantidade_itens=Count('itens'),
         primeiro_material_nome=primeiro_material_sq,
     )
-    page_obj = paginar(request, requisicoes, per_page=PAGINA_MINHAS_REQUISICOES_TAMANHO)
+    # `paginar_com_filtros` e não `paginar`: ordenar e contar existiam em 2 das
+    # 7 listagens, e as 5 restantes ficaram de fora só porque nasceram sem
+    # wrapper de swap HTMX. O helper já entrega ordem, URL de inversão e
+    # querystring; o controle degrada para link puro sem `target_id`.
+    resultado = paginar_com_filtros(
+        request, requisicoes, per_page=PAGINA_MINHAS_REQUISICOES_TAMANHO
+    )
     return render(
         request,
         'requisicoes/lista_minhas.html',
-        {'page_obj': page_obj, 'requisicoes': page_obj.object_list},
+        {
+            'page_obj': resultado.page_obj,
+            'requisicoes': resultado.page_obj.object_list,
+            'ordem': resultado.ordem,
+            'url_ordenacao': resultado.url_ordenacao,
+        },
     )
 
 
@@ -684,6 +695,10 @@ def fila_autorizacao_view(request):
         raise PermissionDenied(str(exc))
 
     requisicoes = fila_autorizacao(request.user.pk)
+    # `paginar`, não `paginar_com_filtros`: a fila tem ordem de domínio (FIFO
+    # por `atualizado_em`) e `?ordem=` não se aplica — uma fila de trabalho
+    # ordenada por mais recentes primeiro é o oposto de uma fila. O que faltava
+    # era a contagem, que o mesmo componente entrega sem `url_ordenacao`.
     page_obj = paginar(request, requisicoes, per_page=PAGINA_FILA_TAMANHO)
     return render(
         request,
@@ -746,6 +761,10 @@ def fila_atendimento_view(request):
         raise PermissionDenied(str(exc))
 
     requisicoes = fila_atendimento(request.user.pk)
+    # `paginar`, não `paginar_com_filtros`: a fila tem ordem de domínio (FIFO
+    # por `atualizado_em`) e `?ordem=` não se aplica — uma fila de trabalho
+    # ordenada por mais recentes primeiro é o oposto de uma fila. O que faltava
+    # era a contagem, que o mesmo componente entrega sem `url_ordenacao`.
     page_obj = paginar(request, requisicoes, per_page=PAGINA_FILA_TAMANHO)
     return render(
         request,
