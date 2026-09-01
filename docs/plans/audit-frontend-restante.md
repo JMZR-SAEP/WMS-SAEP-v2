@@ -29,7 +29,8 @@ comportamento em JS.
 > - **Etapa 8** (2026-09-01): audit sem alvo + correções + critique sem alvo + backlog da critique
 >   executado. É a baseline heurística do produto inteiro, que não existia. O P0, os três P1 e os
 >   dois P2 dela foram fechados na sequência, em oito commits.
-> - **Zero issues abertas** no rastreador ao fim do plano.
+> - **As issues do plano fecharam.** O que sobrou virou backlog novo — #165 a #173, listadas em
+>   "Depois do plano".
 > - Contexto da revisão: `components/table.html` virou chrome de cartões (#83 — não há mais tabela),
 >   entraram `filter_chips.html` e `filter_presets_periodo.html` (#152–#154), `field_error.html` e
 >   `_icone_nivel.html` saíram de markup duplicado (#127).
@@ -422,6 +423,23 @@ caso da #161 —, e todas as issues abertas por este plano estão fechadas.
 ## Depois do plano
 
 O que **não** entrou, com o motivo. Nada aqui bloqueia o piloto; é o que uma próxima rodada pegaria.
+Tudo abaixo está no rastreador — o documento registra a decisão, a issue carrega o trabalho.
+
+| Issue | Item | Triagem |
+|---|---|---|
+| #165 | Remedir a baseline heurística | `ready-for-agent` |
+| #166 | Varredura de contraste na lane Navegador | `ready-for-agent` |
+| #167 | Legenda do preview SCPI um degrau acima dos cartões | `ready-for-agent` |
+| #168 | `input.css` fora da árvore de estáticos | `ready-for-agent` |
+| #169 | 257 KB em toda tela | `needs-triage` |
+| #170 | `Recusar` e `Cancelar` são duas operações? | `needs-triage` |
+| #171 | Preview SCPI com arquivo real | `needs-triage` |
+| #172 | Silhueta própria para o glifo `danger` | `needs-triage` |
+| #173 | Achados menores da critique da Etapa 8 | `needs-triage` |
+
+Dark mode **não** virou issue: a decisão de mantê-lo fora está registrada no inventário desta
+auditoria, com o motivo, e abrir issue para ela seria reabrir uma decisão já tomada. Adotá-lo pede
+ADR, não ticket.
 
 ### Medição
 
