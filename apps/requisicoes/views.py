@@ -596,7 +596,21 @@ def minhas_requisicoes_view(request):
     Rascunhos de terceiros são filtrados pelo selector. Paginado: a lista
     cresce monotonicamente ao longo da vida do usuário e não tem filtro.
     """
-    requisicoes = minhas_requisicoes(request.user.pk)
+    # O cartão precisa nomear o material: esta é a tela do solicitante e a
+    # única que o produto declara operada no celular (PRODUCT.md), e ela era a
+    # única das sete listagens que não dizia o que a requisição pede. Subquery
+    # pelo mesmo motivo do histórico e das duas filas — um
+    # `prefetch_related('itens__material')` carregaria as N linhas de toda
+    # requisição da página para exibir, no máximo, um nome por cartão.
+    primeiro_material_sq = Subquery(
+        ItemRequisicao.objects.filter(requisicao=OuterRef('pk'))
+        .order_by('pk')
+        .values('material__nome')[:1]
+    )
+    requisicoes = minhas_requisicoes(request.user.pk).annotate(
+        quantidade_itens=Count('itens'),
+        primeiro_material_nome=primeiro_material_sq,
+    )
     page_obj = paginar(request, requisicoes, per_page=PAGINA_MINHAS_REQUISICOES_TAMANHO)
     return render(
         request,

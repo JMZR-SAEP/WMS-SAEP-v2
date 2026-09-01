@@ -904,7 +904,10 @@ PAGINA_IMPORTACOES_SCPI_TAMANHO = 25
 @require_http_methods(['GET'])
 def historico_importacoes_scpi_view(request):
     from apps.core.exceptions import PermissaoNegada
-    from apps.estoque.policies import exigir_pode_consultar_historico_scpi
+    from apps.estoque.policies import (
+        exigir_pode_consultar_historico_scpi,
+        pode_visualizar_preview_scpi,
+    )
     from apps.estoque.selectors import listar_historico_importacoes_scpi
 
     papel = papel_efetivo(request.user)
@@ -918,7 +921,16 @@ def historico_importacoes_scpi_view(request):
     return render(
         request,
         'estoque/historico_importacoes_scpi.html',
-        {'page_obj': page_obj, 'importacoes': page_obj.object_list},
+        {
+            'page_obj': page_obj,
+            'importacoes': page_obj.object_list,
+            # Quem lê o histórico não é quem importa: `pode_consultar_historico_scpi`
+            # inclui o chefe de almoxarifado e `pode_visualizar_preview_scpi` é só
+            # superusuário. Sem esta flag o "Nova importação" saía sempre, e para o
+            # chefe de almoxarifado terminava num 403 — uma ação oferecida pelo
+            # produto que o domínio recusa.
+            'pode_importar': pode_visualizar_preview_scpi(papel),
+        },
     )
 
 

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Erro no servidor — WMS-SAEP{% endblock %}
+
+{% comment %}
+  Estende `base.html`, e não `base_auth.html`: `django.views.defaults.server_error`
+  renderiza com contexto vazio e sem context processors, então `user`,
+  `{% templatetag openblock %} url {% templatetag closeblock %}` e as tags de
+  navegação da barra não estão disponíveis aqui. O link de volta é literal pelo
+  mesmo motivo.
+{% endcomment %}
+{% block body %}
+  <main class="mx-auto w-full max-w-screen-xl p-6">
+    <div class="mx-auto max-w-2xl py-12 text-center">
+      <p class="text-xs font-semibold uppercase tracking-wide text-text-tertiary">Erro 500</p>
+      <h1 class="mt-2 text-2xl font-semibold text-text-primary sm:text-3xl">Erro no servidor</h1>
+      <p class="mx-auto mt-3 max-w-prose text-sm text-text-secondary">
+        Algo falhou no servidor e a ação não foi concluída. Confira o registro
+        antes de repetir a operação e, se o erro voltar, avise o administrador do
+        sistema.
+      </p>
+      <div class="mt-8 flex justify-center">
+        <a
+          href="/"
+          class="inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-3 py-2 text-sm font-medium text-text-on-primary hover:bg-primary-hover active:bg-primary-active focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1"
+        >Ir para o início</a>
+      </div>
+    </div>
+  </main>
+{% endblock %}

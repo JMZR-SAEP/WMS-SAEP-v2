@@ -1,0 +1,8 @@
+{% extends "base_auth.html" %}
+
+{% block title %}Página não encontrada — WMS-SAEP{% endblock %}
+
+{% block content %}
+  {% url 'core:home' as url_inicio %}
+  {% include "core/partials/_erro_pagina.html" with codigo="404" titulo="Página não encontrada" descricao="O endereço não existe, ou o registro que ele apontava não está mais disponível para você. Confira o link e tente de novo." cta_url=url_inicio cta_label="Ir para o início" %}
+{% endblock %}

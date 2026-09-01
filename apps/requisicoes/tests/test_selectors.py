@@ -354,6 +354,27 @@ def test_fila_autorizacao_anota_quantidade_itens(
     assert req.quantidade_itens == 1
 
 
+@pytest.mark.django_db
+def test_fila_autorizacao_anota_primeiro_material(
+    chefe_obras, req_solicitante_enviada, material_disponivel, material_disponivel_2
+):
+    """O cartão da fila precisa nomear o que foi pedido.
+
+    "Itens: 4" é um dígito, e o chefe de setor autoriza — e reserva saldo — sem
+    saber o conteúdo. A fila de atendimento já anotava o primeiro material pelo
+    mesmo motivo; a de autorização ficou de fora quando a correção foi feita.
+    """
+    req_solicitante_enviada.itens.create(
+        material=material_disponivel, quantidade_solicitada=1
+    )
+    req_solicitante_enviada.itens.create(
+        material=material_disponivel_2, quantidade_solicitada=2
+    )
+    req = fila_autorizacao(chefe_obras.pk).get(pk=req_solicitante_enviada.pk)
+    assert req.primeiro_material_nome == material_disponivel.nome
+    assert req.quantidade_itens == 2
+
+
 # ---------------------------------------------------------------------------
 # fila_atendimento
 # ---------------------------------------------------------------------------

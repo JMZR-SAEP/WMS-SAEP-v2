@@ -52,16 +52,29 @@
         <article
           class="rounded-xl border {% if saldo.divergente_calculado %}border-danger-border-strong bg-danger-subtle{% else %}border-border bg-surface{% endif %} p-4 shadow-sm"
         >
-          <div class="flex items-start justify-between gap-3">
+          <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="min-w-0">
               <h2 class="break-words text-sm font-semibold text-text-primary">
                 {{ saldo.material.codigo }}
               </h2>
               <p class="mt-0.5 text-xs text-text-secondary">{{ saldo.material.nome }}</p>
             </div>
-            {% if saldo.divergente_calculado %}
-              <span class="shrink-0">
-                {% include "components/badge.html" with variant="red-strong" label="Divergente" aria_label="Divergência crítica" %}
+            {% comment %}
+              Dois carimbos possíveis, e um material pode vestir os dois. O
+              "Inativo" faltava: `Material.ativo` é estado de domínio — material
+              inativo não entra em requisição nova nem em saída excepcional — e
+              o catálogo é a única tela que lista material, então era o único
+              lugar onde esse estado poderia aparecer, e não aparecia. O cartão
+              ficava idêntico ao de um material em uso.
+            {% endcomment %}
+            {% if saldo.divergente_calculado or not saldo.material.ativo %}
+              <span class="flex shrink-0 flex-wrap justify-end gap-1">
+                {% if saldo.divergente_calculado %}
+                  {% include "components/badge.html" with variant="red-strong" label="Divergente" aria_label="Divergência crítica" %}
+                {% endif %}
+                {% if not saldo.material.ativo %}
+                  {% include "components/badge.html" with variant="slate" label="Inativo" aria_label="Material inativo" %}
+                {% endif %}
               </span>
             {% endif %}
           </div>

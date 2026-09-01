@@ -1,0 +1,24 @@
+{% comment %}
+Corpo compartilhado das telas de erro (403/404/500).
+
+Parâmetros:
+  codigo   (obrigatório) o status HTTP, impresso pequeno acima do título
+  titulo   (obrigatório) o que aconteceu, em uma frase nominal
+  descricao(obrigatório) por que a pessoa está vendo isto, e o que fazer
+  cta_url    (opcional) destino do botão primário
+  cta_label  (opcional) rótulo do botão primário
+
+Sem `<h1>` na barra: a tela de erro não é subtela de nada — não há registro a
+nomear e não há para onde o back-arrow voltar com sentido. O título é o da
+página, dentro do `<main>`, como nas telas principais.
+{% endcomment %}
+<div class="mx-auto max-w-2xl py-12 text-center">
+  <p class="text-xs font-semibold uppercase tracking-wide text-text-tertiary">Erro {{ codigo }}</p>
+  <h1 class="mt-2 text-2xl font-semibold text-text-primary sm:text-3xl">{{ titulo }}</h1>
+  <p class="mx-auto mt-3 max-w-prose text-sm text-text-secondary">{{ descricao }}</p>
+  {% if cta_url %}
+    <div class="mt-8 flex justify-center">
+      {% include "components/button.html" with variant="primary" label=cta_label href=cta_url %}
+    </div>
+  {% endif %}
+</div>

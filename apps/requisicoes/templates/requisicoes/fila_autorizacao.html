@@ -47,7 +47,22 @@
         </div>
 
         {# Rótulo rebaixado (issue #158): `Rótulo: valor` inline, sem caixa alta, `<dl>/<dt>/<dd>` preservado. Ver DESIGN.md §A Regra da Caixa Alta Estrutural. #}
-        <dl class="mt-4 grid grid-cols-2 gap-3 text-sm">
+        <dl class="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+          {% comment %}
+            Material primeiro e em linha inteira, como na fila de atendimento:
+            "Itens: 4" é um dígito, e o chefe de setor autoriza — e reserva
+            saldo — sem saber o que foi pedido. A contagem sobrevive como
+            "e mais N", que responde "quantos?" sem gastar uma linha só nisso.
+          {% endcomment %}
+          <div class="flex gap-x-2 sm:col-span-2">
+            <dt class="shrink-0 text-text-tertiary">Material:</dt>
+            <dd class="min-w-0 break-words text-text-primary">
+              {{ req.primeiro_material_nome|default:"—" }}
+              {% if req.quantidade_itens > 1 %}
+                <span class="text-text-tertiary">e mais {{ req.quantidade_itens|add:"-1" }}</span>
+              {% endif %}
+            </dd>
+          </div>
           <div class="flex gap-x-2">
             <dt class="shrink-0 text-text-tertiary">Beneficiário:</dt>
             <dd class="min-w-0 text-text-primary">
@@ -58,10 +73,6 @@
           <div class="flex gap-x-2">
             <dt class="shrink-0 text-text-tertiary">Setor:</dt>
             <dd class="min-w-0 text-text-primary">{{ req.setor_beneficiario.nome }}</dd>
-          </div>
-          <div class="flex gap-x-2">
-            <dt class="shrink-0 text-text-tertiary">Itens:</dt>
-            <dd class="min-w-0 tabular-nums text-text-primary">{{ req.quantidade_itens }}</dd>
           </div>
         </dl>
 

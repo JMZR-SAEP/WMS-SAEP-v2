@@ -3572,6 +3572,83 @@ def test_estornar_view_get_nao_permitido(client, chefe_almoxarifado, req_atendid
 URL_HISTORICO_REQUISICOES = reverse('requisicoes:historico')
 
 
+class TestSeteListagensNomeiamOMaterial:
+    """As sete listagens contam a mesma história (Etapa 8).
+
+    "Minhas requisições" não dizia nada do conteúdo — número, data e estado — e
+    a fila de autorização dizia só "Itens: N". As duas telas de decisão do
+    fluxo (o solicitante conferindo o que pediu, o chefe autorizando) eram as
+    que menos informavam. A grafia canônica é a da fila de atendimento: nome do
+    primeiro material e, quando há mais de um, "e mais N".
+    """
+
+    def _com_dois_itens(self, requisicao, material_a, material_b):
+        requisicao.itens.create(material=material_a, quantidade_solicitada=1)
+        requisicao.itens.create(material=material_b, quantidade_solicitada=2)
+        return requisicao
+
+    def test_minhas_requisicoes_nomeia_o_material(
+        self,
+        client,
+        solicitante,
+        setor_obras,
+        material_disponivel,
+        material_disponivel_2,
+    ):
+        req = Requisicao.objects.create(
+            estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+            numero_publico='REQ-2026-E801',
+            criador=solicitante,
+            beneficiario=solicitante,
+            setor_beneficiario=setor_obras,
+        )
+        self._com_dois_itens(req, material_disponivel, material_disponivel_2)
+        _login(client, solicitante)
+        html = client.get(reverse('requisicoes:minhas')).content.decode('utf-8')
+        assert material_disponivel.nome in html
+        assert 'e mais 1' in html
+
+    def test_minhas_requisicoes_item_unico_sai_sem_contagem(
+        self, client, solicitante, setor_obras, material_disponivel
+    ):
+        req = Requisicao.objects.create(
+            estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+            numero_publico='REQ-2026-E802',
+            criador=solicitante,
+            beneficiario=solicitante,
+            setor_beneficiario=setor_obras,
+        )
+        req.itens.create(material=material_disponivel, quantidade_solicitada=1)
+        _login(client, solicitante)
+        html = client.get(reverse('requisicoes:minhas')).content.decode('utf-8')
+        assert material_disponivel.nome in html
+        assert 'e mais 1' not in html
+
+    def test_fila_autorizacao_nomeia_o_material(
+        self,
+        client,
+        chefe_obras,
+        solicitante,
+        setor_obras,
+        material_disponivel,
+        material_disponivel_2,
+    ):
+        req = Requisicao.objects.create(
+            estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+            numero_publico='REQ-2026-E803',
+            criador=solicitante,
+            beneficiario=solicitante,
+            setor_beneficiario=setor_obras,
+        )
+        self._com_dois_itens(req, material_disponivel, material_disponivel_2)
+        _login(client, chefe_obras)
+        html = client.get(reverse('requisicoes:autorizacoes')).content.decode('utf-8')
+        assert material_disponivel.nome in html
+        assert 'e mais 1' in html
+        # "Itens: N" era o que a tela dizia antes, e o dígito sozinho não basta.
+        assert 'Itens:' not in html
+
+
 class TestHistoricoRequisicoesView:
     def test_chefe_almox_acessa(self, client, chefe_almoxarifado):
         _login(client, chefe_almoxarifado)
@@ -3791,7 +3868,13 @@ class TestHistoricoRequisicoesView:
         )
         _login(client, superuser)
         response = client.get(URL_HISTORICO_REQUISICOES)
-        assert b'2 itens' in response.content
+        html = response.content.decode('utf-8')
+        # Nome do primeiro material + "e mais N", a mesma grafia das duas filas
+        # e de "Minhas requisições" (Etapa 8). A forma anterior ("2 itens", com
+        # o nome só quando havia um item) escondia o conteúdo justamente nas
+        # requisições maiores.
+        assert material_disponivel.nome in html
+        assert 'e mais 1' in html
 
 
 class TestHistoricoRequisicoesChipsPorPapel:
@@ -4315,7 +4398,9 @@ def test_historico_material_mostra_contagem_para_multi_itens(
     )
     _login(client, superuser)
     response = client.get(reverse('requisicoes:historico'))
-    assert '2 itens'.encode() in response.content
+    html = response.content.decode('utf-8')
+    assert material_disponivel.nome in html
+    assert 'e mais 1' in html
 
 
 @pytest.mark.django_db
@@ -4335,8 +4420,12 @@ def test_historico_material_mostra_nome_como_secundario_para_item_unico(
     _login(client, superuser)
     response = client.get(reverse('requisicoes:historico'))
     html = response.content.decode('utf-8')
-    assert '1 item' in html
+    # Item único não ganha sufixo de contagem: o nome sozinho já é o conteúdo.
+    # `e mais 0` é a forma que um `add:"-1"` sem guarda produziria — e "e mais"
+    # solto colide com "atualmente mais recentes primeiro" do controle de ordem.
     assert material_disponivel.nome in html
+    assert 'e mais 0' not in html
+    assert 'e mais 1' not in html
 
 
 @pytest.mark.django_db

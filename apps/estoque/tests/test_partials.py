@@ -552,3 +552,50 @@ def test_as_tres_superficies_do_delta_incluem_o_mesmo_atomo(template):
         Path(__file__).resolve().parent.parent / 'templates' / template
     ).read_text()
     assert 'estoque/partials/_delta_movimentacao.html' in fonte
+
+
+# ---------------------------------------------------------------------------
+# Etapa 8 — regressão: precisão de quantidade na lista de divergências
+# ---------------------------------------------------------------------------
+
+
+def _render_cartoes_divergencias(saldo_wms, saldo_scpi, delta):
+    """Renderiza `_cartoes_divergencias_scpi.html` com uma linha só.
+
+    O partial espera um iterável de `LinhaDivergenteSCPI`; um objeto simples com
+    os mesmos atributos basta e evita tocar o banco.
+    """
+    linha = SimpleNamespace(
+        cadpro='001.001.001',
+        denominacao='ELETRODUTO RIGIDO ROSCAVEL 3/4',
+        saldo_wms=Decimal(saldo_wms),
+        saldo_scpi=Decimal(saldo_scpi),
+        delta=Decimal(delta),
+    )
+    return render_to_string(
+        'estoque/partials/_cartoes_divergencias_scpi.html',
+        {'divergencias': [linha]},
+    )
+
+
+def test_saldos_da_divergencia_passam_pela_politica_de_precisao():
+    """`820,000` em pt-BR se lê *oitocentos e vinte mil*.
+
+    `DecimalField(decimal_places=3)` impresso cru chega ao HTML como `820.000` e
+    a localização pt-BR do Django o renderiza com vírgula. É o bug que
+    `apps/core/quantidades.py` existe para matar, na tela cuja função inteira é
+    comparar dois saldos — e o delta ao lado, no mesmo cartão, já obedecia.
+    """
+    html = _render_cartoes_divergencias('820.000', '750.000', '-70.000')
+    assert '820,000' not in html
+    assert '750,000' not in html
+    assert '>820<' in html.replace(' ', '').replace('\n', '')
+    assert '>750<' in html.replace(' ', '').replace('\n', '')
+
+
+def test_saldo_fracionario_da_divergencia_mantem_a_casa_significativa():
+    """Sem unidade (o CSV do SCPI não a informa) a política degrada para casa
+    significativa — o mesmo caminho do átomo do delta."""
+    html = _render_cartoes_divergencias('18.750', '18.500', '-0.250')
+    assert '18.75' in html
+    assert '18.750' not in html

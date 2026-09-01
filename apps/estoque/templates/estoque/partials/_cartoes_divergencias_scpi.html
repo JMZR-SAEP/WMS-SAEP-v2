@@ -12,10 +12,11 @@ critério, então a 3ª coluna continua em `2xl`.
 
 Quem chama fecha o container: </div>
 {% endcomment %}
+{% load core_tags %}
 {% include "components/table.html#cards_abertura" %}
   {% for linha in divergencias %}
     {% include "components/table.html#card_abertura" %}
-      <div class="flex items-start justify-between gap-3">
+      <div class="flex flex-wrap items-start justify-between gap-3">
         <div class="min-w-0">
           {% comment %}
             CADPRO em mono e como título do cartão: é o dado que vai ser
@@ -30,14 +31,24 @@ Quem chama fecha o container: </div>
         </span>
       </div>
 
+      {% comment %}
+        Os dois saldos passam por `formatar_quantidade`, como o delta ao lado.
+        Impressos crus, o `DecimalField(decimal_places=3)` chegava ao HTML como
+        `820.000` e a localização pt-BR do Django o renderizava `820,000` — que
+        em pt-BR se lê *oitocentos e vinte mil*. É o bug que
+        `apps/core/quantidades.py` existe para matar, na tela cuja função
+        inteira é comparar dois saldos. `LinhaDivergenteSCPI` não guarda
+        unidade (o CSV do SCPI não a informa), então a política degrada para
+        casa significativa — o mesmo caminho que o átomo do delta já usa.
+      {% endcomment %}
       <dl class="mt-4 grid grid-cols-3 gap-3 text-sm">
         <div>
           <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">WMS</dt>
-          <dd class="mt-0.5 font-mono tabular-nums text-text-primary">{{ linha.saldo_wms }}</dd>
+          <dd class="mt-0.5 font-mono tabular-nums text-text-primary">{{ linha.saldo_wms|formatar_quantidade:"" }}</dd>
         </div>
         <div>
           <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">SCPI</dt>
-          <dd class="mt-0.5 font-mono tabular-nums text-text-primary">{{ linha.saldo_scpi }}</dd>
+          <dd class="mt-0.5 font-mono tabular-nums text-text-primary">{{ linha.saldo_scpi|formatar_quantidade:"" }}</dd>
         </div>
         <div>
           {% comment %}

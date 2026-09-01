@@ -293,10 +293,15 @@ def listar_materiais_com_saldo(*, busca: str = ''):
                 output_field=BooleanField(),
             ),
         )
-        # `pk` desempata materiais homônimos: `material__nome` não é único e
-        # sozinho deixa a fronteira de 25 registros da paginação instável entre
-        # requisições.
-        .order_by('material__nome', 'pk')
+        # Pelo código, não pelo nome: o cartão imprime o código como `<h2>` em
+        # semibold e o nome como linha secundária em cinza, então ordenar por
+        # nome deixava a coluna que o olho percorre — a única em destaque —
+        # aparentemente embaralhada (MAT-010, MAT-004, MAT-002, MAT-012…). A
+        # chave de ordenação tem de ser a que a hierarquia visual promete.
+        # `codigo` é único (`Material.codigo`), então não precisa de desempate,
+        # mas o `pk` fica: a fronteira de 25 registros da paginação depende de
+        # ordem total e o custo é zero.
+        .order_by('material__codigo', 'pk')
     )
 
     if busca:

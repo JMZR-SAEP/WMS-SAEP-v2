@@ -152,7 +152,21 @@ def fila_autorizacao(ator_id: int) -> QuerySet[Requisicao]:
             'criador', 'beneficiario', 'setor_beneficiario'
         )
         .filter(estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO)
-        .annotate(quantidade_itens=Count('itens'), enviada_em=enviada_em_sq)
+        .annotate(
+            quantidade_itens=Count('itens'),
+            enviada_em=enviada_em_sq,
+            # Mesmo motivo da fila de atendimento: "Itens: 4" é um dígito, e o
+            # chefe de setor decide autorizar sem saber o que foi pedido. A
+            # correção foi aplicada só numa das duas filas quando foi feita.
+            # Subquery e não `prefetch_related('itens__material')`, que
+            # carregaria as N linhas de toda requisição da fila para exibir, no
+            # máximo, um nome por cartão.
+            primeiro_material_nome=Subquery(
+                ItemRequisicao.objects.filter(requisicao=OuterRef('pk'))
+                .order_by('pk')
+                .values('material__nome')[:1]
+            ),
+        )
         .order_by('atualizado_em', 'criado_em', 'id')
     )
     try:

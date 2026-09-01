@@ -27,7 +27,7 @@
       {% include "components/table.html#card_abertura" %}
         {% url 'requisicoes:detalhe' pk=req.pk as url_detalhe_req %}
         {% with next_encoded=request.get_full_path|urlencode criada_em=req.criado_em|date:"d/m/Y H:i" %}
-        <div class="flex items-start justify-between gap-3">
+        <div class="flex flex-wrap items-start justify-between gap-3">
           <div class="min-w-0">
             {% comment %}
               Beneficiário no título: "Rascunho" sozinho repetia o mesmo heading
@@ -72,8 +72,25 @@
           usuário requisitando para si — o par não informa nada que o título e a
           data já não fixem, e o `<dl>` inteiro sai.
         {% endcomment %}
-        {% if req.criador_id != req.beneficiario_id %}
+        {% comment %}
+          Material sempre, e primeiro: esta era a única das sete listagens que
+          não dizia o que a requisição pede — número, data e estado, e nada do
+          conteúdo. É a tela do solicitante e a que o produto declara operada no
+          celular, onde reabrir cada cartão para lembrar o que se pediu é o
+          caminho mais caro possível. Mesma grafia das duas filas
+          ("nome … e mais N"), para as sete listagens contarem a mesma história.
+        {% endcomment %}
         <dl class="mt-4 space-y-1 text-sm">
+          <div class="flex gap-x-2">
+            <dt class="shrink-0 text-text-tertiary">Material:</dt>
+            <dd class="min-w-0 break-words text-text-primary">
+              {{ req.primeiro_material_nome|default:"—" }}
+              {% if req.quantidade_itens > 1 %}
+                <span class="text-text-tertiary">e mais {{ req.quantidade_itens|add:"-1" }}</span>
+              {% endif %}
+            </dd>
+          </div>
+          {% if req.criador_id != req.beneficiario_id %}
           <div class="flex gap-x-2">
             <dt class="shrink-0 text-text-tertiary">Beneficiário:</dt>
             <dd class="min-w-0 text-text-primary">
@@ -81,8 +98,8 @@
               <span class="text-text-tertiary">({{ req.beneficiario.matricula }})</span>
             </dd>
           </div>
+          {% endif %}
         </dl>
-        {% endif %}
 
         {# Afordância do cartão, não um controle: o link do título já carrega o nome acessível. #}
         <p class="mt-4 flex items-center gap-1 text-sm font-medium text-primary" aria-hidden="true">Ver detalhes <span>&rarr;</span></p>

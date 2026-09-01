@@ -48,7 +48,7 @@
   Recebe do escopo: `req`, `verbo`, `url_detalhe_req`, `next_encoded`.
 {% endcomment %}
 {% partialdef corpo_cartao %}
-<div class="flex items-start justify-between gap-3">
+<div class="flex flex-wrap items-start justify-between gap-3">
   <div class="min-w-0">
     <h2 class="break-words text-sm font-semibold text-text-primary">
       {% comment %}
@@ -89,9 +89,9 @@
 </div>
 
 {# Rótulo rebaixado (issue #158): `Rótulo: valor` inline, sem caixa alta, `<dl>/<dt>/<dd>` preservado. Ver DESIGN.md §A Regra da Caixa Alta Estrutural. #}
-<dl class="mt-4 grid grid-cols-2 gap-3 text-sm">
+<dl class="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
   {# Material primeiro e em linha inteira: é o dado que manda o auxiliar até a prateleira. #}
-  <div class="col-span-2 flex gap-x-2">
+  <div class="flex gap-x-2 sm:col-span-2">
     <dt class="shrink-0 text-text-tertiary">Material:</dt>
     <dd class="min-w-0 break-words text-text-primary">
       {{ req.primeiro_material_nome|default:"—" }}

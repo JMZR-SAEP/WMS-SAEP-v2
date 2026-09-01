@@ -20,7 +20,8 @@
   </div>
 
   {% if not notificacoes %}
-    <p class="text-text-tertiary text-sm">Nenhuma notificação.</p>
+    {# `empty_state.html`, como nas outras seis listagens: a frase cinza solta era o único estado vazio do produto fora do componente. #}
+    {% include 'components/empty_state.html' with icone='components/icons/_caixa_entrada.html' titulo='Nenhuma notificação' descricao='Avisos sobre suas requisições aparecem aqui.' %}
   {% else %}
     <ul class="divide-y divide-border rounded-lg border border-border bg-surface">
       {% for notificacao in notificacoes %}
@@ -44,7 +45,8 @@
             {% else %}
               <span class="text-xs text-text-tertiary" aria-hidden="true">&nbsp;</span>
             {% endif %}
-            <p class="text-xs text-text-disabled mt-1">{{ notificacao.criado_em|date:"d/m/Y H:i" }}</p>
+            {# `text-text-tertiary`, não `text-text-disabled`: slate-400 mede 2,63:1 no branco e reprova o 4,5:1 da AA — o mesmo achado já corrigido nos dois autocompletes e no nome do arquivo do preview SCPI. Aqui a data é o que ordena a lista. #}
+            <p class="mt-1 text-xs text-text-tertiary">{{ notificacao.criado_em|date:"d/m/Y H:i" }}</p>
           </div>
           {% if not notificacao.lida %}
             <form method="post" action="{% url 'notificacoes:marcar_lida' notificacao.pk %}">

@@ -367,3 +367,83 @@ def test_css_build_gera_tokens_e_utilities_novas():
         f'ou apps/*/tests/*.py, não excluído via @source not em '
         f'input.css): {utilities_dormantes_vazadas}'
     )
+
+
+# ---------------------------------------------------------------------------
+# Etapa 8 — pares de cor medidos, não tokens isolados
+# ---------------------------------------------------------------------------
+
+# Medido no navegador durante o passe de regressão da Etapa 8 (registrado em
+# DESIGN.md §A Regra do Cinza Medido):
+#
+#   | sobre →          | bg-subtle | surface | bg-page |
+#   | text-tertiary    |   4,35 ✗  |  4,76   |  4,55   |
+#   | danger-accent    |   3,48 ✗  |  3,81 ✗ |  3,64 ✗ |
+#
+# O piso do cinza de metadado do DESIGN.md foi medido só contra branco, então o
+# token passava no papel e reprovava sobre `bg-subtle`. `danger-accent`
+# (red-500) reprova o 4,5:1 em toda superfície do sistema e só é legítimo como
+# anel de foco / borda de campo, onde o mínimo é o 3:1 da WCAG 1.4.11.
+
+PARES_DE_COR_PROIBIDOS = [
+    (
+        'text-text-tertiary',
+        'bg-bg-subtle',
+        'cinza de metadado sobre papel frio sombreado mede 4,35:1 — abaixo do '
+        '4,5:1 da WCAG 1.4.3. Use text-text-secondary (9,45:1).',
+    ),
+]
+
+# `text-danger-accent` como cor de TEXTO. As demais utilities do mesmo token
+# (`ring-danger-accent`, `border-danger-accent`, `focus-visible:ring-...`)
+# continuam válidas: ali o mínimo é 3:1 e o token passa.
+CLASSE_TEXTO_DANGER_ACCENT = re.compile(r'(?<![\w:-])text-danger-accent(?![\w-])')
+
+
+def _templates():
+    return sorted(APPS_DIR.rglob('*.html'))
+
+
+def test_nenhum_template_pinta_texto_com_danger_accent():
+    """Vermelho de ênfase é anel de foco e borda, nunca texto.
+
+    O asterisco de campo obrigatório usava `text-danger-accent` — o único
+    indicador visual de obrigatoriedade do produto, a 3,81:1 sobre papel branco.
+    """
+    infratores = []
+    for caminho in _templates():
+        conteudo = caminho.read_text(encoding='utf-8')
+        # A menção dentro de um {% comment %} explicando a regra não conta.
+        for numero, linha in enumerate(conteudo.splitlines(), start=1):
+            if CLASSE_TEXTO_DANGER_ACCENT.search(linha) and 'class=' in linha:
+                infratores.append(f'{caminho.relative_to(BASE_DIR)}:{numero}')
+    assert infratores == [], (
+        'text-danger-accent mede 3,48:1 a 3,81:1 nas três superfícies do '
+        'sistema e reprova a WCAG 1.4.3. Texto de perigo é text-danger-text '
+        f'(6,42:1 no branco). Ver DESIGN.md §A Regra do Cinza Medido: {infratores}'
+    )
+
+
+@pytest.mark.parametrize(('cor', 'fundo', 'motivo'), PARES_DE_COR_PROIBIDOS)
+def test_nenhum_elemento_combina_par_de_cor_reprovado(cor, fundo, motivo):
+    """O contraste é do par, não do token — o mesmo cinza passa no branco e
+    reprova no papel frio sombreado.
+
+    Limite conhecido: o guarda vê par no **mesmo elemento**. O caso do
+    cabeçalho de `atender_retirada.html` — `bg-bg-subtle` no `<div>` e
+    `text-text-tertiary` nos `<span>` filhos — passa por aqui e só apareceu na
+    medição no navegador. A varredura de contraste da lane Navegador (ADR-0019)
+    é o lugar de fechar isso; este teste tranca a recorrência literal.
+    """
+    infratores = []
+    for caminho in _templates():
+        for numero, linha in enumerate(
+            caminho.read_text(encoding='utf-8').splitlines(), start=1
+        ):
+            if 'class=' not in linha:
+                continue
+            for atributo in re.findall(r'class="([^"]*)"', linha):
+                classes = set(atributo.split())
+                if cor in classes and fundo in classes:
+                    infratores.append(f'{caminho.relative_to(BASE_DIR)}:{numero}')
+    assert infratores == [], f'{motivo} Infratores: {infratores}'

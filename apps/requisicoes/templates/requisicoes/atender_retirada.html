@@ -100,11 +100,18 @@
     {{ formset.management_form }}
 
     <div class="divide-y divide-border rounded-lg border border-border text-sm">
+      {% comment %}
+        Rótulos em `text-text-secondary`, não `text-text-tertiary`: medido no
+        navegador, o cinza de metadado sobre `bg-subtle` dá 4,35:1 — abaixo do
+        mínimo de 4,5:1 da WCAG 1.4.3. O piso do slate-500 do DESIGN.md foi
+        medido contra branco (4,76:1); sobre o papel frio sombreado ele não
+        vale. Ver DESIGN.md §A Regra do Cinza Medido.
+      {% endcomment %}
       <div class="hidden gap-3 bg-bg-subtle px-3 py-2 lg:flex lg:items-center" aria-hidden="true">
-        <span class="min-w-0 flex-1 basis-56 text-xs font-semibold uppercase tracking-wide text-text-tertiary">Material</span>
-        <span class="min-w-24 shrink-0 text-right text-xs font-semibold uppercase tracking-wide text-text-tertiary">Autorizada</span>
-        <span class="min-w-32 shrink-0 text-xs font-semibold uppercase tracking-wide text-text-tertiary">Entregue</span>
-        <span class="min-w-0 flex-1 text-xs font-semibold uppercase tracking-wide text-text-tertiary">Justificativa</span>
+        <span class="min-w-0 flex-1 basis-56 text-xs font-semibold uppercase tracking-wide text-text-secondary">Material</span>
+        <span class="min-w-24 shrink-0 text-right text-xs font-semibold uppercase tracking-wide text-text-secondary">Autorizada</span>
+        <span class="min-w-32 shrink-0 text-xs font-semibold uppercase tracking-wide text-text-secondary">Entregue</span>
+        <span class="min-w-0 flex-1 text-xs font-semibold uppercase tracking-wide text-text-secondary">Justificativa</span>
       </div>
       {% for item, form in linhas %}
           {% comment %}
