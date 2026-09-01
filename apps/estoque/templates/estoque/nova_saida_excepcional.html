@@ -21,7 +21,7 @@
     {% include "components/alert.html" with variant="danger" message=erro_geral class="mb-4" %}
   {% endif %}
 
-  <form method="post" novalidate data-prevent-double-submit>
+  <form method="post" novalidate data-prevent-double-submit id="form-nova-saida-excepcional">
     {% csrf_token %}
 
     {% comment %}
@@ -161,10 +161,28 @@
       Ações — sticky no mobile, static no sm+. O pb extra respeita a safe area do
       home indicator; sem isso o botão primário encosta na barra do sistema.
     {% endcomment %}
-    <div class="fixed inset-x-0 bottom-0 z-10 flex flex-nowrap items-center justify-end gap-2 border-t border-border bg-surface px-4 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] sm:static sm:z-auto sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:pb-0">
+    {% comment %}
+      Confirmação antes de gravar. Esta é uma baixa administrativa DIRETA no
+      saldo físico — a escrita mais pesada do escopo do chefe de almoxarifado —
+      e era a única do produto sem `<dialog>` nenhum, enquanto `Autorizar`, que
+      só move reserva, tinha `alertdialog`. A cerimônia seguia o template em que
+      a tela foi escrita, não a consequência da ação.
+
+      O corpo é o mesmo padrão do `Confirmar registro de retirada?`: identidade,
+      o que muda, a recapitulação por item com a quantidade e a unidade, e a
+      irreversibilidade em negrito. `validarFormId` faz o modal só abrir com o
+      formulário válido — senão a pessoa confirma uma recapitulação vazia e cai
+      de volta no formulário com erro.
+    {% endcomment %}
+    <div
+      class="fixed inset-x-0 bottom-0 z-10 flex flex-nowrap items-center justify-end gap-2 border-t border-border bg-surface px-4 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] sm:static sm:z-auto sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:pb-0"
+      x-data="modalController({ id: 'confirmar-saida-excepcional', validarFormId: 'form-nova-saida-excepcional' })"
+    >
       {% url 'estoque:listar_saidas_excepcionais' as url_cancelar %}
       {% include "components/button.html" with variant="secondary" label="Cancelar" href=url_cancelar class="shrink-0" %}
-      {% include "components/button.html" with variant="primary" type="submit" label="Registrar saída excepcional" loading_label="Registrando…" icon_template="components/icons/confirmar.svg" icon_class="h-4 w-4 shrink-0" class="shrink-0 transition-colors" %}
+      {% include "components/button.html" with variant="primary" label="Registrar saída excepcional" data_modal_trigger="confirmar-saida-excepcional" aria_haspopup="dialog" icon_template="components/icons/confirmar.svg" icon_class="h-4 w-4 shrink-0" class="shrink-0 transition-colors" %}
+
+      {% include "components/modal.html" with id="confirmar-saida-excepcional" registro=registro_saida_nova titulo="Registrar saída excepcional?" descricao="Estas quantidades serão baixadas do saldo físico do estoque." consequencia="A gravação não pode ser desfeita." form_body_template="estoque/partials/_modal_corpo_saida_excepcional.html" submit_form_id="form-nova-saida-excepcional" confirm_label="Registrar saída excepcional" confirm_variant="danger" icon_variant="danger" role="alertdialog" loading_label="Registrando…" formset=formset form=form %}
     </div>
 
   </form>

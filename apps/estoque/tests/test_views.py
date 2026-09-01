@@ -4359,3 +4359,44 @@ class TestSumarioDeErrosNaSaidaExcepcional:
         assert 'href="#sec-materiais"' in html
         assert 'id="sec-materiais"' in html
         assert 'tabindex="-1"' in html
+
+
+class TestCerimoniaDaSaidaExcepcional:
+    """A cerimônia da ação seguia o template, não a consequência.
+
+    Baixa administrativa DIRETA no saldo físico gravava sem confirmação
+    nenhuma, enquanto `Autorizar` — que só move reserva — tinha `alertdialog`.
+    """
+
+    URL = '/estoque/saidas-excepcionais/nova/'
+
+    def test_tem_modal_de_confirmacao(self, client, chefe_almoxarifado):
+        client.force_login(chefe_almoxarifado)
+        html = client.get(self.URL).content.decode('utf-8')
+        assert 'id="confirmar-saida-excepcional"' in html
+        assert 'A gravação não pode ser desfeita.' in html
+        # A recapitulação é reconstruída na abertura a partir das linhas
+        # visíveis do formset — aqui elas são criadas e removidas no cliente.
+        assert 'data-resumo-linhas-de="#itens-container"' in html
+
+    def test_modal_nomeia_o_estoque_onde_a_baixa_cai(
+        self, client, chefe_almoxarifado, estoque_principal
+    ):
+        """Não há documento a nomear: é ele que se vai criar. O que responde
+        "sobre o quê?" é o estoque — mesma situação do arquivo do SCPI."""
+        client.force_login(chefe_almoxarifado)
+        html = client.get(self.URL).content.decode('utf-8')
+        assert estoque_principal.nome in html
+
+    def test_motivo_nao_vem_pre_selecionado_com_valor_real(
+        self, client, chefe_almoxarifado
+    ):
+        """`Avaria / Deterioração` era o default: quem não olhasse registrava
+        "avaria" por omissão. Um select obrigatório cujo default já é uma
+        resposta válida não pergunta nada."""
+        from apps.estoque.forms import SaidaExcepcionalForm
+
+        assert SaidaExcepcionalForm().fields['motivo'].choices[0][0] == ''
+        client.force_login(chefe_almoxarifado)
+        html = client.get(self.URL).content.decode('utf-8')
+        assert 'Selecione o motivo' in html

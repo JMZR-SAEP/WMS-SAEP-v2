@@ -1,0 +1,48 @@
+{% comment %}
+Corpo do modal de confirmação de saída excepcional.
+
+Esta é a escrita mais pesada do escopo do chefe de almoxarifado — baixa
+administrativa DIRETA no saldo físico, sem requisição por trás — e era a única
+ação irreversível do produto que gravava sem confirmação nenhuma, enquanto
+`Autorizar`, que só move reserva, já tinha `alertdialog`. A cerimônia seguia o
+template em que a tela nasceu, não a consequência do que ela faz.
+
+A ordem de leitura é a mesma que o `Confirmar registro de retirada?` provou:
+o que muda → a recapitulação com os números → o contexto declarado →
+irreversibilidade. Sem linha de identidade no topo porque não há registro a
+nomear: a saída ainda não existe, é justamente o que se vai criar.
+
+As linhas são reconstruídas na abertura por `sincronizarResumo`
+(`core/js/modal.js`), a partir das linhas visíveis do formset — aqui elas são
+criadas e removidas no cliente, então não há id de campo a espelhar como no
+resumo do atendimento. O `data-unidade` de cada linha é escrito pelo escopo
+`saldoLinha` no momento em que o material é selecionado.
+
+Recebe do escopo: `form` (cabeçalho).
+{% endcomment %}
+<p class="text-sm text-text-secondary">
+  Estas quantidades saem do saldo físico e não voltam por este caminho — o
+  estorno é uma operação própria, registrada à parte.
+</p>
+
+<dl
+  class="mt-3 divide-y divide-border rounded-lg border border-border text-sm"
+  data-resumo-linhas-de="#itens-container"
+></dl>
+
+<dl class="mt-4 space-y-1.5 text-sm">
+  <div class="flex flex-wrap items-baseline gap-x-2">
+    <dt class="text-text-tertiary">Motivo:</dt>
+    <dd
+      data-resumo-texto-de="{{ form.motivo.auto_id }}"
+      class="min-w-0 font-semibold text-text-primary"
+    >—</dd>
+  </div>
+  <div class="flex flex-wrap items-baseline gap-x-2">
+    <dt class="text-text-tertiary">Observação:</dt>
+    <dd
+      data-resumo-texto-de="{{ form.observacao.auto_id }}"
+      class="min-w-0 text-text-primary"
+    >—</dd>
+  </div>
+</dl>

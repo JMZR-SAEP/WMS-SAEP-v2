@@ -19,9 +19,14 @@ MOTIVO_SAIDA_OPCOES = [
 class SaidaExcepcionalForm(forms.Form):
     """Cabeçalho de registro de saída excepcional (SAE-09: motivo fechado, observação obrigatória)."""
 
+    # Primeira opção vazia. O campo é obrigatório e vinha pré-selecionado com
+    # `Avaria / Deterioração` — um valor real, não um placeholder: quem não
+    # olhasse registrava "avaria" por omissão, numa baixa administrativa direta
+    # no saldo físico. Um select obrigatório cujo default já é uma resposta
+    # válida não pergunta nada.
     motivo = forms.ChoiceField(
         label='Motivo',
-        choices=MOTIVO_SAIDA_OPCOES,
+        choices=[('', 'Selecione o motivo…'), *MOTIVO_SAIDA_OPCOES],
         widget=forms.Select(
             attrs={
                 'class': 'campo',

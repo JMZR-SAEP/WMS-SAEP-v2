@@ -6084,3 +6084,72 @@ class TestSaldoVisivelNaDecisao:
         html = client.get(f'{url}?item_erro={material_id}').content.decode('utf-8')
         assert 'aria-invalid="true"' in html
         assert 'border-danger-border-input' in html
+
+
+class TestTimelineDevolveOQueOFormularioExige:
+    """ "Auditabilidade acima de conveniência" é o princípio 2 do PRODUCT.md.
+
+    A tela de atendimento força `RETIRANTE *` a quem está em pé no galpão; a
+    devolução força a quantidade. Os dois eram gravados em
+    `TimelineRequisicao.metadata` e nunca exibidos — `_timeline.html` só lia
+    `metadata` no caso da EST-07. A pergunta que qualquer conferência faz — quem
+    retirou e por que faltou — era a que o produto coletava e não devolvia.
+    """
+
+    @pytest.mark.django_db
+    def test_retirante_e_quantidade_devolvida_aparecem(
+        self, client, superuser, chefe_obras, setor_obras, material_disponivel
+    ):
+        from apps.requisicoes.services import (
+            autorizar_requisicao,
+            criar_requisicao,
+            enviar_para_autorizacao,
+            registrar_atendimento,
+            registrar_devolucao,
+            separar_para_retirada,
+        )
+        from apps.requisicoes.types import LinhaAtendimento
+
+        req = criar_requisicao(
+            ator_id=superuser.id,
+            beneficiario_id=superuser.id,
+            itens=[
+                {
+                    'material_id': material_disponivel.id,
+                    'quantidade_solicitada': Decimal('6'),
+                }
+            ],
+        )
+        enviar_para_autorizacao(ator_id=superuser.id, requisicao_id=req.id)
+        autorizar_requisicao(ator_id=superuser.id, requisicao_id=req.id)
+        separar_para_retirada(ator_id=superuser.id, requisicao_id=req.id)
+        item = req.itens.get()
+        registrar_atendimento(
+            ator_id=superuser.id,
+            requisicao_id=req.id,
+            itens=[
+                LinhaAtendimento(
+                    item_id=item.id,
+                    quantidade_entregue=Decimal('6'),
+                    justificativa='',
+                )
+            ],
+            retirante_nome='Marcos Vinícius de Andrade',
+        )
+        registrar_devolucao(
+            ator_id=superuser.id,
+            requisicao_id=req.id,
+            item_id=item.id,
+            quantidade=Decimal('2'),
+            observacao='Duas peças devolvidas sem uso.',
+        )
+
+        _login(client, superuser)
+        html = client.get(
+            reverse('requisicoes:detalhe', kwargs={'pk': req.pk})
+        ).content.decode('utf-8')
+
+        assert 'Retirada por' in html
+        assert 'Marcos Vinícius de Andrade' in html
+        assert 'Duas peças devolvidas sem uso.' in html
+        assert material_disponivel.nome in html

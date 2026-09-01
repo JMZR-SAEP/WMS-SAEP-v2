@@ -176,6 +176,30 @@ def _detalhe_context(
     eventos = list(
         requisicao.eventos.select_related('ator').order_by('-criado_em', '-id')
     )
+    # O que o formulário EXIGE volta a ser lido no registro. A tela de
+    # atendimento força `RETIRANTE *`; a devolução força a quantidade. Os dois
+    # eram gravados em `TimelineRequisicao.metadata` e nunca exibidos — o
+    # `_timeline.html` só lia `metadata` no caso da EST-07. O princípio 2 do
+    # PRODUCT.md é "auditabilidade acima de conveniência", e a pergunta que
+    # qualquer conferência faz — quem retirou e por que faltou — era exatamente
+    # a que o produto coletava e não devolvia.
+    #
+    # A resolução é aqui, e não no template: o `item_id` do metadata é um id
+    # cru, e traduzi-lo para o nome do material dentro do template significaria
+    # uma consulta por evento.
+    material_por_item = {i.pk: i.material for i in itens}
+    for evento in eventos:
+        metadata = evento.metadata or {}
+        evento.retirante = metadata.get('retirante') or ''
+        evento.observacao_registrada = metadata.get('observacao') or ''
+        evento.detalhe_quantidade = ''
+        material = material_por_item.get(metadata.get('item_id'))
+        quantidade = metadata.get('quantidade')
+        if material is not None and quantidade is not None:
+            evento.detalhe_quantidade = (
+                f'{formatar_quantidade(quantidade, material.unidade)} '
+                f'{material.get_unidade_display()} de {material.nome}'
+            )
     enviada_em = None
     if requisicao.estado != EstadoRequisicao.RASCUNHO:
         enviada_em = next(

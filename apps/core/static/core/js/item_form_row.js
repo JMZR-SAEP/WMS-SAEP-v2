@@ -211,6 +211,12 @@
 
       registrarMaterial(item) {
         if (!item) return;
+        // O rótulo e a unidade também no DOM, e não só no escopo: a
+        // recapitulação do modal reconstrói as linhas visíveis na abertura, e
+        // ler o escopo Alpine de outro componente a partir do `modal.js`
+        // acoplaria os dois. `dataset` é o contrato entre eles.
+        this.$el.dataset.material = item.label || item.nome || '';
+        this.$el.dataset.unidade = item.unidade || '';
         const temDisponivel = item.saldo_disponivel !== undefined;
         this.saldoRotulo = temDisponivel ? 'Disponível' : 'Físico';
         this.saldoTexto = temDisponivel ? item.saldo_disponivel : item.saldo_fisico;

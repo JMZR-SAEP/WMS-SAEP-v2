@@ -77,3 +77,17 @@ def registro_arquivo_scpi(nome_arquivo: str) -> dict[str, str]:
         'identificador': nome_arquivo,
         'contexto': '',
     }
+
+
+def registro_novo_saida_excepcional(estoque: object) -> dict[str, str]:
+    """Linha de identidade do modal que confirma uma saída AINDA não criada.
+
+    Mesma situação do `registro_arquivo_scpi`: não há documento do sistema a
+    nomear, porque é justamente ele que se vai criar. O que responde "sobre o
+    quê?" é o estoque onde a baixa cai — e a baixa é no saldo físico, direta.
+    """
+    return {
+        'rotulo': 'Estoque',
+        'identificador': getattr(estoque, 'nome', '') or '—',
+        'contexto': getattr(estoque, 'codigo', '') or '',
+    }

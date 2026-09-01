@@ -32,6 +32,7 @@ from apps.estoque.forms import ItemSaidaExcepcionalFormSet, SaidaExcepcionalForm
 from apps.estoque.presentation import (
     MODAL_COPY,
     registro_arquivo_scpi,
+    registro_novo_saida_excepcional,
     registro_saida_excepcional,
 )
 from apps.estoque.models import Estoque, SaldoEstoque, TipoMovimentacaoEstoque
@@ -260,6 +261,7 @@ def nova_saida_excepcional_view(request):
                 'form': SaidaExcepcionalForm(),
                 'formset': ItemSaidaExcepcionalFormSet(prefix='itens', initial=[{}]),
                 'erro_geral': 'Não há estoque ativo configurado.',
+                'registro_saida_nova': registro_novo_saida_excepcional(None),
             },
             status=409,
         )
@@ -274,6 +276,10 @@ def nova_saida_excepcional_view(request):
                 'formset': ItemSaidaExcepcionalFormSet(
                     prefix='itens', initial=[{}], estoque_id=estoque.pk
                 ),
+                # A saída ainda não existe — é o que se vai criar —, então o
+                # registro que o modal nomeia é o estoque onde a baixa cai.
+                # Mesma situação do `registro_arquivo_scpi`.
+                'registro_saida_nova': registro_novo_saida_excepcional(estoque),
             },
         )
 
@@ -334,7 +340,12 @@ def nova_saida_excepcional_view(request):
     return render(
         request,
         'estoque/nova_saida_excepcional.html',
-        {'estoque': estoque, 'form': form, 'formset': formset},
+        {
+            'estoque': estoque,
+            'form': form,
+            'formset': formset,
+            'registro_saida_nova': registro_novo_saida_excepcional(estoque),
+        },
     )
 
 

@@ -44,9 +44,25 @@ Se a coluna 1 ou o `gap-x` mudarem, esta conta muda junto.
             {{ evento.ator.nome }}
             <span class="text-text-tertiary">· {{ evento.ator.matricula }}</span>
           </p>
-          {% if evento.justificativa %}
+          {% comment %}
+            O que o formulário exigiu, lido de volta. `retirante` é conceito de
+            primeira classe do PRODUCT.md — quem retira pode não ser o
+            beneficiário — e era pedido em campo obrigatório a quem está em pé
+            no galpão, gravado no metadata e nunca mais mostrado. A quantidade
+            da devolução idem. Linha de dado, acima da caixa de justificativa,
+            porque é registro e não comentário.
+          {% endcomment %}
+          {% if evento.retirante %}
+            <p class="mt-0.5 text-xs text-text-secondary">
+              Retirada por <span class="font-medium text-text-primary">{{ evento.retirante }}</span>
+            </p>
+          {% endif %}
+          {% if evento.detalhe_quantidade %}
+            <p class="mt-0.5 text-xs text-text-secondary">{{ evento.detalhe_quantidade }}</p>
+          {% endif %}
+          {% if evento.justificativa or evento.observacao_registrada %}
             <p class="mt-1 rounded-md bg-bg-subtle px-2.5 py-1.5 text-xs text-text-secondary leading-relaxed">
-              {{ evento.justificativa }}
+              {{ evento.justificativa|default:evento.observacao_registrada }}
             </p>
           {% endif %}
           {% if evento.evento == "atualizacao_estoque_relevante" %}
