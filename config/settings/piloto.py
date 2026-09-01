@@ -70,6 +70,37 @@ SECURE_HSTS_PRELOAD = True
 
 X_FRAME_OPTIONS = 'DENY'
 
+# ---------------------------------------------------------------------------
+# Estáticos com hash no nome (cache busting)
+# ---------------------------------------------------------------------------
+#
+# Sem isto o `app.css` — 57 KB, regenerado a cada `make css-build` — e os dez
+# arquivos de JS são servidos sempre na mesma URL. O navegador que já os tem em
+# cache continua com a versão antiga depois do deploy, e o defeito que aparece
+# é o pior tipo: template novo com CSS velho, ou um `x-data` que referencia uma
+# factory Alpine que o JS em cache não registra. O sintoma é
+# `saldoLinha is not defined` no console e a tela renderizando quase certa —
+# aconteceu duas vezes durante a Etapa 8, em desenvolvimento.
+#
+# `EstaticosComHash` é o `ManifestStaticFilesStorage` menos o
+# pós-processamento da fonte do Tailwind — ver `apps/core/staticfiles.py`.
+# Manifesto e não a variante `Cached`: ele é gerado no `collectstatic` e lido do
+# disco, sem depender de cache em memória por processo. Consequência operacional: `collectstatic` passa a ser obrigatório
+# no deploy, e ele **falha alto** se um template referenciar um estático que
+# não existe — que é o comportamento desejado.
+#
+# Só no piloto. Em `dev` o servidor de desenvolvimento serve direto da árvore
+# de origem e um manifesto obrigaria a rodar `collectstatic` a cada mudança de
+# CSS.
+STORAGES = {
+    'default': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'staticfiles': {
+        'BACKEND': 'apps.core.staticfiles.EstaticosComHash',
+    },
+}
+
 # Opt-in: confiar em `X-Forwarded-Proto` sem um proxy que sobrescreva o cabeçalho
 # deixa qualquer cliente se declarar HTTPS. Sem isso, porém, `SECURE_SSL_REDIRECT`
 # entra em laço de redirecionamento atrás de um proxy que termina TLS. Ligue

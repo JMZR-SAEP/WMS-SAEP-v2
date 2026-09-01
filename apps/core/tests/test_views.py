@@ -5,6 +5,7 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 
 from apps.accounts.models import Setor, SetorClassificacao, VinculoAuxiliar
+from django.contrib.staticfiles.storage import ManifestStaticFilesStorage
 
 
 @pytest.mark.django_db
@@ -196,3 +197,35 @@ class TestPaginasDeErro:
         assert 'Erro 500' in html
         assert 'Ir para o início' in html
         assert 'app-bar' not in html
+
+
+class TestEstaticosComHash:
+    """`app.css` e os dez arquivos de JS eram servidos sempre na mesma URL.
+
+    O navegador que já os tinha em cache continuava com a versão antiga depois
+    do deploy, e o defeito que aparecia era o pior tipo: template novo com CSS
+    velho, ou um `x-data` referenciando uma factory Alpine que o JS em cache não
+    registra — `saldoLinha is not defined` no console, com a tela renderizando
+    quase certa. Aconteceu duas vezes durante a própria Etapa 8.
+    """
+
+    def test_o_piloto_usa_storage_com_hash(self):
+        from apps.core.staticfiles import EstaticosComHash
+
+        assert issubclass(EstaticosComHash, ManifestStaticFilesStorage)
+
+    def test_a_fonte_do_tailwind_fica_fora_da_reescrita(self):
+        """`input.css` começa com `@import "tailwindcss"`, que não é caminho de
+        arquivo: o `collectstatic` morria com
+        `The file 'core/css/tailwindcss' could not be found`. O artefato servido
+        é o `app.css` compilado; a fonte só é coletada porque vive dentro de
+        `static/`, onde o CLI do Tailwind a aponta.
+        """
+        from apps.core.staticfiles import EstaticosComHash
+
+        assert 'core/css/input.css' in EstaticosComHash.NAO_REESCREVER
+
+    def test_o_artefato_servido_continua_sendo_reescrito(self):
+        from apps.core.staticfiles import EstaticosComHash
+
+        assert 'core/css/app.css' not in EstaticosComHash.NAO_REESCREVER
