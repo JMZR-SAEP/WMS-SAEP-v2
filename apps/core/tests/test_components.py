@@ -3450,7 +3450,7 @@ def test_link_de_cartao_tem_o_cartao_como_alvo():
                 f'{relativo}:{numero} data-cartao-link fora de um cartão'
             )
 
-    # As sete listagens navegáveis. O histórico de importações entrou na #161,
+    # As oito listagens navegáveis. O histórico de importações entrou na #161,
     # quando a importação ganhou detalhe: até ali a única ação do cartão era um
     # download, que não é navegação. O botão de download continua explícito ao
     # lado — é o alvo do cartão que passou a ser o detalhe.
@@ -3467,7 +3467,14 @@ def test_link_de_cartao_tem_o_cartao_como_alvo():
     # de domínio (divergência crítica) e `#card_abertura` é string fixa por
     # contrato da #83. Sem o chrome não há alvo de cartão a herdar, então ele
     # ganhou um link explícito com piso de 44px para o ledger filtrado.
-    assert len(telas_marcadas) == 7, telas_marcadas
+    #
+    # AS NOTIFICAÇÕES entraram junto. Era a única das oito listagens fora do
+    # sistema de cartões — `<ul class="divide-y">` de linhas — e com a
+    # afordância invertida: o link para a requisição vinha em 12px cinza sem
+    # sublinhado, idêntico ao carimbo de data logo abaixo, enquanto treze
+    # `Marcar como lida` idênticos ocupavam a borda direita. O descarte parecia
+    # o link e o link parecia metadado.
+    assert len(telas_marcadas) == 8, telas_marcadas
 
 
 def test_isencao_de_cartao_so_vale_para_o_atributo_exato():

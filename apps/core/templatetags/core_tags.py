@@ -289,6 +289,17 @@ _PAINEL_DECISAO = {
     # movida para teal na #136 exatamente por esta regra.
     # Texto sobre a lavagem medido em 9,08:1.
     'return': 'bg-return-subtle border-return-border text-return-text-strong',
+    # Um degrau acima, para separar ESTORNO de DEVOLUÇÃO dentro da mesma
+    # família (Etapa 8). A Regra da Reversão Não é Erro decide a paleta — teal,
+    # nunca vermelho — e não decidia a gradação: o resultado era `Devolução ao
+    # estoque` (rotina, parcial, reversível) e `Estornar requisição`
+    # (irreversível, encerra o documento) em dois painéis teal adjacentes de
+    # geometria quase idêntica, distinguíveis só pela leitura do texto. É o
+    # mesmo mecanismo já decidido para o badge `teal-strong`: fundo 100 e borda
+    # 300 em vez de fundo 50 e borda 200.
+    'return-strong': (
+        'bg-return-muted border-return-border-strong text-return-text-strong'
+    ),
 }
 _PAINEL_DECISAO_FALLBACK = 'bg-danger border-danger-hover text-text-on-primary'
 

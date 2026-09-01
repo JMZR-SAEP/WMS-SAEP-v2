@@ -29,21 +29,6 @@
         </div>
       </div>
 
-      {% comment %}
-        Botão estornar. Sem permissão, a ação some (irrelevância administrativa);
-        com permissão e estado errado, ela permanece visível, desabilitada e com o
-        motivo em texto — a interface prefere explicar o bloqueio a escondê-lo.
-      {% endcomment %}
-      {% if pode_estornar %}
-        {% if saida.estado == 'registrada' %}
-          {% include "components/button.html" with variant="return-outline" label="Estornar" data_modal_trigger="estornar-saida" class="shrink-0" %}
-        {% else %}
-          <div class="shrink-0 sm:text-right">
-            {% include "components/button.html" with variant="return-outline" label="Estornar" disabled=True aria_describedby="motivo-estorno-bloqueado" %}
-            <p id="motivo-estorno-bloqueado" class="mt-1 text-xs text-text-tertiary">Esta saída já foi estornada.</p>
-          </div>
-        {% endif %}
-      {% endif %}
     </div>
 
     {# Dados do documento #}
@@ -168,11 +153,38 @@
     </a>
   </div>
 
-  {# Modal de estorno #}
-  {% if saida.estado == 'registrada' and pode_estornar %}
+  {% comment %}
+    Painel de decisão, e não um botão secundário de ~60px no canto do
+    cabeçalho. O MESMO verbo, `Estornar`, tinha duas apresentações opostas no
+    produto: no detalhe da requisição, seção inteira com título, três frases e
+    botão de largura total; aqui, um botão sem uma palavra de copy. A cerimônia
+    seguia o template em que a tela nasceu, não a consequência — e a
+    consequência é a mesma nos dois lugares.
+
+    `return-strong`, um degrau acima do `return` da devolução: a Regra da
+    Reversão Não é Erro decide a paleta e não decidia a gradação dentro dela.
+  {% endcomment %}
+  {% if pode_estornar %}
     {% modal_copy "estornar_saida" as estornar_saida_copy %}
-    {% url 'estoque:estornar_saida_excepcional' saida.pk as estornar_url %}
-    {% include "components/modal.html" with id="estornar-saida" titulo=estornar_saida_copy.titulo descricao=estornar_saida_copy.descricao consequencia=estornar_saida_copy.consequencia registro=registro action_url=estornar_url confirm_label=estornar_saida_copy.confirm_label confirm_variant="return" icon_variant=estornar_saida_copy.icon_variant form_body_template="estoque/partials/_modal_form_estorno_saida.html" role="alertdialog" corpo_com_campo_focavel=True loading_label="Estornando…" %}
+    {% if saida.estado == 'registrada' %}
+      {% url 'estoque:estornar_saida_excepcional' saida.pk as estornar_url %}
+      {% include "requisicoes/partials/_confirmacao_acao.html" with registro=registro layout="banner" variant_token="return-strong" heading_id="estornar-saida-painel-titulo" modal_id="estornar-saida" titulo=estornar_saida_copy.titulo conteudo=estornar_saida_copy.descricao|add:" "|add:estornar_saida_copy.consequencia botao_label="Estornar saída" botao_variant="return-outline" botao_icon="components/icons/estornar.svg" modal_titulo=estornar_saida_copy.titulo modal_descricao=estornar_saida_copy.descricao modal_consequencia=estornar_saida_copy.consequencia action_url=estornar_url confirm_label=estornar_saida_copy.confirm_label confirm_variant="return" icon_variant=estornar_saida_copy.icon_variant form_body_template="estoque/partials/_modal_form_estorno_saida.html" role="alertdialog" corpo_com_campo_focavel=True loading_label="Estornando…" %}
+    {% else %}
+      {% comment %}
+        Estado errado: a ação continua visível, desabilitada e com o motivo em
+        texto amarrado por `aria-describedby` — regra do design system para
+        ação de workflow bloqueada. Só irrelevância administrativa some.
+      {% endcomment %}
+      <section class="mb-6 flex flex-col gap-3 rounded-xl border border-return-border-strong bg-return-muted p-4 text-return-text-strong shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6" aria-labelledby="estornar-saida-painel-titulo">
+        <div class="min-w-0 max-w-prose">
+          <h2 id="estornar-saida-painel-titulo" class="text-lg font-semibold">{{ estornar_saida_copy.titulo }}</h2>
+          <p id="motivo-estorno-bloqueado" class="mt-1 text-sm">Esta saída já foi estornada.</p>
+        </div>
+        <div class="shrink-0">
+          {% include "components/button.html" with variant="return-outline" label="Estornar saída" disabled=True aria_describedby="motivo-estorno-bloqueado" %}
+        </div>
+      </section>
+    {% endif %}
   {% endif %}
 </div>
 

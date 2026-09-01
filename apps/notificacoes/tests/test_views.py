@@ -118,11 +118,18 @@ def test_lista_notificacoes_sem_requisicao_preserva_altura_da_linha(
     )
     resp = client_logado.get('/notificacoes/')
     html = resp.content.decode('utf-8')
-    assert 'Requisição' not in html
-    assert (
-        '<span class="text-xs text-text-tertiary" aria-hidden="true">&nbsp;</span>'
-        in html
-    )
+    # Sem requisição não há o par `Requisição: <número>` nem link — o cartão
+    # simplesmente não renderiza a `<dl>`. O `&nbsp;` que segurava a altura da
+    # linha morreu junto com a lista de linhas: em grade de cartões a altura
+    # vem do `stretch` da própria linha da grade (DESIGN.md, issue #160).
+    assert 'Requisição:' not in html
+    # Sem `requisicao_id` o título não vira link, então o cartão não tem alvo.
+    # O `(?![-\w\]:])` separa a marcação real das ocorrências dentro dos
+    # seletores `has-[a[data-cartao-link]]` que o chrome de cartão sempre emite
+    # — mesmo recorte do guarda em `test_components.py`.
+    import re
+
+    assert not re.search(r'data-cartao-link(?![-\w\]:])', html)
 
 
 @pytest.mark.django_db
@@ -209,7 +216,10 @@ def test_lista_exibe_rotulo_e_link_de_envio_autorizacao(
     corpo = resp.content.decode()
 
     assert resp.status_code == 200
-    assert 'Envio para autorização' in corpo
+    # O título é o DESFECHO, não o rótulo do tipo: "Envio para autorização" é a
+    # categoria do aviso, não a notícia. O guarda contra esquecer um membro novo
+    # é `test_todo_tipo_de_notificacao_tem_desfecho`, que lê o enum.
+    assert 'Uma requisição aguarda sua autorização' in corpo
     assert reverse('requisicoes:detalhe', kwargs={'pk': req.pk}) in corpo
     assert 'REQ-2026-000108' in corpo
 
@@ -242,7 +252,9 @@ def test_lista_exibe_rotulo_e_link_de_separacao_retirada(
     corpo = resp.content.decode()
 
     assert resp.status_code == 200
-    assert 'Separação para retirada' in corpo
+    # O título é o DESFECHO, não o rótulo do tipo. O guarda contra esquecer um
+    # membro novo é `test_todo_tipo_de_notificacao_tem_desfecho`, que lê o enum.
+    assert 'Sua requisição está pronta para retirada' in corpo
     assert reverse('requisicoes:detalhe', kwargs={'pk': req.pk}) in corpo
     assert 'REQ-2026-000109' in corpo
 
@@ -289,9 +301,35 @@ class TestListaNotificacoesEtapa8:
         ancora = next(
             a for a in re.findall(r'<a\b[^>]*>', html, flags=re.S) if alvo in a
         )
-        assert 'text-primary-text' in ancora
-        assert 'underline' in ancora
+        # A lista virou cartões: o link deixou de ser um texto de 12px cinza
+        # perdido no meio da linha e passou a ser o TÍTULO, com o cartão inteiro
+        # como alvo. Nada de cinza de metadado nele, e a afordância explícita.
+        assert 'data-cartao-link' in ancora
         assert 'text-text-tertiary' not in ancora
+        assert 'Ver detalhes' in html
+
+    def test_todo_tipo_de_notificacao_tem_desfecho(self):
+        """O que os testes por tipo protegiam antes, agora lido do enum.
+
+        O título saiu de `get_tipo_display` para um mapa por tipo, e um mapa é
+        exatamente onde um membro novo se perde em silêncio — o aviso voltaria a
+        exibir o rótulo da categoria sem ninguém notar.
+        """
+        from apps.notificacoes.models import TipoNotificacao
+        from apps.notificacoes.presentation import DESFECHO_POR_TIPO
+
+        faltando = [t for t in TipoNotificacao if t not in DESFECHO_POR_TIPO]
+        assert faltando == [], (
+            f'TipoNotificacao sem desfecho em presentation.py: {faltando}'
+        )
+
+    def test_titulo_do_cartao_e_o_desfecho_nao_a_categoria(
+        self, client, solicitante, notificacao_nao_lida
+    ):
+        """ "Autorização" é a categoria do aviso e não diz se foi autorizada."""
+        client.force_login(solicitante)
+        html = client.get(self.URL).content.decode('utf-8')
+        assert 'Sua requisição foi autorizada' in html
 
     def test_lista_vazia_usa_o_componente_de_estado_vazio(self, client, solicitante):
         """Frase cinza solta era o estado vazio fora do componente; as outras
