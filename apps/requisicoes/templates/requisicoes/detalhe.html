@@ -107,17 +107,29 @@
               {{ item.material.codigo }}
               <span class="font-normal text-text-secondary">— {{ item.material.nome }}</span>
             </p>
-            <p class="mt-0.5 text-xs text-text-tertiary">{{ item.material.get_unidade_display }}</p>
+            {% comment %}
+              A unidade sai da linha órfã e passa a viajar colada ao número, via
+              `components/quantidade.html`. Ela vivia num `<p>` três linhas acima
+              do primeiro valor, e a partir do segundo valor não vivia em lugar
+              nenhum: quem lia `AUTORIZADA 150` tinha de subir com o olho até
+              `Unidade` para saber do que se tratava. No galpão, em pé, esse
+              percurso não acontece.
+
+              `ENTREGUE` em `warning` quando difere da autorizada: a entrega
+              parcial era invisível no registro — `150 / 150 / 120` saía com os
+              três números na mesma cor, e a justificativa exigida na hora do
+              atendimento não reaparecia em lugar nenhum.
+            {% endcomment %}
             <dl class="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
               <div>
                 <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Solicitada</dt>
-                <dd class="mt-0.5 tabular-nums text-text-primary">{{ item.quantidade_solicitada|formatar_quantidade:item.material.unidade }}</dd>
+                <dd class="mt-0.5">{% include "components/quantidade.html" with valor=item.quantidade_solicitada unidade=item.material.unidade unidade_label=item.material.get_unidade_display esquerda=True %}</dd>
               </div>
               {% if mostrar_quantidade_autorizada %}
                 {% if item.quantidade_autorizada is not None %}
                   <div>
                     <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Autorizada</dt>
-                    <dd class="mt-0.5 tabular-nums text-text-primary">{{ item.quantidade_autorizada|formatar_quantidade:item.material.unidade }}</dd>
+                    <dd class="mt-0.5">{% include "components/quantidade.html" with valor=item.quantidade_autorizada unidade=item.material.unidade unidade_label=item.material.get_unidade_display esquerda=True %}</dd>
                   </div>
                 {% endif %}
               {% endif %}
@@ -125,9 +137,28 @@
                 {% if item.quantidade_entregue is not None %}
                   <div>
                     <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Entregue</dt>
-                    <dd class="mt-0.5 tabular-nums text-text-primary">{{ item.quantidade_entregue|formatar_quantidade:item.material.unidade }}</dd>
+                    <dd class="mt-0.5">
+                      {% if item.quantidade_entregue < item.quantidade_autorizada %}
+                        {% include "components/quantidade.html" with valor=item.quantidade_entregue unidade=item.material.unidade unidade_label=item.material.get_unidade_display esquerda=True tom="warning" referencia=item.justificativa_entrega %}
+                      {% else %}
+                        {% include "components/quantidade.html" with valor=item.quantidade_entregue unidade=item.material.unidade unidade_label=item.material.get_unidade_display esquerda=True %}
+                      {% endif %}
+                    </dd>
                   </div>
                 {% endif %}
+              {% endif %}
+              {% if item.entregue_liquida_exibida is not None %}
+                {% comment %}
+                  "Entregue líquida" vivia só dentro do bloco `pode_devolver`,
+                  ou seja, atrás de uma permissão de escrita: o beneficiário via
+                  `ENTREGUE 6` e nunca sabia que 2 tinham voltado. O PRODUCT.md
+                  declara a entregue líquida derivada das movimentações — ela é
+                  leitura, não privilégio.
+                {% endcomment %}
+                <div>
+                  <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Líquida</dt>
+                  <dd class="mt-0.5">{% include "components/quantidade.html" with valor=item.entregue_liquida_exibida unidade=item.material.unidade unidade_label=item.material.get_unidade_display esquerda=True referencia=item.rotulo_devolucao %}</dd>
+                </div>
               {% endif %}
             </dl>
           </li>

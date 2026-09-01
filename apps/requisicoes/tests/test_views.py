@@ -5893,3 +5893,120 @@ def test_estorno_422_devolve_o_modal_ainda_nomeado(
     assert 'data-modal-registro' in html
     assert 'Esta operação é irreversível.' in html
     assert req_atendida_view.itens.first().material.nome in html
+
+
+class TestEntregueLiquidaVisivelParaQuemLe:
+    """A entregue líquida é leitura, não privilégio.
+
+    Ela vivia só dentro do ramo das operações de escrita (`pode_devolver` /
+    `pode_estornar`), então o beneficiário — dono do pedido — via `ENTREGUE 6` e
+    nunca sabia que 2 tinham voltado ao estoque. O PRODUCT.md a declara derivada
+    das movimentações; derivar e esconder é o pior dos dois mundos.
+    """
+
+    def _atendida_com_devolucao(
+        self, solicitante, setor_obras, material_disponivel, almox
+    ):
+        from apps.requisicoes.services import (
+            autorizar_requisicao,
+            criar_requisicao,
+            enviar_para_autorizacao,
+            registrar_atendimento,
+            registrar_devolucao,
+            separar_para_retirada,
+        )
+        from apps.requisicoes.types import LinhaAtendimento
+
+        req = criar_requisicao(
+            ator_id=solicitante.id,
+            beneficiario_id=solicitante.id,
+            itens=[
+                {
+                    'material_id': material_disponivel.id,
+                    'quantidade_solicitada': Decimal('6'),
+                }
+            ],
+        )
+        enviar_para_autorizacao(ator_id=solicitante.id, requisicao_id=req.id)
+        autorizar_requisicao(ator_id=almox.id, requisicao_id=req.id)
+        separar_para_retirada(ator_id=almox.id, requisicao_id=req.id)
+        item = req.itens.get()
+        registrar_atendimento(
+            ator_id=almox.id,
+            requisicao_id=req.id,
+            itens=[
+                LinhaAtendimento(
+                    item_id=item.id,
+                    quantidade_entregue=Decimal('6'),
+                    justificativa='',
+                )
+            ],
+            retirante_nome='Marcos Vinícius de Andrade',
+        )
+        registrar_devolucao(
+            ator_id=almox.id,
+            requisicao_id=req.id,
+            item_id=item.id,
+            quantidade=Decimal('2'),
+        )
+        return req
+
+    @pytest.mark.django_db
+    def test_beneficiario_ve_a_liquida_e_o_que_voltou(
+        self, client, superuser, chefe_obras, setor_obras, material_disponivel
+    ):
+        req = self._atendida_com_devolucao(
+            superuser, setor_obras, material_disponivel, superuser
+        )
+        _login(client, superuser)
+        html = client.get(
+            reverse('requisicoes:detalhe', kwargs={'pk': req.pk})
+        ).content.decode('utf-8')
+        assert 'Líquida' in html
+        assert 'de volta ao estoque' in html
+
+    @pytest.mark.django_db
+    def test_sem_devolucao_a_liquida_nao_aparece(
+        self, client, superuser, chefe_obras, setor_obras, material_disponivel
+    ):
+        """Sem nada devolvido, uma segunda linha com o mesmo número é ruído."""
+        from apps.requisicoes.services import (
+            autorizar_requisicao,
+            criar_requisicao,
+            enviar_para_autorizacao,
+            registrar_atendimento,
+            separar_para_retirada,
+        )
+        from apps.requisicoes.types import LinhaAtendimento
+
+        req = criar_requisicao(
+            ator_id=superuser.id,
+            beneficiario_id=superuser.id,
+            itens=[
+                {
+                    'material_id': material_disponivel.id,
+                    'quantidade_solicitada': Decimal('6'),
+                }
+            ],
+        )
+        enviar_para_autorizacao(ator_id=superuser.id, requisicao_id=req.id)
+        autorizar_requisicao(ator_id=superuser.id, requisicao_id=req.id)
+        separar_para_retirada(ator_id=superuser.id, requisicao_id=req.id)
+        item = req.itens.get()
+        registrar_atendimento(
+            ator_id=superuser.id,
+            requisicao_id=req.id,
+            itens=[
+                LinhaAtendimento(
+                    item_id=item.id,
+                    quantidade_entregue=Decimal('6'),
+                    justificativa='',
+                )
+            ],
+            retirante_nome='Ana Paula Ribeiro',
+        )
+        _login(client, superuser)
+        html = client.get(
+            reverse('requisicoes:detalhe', kwargs={'pk': req.pk})
+        ).content.decode('utf-8')
+        assert 'de volta ao estoque' not in html

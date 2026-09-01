@@ -80,7 +80,7 @@ def test_saldo_exibe_a_unidade_e_a_precisao_da_unidade():
             'unidade': 'kg',
         }
     )
-    assert 'Saldo disponível: 12.5 kg' in html
+    assert 'Saldo disponível: 12,5 kg' in html
 
 
 def test_saldo_de_material_inelegivel_tambem_leva_unidade():

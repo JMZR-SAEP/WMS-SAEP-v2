@@ -85,20 +85,27 @@
           {# apertavam `Disponível: 50 un` e a unidade caía sozinha na linha de baixo, #}
           {# justo a coluna que precisa alinhar. Empilhado, cada `<dd>` tem a largura #}
           {# do cartão e valor+unidade ficam juntos. #}
+          {% comment %}
+            `justify-between` com o valor pelo `components/quantidade.html`, e
+            não `flex gap-x-2` com o número logo após o rótulo. Medido a 1440px,
+            a forma anterior começava os três valores em x=330, x=361 e x=360 no
+            mesmo cartão, porque `Físico:`, `Reservado:` e `Disponível:` têm 41,
+            72 e 71px. O `tabular-nums` não tinha o que alinhar: ele alinha
+            dígito com dígito, não parágrafo com parágrafo. Um livro-razão cuja
+            coluna de números zigueza não é um livro-razão.
+          {% endcomment %}
           <dl class="mt-4 space-y-1 text-sm">
-            <div class="flex gap-x-2">
+            <div class="flex items-baseline justify-between gap-x-2">
               <dt class="shrink-0 text-text-tertiary">Físico:</dt>
-              <dd class="tabular-nums whitespace-nowrap text-text-primary">{{ saldo.saldo_fisico|formatar_quantidade:saldo.material.unidade }} {{ saldo.material.unidade }}</dd>
+              <dd class="shrink-0">{% include "components/quantidade.html" with valor=saldo.saldo_fisico unidade=saldo.material.unidade %}</dd>
             </div>
-            <div class="flex gap-x-2">
+            <div class="flex items-baseline justify-between gap-x-2">
               <dt class="shrink-0 text-text-tertiary">Reservado:</dt>
-              <dd class="tabular-nums whitespace-nowrap text-text-primary">{{ saldo.saldo_reservado|formatar_quantidade:saldo.material.unidade }} {{ saldo.material.unidade }}</dd>
+              <dd class="shrink-0">{% include "components/quantidade.html" with valor=saldo.saldo_reservado unidade=saldo.material.unidade %}</dd>
             </div>
-            <div class="flex gap-x-2">
+            <div class="flex items-baseline justify-between gap-x-2">
               <dt class="shrink-0 text-text-tertiary">Disponível:</dt>
-              <dd class="tabular-nums whitespace-nowrap {% if saldo.divergente_calculado %}text-danger-text font-semibold{% else %}text-text-primary{% endif %}">
-                {{ saldo.saldo_disponivel_calculado|formatar_quantidade:saldo.material.unidade }} {{ saldo.material.unidade }}
-              </dd>
+              <dd class="shrink-0">{% if saldo.divergente_calculado %}{% include "components/quantidade.html" with valor=saldo.saldo_disponivel_calculado unidade=saldo.material.unidade tom="danger" %}{% else %}{% include "components/quantidade.html" with valor=saldo.saldo_disponivel_calculado unidade=saldo.material.unidade %}{% endif %}</dd>
             </div>
           </dl>
         </article>

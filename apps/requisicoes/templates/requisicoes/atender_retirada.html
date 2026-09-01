@@ -146,9 +146,16 @@
               min-w em vez de w: a caixa acompanha quantidades longas em vez de
               recortá-las, e continua com o mesmo piso de largura.
             {% endcomment %}
-            <div class="min-w-24 shrink-0 text-sm text-text-secondary tabular-nums lg:text-right" translate="no">
+            {% comment %}
+              Pelo `components/quantidade.html`: este é o número contra o qual o
+              auxiliar conta na prateleira, e ele saía sem unidade em lugar
+              nenhum desta tela — enquanto a tela anterior imprimia `Unidade`
+              solta e o catálogo imprimia `un`. Três grafias da mesma grandeza
+              em três telas do mesmo fluxo, e a mais crítica sem nenhuma.
+            {% endcomment %}
+            <div class="min-w-24 shrink-0 text-sm text-text-secondary lg:text-right">
               <span class="rotulo-campo lg:sr-only">Autorizada</span>
-              {{ item.quantidade_autorizada|formatar_quantidade:item.material.unidade }}
+              {% include "components/quantidade.html" with valor=item.quantidade_autorizada unidade=item.material.unidade unidade_label=item.material.get_unidade_display %}
             </div>
             {% comment %}
               Campos pelo componente: é ele que injeta aria-invalid e compõe o

@@ -93,14 +93,10 @@
               <dt>Código</dt>
               <dd class="font-mono">{{ item.material.codigo }}</dd>
             </div>
-            <div class="flex justify-between">
-              <dt>Unidade</dt>
-              <dd>{{ item.material.get_unidade_display }}</dd>
-            </div>
-            <div class="flex justify-between">
+            <div class="flex items-baseline justify-between gap-x-2">
               <dt>Quantidade baixada</dt>
-              {# Precisão pela unidade (apps/core/quantidades.py): o Decimal(…,3) cru saía `3,000` para 3 unidades. #}
-              <dd class="tabular-nums font-semibold text-text-primary">{{ item.quantidade|formatar_quantidade:item.material.unidade }}</dd>
+              {# Unidade colada ao número pelo `components/quantidade.html`: ela tinha linha própria logo acima, mesmo defeito do detalhe da requisição. #}
+              <dd class="shrink-0">{% include "components/quantidade.html" with valor=item.quantidade unidade=item.material.unidade unidade_label=item.material.get_unidade_display %}</dd>
             </div>
           </dl>
         </div>

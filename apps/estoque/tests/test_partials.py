@@ -435,9 +435,9 @@ def _render_delta(valor, unidade='un'):
         ('1.000', 'un', '+1'),
         ('-3.000', 'un', '−3'),
         ('15.000', 'un', '+15'),
-        ('2.500', 'kg', '+2.5'),
-        ('-2.500', 'kg', '−2.5'),
-        ('1.000', 'kg', '+1.0'),
+        ('2.500', 'kg', '+2,5'),
+        ('-2.500', 'kg', '−2,5'),
+        ('1.000', 'kg', '+1,0'),
     ],
 )
 def test_delta_usa_a_precisao_da_unidade(valor, unidade, esperado):
@@ -597,5 +597,7 @@ def test_saldo_fracionario_da_divergencia_mantem_a_casa_significativa():
     """Sem unidade (o CSV do SCPI não a informa) a política degrada para casa
     significativa — o mesmo caminho do átomo do delta."""
     html = _render_cartoes_divergencias('18.750', '18.500', '-0.250')
-    assert '18.75' in html
-    assert '18.750' not in html
+    assert '18,75' in html
+    assert '18,750' not in html
+    # Notação pt-BR: nunca o ponto, que aqui seria lido como separador de milhar.
+    assert '18.75' not in html

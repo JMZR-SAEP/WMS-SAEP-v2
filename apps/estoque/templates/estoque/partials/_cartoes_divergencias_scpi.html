@@ -44,11 +44,11 @@ Quem chama fecha o container: </div>
       <dl class="mt-4 grid grid-cols-3 gap-3 text-sm">
         <div>
           <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">WMS</dt>
-          <dd class="mt-0.5 font-mono tabular-nums text-text-primary">{{ linha.saldo_wms|formatar_quantidade:"" }}</dd>
+          <dd class="mt-0.5">{% include "components/quantidade.html" with valor=linha.saldo_wms unidade="" esquerda=True %}</dd>
         </div>
         <div>
           <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">SCPI</dt>
-          <dd class="mt-0.5 font-mono tabular-nums text-text-primary">{{ linha.saldo_scpi|formatar_quantidade:"" }}</dd>
+          <dd class="mt-0.5">{% include "components/quantidade.html" with valor=linha.saldo_scpi unidade="" esquerda=True %}</dd>
         </div>
         <div>
           {% comment %}

@@ -68,11 +68,26 @@ def normalizar(qtd: object) -> Decimal | None:
 
 
 def formatar(qtd: object, unidade: str) -> str:
-    """Texto de exibição da quantidade.
+    """Texto de exibição da quantidade, em notação pt-BR.
 
-    Difere de `quantizar` num ponto de propósito: unidade fracionária mantém a
-    casa decimal mesmo quando o valor é inteiro (`1,0 kg`), porque ali a casa
-    comunica a precisão da medida. Num campo de digitação isso só atrapalharia.
+    Difere de `normalizar` em dois pontos de propósito.
+
+    O primeiro: unidade fracionária mantém a casa decimal mesmo quando o valor é
+    inteiro (`1,0 kg`), porque ali a casa comunica a precisão da medida. Num
+    campo de digitação isso só atrapalharia.
+
+    O segundo: o separador é a **vírgula**. Este módulo existe para matar o bug
+    do `1.000` que em pt-BR se lê *mil*, e por muito tempo emitiu `1.0` — ponto
+    decimal, no mesmo produto em que `LANGUAGE_CODE = 'pt-br'` e todo `Decimal`
+    impresso cru pelo Django sai localizado. O exemplo `1,0 kg` desta docstring
+    descrevia a intenção, não o comportamento; agora descreve os dois.
+
+    **Não** há separador de milhar. Agrupar traria de volta o ponto como
+    separador de milhar (`1.250,5`) na mesma tela em que ele já foi lido como
+    decimal, e a coluna de `font-mono` do livro-razão ganharia um caractere de
+    largura variável. Quem precisa de grupo é relatório, não conferência de
+    prateleira. `normalizar` segue com ponto: é valor de `<input type="number">`,
+    que o HTML define em notação de máquina, não de leitura.
     """
     if qtd is None:
         return '—'
@@ -84,9 +99,14 @@ def formatar(qtd: object, unidade: str) -> str:
     if unidade == UNIDADE_INTEIRA:
         return str(int(d))
     if unidade in UNIDADES_UMA_DECIMAL:
-        return format(d.quantize(Decimal('0.1')), 'f')
+        return _com_virgula(format(d.quantize(Decimal('0.1')), 'f'))
 
     normalizado = d.normalize()
     if normalizado == normalizado.to_integral_value():
         return str(int(normalizado))
-    return format(normalizado, 'f')
+    return _com_virgula(format(normalizado, 'f'))
+
+
+def _com_virgula(texto: str) -> str:
+    """Troca o ponto decimal pela vírgula. Sem agrupamento de milhar."""
+    return texto.replace('.', ',')

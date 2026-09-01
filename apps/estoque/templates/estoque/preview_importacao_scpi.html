@@ -390,11 +390,11 @@
               {% endcomment %}
               <div>
                 <dt class="text-xs font-medium uppercase tracking-wide text-text-secondary">WMS</dt>
-                <dd class="mt-0.5 font-mono tabular-nums text-text-primary">{{ linha.saldo_wms|formatar_quantidade:linha.unidade }}</dd>
+                <dd class="mt-0.5">{% include "components/quantidade.html" with valor=linha.saldo_wms unidade=linha.unidade esquerda=True %}</dd>
               </div>
               <div>
                 <dt class="text-xs font-medium uppercase tracking-wide text-text-secondary">SCPI</dt>
-                <dd class="mt-0.5 font-mono tabular-nums text-text-primary">{{ linha.saldo_scpi|formatar_quantidade:linha.unidade }}</dd>
+                <dd class="mt-0.5">{% include "components/quantidade.html" with valor=linha.saldo_scpi unidade=linha.unidade esquerda=True %}</dd>
               </div>
               <div>
                 <dt class="text-xs font-medium uppercase tracking-wide text-text-secondary">Delta</dt>

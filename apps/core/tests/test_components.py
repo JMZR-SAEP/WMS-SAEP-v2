@@ -3560,3 +3560,80 @@ def test_grade_de_cartoes_alinha_a_base_em_vez_do_topo():
     denso, normal = grades['cards_abertura_denso'], grades['cards_abertura']
     assert normal == '<div class="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">'
     assert normal.replace('2xl:grid-cols-3', 'xl:grid-cols-3') == denso
+
+
+# ---------------------------------------------------------------------------
+# components/quantidade.html (Etapa 8, backlog da critique)
+# ---------------------------------------------------------------------------
+
+
+class TestComponenteQuantidade:
+    """A quantidade é o dado que este produto existe para controlar.
+
+    Antes deste componente ela recebia tratamento tipográfico em um lugar só —
+    o modal de retirada — e em todo o resto era corpo de 14px igual ao rótulo
+    ao lado, com a unidade ora colada, ora numa linha própria, ora ausente.
+    """
+
+    def _render(self, **contexto):
+        from decimal import Decimal
+
+        from django.template.loader import render_to_string
+
+        base = {'valor': Decimal('820.000'), 'unidade': 'un'}
+        base.update(contexto)
+        return render_to_string('components/quantidade.html', base)
+
+    def test_numero_e_unidade_saem_juntos(self):
+        html = self._render()
+        assert '820' in html
+        assert 'un' in html
+
+    def test_precisao_vem_da_unidade(self):
+        from decimal import Decimal
+
+        assert '820,0' in self._render(valor=Decimal('820.000'), unidade='m')
+        assert '820,0' not in self._render(valor=Decimal('820.000'), unidade='un')
+
+    def test_separador_e_virgula(self):
+        from decimal import Decimal
+
+        html = self._render(valor=Decimal('1250.500'), unidade='m')
+        assert '1250,5' in html
+        assert '1250.5' not in html
+
+    def test_numero_forma_coluna(self):
+        """`tabular-nums` alinha dígito com dígito, não parágrafo com parágrafo.
+
+        O slot do número é alinhado à direita e não quebra; é isso que faz três
+        linhas de rótulos com larguras diferentes terminarem os números no mesmo
+        x, que era o defeito medido no catálogo (x=330, x=361, x=360).
+        """
+        html = self._render()
+        assert 'tabular-nums' in html
+        assert 'text-right' in html
+        assert 'whitespace-nowrap' in html
+
+    def test_unidade_tem_piso_de_largura_para_comecar_no_mesmo_x(self):
+        assert 'min-w-8' in self._render()
+
+    def test_valor_ausente_vira_travessao(self):
+        assert '—' in self._render(valor=None)
+
+    def test_tom_pinta_apenas_o_numero(self):
+        assert 'text-warning-text' in self._render(tom='warning')
+        assert 'text-danger-text' in self._render(tom='danger')
+        assert 'text-text-primary' in self._render()
+
+    def test_referencia_sai_abaixo_em_menor(self):
+        html = self._render(referencia='de 150 autorizada')
+        assert 'de 150 autorizada' in html
+        assert 'text-xs' in html
+
+    def test_nao_e_traduzido_automaticamente(self):
+        """Número com unidade traduzido automaticamente vira outro número."""
+        assert 'translate="no"' in self._render()
+
+    def test_destaque_reservado_ao_momento_de_confirmacao(self):
+        assert 'text-base' in self._render(destaque=True)
+        assert 'text-base' not in self._render()

@@ -106,22 +106,23 @@ def test_compoe_aria_describedby_do_widget_com_ajuda_e_erro():
         (Decimal('1.000'), 'un', '1'),
         (Decimal('100.000'), 'un', '100'),
         # kg → 1 decimal
-        (Decimal('2.500'), 'kg', '2.5'),
-        (Decimal('10.000'), 'kg', '10.0'),
-        (Decimal('0.100'), 'kg', '0.1'),
+        (Decimal('2.500'), 'kg', '2,5'),
+        (Decimal('10.000'), 'kg', '10,0'),
+        (Decimal('0.100'), 'kg', '0,1'),
         # l → 1 decimal
-        (Decimal('3.000'), 'l', '3.0'),
-        (Decimal('1.500'), 'l', '1.5'),
+        (Decimal('3.000'), 'l', '3,0'),
+        (Decimal('1.500'), 'l', '1,5'),
         # m → 1 decimal
-        (Decimal('4.200'), 'm', '4.2'),
-        (Decimal('10.000'), 'm', '10.0'),
+        (Decimal('4.200'), 'm', '4,2'),
+        (Decimal('10.000'), 'm', '10,0'),
         # m2 → strip trailing zeros (casas significativas)
         (Decimal('2.000'), 'm2', '2'),
-        (Decimal('1.500'), 'm2', '1.5'),
-        (Decimal('1.230'), 'm2', '1.23'),
+        (Decimal('1.500'), 'm2', '1,5'),
+        (Decimal('1.230'), 'm2', '1,23'),
         # cx, pct, par, rolo → strip trailing zeros
+        # (separador é vírgula: notação pt-BR, ver quantidades.formatar)
         (Decimal('3.000'), 'cx', '3'),
-        (Decimal('2.500'), 'pct', '2.5'),
+        (Decimal('2.500'), 'pct', '2,5'),
         (Decimal('1.000'), 'par', '1'),
         (Decimal('6.000'), 'rolo', '6'),
         # None → fallback

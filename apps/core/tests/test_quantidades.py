@@ -70,9 +70,9 @@ def test_normalizar_ignora_lixo():
     [
         (Decimal('1.000'), 'un', '1'),
         (Decimal('12.000'), 'un', '12'),
-        (Decimal('1.000'), 'kg', '1.0'),
-        (Decimal('1.250'), 'kg', '1.2'),
-        (Decimal('2.500'), 'cx', '2.5'),
+        (Decimal('1.000'), 'kg', '1,0'),
+        (Decimal('1.250'), 'kg', '1,2'),
+        (Decimal('2.500'), 'cx', '2,5'),
         (Decimal('3.000'), 'cx', '3'),
         (None, 'un', '—'),
     ],
@@ -80,3 +80,28 @@ def test_normalizar_ignora_lixo():
 def test_formatar_para_exibicao(qtd, unidade, esperado):
     """Unidade fracionária guarda a casa mesmo inteira: ali ela comunica precisão."""
     assert formatar(qtd, unidade) == esperado
+
+
+@pytest.mark.parametrize(
+    ('qtd', 'unidade', 'esperado'),
+    [
+        (Decimal('1250.500'), 'm', '1250,5'),
+        (Decimal('820.000'), 'un', '820'),
+        (Decimal('18.750'), 'm2', '18,75'),
+        (Decimal('0.250'), 'cx', '0,25'),
+    ],
+)
+def test_formatar_usa_virgula_e_nao_agrupa_milhar(qtd, unidade, esperado):
+    """Este módulo existe para matar o `1.000` que em pt-BR se lê *mil*, e emitia
+    `1.0`. Agrupar milhar traria o ponto de volta como separador na mesma tela em
+    que ele já foi lido como decimal — e daria um caractere de largura variável à
+    coluna `font-mono` do livro-razão."""
+    assert formatar(qtd, unidade) == esperado
+    assert '.' not in formatar(qtd, unidade)
+
+
+def test_normalizar_segue_com_ponto_porque_e_valor_de_input():
+    """`normalizar` alimenta `value` de `<input type=\"number\">`, que o HTML
+    define em notação de máquina. Vírgula ali faz o navegador recusar o valor."""
+    assert str(normalizar(Decimal('5.500'))) == '5.5'
+    assert ',' not in str(normalizar(Decimal('1250.500')))

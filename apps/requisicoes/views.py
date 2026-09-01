@@ -144,12 +144,31 @@ def _detalhe_context(
     # no modal o que vai voltar ao saldo físico (#138). Ficava dentro do ramo da
     # devolução, e o modal de estorno — que reverte exatamente estes números —
     # não tinha acesso a nenhum deles.
-    if {Operacao.REGISTRAR_DEVOLUCAO, Operacao.ESTORNAR} & set(acoes):
+    # A entregue líquida é LEITURA, não privilégio. Ela vivia só dentro do ramo
+    # das duas operações de escrita, então o beneficiário — dono do pedido — via
+    # `ENTREGUE 6` e nunca sabia que 2 tinham voltado ao estoque. O PRODUCT.md a
+    # declara derivada das movimentações; derivar e esconder é o pior dos dois
+    # mundos. A consulta é uma só e já era feita aqui.
+    algum_entregue = any(i.quantidade_entregue is not None for i in itens)
+    precisa_liquida = algum_entregue or bool(
+        {Operacao.REGISTRAR_DEVOLUCAO, Operacao.ESTORNAR} & set(acoes)
+    )
+    if precisa_liquida:
         entregues = entregue_liquida_por_requisicao(requisicao_id=requisicao.pk)
         for item in itens:
             item.entregue_liquida = entregues.get(item.material_id, Decimal('0'))
             item.modal_devolver_id = f'devolver-{item.pk}'
-            if item.entregue_liquida > 0:
+            # Só aparece quando diverge do entregue bruto: se nada voltou, uma
+            # segunda linha com o mesmo número é ruído numa tela já densa.
+            bruto = item.quantidade_entregue
+            if bruto is not None and item.entregue_liquida != bruto:
+                item.entregue_liquida_exibida = item.entregue_liquida
+                devolvido = bruto - item.entregue_liquida
+                item.rotulo_devolucao = (
+                    f'{formatar_quantidade(devolvido, item.material.unidade)} '
+                    f'{item.material.get_unidade_display()} de volta ao estoque'
+                )
+            if item.entregue_liquida > 0 and Operacao.REGISTRAR_DEVOLUCAO in acoes:
                 itens_devolviveis.append(item)
     # A operação estar disponível não basta: com tudo já devolvido a seção não
     # teria linha nenhuma. A lista é que decide se o bloco existe.
