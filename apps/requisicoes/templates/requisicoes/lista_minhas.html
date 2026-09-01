@@ -1,4 +1,5 @@
 {% extends "base_auth.html" %}
+{% load core_tags %}
 
 {% block title %}Minhas requisições — WMS-SAEP{% endblock %}
 
@@ -20,6 +21,9 @@
 <p class="mb-6 text-sm text-text-secondary">
   Requisições onde você é criador ou beneficiário.
 </p>
+
+{% url 'requisicoes:minhas' as url_lista %}
+{% include "components/busca_simples.html" with action_url=url_lista id="busca-minhas" name="busca" label="Requisição ou material" value=busca placeholder="Número público, código ou nome do material" %}
 
 {% if requisicoes %}
   {% include "components/ordenacao_data.html" with url_ordenacao=url_ordenacao ordem=ordem page_obj=page_obj rotulo_contagem="requisição,requisições" %}
@@ -111,7 +115,19 @@
 
   {% include 'components/pagination.html' with page_obj=page_obj rotulo_itens='requisições' aria_label='Paginação das minhas requisições' %}
 {% else %}
-  {% url 'requisicoes:nova_requisicao' as cta_nova_requisicao_url %}
-  {% include 'components/empty_state.html' with icone='components/icons/_prancheta.html' titulo='Nenhuma requisição ainda' descricao='Você ainda não criou requisições nem foi indicado como beneficiário.' cta_url=cta_nova_requisicao_url cta_label='Nova requisição' %}
+  {% comment %}
+    Estado vazio contextual, como nas duas telas de histórico: busca sem
+    resultado não é lista vazia. Sem o ramo, quem busca "cimento" e não acha lê
+    "Nenhuma requisição ainda" e um convite a criar a primeira — uma frase
+    factualmente errada e uma ação que não é a que ela quer.
+  {% endcomment %}
+  {% if busca %}
+    {% url 'requisicoes:minhas' as url_limpar_busca %}
+    {% titulo_com_termo busca 'Nenhum resultado para' as titulo_busca %}
+    {% include 'components/empty_state.html' with icone='components/icons/_funil.html' titulo=titulo_busca descricao='Confira o número público ou tente parte do nome do material.' cta_url=url_limpar_busca cta_label='Limpar busca' cta_secundario=True %}
+  {% else %}
+    {% url 'requisicoes:nova_requisicao' as cta_nova_requisicao_url %}
+    {% include 'components/empty_state.html' with icone='components/icons/_prancheta.html' titulo='Nenhuma requisição ainda' descricao='Você ainda não criou requisições nem foi indicado como beneficiário.' cta_url=cta_nova_requisicao_url cta_label='Nova requisição' %}
+  {% endif %}
 {% endif %}
 {% endblock %}

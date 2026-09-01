@@ -12,24 +12,17 @@
     Materiais com divergência crítica (físico &lt; reservado) são destacados.
   </p>
 
-  {# Busca #}
-  <form method="get" class="mb-6 flex gap-2 max-w-md" role="search">
-    <label for="id_busca" class="sr-only">Buscar material</label>
-    <input
-      id="id_busca"
-      type="search"
-      name="busca"
-      value="{{ busca }}"
-      placeholder="Código ou nome do material…"
-      class="campo flex-1"
-      aria-label="Buscar por código ou nome"
-    >
-    {% include "components/button.html" with variant="primary" type="submit" label="Buscar" %}
-    {% if busca %}
-      {% url 'estoque:lista_materiais' as url_limpar_busca %}
-      {% include "components/button.html" with variant="secondary" label="Limpar" href=url_limpar_busca %}
-    {% endif %}
-  </form>
+  {% comment %}
+    Busca pelo componente, não escrita à mão. Este form era a terceira gramática
+    de busca do produto — as duas telas de histórico usam `filter_shell` com o
+    campo de `filter_busca.html`, e aqui havia um `<form>` com `<input>` cru,
+    `sr-only` no `<label>` E um `aria-label` diferente por cima dele (dois nomes
+    acessíveis concorrentes para o mesmo campo: "Buscar material" e "Buscar por
+    código ou nome"). Agora o rótulo é um só, visível, e é o mesmo campo das
+    outras listagens.
+  {% endcomment %}
+  {% url 'estoque:lista_materiais' as url_catalogo %}
+  {% include "components/busca_simples.html" with action_url=url_catalogo id="busca-materiais" name="busca" label="Buscar material" value=busca placeholder="Código ou nome do material…" %}
 
   {% if saldos %}
 

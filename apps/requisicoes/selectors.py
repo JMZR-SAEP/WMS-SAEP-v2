@@ -137,6 +137,32 @@ def minhas_requisicoes(ator_id: int) -> QuerySet[Requisicao]:
     ).order_by('-criado_em')
 
 
+def filtrar_por_busca_simples(qs: QuerySet[Requisicao], busca: str) -> QuerySet:
+    """Recorta uma listagem de requisições por número público ou material.
+
+    As três listagens de trabalho — minhas, fila de autorização, fila de
+    atendimento — não tinham como achar um registro, enquanto as duas telas de
+    histórico tinham filtro composto, chips e presets. A divisão era o inverso
+    da necessidade: recorte completo nas telas de cartão inerte, e nada nas
+    telas em que se age sobre um registro.
+
+    Os dois campos que a pessoa tem na mão quando chega: o número que ela anotou
+    e o nome do material que está procurando. Sem busca por pessoa — para isso
+    existe o histórico, que tem o filtro composto e o escopo maior.
+
+    `distinct()` porque o join com `itens` multiplica a requisição pelo número
+    de itens que casam.
+    """
+    busca = (busca or '').strip()
+    if not busca:
+        return qs
+    return qs.filter(
+        Q(numero_publico__icontains=busca)
+        | Q(itens__material__nome__icontains=busca)
+        | Q(itens__material__codigo__icontains=busca)
+    ).distinct()
+
+
 def fila_autorizacao(ator_id: int) -> QuerySet[Requisicao]:
     """Fila de requisições aguardando autorização para chefias autorizadoras."""
     enviada_em_sq = Subquery(

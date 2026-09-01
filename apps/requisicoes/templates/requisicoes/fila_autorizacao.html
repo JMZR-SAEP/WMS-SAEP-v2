@@ -1,4 +1,5 @@
 {% extends "base_auth.html" %}
+{% load core_tags %}
 
 {% block title %}Fila de autorização — WMS-SAEP{% endblock %}
 
@@ -7,6 +8,9 @@
 <p class="mb-6 max-w-3xl text-sm text-text-secondary">
   Requisições aguardando decisão do setor sob sua chefia.
 </p>
+
+{% url 'requisicoes:autorizacoes' as url_lista %}
+{% include "components/busca_simples.html" with action_url=url_lista id="busca-autorizacoes" name="busca" label="Requisição ou material" value=busca placeholder="Número público, código ou nome do material" %}
 
 {% if requisicoes %}
   {% include "components/ordenacao_data.html" with page_obj=page_obj rotulo_contagem="requisição,requisições" %}
@@ -86,6 +90,13 @@
 
   {% include 'components/pagination.html' with page_obj=page_obj rotulo_itens='requisições' aria_label='Paginação da fila de autorização' %}
 {% else %}
-  {% include 'components/empty_state.html' with icone='components/icons/_caixa_entrada.html' titulo='Nenhuma requisição aguardando autorização' descricao='A fila do seu escopo está vazia.' %}
+  {# Busca sem resultado não é fila vazia — ver o mesmo ramo em lista_minhas.html. #}
+  {% if busca %}
+    {% url 'requisicoes:autorizacoes' as url_limpar_busca %}
+    {% titulo_com_termo busca 'Nenhum resultado para' as titulo_busca %}
+    {% include 'components/empty_state.html' with icone='components/icons/_funil.html' titulo=titulo_busca descricao='Confira o número público ou tente parte do nome do material.' cta_url=url_limpar_busca cta_label='Limpar busca' cta_secundario=True %}
+  {% else %}
+    {% include 'components/empty_state.html' with icone='components/icons/_caixa_entrada.html' titulo='Nenhuma requisição aguardando autorização' descricao='A fila do seu escopo está vazia.' %}
+  {% endif %}
 {% endif %}
 {% endblock %}

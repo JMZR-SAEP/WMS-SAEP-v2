@@ -73,6 +73,7 @@ from apps.requisicoes.policies import (
 )
 from apps.requisicoes.selectors import (
     acoes_disponiveis,
+    filtrar_por_busca_simples,
     fila_atendimento,
     fila_autorizacao,
     filtrar_historico_requisicoes,
@@ -680,7 +681,10 @@ def minhas_requisicoes_view(request):
         .order_by('pk')
         .values('material__nome')[:1]
     )
-    requisicoes = minhas_requisicoes(request.user.pk).annotate(
+    busca = request.GET.get('busca', '').strip()
+    requisicoes = filtrar_por_busca_simples(
+        minhas_requisicoes(request.user.pk), busca
+    ).annotate(
         quantidade_itens=Count('itens'),
         primeiro_material_nome=primeiro_material_sq,
     )
@@ -699,6 +703,7 @@ def minhas_requisicoes_view(request):
             'requisicoes': resultado.page_obj.object_list,
             'ordem': resultado.ordem,
             'url_ordenacao': resultado.url_ordenacao,
+            'busca': busca,
         },
     )
 
@@ -718,7 +723,8 @@ def fila_autorizacao_view(request):
     except PermissaoNegada as exc:
         raise PermissionDenied(str(exc))
 
-    requisicoes = fila_autorizacao(request.user.pk)
+    busca = request.GET.get('busca', '').strip()
+    requisicoes = filtrar_por_busca_simples(fila_autorizacao(request.user.pk), busca)
     # `paginar`, não `paginar_com_filtros`: a fila tem ordem de domínio (FIFO
     # por `atualizado_em`) e `?ordem=` não se aplica — uma fila de trabalho
     # ordenada por mais recentes primeiro é o oposto de uma fila. O que faltava
@@ -727,7 +733,11 @@ def fila_autorizacao_view(request):
     return render(
         request,
         'requisicoes/fila_autorizacao.html',
-        {'page_obj': page_obj, 'requisicoes': page_obj.object_list},
+        {
+            'page_obj': page_obj,
+            'requisicoes': page_obj.object_list,
+            'busca': busca,
+        },
     )
 
 
@@ -784,7 +794,8 @@ def fila_atendimento_view(request):
     except PermissaoNegada as exc:
         raise PermissionDenied(str(exc))
 
-    requisicoes = fila_atendimento(request.user.pk)
+    busca = request.GET.get('busca', '').strip()
+    requisicoes = filtrar_por_busca_simples(fila_atendimento(request.user.pk), busca)
     # `paginar`, não `paginar_com_filtros`: a fila tem ordem de domínio (FIFO
     # por `atualizado_em`) e `?ordem=` não se aplica — uma fila de trabalho
     # ordenada por mais recentes primeiro é o oposto de uma fila. O que faltava
@@ -793,7 +804,11 @@ def fila_atendimento_view(request):
     return render(
         request,
         'requisicoes/fila_atendimento.html',
-        {'page_obj': page_obj, 'requisicoes': page_obj.object_list},
+        {
+            'page_obj': page_obj,
+            'requisicoes': page_obj.object_list,
+            'busca': busca,
+        },
     )
 
 

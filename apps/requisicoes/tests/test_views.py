@@ -6153,3 +6153,132 @@ class TestTimelineDevolveOQueOFormularioExige:
         assert 'Marcos Vinícius de Andrade' in html
         assert 'Duas peças devolvidas sem uso.' in html
         assert material_disponivel.nome in html
+
+
+class TestBuscaNasListasDeTrabalho:
+    """As três listagens onde se AGE sobre um registro não tinham como achar um.
+
+    A divisão era o inverso da necessidade: recorte completo nas duas telas de
+    histórico, que têm cartões inertes, e nada nas três em que se decide.
+    """
+
+    @pytest.mark.django_db
+    def test_minhas_recorta_por_numero_publico(
+        self, client, solicitante, setor_obras, material_disponivel
+    ):
+        alvo = Requisicao.objects.create(
+            estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+            numero_publico='REQ-2026-B001',
+            criador=solicitante,
+            beneficiario=solicitante,
+            setor_beneficiario=setor_obras,
+        )
+        outra = Requisicao.objects.create(
+            estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+            numero_publico='REQ-2026-B999',
+            criador=solicitante,
+            beneficiario=solicitante,
+            setor_beneficiario=setor_obras,
+        )
+        for req in (alvo, outra):
+            req.itens.create(material=material_disponivel, quantidade_solicitada=1)
+
+        _login(client, solicitante)
+        html = client.get(
+            reverse('requisicoes:minhas'), {'busca': 'B001'}
+        ).content.decode('utf-8')
+        assert 'REQ-2026-B001' in html
+        assert 'REQ-2026-B999' not in html
+
+    @pytest.mark.django_db
+    def test_minhas_recorta_pelo_nome_do_material(
+        self,
+        client,
+        solicitante,
+        setor_obras,
+        material_disponivel,
+        material_disponivel_2,
+    ):
+        com_alvo = Requisicao.objects.create(
+            estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+            numero_publico='REQ-2026-B101',
+            criador=solicitante,
+            beneficiario=solicitante,
+            setor_beneficiario=setor_obras,
+        )
+        com_alvo.itens.create(material=material_disponivel, quantidade_solicitada=1)
+        sem_alvo = Requisicao.objects.create(
+            estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+            numero_publico='REQ-2026-B102',
+            criador=solicitante,
+            beneficiario=solicitante,
+            setor_beneficiario=setor_obras,
+        )
+        sem_alvo.itens.create(material=material_disponivel_2, quantidade_solicitada=1)
+
+        _login(client, solicitante)
+        html = client.get(
+            reverse('requisicoes:minhas'), {'busca': material_disponivel.nome}
+        ).content.decode('utf-8')
+        assert 'REQ-2026-B101' in html
+        assert 'REQ-2026-B102' not in html
+
+    @pytest.mark.django_db
+    def test_busca_sem_resultado_nao_diz_que_a_lista_esta_vazia(
+        self, client, solicitante, setor_obras
+    ):
+        """Quem busca "cimento" e não acha lia "Nenhuma requisição ainda" e um
+        convite a criar a primeira — uma frase errada e a ação errada."""
+        Requisicao.objects.create(
+            estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+            numero_publico='REQ-2026-B201',
+            criador=solicitante,
+            beneficiario=solicitante,
+            setor_beneficiario=setor_obras,
+        )
+        _login(client, solicitante)
+        html = client.get(
+            reverse('requisicoes:minhas'), {'busca': 'inexistente'}
+        ).content.decode('utf-8')
+        assert 'Nenhuma requisição ainda' not in html
+        assert 'Limpar busca' in html
+
+    @pytest.mark.django_db
+    def test_item_repetido_nao_duplica_a_requisicao(
+        self,
+        client,
+        solicitante,
+        setor_obras,
+        material_disponivel,
+        material_disponivel_2,
+    ):
+        """O join com `itens` multiplica a requisição por item que casa."""
+        req = Requisicao.objects.create(
+            estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+            numero_publico='REQ-2026-B301',
+            criador=solicitante,
+            beneficiario=solicitante,
+            setor_beneficiario=setor_obras,
+        )
+        req.itens.create(material=material_disponivel, quantidade_solicitada=1)
+        req.itens.create(material=material_disponivel_2, quantidade_solicitada=1)
+
+        _login(client, solicitante)
+        resposta = client.get(reverse('requisicoes:minhas'), {'busca': 'a'})
+        numeros = [r.numero_publico for r in resposta.context['requisicoes']]
+        assert numeros.count('REQ-2026-B301') == 1
+
+    @pytest.mark.django_db
+    def test_as_tres_listas_de_trabalho_tem_o_mesmo_campo(
+        self, client, solicitante, chefe_obras, aux_almoxarifado
+    ):
+        """Uma gramática de busca, não três."""
+        for usuario, rota in (
+            (solicitante, 'requisicoes:minhas'),
+            (chefe_obras, 'requisicoes:autorizacoes'),
+            (aux_almoxarifado, 'requisicoes:atendimentos'),
+        ):
+            _login(client, usuario)
+            html = client.get(reverse(rota)).content.decode('utf-8')
+            assert 'Requisição ou material' in html, rota
+            assert 'role="search"' in html, rota

@@ -1,0 +1,37 @@
+{% comment %}
+Busca de uma linha para listagem SEM filtro composto.
+
+Existe porque o produto tinha três gramáticas de busca para a mesma tarefa: o
+`filter_shell` completo com chips e presets nas duas telas de histórico, um
+`<form method="get">` escrito à mão no catálogo, e nada nas outras cinco. A
+diferença de transporte é legítima — uma tela sem filtro composto não precisa do
+wrapper de swap HTMX —, mas a diferença de *gramática* não era: quem aprende a
+buscar numa listagem tem de reconhecer a busca na seguinte.
+
+Aqui o campo é o mesmo `components/filter_busca.html` das telas de histórico, e
+as ações são os mesmos botões. O que muda é só o transporte: `GET` nativo, com
+recarga da página. Uma listagem que ganhar filtro composto troca este include
+pelo `filter_shell` e herda o campo sem reescrevê-lo.
+
+Parâmetros:
+  action_url   (obrigatório) URL do form e destino do "Limpar"
+  id           (obrigatório) id do input, alvo do <label for>
+  name         (obrigatório) chave da querystring
+  label        (obrigatório) rótulo visível
+  value        (opcional) valor atual — também decide se o "Limpar" aparece
+  placeholder  (opcional)
+
+Uso:
+  {% include "components/busca_simples.html" with action_url=url_lista id="busca-minhas" name="busca" label="Requisição ou material" value=busca placeholder="Número ou nome do material" %}
+{% endcomment %}
+<form method="get" action="{{ action_url }}" role="search" class="mb-6 flex flex-wrap items-end gap-2">
+  <div class="min-w-0 flex-1 basis-64">
+    {% include "components/filter_busca.html" with id=id name=name label=label value=value placeholder=placeholder %}
+  </div>
+  <div class="flex shrink-0 items-center gap-2">
+    {% include "components/button.html" with variant="primary" type="submit" label="Buscar" %}
+    {% if value %}
+      {% include "components/button.html" with variant="secondary" label="Limpar" href=action_url %}
+    {% endif %}
+  </div>
+</form>
