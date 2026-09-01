@@ -256,10 +256,10 @@ Efeito colateral que vale registro: a lista `divida_etapa_7` de
 `test_nenhum_rotulo_de_campo_escrito_a_mao` nomeava esta etapa como dona e mandava sumir quando ela
 fechasse. **Fechou** — o guarda vale para `apps/` inteiro agora, sem escotilha.
 
-### P0/P1 que sobraram
+### P0/P1 que sobraram — as quatro issues fechadas
 
-Viraram issue própria em vez de entrar em `/impeccable polish`, porque o escopo passa de
-front-end:
+Viraram issue própria em vez de entrar em `/impeccable polish`, porque o escopo passava de
+front-end. Todas fechadas até 2026-09-01:
 
 - **#161** (P0) — persistir as divergências e entregá-las ao chefe de almoxarifado. O fluxo termina
   sem produzir a lista de CADPROs que ele veio buscar.
@@ -268,6 +268,12 @@ front-end:
 - **#163** (P1) — desenhar `_delta_movimentacao`. O átomo do north star nunca foi desenhado.
 - **#164** (P2) — copy: hierarquia da recapitulação, legenda que promete uma cor que nenhum cartão
   veste, e a progressão invertida dos alerts.
+
+A #164 merece nota: a Etapa 8 remediu a legenda do preview e o desencontro **ainda estava lá** — os
+swatches em `bg-warning-muted`/`bg-primary-muted` (shade 100, rgb(254,243,198) e rgb(219,234,254))
+contra cartões em `-subtle` (shade 50, rgb(255,251,235) e rgb(239,246,255)). O que a #164 fechou foi
+a hierarquia da recapitulação; o degrau da legenda sobreviveu à issue que o nomeava. É o tipo de
+achado que só uma segunda medição pega.
 
 ### Nota de método
 
