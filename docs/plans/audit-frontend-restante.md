@@ -179,10 +179,12 @@ própria".
 - **Borda de contorno reprovava na WCAG 1.4.11.** Medido sobre branco: `danger-outline` 1,92:1,
   `warning-outline` 1,45:1, `return-outline` 1,26:1, contra os 4,77:1 do `secondary`. Quatro dos
   cinco gatilhos de workflow do detalhe usavam as variantes reprovadas — as ações destrutivas eram
-  os controles menos visíveis da página. `warning-outline` ficou como exceção documentada: a família
-  âmbar não tem nenhum token de borda que passe (amber-500 dá 2,15:1). A exceção vive em
-  `docs/design-system.md`, §Exceções abertas ao piso de contraste, com a medição e o critério de
-  encerramento — este plano registra que ela foi aberta, o contrato registra que ela segue aberta.
+  os controles menos visíveis da página. As três foram corrigidas: `danger-accent` (red-500) 3,82:1,
+  `return` (teal-600) 3,66:1 e — este por um caminho diferente — `warning-text-subtle` (amber-700)
+  5,05:1. A família âmbar não tem token de BORDA que passe (amber-500 dá 2,15:1), então a borda foi
+  para o token de texto, que já é alaranjado o bastante. Os valores acima são de ANTES da correção.
+  As medições vigentes estão em `docs/design-system.md`, §Borda de controle: medições vigentes, e
+  `test_borda_de_controle_passa_em_1411` calcula a razão a partir do token, não do nome da classe.
 - **O estorno usava o vocabulário de perigo**, com a contradição escrita no próprio
   `_modal_icon.html`. Migrado para `return` nas quatro superfícies.
 - **O recap da retirada omitia o que faz uma entrega estar errada:** linhas parciais, justificativa

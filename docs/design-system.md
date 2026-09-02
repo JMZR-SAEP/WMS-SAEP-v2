@@ -981,25 +981,44 @@ Verificado por `apps/requisicoes/tests/test_painel_decisao.py`.
 Se o componente precisa de um parâmetro que descreve **conteúdo** e não
 estrutura, a abstração está errada. Parar e registrar, não generalizar.
 
-## Exceções abertas ao piso de contraste
+## Borda de controle: medições vigentes
 
-Uma exceção viva que não está escrita aqui é uma regra que já não vale, e o
-documento não pode ser o último a saber. Cada linha carrega a medição, o motivo
-e o que a encerra.
+Onde a borda é a única delimitação do controle — botão de fundo branco —, a WCAG
+1.4.11 pede 3:1. **Nenhuma variante está em exceção.** As quatro passam, medidas
+sobre branco a partir do token, não do nome da classe:
 
-| Token | Medido sobre branco | Piso | Por que segue aberta | Encerra quando |
-|---|---|---|---|---|
-| `warning-outline` (borda) | 1,45:1 | 3:1 | A família âmbar não tem nenhum token de borda que passe — `amber-500`, o mais escuro da escala em uso, dá 2,15:1. Fechar exige um token novo fora da escala, o que é decisão de paleta e não de componente. | Existir um token de borda âmbar ≥ 3:1, ou a variante deixar de existir. Medido em 2026-08-28 (Etapa 6) e reconfirmado na Etapa 8. |
+| Variante | Token da borda | Medido |
+|---|---|---|
+| `secondary` | `border-control` (slate-500) | 4,77:1 |
+| `danger-outline` | `danger-accent` (red-500) | 3,82:1 |
+| `warning-outline` | `warning-text-subtle` (amber-700) | 5,05:1 |
+| `return-outline` | `return` (teal-600) | 3,66:1 |
 
-As irmãs `danger-outline` (1,92:1) e `return-outline` (1,26:1) **não** são
-exceção: elas reprovavam junto, e a Etapa 6 as corrigiu. Registro completo em
-`docs/plans/audit-frontend-restante.md`, Etapa 6.
+`warning-outline` chegou lá por um caminho diferente das irmãs, e é o que vale
+registrar: a família âmbar **não tem token de borda** que passe — `amber-500`,
+o mais escuro da escala de bordas, dá 2,15:1, e o âmbar claro o bastante para
+continuar âmbar não alcança 3:1 sobre branco. Os únicos membros ≥3:1 da família
+são os de texto, já alaranjados; daí a borda usar `warning-text-subtle`, que a
+deixa na mesma família do texto do próprio botão.
+
+Valores **históricos**, de antes da Etapa 6, quando as três variantes de
+contorno viviam nos `-border-strong` — shades escolhidos para separar
+superfícies, não para desenhar controles: `danger-outline` 1,92:1 (red-300),
+`warning-outline` 1,45:1 (amber-300), `return-outline` 1,26:1 (teal-200).
+Quatro dos cinco gatilhos de workflow da tela de detalhe usavam essas variantes,
+ou seja, as ações destrutivas eram os controles menos visíveis da página.
+
+`test_borda_de_controle_passa_em_1411` (`apps/core/tests/test_components.py`)
+resolve o token até o `oklch` da paleta e calcula a razão de verdade, para toda
+variante de fundo branco. Trocar um shade por outro que passe segue válido;
+trocar por um que não passe fica vermelho. A tabela acima é registro; o teste é
+o guarda.
 
 ## Checklist de revisão — acessibilidade
 
 ```
 [ ] Contraste de texto ≥ 4.5:1; borda que identifica controle ≥ 3:1
-    (exceções abertas: ver §Exceções abertas ao piso de contraste)
+    (medições vigentes: ver §Borda de controle: medições vigentes)
 [ ] Todo controle interativo tem focus-visible
 [ ] Botão em carregamento usa aria-busy
 [ ] Campo com erro usa aria-invalid + aria-describedby
