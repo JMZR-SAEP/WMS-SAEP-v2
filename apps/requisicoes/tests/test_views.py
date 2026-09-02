@@ -6309,9 +6309,18 @@ class TestBuscaNasListasDeTrabalho:
         """
         from apps.requisicoes import views as requisicoes_views
 
-        for numero in ('REQ-2026-B501', 'REQ-2026-B502'):
+        # Dois pares: a fila de autorização só vê `aguardando_autorizacao`, e a
+        # de atendimento só vê `autorizada`/`pronta_para_retirada`. Sem os dois
+        # estados, uma das filas cai na primeira página e o teste não prova nada.
+        cenarios = (
+            ('REQ-2026-B501', EstadoRequisicao.AGUARDANDO_AUTORIZACAO),
+            ('REQ-2026-B502', EstadoRequisicao.AGUARDANDO_AUTORIZACAO),
+            ('REQ-2026-B503', EstadoRequisicao.AUTORIZADA),
+            ('REQ-2026-B504', EstadoRequisicao.AUTORIZADA),
+        )
+        for numero, estado in cenarios:
             req = Requisicao.objects.create(
-                estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+                estado=estado,
                 numero_publico=numero,
                 criador=solicitante,
                 beneficiario=solicitante,
@@ -6326,6 +6335,7 @@ class TestBuscaNasListasDeTrabalho:
         for usuario, rota in (
             (solicitante, 'requisicoes:minhas'),
             (chefe_obras, 'requisicoes:autorizacoes'),
+            (aux_almoxarifado, 'requisicoes:atendimentos'),
         ):
             _login(client, usuario)
             resposta = client.get(reverse(rota), {'busca': busca})
