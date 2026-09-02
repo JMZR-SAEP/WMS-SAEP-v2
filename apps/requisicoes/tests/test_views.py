@@ -6282,3 +6282,75 @@ class TestBuscaNasListasDeTrabalho:
             html = client.get(reverse(rota)).content.decode('utf-8')
             assert 'Requisição ou material' in html, rota
             assert 'role="search"' in html, rota
+
+    @pytest.mark.django_db
+    def test_busca_nao_encolhe_a_contagem_de_itens(
+        self,
+        client,
+        solicitante,
+        setor_obras,
+        material_disponivel,
+        material_disponivel_2,
+    ):
+        """O "e mais N" do cartão conta a requisição inteira, não o recorte.
+
+        Em "Minhas requisições" a busca vem antes do `Count('itens')`: com um
+        join no filtro, a anotação passaria a contar só os itens que casaram e
+        o cartão diria "e mais 0" numa requisição de dois materiais.
+        """
+        req = Requisicao.objects.create(
+            estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+            numero_publico='REQ-2026-B401',
+            criador=solicitante,
+            beneficiario=solicitante,
+            setor_beneficiario=setor_obras,
+        )
+        req.itens.create(material=material_disponivel, quantidade_solicitada=1)
+        req.itens.create(material=material_disponivel_2, quantidade_solicitada=1)
+
+        _login(client, solicitante)
+        resposta = client.get(
+            reverse('requisicoes:minhas'), {'busca': material_disponivel.nome}
+        )
+        encontradas = list(resposta.context['requisicoes'])
+        assert len(encontradas) == 1
+        assert encontradas[0].quantidade_itens == 2
+
+    @pytest.mark.django_db
+    def test_busca_nao_multiplica_a_contagem_na_fila(
+        self,
+        client,
+        chefe_obras,
+        solicitante,
+        setor_obras,
+        material_disponivel,
+        material_disponivel_2,
+    ):
+        """Nas filas a anotação vem antes da busca, e o erro é o oposto.
+
+        `Count('itens')` já existe no seletor; um join no filtro abriria uma
+        segunda cópia da mesma tabela e o produto cartesiano inflaria o total.
+        A busca casa os DOIS itens de propósito: com um só, o produto de 2×1
+        devolve o número certo por acidente e o defeito passa despercebido.
+        """
+        req = Requisicao.objects.create(
+            estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+            numero_publico='REQ-2026-B402',
+            criador=solicitante,
+            beneficiario=solicitante,
+            setor_beneficiario=setor_obras,
+        )
+        req.itens.create(material=material_disponivel, quantidade_solicitada=1)
+        req.itens.create(material=material_disponivel_2, quantidade_solicitada=1)
+
+        prefixo_comum = 'MAT00'
+        assert prefixo_comum in material_disponivel.codigo
+        assert prefixo_comum in material_disponivel_2.codigo
+
+        _login(client, chefe_obras)
+        resposta = client.get(
+            reverse('requisicoes:autorizacoes'), {'busca': prefixo_comum}
+        )
+        encontradas = list(resposta.context['requisicoes'])
+        assert len(encontradas) == 1
+        assert encontradas[0].quantidade_itens == 2
