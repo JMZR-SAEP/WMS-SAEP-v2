@@ -16,6 +16,10 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
   quantidade_label         — rótulo do campo de quantidade (str, opcional, default "Quantidade")
   delete_field             — BoundField do campo DELETE do formset (opcional)
   saldo_item               — dict {elegivel, saldo_disponivel, motivo} (opcional)
+  unidade_item             — unidade do material vinculado (str, opcional). Só
+    alimenta o `data-unidade` da linha, para telas que não passam `saldo_item`
+    e ainda assim precisam que a recapitulação do modal saiba a unidade num
+    POST re-renderizado por erro. Quando ausente, cai em `saldo_item.unidade`.
   habilitar_veto_duplicidade — bool (opcional): quando True, chama
     window.selecionarMaterial(form_index, item) no onSelect do autocomplete —
     a tela chamadora deve definir essa função globalmente (veto client-side
@@ -40,6 +44,17 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
      role="group"
      aria-label="Item {{ form_index|add:1 }}"
      data-index="{{ form_index }}"
+     {% comment %}
+       `data-material`/`data-unidade` renderizados no servidor, e não só
+       escritos pelo `registrarMaterial` na seleção: num POST re-renderizado por
+       erro os campos voltam preenchidos sem que evento nenhum dispare, e a
+       recapitulação do modal — que lê estes atributos — mostraria `—` no lugar
+       do material e um número sem unidade justamente na tela em que a pessoa
+       está corrigindo o formulário. O evento continua sendo quem os atualiza
+       durante a edição.
+     {% endcomment %}
+     data-material="{{ material_label_field.value|default:'' }}"
+     data-unidade="{% firstof unidade_item saldo_item.unidade '' %}"
      x-data="saldoLinha({
        saldoTexto: '{{ saldo_item.saldo_disponivel|default:''|escapejs }}',
        saldoValor: '{{ saldo_item.saldo_bruto|default:''|escapejs }}' || undefined,

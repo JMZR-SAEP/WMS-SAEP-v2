@@ -4400,3 +4400,33 @@ class TestCerimoniaDaSaidaExcepcional:
         client.force_login(chefe_almoxarifado)
         html = client.get(self.URL).content.decode('utf-8')
         assert 'Selecione o motivo' in html
+
+    def test_post_invalido_preserva_material_e_unidade_para_a_recapitulacao(
+        self, client, chefe_almoxarifado, estoque_principal, material_disponivel
+    ):
+        """A recapitulação lê `data-material`/`data-unidade` da linha, e num
+        re-render por erro nenhum evento de seleção dispara para escrevê-los.
+
+        Sem os atributos vindos do servidor, a tela em que a pessoa está
+        corrigindo o formulário mostraria o material como `—` e a quantidade
+        sem unidade — justamente na confirmação de uma baixa irreversível.
+        """
+        client.force_login(chefe_almoxarifado)
+        html = client.post(
+            self.URL,
+            data={
+                # Sem `motivo`: o formulário volta inválido e re-renderizado.
+                'motivo': '',
+                'observacao': '',
+                'itens-TOTAL_FORMS': '1',
+                'itens-INITIAL_FORMS': '0',
+                'itens-MIN_NUM_FORMS': '0',
+                'itens-MAX_NUM_FORMS': '1000',
+                'itens-0-material_id': str(material_disponivel.pk),
+                'itens-0-material_label': material_disponivel.nome,
+                'itens-0-quantidade': '5',
+            },
+        ).content.decode('utf-8')
+
+        assert f'data-material="{material_disponivel.nome}"' in html
+        assert f'data-unidade="{material_disponivel.unidade}"' in html

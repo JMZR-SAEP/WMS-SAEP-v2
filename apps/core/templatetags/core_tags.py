@@ -943,3 +943,16 @@ def faixa_paginas(page_obj: Page) -> list[Any]:
             on_ends=_EXTREMOS_DE_PAGINA,
         )
     )
+
+
+@register.filter
+def get_item(dictionary, key):
+    """Retorna dictionary[key]; compatível com chaves string e int.
+
+    Vive em `core_tags` e não no app de origem porque é lookup de dicionário
+    puro, sem nada de domínio, e dois apps o consomem: o saldo por material no
+    rascunho de requisição e a unidade por material na saída excepcional.
+    """
+    if not isinstance(dictionary, dict):
+        return None
+    return dictionary.get(str(key))

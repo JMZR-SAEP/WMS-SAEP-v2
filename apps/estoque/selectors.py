@@ -10,6 +10,7 @@ from apps.accounts.models import User
 from apps.accounts.papeis import papel_efetivo
 from apps.requisicoes.models import EstadoRequisicao
 from apps.estoque.models import (
+    Material,
     MovimentacaoEstoque,
     SaidaExcepcional,
     TipoMovimentacaoEstoque,
@@ -39,6 +40,26 @@ def buscar_materiais_saida_excepcional(q: str = '', limite: int = 20):
     if q:
         qs = qs.filter(Q(codigo__icontains=q) | Q(nome__icontains=q))
     return qs.order_by('nome')[:limite]
+
+
+def unidades_por_materiais(material_ids: list) -> dict[str, str]:
+    """Retorna dict {material_id como string: unidade} para os ids informados.
+
+    Existe para o formulário de saída excepcional re-renderizado por erro: as
+    linhas voltam com o material vinculado, mas nenhum evento de seleção
+    dispara, e a recapitulação do modal — que lê `data-unidade` da linha —
+    mostraria a quantidade sem dizer de quê. Chave em string porque é assim que
+    o filtro `get_item` dos templates procura.
+    """
+    ids = [i for i in material_ids if i not in (None, '')]
+    if not ids:
+        return {}
+    return {
+        str(pk): unidade
+        for pk, unidade in Material.objects.filter(pk__in=ids).values_list(
+            'pk', 'unidade'
+        )
+    }
 
 
 def buscar_detalhe_saida_excepcional(saida_id: int) -> SaidaExcepcional | None:

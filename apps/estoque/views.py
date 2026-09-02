@@ -48,6 +48,7 @@ from apps.estoque.selectors import (
     listar_saidas_excepcionais,
     movimentacoes_visiveis_para,
     pode_filtrar_movimentacoes_por_setor,
+    unidades_por_materiais,
 )
 from apps.estoque.services import registrar_saida_excepcional
 
@@ -276,6 +277,7 @@ def nova_saida_excepcional_view(request):
                 'formset': ItemSaidaExcepcionalFormSet(
                     prefix='itens', initial=[{}], estoque_id=estoque.pk
                 ),
+                'unidades_itens': {},
                 # A saída ainda não existe — é o que se vai criar —, então o
                 # registro que o modal nomeia é o estoque onde a baixa cai.
                 # Mesma situação do `registro_arquivo_scpi`.
@@ -344,6 +346,13 @@ def nova_saida_excepcional_view(request):
             'estoque': estoque,
             'form': form,
             'formset': formset,
+            # As linhas voltam com o material vinculado e sem evento de seleção
+            # para escrever a unidade no DOM; sem isto a recapitulação do modal
+            # repetiria o número sem dizer de quê, na tela em que a pessoa está
+            # corrigindo o formulário.
+            'unidades_itens': unidades_por_materiais(
+                [f['material_id'].value() for f in formset]
+            ),
             'registro_saida_nova': registro_novo_saida_excepcional(estoque),
         },
     )
