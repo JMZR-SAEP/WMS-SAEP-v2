@@ -236,7 +236,7 @@ def pode_retornar_para_rascunho(papel: 'PapelEfetivo', requisicao: Requisicao) -
     A condição do chefe é a mesma de autorizar e recusar — chefiar o setor do
     beneficiário —, então não abre alcance novo: quem já podia encerrar a
     requisição passa a poder devolvê-la. A consequência da TR-006 continua
-    valendo: depois do retorno o rascunho volta a ser creator-only, e o chefe
+    valendo: depois do retorno o rascunho volta a ser exclusivo do criador, e o chefe
     sai de cena até o reenvio.
     """
     if not papel.ativo:
@@ -256,8 +256,8 @@ def exigir_pode_retornar_para_rascunho(
 ) -> None:
     if not pode_retornar_para_rascunho(papel, requisicao):
         raise PermissaoNegada(
-            'Apenas o criador, o beneficiário ou o chefe do setor pode retornar '
-            'esta requisição para rascunho.',
+            'Apenas o criador, o beneficiário ou o chefe do setor do '
+            'beneficiário pode retornar esta requisição para rascunho.',
             code='retornar_rascunho_negado',
         )
 

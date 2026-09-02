@@ -79,8 +79,17 @@
           {% endif %}
 
           <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
-            {# Afordância do cartão, não um controle: o link do título já carrega o nome acessível. #}
-            <p class="flex items-center gap-1 text-sm font-medium text-primary" aria-hidden="true">Ver detalhes <span>&rarr;</span></p>
+            {% comment %}
+              Afordância do cartão, não um controle: o link do título já carrega
+              o nome acessível. Só onde existe destino — `requisicao_id` é
+              anulável, e prometer "Ver detalhes" num cartão que não leva a
+              lugar nenhum é afordância sem destino.
+            {% endcomment %}
+            {% if notificacao.requisicao_id %}
+              <p class="flex items-center gap-1 text-sm font-medium text-primary" aria-hidden="true">Ver detalhes <span>&rarr;</span></p>
+            {% else %}
+              <span></span>
+            {% endif %}
             {% if not notificacao.lida %}
               {% comment %}
                 Ação secundária, e não o único azul da linha. Continua sendo um
