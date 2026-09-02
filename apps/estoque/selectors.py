@@ -50,8 +50,21 @@ def unidades_por_materiais(material_ids: list) -> dict[str, str]:
     dispara, e a recapitulação do modal — que lê `data-unidade` da linha —
     mostraria a quantidade sem dizer de quê. Chave em string porque é assim que
     o filtro `get_item` dos templates procura.
+
+    Os ids chegam CRUS do POST — é `f['material_id'].value()`, não
+    `cleaned_data`, porque o formulário aqui é justamente o que não validou.
+    `pk__in` prepara cada item para o PK inteiro e um `material_id=abc` forjado
+    levantaria `ValueError` no meio do render, trocando a página de erros do
+    formset por um 500. O que não é inteiro é descartado: nenhum material casa
+    com ele de qualquer forma, e a linha correspondente fica sem unidade — a
+    mesma degradação de quando o material ainda não foi escolhido.
     """
-    ids = [i for i in material_ids if i not in (None, '')]
+    ids = []
+    for bruto in material_ids:
+        try:
+            ids.append(int(bruto))
+        except (TypeError, ValueError):
+            continue
     if not ids:
         return {}
     return {

@@ -4430,3 +4430,30 @@ class TestCerimoniaDaSaidaExcepcional:
 
         assert f'data-material="{material_disponivel.nome}"' in html
         assert f'data-unidade="{material_disponivel.unidade}"' in html
+
+    def test_material_id_forjado_nao_derruba_o_re_render(
+        self, client, chefe_almoxarifado, estoque_principal
+    ):
+        """Os ids chegam crus do POST, e é o formulário inválido que os traz.
+
+        `pk__in` prepara cada item para o PK inteiro: um `material_id` não
+        numérico levantava `ValueError` no meio do render e trocava a página de
+        erros do formset por um 500.
+        """
+        client.force_login(chefe_almoxarifado)
+        response = client.post(
+            self.URL,
+            data={
+                'motivo': '',
+                'observacao': '',
+                'itens-TOTAL_FORMS': '1',
+                'itens-INITIAL_FORMS': '0',
+                'itens-MIN_NUM_FORMS': '0',
+                'itens-MAX_NUM_FORMS': '1000',
+                'itens-0-material_id': 'abc',
+                'itens-0-material_label': 'qualquer',
+                'itens-0-quantidade': '5',
+            },
+        )
+        assert response.status_code == 200
+        assert 'data-unidade=""' in response.content.decode('utf-8')
