@@ -196,7 +196,7 @@
               título, e nada na tela indicava que ali havia para onde ir. As
               outras seis listagens navegáveis têm esta linha.
             {% endcomment %}
-            {% if mov.requisicao_id or mov.saida_excepcional_id and pode_consultar_saidas_excepcionais %}
+            {% if mov.requisicao_id and mov.requisicao_no_escopo or mov.saida_excepcional_id and pode_consultar_saidas_excepcionais %}
               <p class="mt-4 flex items-center gap-1 text-sm font-medium text-primary" aria-hidden="true">Ver a origem <span>&rarr;</span></p>
             {% endif %}
           </article>

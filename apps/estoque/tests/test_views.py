@@ -3316,6 +3316,9 @@ class TestHistoricoMovimentacoesView:
         # Mas sem link, porque o destino não existe para quem está olhando.
         assert f'href="{destino}' not in html
         assert client.get(destino).status_code == 404
+        # E sem a afordância que anuncia o link: prometer "Ver a origem" num
+        # cartão que não leva a lugar nenhum é o mesmo defeito um degrau acima.
+        assert 'Ver a origem' not in html
 
     def test_link_da_origem_existe_quando_a_requisicao_esta_no_escopo(
         self, client, chefe_almoxarifado, requisicao_autorizada
