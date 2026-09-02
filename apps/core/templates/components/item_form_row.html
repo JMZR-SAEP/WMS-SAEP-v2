@@ -72,6 +72,7 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
       campoDisplay: 'label',
       initialId: '{{ material_id_field.value|default:''|escapejs }}',
       initialLabel: '{{ material_label_field.value|default:''|escapejs }}',
+      eventoSelecao: 'material-selecionado',
       {% if habilitar_veto_duplicidade %}onSelect: (item) => selecionarMaterial({{ form_index }}, item),{% endif %}
     })"
     @click.outside="fecharDropdown()"
