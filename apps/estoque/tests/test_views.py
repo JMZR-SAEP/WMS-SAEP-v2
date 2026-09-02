@@ -201,6 +201,45 @@ class TestListarSaidasExcepcionaisView:
         assert 'Não há saídas excepcionais no sistema.' in html
         assert reverse('estoque:nova_saida_excepcional') not in html
 
+    def test_paginacao_preserva_a_ordem_ativa(
+        self,
+        client,
+        chefe_almoxarifado,
+        estoque_principal,
+        material_disponivel,
+        monkeypatch,
+    ):
+        """A página 2 de `?ordem=asc` voltava para a ordem descendente padrão.
+
+        A view calculava `querystring_filtros` e não o expunha ao contexto, e o
+        template não o repassava ao componente: os links nasciam `?page=2`, sem
+        o recorte ativo. `per_page` de 1 evita criar 26 saídas para provar isso.
+        """
+        from decimal import Decimal
+
+        from apps.estoque import views as estoque_views
+        from apps.estoque.services import registrar_saida_excepcional
+
+        for _ in range(2):
+            registrar_saida_excepcional(
+                ator_id=chefe_almoxarifado.pk,
+                estoque_id=estoque_principal.pk,
+                motivo='avaria',
+                observacao='',
+                itens=[
+                    {
+                        'material_id': material_disponivel.pk,
+                        'quantidade': Decimal('1'),
+                    }
+                ],
+            )
+        monkeypatch.setattr(estoque_views, 'PAGINA_SAIDAS_EXCEPCIONAIS_TAMANHO', 1)
+
+        client.force_login(chefe_almoxarifado)
+        response = client.get(URL, {'ordem': 'asc'})
+        assert response.context['querystring_filtros'] == 'ordem=asc'
+        assert 'href="?ordem=asc&amp;page=2"' in response.content.decode()
+
 
 URL_NOVA = reverse('estoque:nova_saida_excepcional')
 URL_BUSCAR = reverse('estoque:buscar_materiais_saida_excepcional')

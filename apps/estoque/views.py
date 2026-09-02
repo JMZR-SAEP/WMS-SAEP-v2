@@ -77,6 +77,9 @@ def listar_saidas_excepcionais_view(request):
             'saidas': resultado.page_obj.object_list,
             'ordem': resultado.ordem,
             'url_ordenacao': resultado.url_ordenacao,
+            # Sem isto os links de paginação nascem sem `ordem`, e a página 2 de
+            # `?ordem=asc` volta silenciosamente para a ordem padrão.
+            'querystring_filtros': resultado.querystring_filtros,
             'pode_registrar': pode_registrar_saida_excepcional(papel),
         },
     )

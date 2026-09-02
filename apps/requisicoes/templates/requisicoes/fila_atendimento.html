@@ -39,7 +39,7 @@
     {% endfor %}
   </div>
 
-  {% include 'components/pagination.html' with page_obj=page_obj rotulo_itens='requisições' aria_label='Paginação da fila de atendimento' %}
+  {% include 'components/pagination.html' with page_obj=page_obj querystring_filtros=querystring_filtros rotulo_itens='requisições' aria_label='Paginação da fila de atendimento' %}
 {% else %}
   {# Busca sem resultado não é fila vazia — ver o mesmo ramo em lista_minhas.html. #}
   {% if busca %}

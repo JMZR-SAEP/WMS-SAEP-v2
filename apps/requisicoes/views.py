@@ -34,7 +34,12 @@ from apps.core.exceptions import (
     PermissaoNegada,
 )
 from apps.core.filtros import montar_chip, montar_presets_periodo
-from apps.core.http import htmx_redirect, parse_data_iso, voltar_url_seguro
+from apps.core.http import (
+    htmx_redirect,
+    parse_data_iso,
+    querystring_sem_page,
+    voltar_url_seguro,
+)
 from apps.core.listagem import contar_filtros_ativos, paginar, paginar_com_filtros
 from apps.core.modal import render_modal_erro
 from apps.core.presentation import traduz_erro_dominio
@@ -703,6 +708,9 @@ def minhas_requisicoes_view(request):
             'requisicoes': resultado.page_obj.object_list,
             'ordem': resultado.ordem,
             'url_ordenacao': resultado.url_ordenacao,
+            # Sem isto os links de paginação nascem sem `busca` nem `ordem`: a
+            # página 2 de uma busca volta à listagem inteira.
+            'querystring_filtros': resultado.querystring_filtros,
             'busca': busca,
         },
     )
@@ -736,6 +744,10 @@ def fila_autorizacao_view(request):
         {
             'page_obj': page_obj,
             'requisicoes': page_obj.object_list,
+            # `paginar` não devolve a querystring — a fila não tem ordenação a
+            # preservar. A busca tem: sem isto, a página 2 de uma busca volta
+            # para a fila inteira.
+            'querystring_filtros': querystring_sem_page(request.GET),
             'busca': busca,
         },
     )
@@ -807,6 +819,10 @@ def fila_atendimento_view(request):
         {
             'page_obj': page_obj,
             'requisicoes': page_obj.object_list,
+            # `paginar` não devolve a querystring — a fila não tem ordenação a
+            # preservar. A busca tem: sem isto, a página 2 de uma busca volta
+            # para a fila inteira.
+            'querystring_filtros': querystring_sem_page(request.GET),
             'busca': busca,
         },
     )

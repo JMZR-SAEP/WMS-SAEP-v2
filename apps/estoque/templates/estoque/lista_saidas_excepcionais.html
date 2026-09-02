@@ -86,7 +86,7 @@
       {% endfor %}
     </div>
 
-    {% include 'components/pagination.html' with page_obj=page_obj rotulo_itens='saídas excepcionais' aria_label='Paginação das saídas excepcionais' %}
+    {% include 'components/pagination.html' with page_obj=page_obj querystring_filtros=querystring_filtros rotulo_itens='saídas excepcionais' aria_label='Paginação das saídas excepcionais' %}
 
   {% else %}
 

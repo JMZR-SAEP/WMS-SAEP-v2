@@ -6269,6 +6269,50 @@ class TestBuscaNasListasDeTrabalho:
         assert numeros.count('REQ-2026-B301') == 1
 
     @pytest.mark.django_db
+    def test_a_paginacao_das_tres_listas_preserva_a_busca(
+        self,
+        client,
+        solicitante,
+        chefe_obras,
+        aux_almoxarifado,
+        setor_obras,
+        material_disponivel,
+        monkeypatch,
+    ):
+        """Sem a querystring nos links, a página 2 de uma busca vira a lista inteira.
+
+        As duas filas usam `paginar`, que não devolve querystring alguma — não
+        têm ordenação a preservar. A busca elas têm, e desde a Etapa 8. `minhas`
+        usa `paginar_com_filtros` e o valor existia, sem chegar ao template.
+        """
+        from apps.requisicoes import views as requisicoes_views
+
+        for numero in ('REQ-2026-B501', 'REQ-2026-B502'):
+            req = Requisicao.objects.create(
+                estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+                numero_publico=numero,
+                criador=solicitante,
+                beneficiario=solicitante,
+                setor_beneficiario=setor_obras,
+            )
+            req.itens.create(material=material_disponivel, quantidade_solicitada=1)
+
+        monkeypatch.setattr(requisicoes_views, 'PAGINA_FILA_TAMANHO', 1)
+        monkeypatch.setattr(requisicoes_views, 'PAGINA_MINHAS_REQUISICOES_TAMANHO', 1)
+
+        busca = material_disponivel.nome
+        for usuario, rota in (
+            (solicitante, 'requisicoes:minhas'),
+            (chefe_obras, 'requisicoes:autorizacoes'),
+        ):
+            _login(client, usuario)
+            resposta = client.get(reverse(rota), {'busca': busca})
+            html = resposta.content.decode('utf-8')
+            assert 'busca=' in resposta.context['querystring_filtros'], rota
+            assert 'page=2"' in html, rota
+            assert 'href="?page=2"' not in html, rota
+
+    @pytest.mark.django_db
     def test_as_tres_listas_de_trabalho_tem_o_mesmo_campo(
         self, client, solicitante, chefe_obras, aux_almoxarifado
     ):

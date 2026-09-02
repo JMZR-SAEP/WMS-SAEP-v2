@@ -113,7 +113,7 @@
     {% endfor %}
   </div>
 
-  {% include 'components/pagination.html' with page_obj=page_obj rotulo_itens='requisições' aria_label='Paginação das minhas requisições' %}
+  {% include 'components/pagination.html' with page_obj=page_obj querystring_filtros=querystring_filtros rotulo_itens='requisições' aria_label='Paginação das minhas requisições' %}
 {% else %}
   {% comment %}
     Estado vazio contextual, como nas duas telas de histórico: busca sem
