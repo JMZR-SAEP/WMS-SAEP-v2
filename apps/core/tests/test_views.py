@@ -214,6 +214,32 @@ class TestEstaticosComHash:
 
         assert issubclass(EstaticosComHash, ManifestStaticFilesStorage)
 
+    def test_a_configuracao_do_piloto_seleciona_esse_storage(self, monkeypatch):
+        """A herança da classe não prova que o piloto a escolhe.
+
+        Sem esta asserção, apagar `STORAGES` de `config/settings/piloto.py`
+        deixava a suíte verde e o deploy voltava a servir `app.css` e os dez
+        arquivos de JS sempre na mesma URL — que é o defeito inteiro.
+
+        O módulo é importado à parte porque as guardas do piloto recusam o boot
+        sem hosts, origens e Postgres; os valores abaixo só as satisfazem.
+        """
+        import importlib
+
+        for chave, valor in {
+            'ALLOWED_HOSTS': 'piloto.exemplo',
+            'CSRF_TRUSTED_ORIGINS': 'https://piloto.exemplo',
+            'DATABASE_URL': 'postgres://usuario:senha@localhost:5432/wms',
+        }.items():
+            monkeypatch.setenv(chave, valor)
+
+        piloto = importlib.reload(importlib.import_module('config.settings.piloto'))
+
+        assert (
+            piloto.STORAGES['staticfiles']['BACKEND']
+            == 'apps.core.staticfiles.EstaticosComHash'
+        )
+
     def test_a_fonte_do_tailwind_fica_fora_da_reescrita(self):
         """`input.css` começa com `@import "tailwindcss"`, que não é caminho de
         arquivo: o `collectstatic` morria com

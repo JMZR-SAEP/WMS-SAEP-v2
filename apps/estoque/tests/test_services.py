@@ -2278,11 +2278,16 @@ class TestMensagemDeSaldoInsuficiente:
                 origem=OrigemMovimentacaoEstoque.de_requisicao(requisicao_autorizavel),
             )
 
+        # A frase inteira, e não os números soltos: `'99999' in mensagem` aceita
+        # `99999.000`, ou seja, passa também quando a mensagem volta a expor o
+        # `Decimal` cru — que é exatamente a regressão que este teste existe
+        # para pegar. A unidade entra pelo mesmo motivo: quantidade sem unidade
+        # não diz se sobram 4530 quilos ou 4530 caixas.
         mensagem = str(exc.value)
-        assert 'MAT-777' in mensagem
-        assert 'Parafuso sextavado' in mensagem
-        assert '99999' in mensagem
-        assert '4530' in mensagem
+        assert mensagem == (
+            'Saldo insuficiente: MAT-777 — Parafuso sextavado '
+            'pede 99999 un e há 4530 un disponíveis.'
+        )
         # E o identificador que a tela precisa para APONTAR o item, não só
         # descrevê-lo.
         assert exc.value.detalhes['material_id'] == material.pk

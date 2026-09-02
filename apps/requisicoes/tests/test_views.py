@@ -1389,7 +1389,13 @@ def test_retornar_rascunho_chefe_do_setor_pode_devolver(
             'requisicoes:retornar_rascunho', kwargs={'pk': req_enviada_solicitante.pk}
         )
     )
-    assert response.status_code in (302, 204)
+    # O POST não manda `HX-Request`, então `htmx_redirect` faz `redirect(url)` e
+    # o status é sempre 302. Aceitar 204 deixava uma regressão trocar o PRG
+    # nativo por uma resposta sem `Location` sem ficar vermelha.
+    assert response.status_code == 302
+    assert response.url == reverse(
+        'requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk}
+    )
     req_enviada_solicitante.refresh_from_db()
     assert req_enviada_solicitante.estado == EstadoRequisicao.RASCUNHO
 
@@ -5980,12 +5986,28 @@ class TestEntregueLiquidaVisivelParaQuemLe:
 
     @pytest.mark.django_db
     def test_beneficiario_ve_a_liquida_e_o_que_voltou(
-        self, client, superuser, chefe_obras, setor_obras, material_disponivel
+        self,
+        client,
+        superuser,
+        solicitante,
+        chefe_obras,
+        setor_obras,
+        material_disponivel,
     ):
+        """O ator do GET tem de ser quem a regressão escondia.
+
+        Com `superuser` o teste passava dos dois lados: ele acumula criador,
+        beneficiário e almoxarife, logo tem `REGISTRAR_DEVOLUCAO` e `ESTORNAR`
+        em `acoes_disponiveis` e cairia dentro do ramo antigo. O solicitante é
+        beneficiário e não tem nenhuma das duas.
+
+        `chefe_obras` continua na assinatura como pré-condição, não como ator: o
+        envio exige setor com chefe ativo.
+        """
         req = self._atendida_com_devolucao(
-            superuser, setor_obras, material_disponivel, superuser
+            solicitante, setor_obras, material_disponivel, superuser
         )
-        _login(client, superuser)
+        _login(client, solicitante)
         html = client.get(
             reverse('requisicoes:detalhe', kwargs={'pk': req.pk})
         ).content.decode('utf-8')
