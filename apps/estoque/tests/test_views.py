@@ -3255,6 +3255,41 @@ class TestHistoricoMovimentacoesView:
         )
         assert 'Filtre por' in html
 
+    def test_link_da_origem_respeita_o_escopo_do_detalhe(
+        self, client, chefe_almoxarifado, movimentacao_requisicao_rascunho
+    ):
+        """Ver a LINHA e poder abrir o DOCUMENTO não são a mesma permissão.
+
+        O almoxarifado enxerga o ledger inteiro, inclusive movimentações de
+        rascunho de terceiro; `requisicoes_visiveis_para` — o escopo que o
+        detalhe usa — exclui esses rascunhos. O link incondicional levava a 404.
+        """
+        from django.urls import reverse as _reverse
+
+        req = movimentacao_requisicao_rascunho.requisicao
+        destino = _reverse('requisicoes:detalhe', kwargs={'pk': req.pk})
+
+        client.force_login(chefe_almoxarifado)
+        html = client.get(URL_MOVIMENTACOES).content.decode()
+
+        # A linha continua no ledger, com o número legível.
+        assert req.numero_publico in html
+        # Mas sem link, porque o destino não existe para quem está olhando.
+        assert f'href="{destino}' not in html
+        assert client.get(destino).status_code == 404
+
+    def test_link_da_origem_existe_quando_a_requisicao_esta_no_escopo(
+        self, client, chefe_almoxarifado, requisicao_autorizada
+    ):
+        """O caso normal não pode ter sido perdido junto com o rascunho."""
+        from django.urls import reverse as _reverse
+
+        req, _item = requisicao_autorizada
+        destino = _reverse('requisicoes:detalhe', kwargs={'pk': req.pk})
+        client.force_login(chefe_almoxarifado)
+        html = client.get(URL_MOVIMENTACOES).content.decode()
+        assert f'href="{destino}' in html
+
     def test_comentarios_dos_partials_nao_vazam_para_a_tela(
         self, client, superuser, requisicao_autorizada
     ):

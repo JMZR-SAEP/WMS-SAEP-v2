@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
-from django.db.models import Count, Q, QuerySet
+from django.db.models import Count, Exists, OuterRef, Q, QuerySet
 
 from apps.accounts.models import User
 from apps.accounts.papeis import papel_efetivo
@@ -429,15 +429,33 @@ def movimentacoes_visiveis_para(ator_id: int) -> QuerySet[MovimentacaoEstoque]:
 
     Saída excepcional (``requisicao`` nulo) fica fora do ramo de setor por
     construção: nenhum dos termos do predicado casa com requisição nula.
+
+    ``requisicao_no_escopo`` acompanha cada linha porque LISTAR o metadado e
+    poder ABRIR o documento não são a mesma permissão para o almoxarifado: ele
+    vê o ledger inteiro, inclusive movimentações de rascunho de terceiro, e
+    ``requisicoes_visiveis_para`` — o escopo que ``detalhe_requisicao_view``
+    usa — exclui esses rascunhos. Sem a marca, o template linkava o número e o
+    clique caía em 404. Quem decide continua sendo o selector de requisições,
+    não o template.
     """
-    base_qs = MovimentacaoEstoque.objects.select_related(
-        'material',
-        'estoque',
-        'ator',
-        'requisicao',
-        'requisicao__setor_beneficiario',
-        'saida_excepcional',
-    ).order_by('-criado_em')
+    from apps.requisicoes.selectors import requisicoes_visiveis_para
+
+    base_qs = (
+        MovimentacaoEstoque.objects.select_related(
+            'material',
+            'estoque',
+            'ator',
+            'requisicao',
+            'requisicao__setor_beneficiario',
+            'saida_excepcional',
+        )
+        .annotate(
+            requisicao_no_escopo=Exists(
+                requisicoes_visiveis_para(ator_id).filter(pk=OuterRef('requisicao_id'))
+            )
+        )
+        .order_by('-criado_em')
+    )
 
     try:
         ator = User.objects.get(pk=ator_id)
