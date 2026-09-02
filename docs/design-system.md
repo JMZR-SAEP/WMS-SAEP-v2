@@ -981,10 +981,25 @@ Verificado por `apps/requisicoes/tests/test_painel_decisao.py`.
 Se o componente precisa de um parâmetro que descreve **conteúdo** e não
 estrutura, a abstração está errada. Parar e registrar, não generalizar.
 
+## Exceções abertas ao piso de contraste
+
+Uma exceção viva que não está escrita aqui é uma regra que já não vale, e o
+documento não pode ser o último a saber. Cada linha carrega a medição, o motivo
+e o que a encerra.
+
+| Token | Medido sobre branco | Piso | Por que segue aberta | Encerra quando |
+|---|---|---|---|---|
+| `warning-outline` (borda) | 1,45:1 | 3:1 | A família âmbar não tem nenhum token de borda que passe — `amber-500`, o mais escuro da escala em uso, dá 2,15:1. Fechar exige um token novo fora da escala, o que é decisão de paleta e não de componente. | Existir um token de borda âmbar ≥ 3:1, ou a variante deixar de existir. Medido em 2026-08-28 (Etapa 6) e reconfirmado na Etapa 8. |
+
+As irmãs `danger-outline` (1,92:1) e `return-outline` (1,26:1) **não** são
+exceção: elas reprovavam junto, e a Etapa 6 as corrigiu. Registro completo em
+`docs/plans/audit-frontend-restante.md`, Etapa 6.
+
 ## Checklist de revisão — acessibilidade
 
 ```
 [ ] Contraste de texto ≥ 4.5:1; borda que identifica controle ≥ 3:1
+    (exceções abertas: ver §Exceções abertas ao piso de contraste)
 [ ] Todo controle interativo tem focus-visible
 [ ] Botão em carregamento usa aria-busy
 [ ] Campo com erro usa aria-invalid + aria-describedby

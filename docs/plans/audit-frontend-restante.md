@@ -5,9 +5,9 @@ auditadas (blocos 1–4 de requisições/auth + blocos A–D de estoque/notifica
 o que sobrou: a camada de tokens, os componentes compartilhados, os partials de domínio e o
 comportamento em JS.
 
-> Nota de contagem: este plano falava em "19 telas full-page" desde o começo. A Etapa 8 recontou o
-> inventário de `templates/` fora de `partials/` e achou **20** — `copiar_confirmacao.html` não
-> tinha entrado na conta original. As 20 foram varridas.
+Nota de contagem: este plano falava em "19 telas full-page" desde o começo. A Etapa 8 recontou o
+inventário de `templates/` fora de `partials/` e achou **20** — `copiar_confirmacao.html` não
+tinha entrado na conta original. As 20 foram varridas.
 
 > **PLANO CONCLUÍDO (2026-09-01).** As nove etapas fecharam. Nada aqui é trabalho pendente — o
 > documento vira registro do que foi medido, decidido e corrigido. O que sobrou está em "Depois do
@@ -180,7 +180,9 @@ própria".
   `warning-outline` 1,45:1, `return-outline` 1,26:1, contra os 4,77:1 do `secondary`. Quatro dos
   cinco gatilhos de workflow do detalhe usavam as variantes reprovadas — as ações destrutivas eram
   os controles menos visíveis da página. `warning-outline` ficou como exceção documentada: a família
-  âmbar não tem nenhum token de borda que passe (amber-500 dá 2,15:1).
+  âmbar não tem nenhum token de borda que passe (amber-500 dá 2,15:1). A exceção vive em
+  `docs/design-system.md`, §Exceções abertas ao piso de contraste, com a medição e o critério de
+  encerramento — este plano registra que ela foi aberta, o contrato registra que ela segue aberta.
 - **O estorno usava o vocabulário de perigo**, com a contradição escrita no próprio
   `_modal_icon.html`. Migrado para `return` nas quatro superfícies.
 - **O recap da retirada omitia o que faz uma entrega estar errada:** linhas parciais, justificativa
@@ -257,7 +259,7 @@ Efeito colateral que vale registro: a lista `divida_etapa_7` de
 `test_nenhum_rotulo_de_campo_escrito_a_mao` nomeava esta etapa como dona e mandava sumir quando ela
 fechasse. **Fechou** — o guarda vale para `apps/` inteiro agora, sem escotilha.
 
-### P0/P1 que sobraram — as quatro issues fechadas
+### P0/P1/P2 que sobraram — as quatro issues fechadas
 
 Viraram issue própria em vez de entrar em `/impeccable polish`, porque o escopo passava de
 front-end. Todas fechadas até 2026-09-01:
@@ -273,8 +275,8 @@ front-end. Todas fechadas até 2026-09-01:
 A #164 merece nota: a Etapa 8 remediu a legenda do preview e o desencontro **ainda estava lá** — os
 swatches em `bg-warning-muted`/`bg-primary-muted` (shade 100, rgb(254,243,198) e rgb(219,234,254))
 contra cartões em `-subtle` (shade 50, rgb(255,251,235) e rgb(239,246,255)). O que a #164 fechou foi
-a hierarquia da recapitulação; o degrau da legenda sobreviveu à issue que o nomeava. É o tipo de
-achado que só uma segunda medição pega.
+a hierarquia da recapitulação; o degrau da legenda sobreviveu à issue que o nomeava e virou a
+**#167**, que carrega esse escopo restante. É o tipo de achado que só uma segunda medição pega.
 
 ### Nota de método
 
@@ -305,7 +307,7 @@ saldos crus, e com `LANGUAGE_CODE=pt-br` o `DecimalField(decimal_places=3)` saí
 pt-BR se lê *oitocentos e vinte mil* —, com o delta ao lado, no mesmo cartão, já obedecendo à
 política.
 
-**Mobile nas 19?**
+**Mobile nas 20?**
 Zero rolagem horizontal em 39 das 40 combinações medidas (a exceção: `/requisicoes/7/atender/` a
 375px ficou inalcançável depois que a requisição saiu do estado atendível). Três defeitos reais, os
 três de quebra de identidade: o número público partido em duas linhas quando o badge é longo, o
@@ -430,7 +432,7 @@ Tudo abaixo está no rastreador — o documento registra a decisão, a issue car
 | #165 | Remedir a baseline heurística | `ready-for-agent` |
 | #166 | Varredura de contraste na lane Navegador | `ready-for-agent` |
 | #167 | Legenda do preview SCPI um degrau acima dos cartões | `ready-for-agent` |
-| #168 | `input.css` fora da árvore de estáticos | `ready-for-agent` |
+| #168 | Mover `input.css` para fora da árvore de estáticos | `ready-for-agent` |
 | #169 | 257 KB em toda tela | `needs-triage` |
 | #170 | `Recusar` e `Cancelar` são duas operações? | `needs-triage` |
 | #171 | Preview SCPI com arquivo real | `needs-triage` |
