@@ -72,9 +72,12 @@ def test_lista_notificacoes_exibe_numero_publico_e_link(
 
 
 @pytest.mark.django_db
-def test_lista_notificacoes_requisicao_inexistente_mostra_fallback(
-    client_logado, solicitante
-):
+def test_lista_notificacoes_id_orfao_nao_promete_destino(client_logado, solicitante):
+    """Antes o cartão dizia "Rascunho" e linkava — para um detalhe que dá 404.
+
+    `requisicao_id` é `IntegerField` solto, sem FK: pelo valor do campo um id
+    órfão é idêntico a um rascunho, e o fallback comum apagava a diferença.
+    """
     Notificacao.objects.create(
         destinatario=solicitante,
         tipo=TipoNotificacao.ATENDIMENTO,
@@ -83,7 +86,12 @@ def test_lista_notificacoes_requisicao_inexistente_mostra_fallback(
     resp = client_logado.get('/notificacoes/')
     assert resp.status_code == 200
     html = resp.content.decode('utf-8')
-    assert 'Rascunho' in html
+
+    assert 'Rascunho' not in html
+    assert 'Ver detalhes' not in html
+    assert reverse('requisicoes:detalhe', kwargs={'pk': 999999}) not in html
+    # A notícia continua legível: o que some é a promessa de destino.
+    assert 'Sua requisição foi atendida' in html
 
 
 @pytest.mark.django_db

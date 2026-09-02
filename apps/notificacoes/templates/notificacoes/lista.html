@@ -48,7 +48,7 @@
                 tela abriu para saber o que aconteceu com o pedido dela.
               {% endcomment %}
               <h2 class="break-words text-sm font-semibold text-text-primary">
-                {% if notificacao.requisicao_id %}
+                {% if notificacao.requisicao_existe %}
                   <a
                     href="{% url 'requisicoes:detalhe' pk=notificacao.requisicao_id %}?next={{ request.get_full_path|urlencode }}"
                     data-cartao-link
@@ -68,7 +68,7 @@
             {% endif %}
           </div>
 
-          {% if notificacao.requisicao_id %}
+          {% if notificacao.requisicao_existe %}
             {# Rótulo rebaixado (issue #158): `Rótulo: valor` inline, sem caixa alta, `<dl>/<dt>/<dd>` preservado. #}
             <dl class="mt-4 space-y-1 text-sm">
               <div class="flex gap-x-2">
@@ -81,11 +81,13 @@
           <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
             {% comment %}
               Afordância do cartão, não um controle: o link do título já carrega
-              o nome acessível. Só onde existe destino — `requisicao_id` é
-              anulável, e prometer "Ver detalhes" num cartão que não leva a
-              lugar nenhum é afordância sem destino.
+              o nome acessível. Só onde existe destino: `requisicao_id` é
+              anulável E é um `IntegerField` solto, sem FK — um id órfão é
+              indistinguível de um rascunho pelo valor do campo, e prometer
+              "Ver detalhes" num cartão que leva a 404 é pior que não prometer
+              nada. Quem decide é `requisicao_existe`, do selector.
             {% endcomment %}
-            {% if notificacao.requisicao_id %}
+            {% if notificacao.requisicao_existe %}
               <p class="flex items-center gap-1 text-sm font-medium text-primary" aria-hidden="true">Ver detalhes <span>&rarr;</span></p>
             {% else %}
               <span></span>
