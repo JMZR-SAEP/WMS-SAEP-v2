@@ -66,12 +66,12 @@
             {% endcomment %}
             <label for="arquivo" class="rotulo-campo text-left">
               Arquivo CSV
-              <span class="ml-0.5 text-danger-accent" aria-hidden="true">*</span>
+              <span class="ml-0.5 text-danger-text" aria-hidden="true">*</span>
             </label>
             <p id="arquivo-ajuda" class="mb-2 text-left text-xs text-text-tertiary">
               Formato esperado: delimitado por ponto-e-vírgula, com colunas
-              <code class="rounded bg-bg-subtle px-1 font-mono" translate="no">CADPRO</code> e
-              <code class="rounded bg-bg-subtle px-1 font-mono" translate="no">QUAN3</code>.
+              <code class="rounded bg-bg-subtle px-1 font-mono text-text-secondary" translate="no">CADPRO</code> e
+              <code class="rounded bg-bg-subtle px-1 font-mono text-text-secondary" translate="no">QUAN3</code>.
             </p>
             <input
               id="arquivo"
@@ -116,7 +116,7 @@
         <div class="flex-1">
           <label for="arquivo-retry" class="rotulo-campo">
             Arquivo CSV
-            <span class="ml-0.5 text-danger-accent" aria-hidden="true">*</span>
+            <span class="ml-0.5 text-danger-text" aria-hidden="true">*</span>
           </label>
           {% comment %}
             O retry repete o formato esperado (#164): sem isto, a instrução some
@@ -126,8 +126,8 @@
           {% endcomment %}
           <p id="arquivo-retry-ajuda" class="mb-2 text-xs text-text-tertiary">
             Formato esperado: delimitado por ponto-e-vírgula, com colunas
-            <code class="rounded bg-bg-subtle px-1 font-mono" translate="no">CADPRO</code> e
-            <code class="rounded bg-bg-subtle px-1 font-mono" translate="no">QUAN3</code>.
+            <code class="rounded bg-bg-subtle px-1 font-mono text-text-secondary" translate="no">CADPRO</code> e
+            <code class="rounded bg-bg-subtle px-1 font-mono text-text-secondary" translate="no">QUAN3</code>.
           </p>
           <input
             id="arquivo-retry"
@@ -339,7 +339,7 @@
               {% elif linha.status == 'novo' %}border-primary-border bg-primary-subtle
               {% else %}border-border bg-surface{% endif %}"
           >
-            <div class="flex items-start justify-between gap-3">
+            <div class="flex flex-wrap items-start justify-between gap-3">
               <code class="font-mono text-sm font-semibold text-text-primary">{{ linha.cadpro }}</code>
               <span class="shrink-0">
                 {% if linha.status == 'ok' %}
@@ -390,11 +390,11 @@
               {% endcomment %}
               <div>
                 <dt class="text-xs font-medium uppercase tracking-wide text-text-secondary">WMS</dt>
-                <dd class="mt-0.5 font-mono tabular-nums text-text-primary">{{ linha.saldo_wms|formatar_quantidade:linha.unidade }}</dd>
+                <dd class="mt-0.5">{% include "components/quantidade.html" with valor=linha.saldo_wms unidade=linha.unidade esquerda=True %}</dd>
               </div>
               <div>
                 <dt class="text-xs font-medium uppercase tracking-wide text-text-secondary">SCPI</dt>
-                <dd class="mt-0.5 font-mono tabular-nums text-text-primary">{{ linha.saldo_scpi|formatar_quantidade:linha.unidade }}</dd>
+                <dd class="mt-0.5">{% include "components/quantidade.html" with valor=linha.saldo_scpi unidade=linha.unidade esquerda=True %}</dd>
               </div>
               <div>
                 <dt class="text-xs font-medium uppercase tracking-wide text-text-secondary">Delta</dt>

@@ -65,6 +65,19 @@ def test_botao_remover_tem_hook_estavel_para_o_js():
     assert 'data-remover-item' in _render()
 
 
+def test_a_linha_nomeia_o_evento_que_o_autocomplete_emite():
+    """O nome do evento é de quem instancia, não do componente genérico.
+
+    `autocomplete` atende as buscas de beneficiário E de material. Enquanto ele
+    emitia `material-selecionado` em toda seleção, um combobox de pessoa
+    despachava um evento de material — e um listener acima receberia o objeto
+    errado sem erro nenhum no console.
+    """
+    html = _render()
+    assert "eventoSelecao: 'material-selecionado'" in html
+    assert '@material-selecionado=' in html
+
+
 def test_saldo_exibe_a_unidade_e_a_precisao_da_unidade():
     """Quantidade sem unidade não é informação.
 
@@ -80,7 +93,7 @@ def test_saldo_exibe_a_unidade_e_a_precisao_da_unidade():
             'unidade': 'kg',
         }
     )
-    assert 'Saldo disponível: 12.5 kg' in html
+    assert 'Saldo disponível: 12,5 kg' in html
 
 
 def test_saldo_de_material_inelegivel_tambem_leva_unidade():

@@ -1,0 +1,65 @@
+{% comment %}
+Componente global de quantidade: número + unidade colada + referência opcional.
+
+Existe porque a quantidade é o dado que este produto existe para controlar e,
+até a Etapa 8, ela recebia tratamento tipográfico em **um** lugar — o modal de
+retirada. Em todo o resto ela era corpo de 14px igual ao rótulo ao lado, o que
+produzia dois defeitos medidos:
+
+1. **A coluna não alinhava.** No catálogo, a 1440px, os três valores da
+   recapitulação começavam em x=330, x=361 e x=360 dentro do mesmo cartão,
+   porque cada um vinha depois de um rótulo inline de largura diferente
+   (`Físico:` 41px, `Reservado:` 72px, `Disponível:` 71px). `tabular-nums` não
+   tinha o que alinhar — ele alinha dígito com dígito, não parágrafo com
+   parágrafo. Aqui o número mora num slot próprio, alinhado à direita, e a
+   unidade num slot à esquerda com largura mínima: os dígitos terminam no mesmo
+   x e as unidades começam no mesmo x, mesmo quando o rótulo muda de largura.
+2. **A unidade se soltava do número.** O detalhe da requisição imprimia
+   `Unidade` como um `<p>` três linhas acima do valor, o catálogo imprimia `un`
+   colado, e a tela de atendimento não imprimia nenhuma. Três renderizações da
+   mesma grandeza em três telas do mesmo fluxo.
+
+A forma vem do modal `Confirmar registro de retirada?`, que já a tinha provado:
+número com peso, unidade colada em cinza de metadado, referência abaixo em
+menor. O que muda aqui é que ela deixa de ser marcação de uma tela e vira
+componente.
+
+Parâmetros:
+  valor          (obrigatório) Decimal ou None. `None` renderiza o travessão.
+  unidade        (obrigatório) o **código** da unidade (`un`, `kg`, `m2`) — é
+                 ele que escolhe a precisão via `formatar_quantidade`. String
+                 vazia degrada para casa significativa, que é o caso do SCPI
+                 (o CSV não informa unidade).
+  unidade_label  (opcional) o texto visível da unidade. Default: o próprio
+                 código. Passe `material.get_unidade_display` quando a tela
+                 quiser a forma por extenso.
+  referencia     (opcional) linha abaixo, em `text-xs`: `de 150 autorizada`.
+  destaque       (opcional, bool) número em 16px semibold em vez de 14px medium.
+                 Reservado ao momento de confirmação — não à listagem, onde a
+                 densidade manda.
+  tom            (opcional) `warning` ou `danger` pintam o número; ausente = grafite.
+  esquerda       (opcional, bool) alinha o bloco à esquerda. Default é à direita,
+                 que é o que forma coluna.
+  sr_prefixo     (opcional) texto `sr-only` antes do número, quando o rótulo
+                 visível não é lido junto.
+
+`translate="no"`: número com unidade traduzido automaticamente vira outro número.
+
+Uso:
+  {% include "components/quantidade.html" with valor=saldo.saldo_fisico unidade=saldo.material.unidade %}
+  {% include "components/quantidade.html" with valor=item.quantidade_entregue unidade=item.material.unidade unidade_label=item.material.get_unidade_display referencia=ref destaque=True %}
+{% endcomment %}
+{% load core_tags %}
+<span
+  class="inline-flex items-baseline gap-1 {% if esquerda %}justify-start{% else %}justify-end{% endif %}"
+  translate="no"
+>
+  {% if sr_prefixo %}<span class="sr-only">{{ sr_prefixo }}</span>{% endif %}
+  <span class="text-right tabular-nums whitespace-nowrap {% if destaque %}text-base font-semibold{% else %}font-medium{% endif %} {% if tom == 'warning' %}text-warning-text{% elif tom == 'danger' %}text-danger-text{% else %}text-text-primary{% endif %}">{{ valor|formatar_quantidade:unidade }}</span>
+  {% if unidade_label or unidade %}
+    <span class="min-w-8 text-left text-text-tertiary {% if destaque %}text-sm{% else %}text-xs{% endif %}">{{ unidade_label|default:unidade }}</span>
+  {% endif %}
+</span>
+{% if referencia %}
+  <span class="mt-0.5 block text-xs text-text-tertiary {% if esquerda %}text-left{% else %}text-right{% endif %}">{{ referencia }}</span>
+{% endif %}

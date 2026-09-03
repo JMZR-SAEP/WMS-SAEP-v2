@@ -97,7 +97,7 @@
       {% include "components/table.html#cards_abertura" %}
         {% for mov in page_obj.object_list %}
           {% include "components/table.html#card_abertura" %}
-            <div class="flex items-start justify-between gap-3">
+            <div class="flex flex-wrap items-start justify-between gap-3">
               {% include 'estoque/partials/_badge_tipo_movimentacao.html' with tipo=mov.tipo rotulo=mov.get_tipo_display %}
               <p class="shrink-0 text-xs text-text-tertiary">{{ mov.criado_em|date:"d/m/Y H:i" }}</p>
             </div>
@@ -148,11 +148,38 @@
                   <dd class="mt-0.5">{% include 'estoque/partials/_delta_movimentacao.html' with valor=mov.delta_reservado unidade=mov.material.unidade %}</dd>
                 </div>
               </div>
-              <div class="mt-3 grid grid-cols-2 gap-3">
+              <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div class="flex gap-x-2">
+                  {% comment %}
+                    A origem vira link. `REQ-2026-000005` já É a identidade do
+                    documento que causou a movimentação — imprimi-la como texto
+                    obrigava a guardar o número e digitá-lo em outra tela, e
+                    fazia o livro-razão terminar em beco justamente na coluna
+                    que explica cada linha. Só quando a permissão do destino
+                    existe: `detalhe_saida_excepcional_view` exige
+                    `pode_consultar_saidas_excepcionais`, e um link
+                    incondicional levaria a um 403 — o mesmo cuidado que o
+                    detalhe da requisição já toma com a timeline da EST-07.
+
+                    A requisição tem o mesmo cuidado, por um motivo diferente:
+                    ver a LINHA e poder abrir o DOCUMENTO não são a mesma
+                    permissão. O almoxarifado enxerga o ledger inteiro,
+                    inclusive movimentações de rascunho de terceiro, e o escopo
+                    de `detalhe_requisicao_view` exclui esses rascunhos — o link
+                    incondicional caía em 404. `requisicao_no_escopo` vem do
+                    selector, que é onde a decisão de visibilidade mora.
+                  {% endcomment %}
                   <dt class="shrink-0 text-text-tertiary">Origem:</dt>
                   <dd class="min-w-0 text-text-primary">
-                    {% if mov.requisicao_id %}{{ mov.requisicao.numero_publico|default:"—" }}{% else %}{{ mov.saida_excepcional.numero_publico|default:"—" }}{% endif %}
+                    {% if mov.requisicao_id and mov.requisicao_no_escopo %}
+                      <a href="{% url 'requisicoes:detalhe' pk=mov.requisicao_id %}?next={{ request.get_full_path|urlencode }}" data-cartao-link class="rounded-sm focus-visible:outline-none" aria-label="Ver a requisição {{ mov.requisicao.numero_publico }}, origem deste lançamento">{{ mov.requisicao.numero_publico|default:"—" }}</a>
+                    {% elif mov.requisicao_id %}
+                      {{ mov.requisicao.numero_publico|default:"—" }}
+                    {% elif mov.saida_excepcional_id and pode_consultar_saidas_excepcionais %}
+                      <a href="{% url 'estoque:detalhe_saida_excepcional' pk=mov.saida_excepcional_id %}?next={{ request.get_full_path|urlencode }}" data-cartao-link class="rounded-sm focus-visible:outline-none" aria-label="Ver a saída excepcional {{ mov.saida_excepcional.numero_publico }}, origem deste lançamento">{{ mov.saida_excepcional.numero_publico|default:"—" }}</a>
+                    {% else %}
+                      {{ mov.saida_excepcional.numero_publico|default:"—" }}
+                    {% endif %}
                   </dd>
                 </div>
                 <div class="flex gap-x-2">
@@ -161,6 +188,17 @@
                 </div>
               </div>
             </dl>
+
+            {% comment %}
+              Afordância do cartão, não um controle — o link da origem já
+              carrega o nome acessível. Sem ela o cartão passou a ser clicável
+              sem dizer isso: a origem é um valor dentro de um `<dl>`, não um
+              título, e nada na tela indicava que ali havia para onde ir. As
+              outras seis listagens navegáveis têm esta linha.
+            {% endcomment %}
+            {% if mov.requisicao_id and mov.requisicao_no_escopo or mov.saida_excepcional_id and pode_consultar_saidas_excepcionais %}
+              <p class="mt-4 flex items-center gap-1 text-sm font-medium text-primary" aria-hidden="true">Ver a origem <span>&rarr;</span></p>
+            {% endif %}
           </article>
         {% endfor %}
       </div>

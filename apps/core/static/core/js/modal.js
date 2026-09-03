@@ -358,6 +358,68 @@
           celula.textContent = valor === '' ? '—' : valor;
         });
 
+        // Espelho genérico de um campo de texto ou select. `retirante` acima é
+        // o caso nomeado que veio primeiro; este atende qualquer outro sem
+        // pedir um atributo novo por campo. Em `<select>` mostra o RÓTULO da
+        // opção, não o `value`: `avaria` não é o que a pessoa leu na tela.
+        dialog.querySelectorAll('[data-resumo-texto-de]').forEach((celula) => {
+          const campo = campoDe(celula, 'data-resumo-texto-de');
+          if (!campo) {
+            return;
+          }
+          let valor = campo.value.trim();
+          if (campo.tagName === 'SELECT' && campo.selectedIndex >= 0) {
+            valor = campo.options[campo.selectedIndex].text.trim();
+          }
+          celula.textContent = valor === '' ? '—' : valor;
+        });
+
+        // Recapitulação de linhas DINÂMICAS. O resumo do atendimento espelha
+        // campos de id conhecido, porque lá as linhas vêm do banco e não mudam.
+        // Aqui elas são criadas e removidas no cliente, então não há id a
+        // apontar: o resumo é reconstruído a partir das linhas visíveis, na
+        // abertura. `data-unidade` é escrito pelo escopo `saldoLinha` no
+        // momento da seleção — sem ele a recapitulação repetiria o número sem
+        // dizer de quê, que é o defeito que ela existe para fechar.
+        dialog.querySelectorAll('[data-resumo-linhas-de]').forEach((alvo) => {
+          const seletor = alvo.getAttribute('data-resumo-linhas-de');
+          const container = document.querySelector(seletor);
+          if (!container) {
+            console.error(`modal ${this.id}: container ${seletor} nao encontrado`);
+            return;
+          }
+          const linhas = Array.from(
+            container.querySelectorAll('.item-form-row')
+          ).filter((linha) => linha.style.display !== 'none');
+          alvo.replaceChildren();
+          linhas.forEach((linha) => {
+            const rotulo = (linha.dataset.material || '').trim();
+            const campoQtd = linha.querySelector('input[type="number"]');
+            const quantidade = campoQtd ? campoQtd.value.trim() : '';
+            if (!rotulo && !quantidade) {
+              return;
+            }
+            const div = document.createElement('div');
+            div.className =
+              'flex items-baseline justify-between gap-4 px-3 py-2';
+            const dt = document.createElement('dt');
+            dt.className = 'min-w-0 text-text-secondary';
+            dt.textContent = rotulo || '—';
+            const dd = document.createElement('dd');
+            dd.className = 'shrink-0 text-right tabular-nums';
+            dd.setAttribute('translate', 'no');
+            const numero = document.createElement('span');
+            numero.className = 'text-base font-semibold text-text-primary';
+            numero.textContent = quantidade === '' ? '—' : quantidade;
+            const unidade = document.createElement('span');
+            unidade.className = 'ml-1 text-sm text-text-tertiary';
+            unidade.textContent = linha.dataset.unidade || '';
+            dd.append(numero, unidade);
+            div.append(dt, dd);
+            alvo.append(div);
+          });
+        });
+
         // Parcial é a mesma conta que a linha do formulário faz (`entregue <
         // autorizada`), e não um segundo critério: o formulário decide com ela
         // se a justificativa é obrigatória, e o resumo tem de concordar. Valor

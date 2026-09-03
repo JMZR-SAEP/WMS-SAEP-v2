@@ -1,6 +1,7 @@
 """Testes de view para estoque.saidas_excepcionais."""
 
 import re
+from decimal import Decimal
 from pathlib import Path
 
 from django.urls import reverse
@@ -110,18 +111,18 @@ class TestListarSaidasExcepcionaisView:
         response = client.get(URL)
         assert 'saidas' in response.context
 
-    def test_botao_ver_detalhe_preserva_aria_label(
+    def test_botao_ver_detalhes_preserva_aria_label(
         self, client, chefe_almoxarifado, saida_registrada
     ):
         client.force_login(chefe_almoxarifado)
         response = client.get(URL)
         html = response.content.decode('utf-8')
         assert (
-            f'aria-label="Ver detalhe da saída {saida_registrada.numero_publico}"'
+            f'aria-label="Ver detalhes da saída {saida_registrada.numero_publico}"'
             in html
         )
 
-    def test_botao_ver_detalhe_fallback_pk_sem_numero_publico(
+    def test_botao_ver_detalhes_fallback_pk_sem_numero_publico(
         self, client, chefe_almoxarifado, saida_registrada
     ):
         saida_registrada.numero_publico = ''
@@ -129,7 +130,28 @@ class TestListarSaidasExcepcionaisView:
         client.force_login(chefe_almoxarifado)
         response = client.get(URL)
         html = response.content.decode('utf-8')
-        assert f'aria-label="Ver detalhe da saída {saida_registrada.pk}"' in html
+        assert f'aria-label="Ver detalhes da saída {saida_registrada.pk}"' in html
+
+    def test_lista_populada_oferece_a_acao_de_registrar(
+        self, client, chefe_almoxarifado, saida_registrada
+    ):
+        """O único link para `saidas-excepcionais/nova/` vivia dentro do estado
+        vazio — sumia no primeiro registro e não voltava, e a side nav não o
+        tem. Depois da primeira saída não havia caminho pela interface para
+        registrar a segunda."""
+        client.force_login(chefe_almoxarifado)
+        html = client.get(URL).content.decode('utf-8')
+        assert html.count('/estoque/saidas-excepcionais/nova/') >= 1
+        assert 'Nova saída excepcional' in html
+
+    def test_acao_de_registrar_respeita_a_policy(
+        self, client, aux_almoxarifado, saida_registrada
+    ):
+        """Só o chefe de almoxarifado registra saída excepcional; o auxiliar vê
+        a lista e não pode a ação."""
+        client.force_login(aux_almoxarifado)
+        html = client.get(URL).content.decode('utf-8')
+        assert '/estoque/saidas-excepcionais/nova/' not in html
 
     def test_empty_state_cta_delega_para_componente_button(
         self, client, chefe_almoxarifado
@@ -178,6 +200,45 @@ class TestListarSaidasExcepcionaisView:
         assert 'Nenhuma saída excepcional registrada' in html
         assert 'Não há saídas excepcionais no sistema.' in html
         assert reverse('estoque:nova_saida_excepcional') not in html
+
+    def test_paginacao_preserva_a_ordem_ativa(
+        self,
+        client,
+        chefe_almoxarifado,
+        estoque_principal,
+        material_disponivel,
+        monkeypatch,
+    ):
+        """A página 2 de `?ordem=asc` voltava para a ordem descendente padrão.
+
+        A view calculava `querystring_filtros` e não o expunha ao contexto, e o
+        template não o repassava ao componente: os links nasciam `?page=2`, sem
+        o recorte ativo. `per_page` de 1 evita criar 26 saídas para provar isso.
+        """
+        from decimal import Decimal
+
+        from apps.estoque import views as estoque_views
+        from apps.estoque.services import registrar_saida_excepcional
+
+        for _ in range(2):
+            registrar_saida_excepcional(
+                ator_id=chefe_almoxarifado.pk,
+                estoque_id=estoque_principal.pk,
+                motivo='avaria',
+                observacao='',
+                itens=[
+                    {
+                        'material_id': material_disponivel.pk,
+                        'quantidade': Decimal('1'),
+                    }
+                ],
+            )
+        monkeypatch.setattr(estoque_views, 'PAGINA_SAIDAS_EXCEPCIONAIS_TAMANHO', 1)
+
+        client.force_login(chefe_almoxarifado)
+        response = client.get(URL, {'ordem': 'asc'})
+        assert response.context['querystring_filtros'] == 'ordem=asc'
+        assert 'href="?ordem=asc&amp;page=2"' in response.content.decode()
 
 
 URL_NOVA = reverse('estoque:nova_saida_excepcional')
@@ -1956,6 +2017,68 @@ class TestConfirmarImportacaoScpiView:
         assert resp.status_code == 200
         assert ImportacaoSCPI.objects.count() == antes
 
+    def _csv_divergente(self, material, quantidade_scpi: str) -> bytes:
+        """CSV que discorda do saldo já gravado para `material` no WMS."""
+        return (
+            f'CADPRO;DENOMINACAO;QUAN3\n'
+            f'{material.codigo};{material.nome};{quantidade_scpi}\n'
+        ).encode('utf-8')
+
+    def test_cta_das_divergencias_nomeia_verbo_e_contagem(
+        self, client, superuser, estoque_principal
+    ):
+        """`"Ver as "|add:2` devolvia `""` e o rótulo saía como " divergências".
+
+        O filtro `add` do Django tenta `int(value) + int(arg)` e, ao falhar,
+        `value + arg`; com um `int` do outro lado a soma de string levanta
+        TypeError e o filtro devolve `""` em silêncio. Justamente no botão que a
+        #161 criou para entregar a lista ao chefe de almoxarifado.
+        """
+        from apps.estoque.models import Material, SaldoEstoque
+
+        for i, cadpro in enumerate(('000.777.001', '000.777.002'), start=1):
+            material = Material.objects.create(
+                codigo=cadpro, nome=f'Material {i}', unidade='un'
+            )
+            SaldoEstoque.objects.create(
+                material=material,
+                estoque=estoque_principal,
+                saldo_fisico=Decimal('100.000'),
+                saldo_reservado=Decimal('0.000'),
+            )
+
+        csv_bytes = (
+            'CADPRO;DENOMINACAO;QUAN3\n'
+            '000.777.001;Material 1;90\n'
+            '000.777.002;Material 2;80\n'
+        ).encode('utf-8')
+        self._seed_session(client, superuser, csv_bytes)
+        resp = client.post(self.URL, {}, follow=True)
+        html = resp.content.decode()
+        assert 'Ver as 2 divergências' in html
+        assert '> divergências<' not in html.replace('\n', '')
+
+    def test_saldos_da_divergencia_nao_saem_com_virgula_de_milhar(
+        self, client, superuser, estoque_principal
+    ):
+        """`820,000` em pt-BR se lê *oitocentos e vinte mil*."""
+        from apps.estoque.models import Material, SaldoEstoque
+
+        material = Material.objects.create(
+            codigo='000.777.010', nome='Eletroduto', unidade='un'
+        )
+        SaldoEstoque.objects.create(
+            material=material,
+            estoque=estoque_principal,
+            saldo_fisico=Decimal('820.000'),
+            saldo_reservado=Decimal('0.000'),
+        )
+        self._seed_session(client, superuser, self._csv_divergente(material, '750'))
+        resp = client.post(self.URL, {}, follow=True)
+        html = resp.content.decode()
+        assert '820,000' not in html
+        assert '750,000' not in html
+
     def test_htmx_sucesso_devolve_204_com_hx_redirect(
         self, client, superuser, estoque_principal
     ):
@@ -2142,6 +2265,33 @@ class TestHistoricoImportacoesScpiView:
         assert f'>{rotulo}</h1>' in html
         assert f'<title>{rotulo} — WMS-SAEP</title>' in html
         assert 'Importação SCPI — Histórico' not in html
+
+    def test_nova_importacao_so_aparece_para_quem_pode_importar(
+        self, client, superuser, chefe_almoxarifado
+    ):
+        """A tela é visível ao chefe de almoxarifado; o preview, não.
+
+        `pode_consultar_historico_scpi` inclui o chefe de almoxarifado e
+        `pode_visualizar_preview_scpi` é só superusuário. O botão saía
+        incondicional, então o chefe via a ação, clicava e caía num 403 —
+        interface oferecendo o que o domínio recusa.
+        """
+        client.force_login(superuser)
+        html_super = client.get(self.URL).content.decode()
+        assert 'Nova importação' in html_super
+
+        client.force_login(chefe_almoxarifado)
+        html_chefe = client.get(self.URL).content.decode()
+        assert 'Nova importação' not in html_chefe
+        assert '/estoque/importacao-scpi/pre-visualizacao/' not in html_chefe
+
+    def test_lista_vazia_usa_o_componente_de_estado_vazio(self, client, superuser):
+        """Frase cinza solta era o estado vazio fora do componente — as outras
+        seis listagens usam `empty_state.html`."""
+        client.force_login(superuser)
+        html = client.get(self.URL).content.decode()
+        assert 'Nenhuma importação registrada' in html
+        assert 'border-dashed' in html
 
     def test_exibe_metadados_da_importacao(self, client, superuser, estoque_principal):
         from apps.estoque.models import ImportacaoSCPI, StatusImportacaoSCPI
@@ -2655,6 +2805,62 @@ URL_MATERIAIS = reverse('estoque:lista_materiais')
 
 
 class TestListaMateriaisView:
+    def test_ordena_pelo_codigo_que_o_cartao_destaca(
+        self, client, chefe_almoxarifado, estoque_principal
+    ):
+        """O cartão imprime o código como `<h2>` semibold e o nome como linha
+        secundária em cinza. Ordenar por nome deixava a única coluna em destaque
+        aparentemente embaralhada — a chave de ordenação tem de ser a que a
+        hierarquia visual promete."""
+        from apps.estoque.models import Material, SaldoEstoque
+
+        for codigo, nome in (
+            ('MAT-900', 'Areia média lavada'),
+            ('MAT-100', 'Zinco em pó'),
+            ('MAT-500', 'Cimento Portland'),
+        ):
+            material = Material.objects.create(codigo=codigo, nome=nome, unidade='un')
+            SaldoEstoque.objects.create(
+                material=material,
+                estoque=estoque_principal,
+                saldo_fisico=Decimal('1.000'),
+                saldo_reservado=Decimal('0.000'),
+            )
+
+        client.force_login(chefe_almoxarifado)
+        html = client.get(URL_MATERIAIS).content.decode('utf-8')
+        posicoes = [html.index(c) for c in ('MAT-100', 'MAT-500', 'MAT-900')]
+        assert posicoes == sorted(posicoes)
+
+    def test_material_inativo_recebe_carimbo(
+        self, client, chefe_almoxarifado, estoque_principal
+    ):
+        """`Material.ativo` é estado de domínio — material inativo não entra em
+        requisição nova nem em saída excepcional. O catálogo é a única tela que
+        lista material, e o cartão saía idêntico ao de um material em uso."""
+        from apps.estoque.models import Material, SaldoEstoque
+
+        material = Material.objects.create(
+            codigo='MAT-800', nome='Lâmpada descontinuada', unidade='un', ativo=False
+        )
+        SaldoEstoque.objects.create(
+            material=material,
+            estoque=estoque_principal,
+            saldo_fisico=Decimal('0.000'),
+            saldo_reservado=Decimal('0.000'),
+        )
+        client.force_login(chefe_almoxarifado)
+        html = client.get(URL_MATERIAIS).content.decode('utf-8')
+        assert 'Inativo' in html
+        assert 'aria-label="Material inativo"' in html
+
+    def test_material_ativo_nao_recebe_carimbo_de_inativo(
+        self, client, chefe_almoxarifado, material_disponivel
+    ):
+        client.force_login(chefe_almoxarifado)
+        html = client.get(URL_MATERIAIS).content.decode('utf-8')
+        assert 'aria-label="Material inativo"' not in html
+
     def test_chefe_almox_acessa_lista(self, client, chefe_almoxarifado):
         client.force_login(chefe_almoxarifado)
         response = client.get(URL_MATERIAIS)
@@ -3087,6 +3293,44 @@ class TestHistoricoMovimentacoesView:
             in html
         )
         assert 'Filtre por' in html
+
+    def test_link_da_origem_respeita_o_escopo_do_detalhe(
+        self, client, chefe_almoxarifado, movimentacao_requisicao_rascunho
+    ):
+        """Ver a LINHA e poder abrir o DOCUMENTO não são a mesma permissão.
+
+        O almoxarifado enxerga o ledger inteiro, inclusive movimentações de
+        rascunho de terceiro; `requisicoes_visiveis_para` — o escopo que o
+        detalhe usa — exclui esses rascunhos. O link incondicional levava a 404.
+        """
+        from django.urls import reverse as _reverse
+
+        req = movimentacao_requisicao_rascunho.requisicao
+        destino = _reverse('requisicoes:detalhe', kwargs={'pk': req.pk})
+
+        client.force_login(chefe_almoxarifado)
+        html = client.get(URL_MOVIMENTACOES).content.decode()
+
+        # A linha continua no ledger, com o número legível.
+        assert req.numero_publico in html
+        # Mas sem link, porque o destino não existe para quem está olhando.
+        assert f'href="{destino}' not in html
+        assert client.get(destino).status_code == 404
+        # E sem a afordância que anuncia o link: prometer "Ver a origem" num
+        # cartão que não leva a lugar nenhum é o mesmo defeito um degrau acima.
+        assert 'Ver a origem' not in html
+
+    def test_link_da_origem_existe_quando_a_requisicao_esta_no_escopo(
+        self, client, chefe_almoxarifado, requisicao_autorizada
+    ):
+        """O caso normal não pode ter sido perdido junto com o rascunho."""
+        from django.urls import reverse as _reverse
+
+        req, _item = requisicao_autorizada
+        destino = _reverse('requisicoes:detalhe', kwargs={'pk': req.pk})
+        client.force_login(chefe_almoxarifado)
+        html = client.get(URL_MOVIMENTACOES).content.decode()
+        assert f'href="{destino}' in html
 
     def test_comentarios_dos_partials_nao_vazam_para_a_tela(
         self, client, superuser, requisicao_autorizada
@@ -4192,3 +4436,101 @@ class TestSumarioDeErrosNaSaidaExcepcional:
         assert 'href="#sec-materiais"' in html
         assert 'id="sec-materiais"' in html
         assert 'tabindex="-1"' in html
+
+
+class TestCerimoniaDaSaidaExcepcional:
+    """A cerimônia da ação seguia o template, não a consequência.
+
+    Baixa administrativa DIRETA no saldo físico gravava sem confirmação
+    nenhuma, enquanto `Autorizar` — que só move reserva — tinha `alertdialog`.
+    """
+
+    URL = '/estoque/saidas-excepcionais/nova/'
+
+    def test_tem_modal_de_confirmacao(self, client, chefe_almoxarifado):
+        client.force_login(chefe_almoxarifado)
+        html = client.get(self.URL).content.decode('utf-8')
+        assert 'id="confirmar-saida-excepcional"' in html
+        assert 'A gravação não pode ser desfeita.' in html
+        # A recapitulação é reconstruída na abertura a partir das linhas
+        # visíveis do formset — aqui elas são criadas e removidas no cliente.
+        assert 'data-resumo-linhas-de="#itens-container"' in html
+
+    def test_modal_nomeia_o_estoque_onde_a_baixa_cai(
+        self, client, chefe_almoxarifado, estoque_principal
+    ):
+        """Não há documento a nomear: é ele que se vai criar. O que responde
+        "sobre o quê?" é o estoque — mesma situação do arquivo do SCPI."""
+        client.force_login(chefe_almoxarifado)
+        html = client.get(self.URL).content.decode('utf-8')
+        assert estoque_principal.nome in html
+
+    def test_motivo_nao_vem_pre_selecionado_com_valor_real(
+        self, client, chefe_almoxarifado
+    ):
+        """`Avaria / Deterioração` era o default: quem não olhasse registrava
+        "avaria" por omissão. Um select obrigatório cujo default já é uma
+        resposta válida não pergunta nada."""
+        from apps.estoque.forms import SaidaExcepcionalForm
+
+        assert SaidaExcepcionalForm().fields['motivo'].choices[0][0] == ''
+        client.force_login(chefe_almoxarifado)
+        html = client.get(self.URL).content.decode('utf-8')
+        assert 'Selecione o motivo' in html
+
+    def test_post_invalido_preserva_material_e_unidade_para_a_recapitulacao(
+        self, client, chefe_almoxarifado, estoque_principal, material_disponivel
+    ):
+        """A recapitulação lê `data-material`/`data-unidade` da linha, e num
+        re-render por erro nenhum evento de seleção dispara para escrevê-los.
+
+        Sem os atributos vindos do servidor, a tela em que a pessoa está
+        corrigindo o formulário mostraria o material como `—` e a quantidade
+        sem unidade — justamente na confirmação de uma baixa irreversível.
+        """
+        client.force_login(chefe_almoxarifado)
+        html = client.post(
+            self.URL,
+            data={
+                # Sem `motivo`: o formulário volta inválido e re-renderizado.
+                'motivo': '',
+                'observacao': '',
+                'itens-TOTAL_FORMS': '1',
+                'itens-INITIAL_FORMS': '0',
+                'itens-MIN_NUM_FORMS': '0',
+                'itens-MAX_NUM_FORMS': '1000',
+                'itens-0-material_id': str(material_disponivel.pk),
+                'itens-0-material_label': material_disponivel.nome,
+                'itens-0-quantidade': '5',
+            },
+        ).content.decode('utf-8')
+
+        assert f'data-material="{material_disponivel.nome}"' in html
+        assert f'data-unidade="{material_disponivel.unidade}"' in html
+
+    def test_material_id_forjado_nao_derruba_o_re_render(
+        self, client, chefe_almoxarifado, estoque_principal
+    ):
+        """Os ids chegam crus do POST, e é o formulário inválido que os traz.
+
+        `pk__in` prepara cada item para o PK inteiro: um `material_id` não
+        numérico levantava `ValueError` no meio do render e trocava a página de
+        erros do formset por um 500.
+        """
+        client.force_login(chefe_almoxarifado)
+        response = client.post(
+            self.URL,
+            data={
+                'motivo': '',
+                'observacao': '',
+                'itens-TOTAL_FORMS': '1',
+                'itens-INITIAL_FORMS': '0',
+                'itens-MIN_NUM_FORMS': '0',
+                'itens-MAX_NUM_FORMS': '1000',
+                'itens-0-material_id': 'abc',
+                'itens-0-material_label': 'qualquer',
+                'itens-0-quantidade': '5',
+            },
+        )
+        assert response.status_code == 200
+        assert 'data-unidade=""' in response.content.decode('utf-8')

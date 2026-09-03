@@ -6,9 +6,13 @@ tabela. Sem tabela, o controle precisa de casa própria — e visível em toda
 largura, não só no mobile, senão ordenar deixa de existir no desktop.
 
 Parâmetros:
-  url_ordenacao   (obrigatório) URL que inverte a ordem, já montada pela view
-  ordem           (obrigatório) 'asc' ou 'desc' — ordem corrente
-  target_id       (obrigatório) id do wrapper alvo do swap HTMX (sem #)
+  url_ordenacao   (opcional) URL que inverte a ordem, já montada pela view.
+                  Ausente, o componente rende só a contagem — é o caso das
+                  filas, cuja ordem é de domínio (FIFO) e não do usuário.
+  ordem           (obrigatório com `url_ordenacao`) 'asc' ou 'desc' — ordem corrente
+  target_id       (opcional) id do wrapper alvo do swap HTMX (sem #). Ausente,
+                  o controle vira link puro com carga de página inteira — é o
+                  caso das listagens sem filtro, que não têm wrapper de swap.
   page_obj        (obrigatório) page_obj da listagem, fonte da contagem
                   visível: `page_obj.paginator.count` (tamanho do recorte) e
                   `page_obj.object_list|length` (quantos nesta página)
@@ -56,11 +60,37 @@ Uso:
     novo — sem `id`, quem ordena pelo teclado é jogado de volta para o <body> e
     precisa tabular a tela inteira outra vez.
   {% endcomment %}
-  {% with seletor_alvo="#"|add:target_id id_ordenacao="ordenacao-"|add:target_id %}
-    {% if ordem == 'asc' %}
-      {% include "components/button.html" with variant="secondary" button_id=id_ordenacao label="Mais recentes primeiro ↓" href=url_ordenacao hx_get=url_ordenacao hx_target=seletor_alvo hx_push_url="true" aria_label="Ordenar por mais recentes primeiro; atualmente mais antigas primeiro" %}
+  {% comment %}
+    Sem `url_ordenacao` sai só a contagem. As duas FILAS têm ordem de DOMÍNIO —
+    FIFO por `atualizado_em` —, e `?ordem=` não se aplica a elas: uma fila de
+    trabalho ordenada por mais recentes primeiro é o oposto de uma fila. Elas
+    precisavam da contagem, que não tinham, e não da inversão. Ver
+    `test_fila_paginacao_preserva_ordem_do_selector`.
+
+    Sem `target_id` o controle degrada para link puro, com carga de página
+    inteira. Ele nasceu preso ao swap HTMX das duas telas de histórico, e por
+    isso ordenar e contar existiam em 2 das 7 listagens — as cinco restantes não
+    têm wrapper de swap porque não têm filtro, e exigir um só para poder ordenar
+    era o que mantinha a assimetria. `hx-target="#"` seria seletor inválido, daí
+    o ramo e não um default.
+  {% endcomment %}
+  {% if url_ordenacao %}
+  {% with alvo=target_id|default:'' %}
+  {% with seletor_alvo="#"|add:alvo id_ordenacao="ordenacao-"|add:alvo|default:"ordenacao-listagem" %}
+    {% if alvo %}
+      {% if ordem == 'asc' %}
+        {% include "components/button.html" with variant="secondary" button_id=id_ordenacao label="Mais recentes primeiro ↓" href=url_ordenacao hx_get=url_ordenacao hx_target=seletor_alvo hx_push_url="true" aria_label="Ordenar por mais recentes primeiro; atualmente mais antigas primeiro" %}
+      {% else %}
+        {% include "components/button.html" with variant="secondary" button_id=id_ordenacao label="Mais antigas primeiro ↑" href=url_ordenacao hx_get=url_ordenacao hx_target=seletor_alvo hx_push_url="true" aria_label="Ordenar por mais antigas primeiro; atualmente mais recentes primeiro" %}
+      {% endif %}
     {% else %}
-      {% include "components/button.html" with variant="secondary" button_id=id_ordenacao label="Mais antigas primeiro ↑" href=url_ordenacao hx_get=url_ordenacao hx_target=seletor_alvo hx_push_url="true" aria_label="Ordenar por mais antigas primeiro; atualmente mais recentes primeiro" %}
+      {% if ordem == 'asc' %}
+        {% include "components/button.html" with variant="secondary" button_id=id_ordenacao label="Mais recentes primeiro ↓" href=url_ordenacao aria_label="Ordenar por mais recentes primeiro; atualmente mais antigas primeiro" %}
+      {% else %}
+        {% include "components/button.html" with variant="secondary" button_id=id_ordenacao label="Mais antigas primeiro ↑" href=url_ordenacao aria_label="Ordenar por mais antigas primeiro; atualmente mais recentes primeiro" %}
+      {% endif %}
     {% endif %}
   {% endwith %}
+  {% endwith %}
+  {% endif %}
 </div>

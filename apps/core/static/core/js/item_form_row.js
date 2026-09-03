@@ -183,7 +183,64 @@
     };
   }
 
+  /**
+   * saldoDaLinha — escopo Alpine da própria linha de item, para o saldo
+   * sobreviver à seleção do material.
+   *
+   * O autocomplete mostrava `(disponível: 4530 un)` na opção do dropdown e
+   * apagava esse número no instante em que a pessoa escolhia o material — logo
+   * antes de digitar a quantidade, que é exatamente quando ele decide. O campo
+   * ficava ao lado, vazio, sem unidade e sem teto: 99999 unidades de um
+   * material com 4530 disponíveis atravessavam criação, envio e fila do chefe
+   * sem um único aviso, e o erro só aparecia depois da confirmação da
+   * autorização, numa faixa no topo da página e sem número nenhum.
+   *
+   * O que este escopo faz é só não jogar fora o que o servidor já mandou: o
+   * payload do autocomplete traz `saldo_disponivel` (ou `saldo_fisico`, na
+   * saída excepcional) e `unidade`. A fonte de verdade continua sendo o
+   * `clean()` do formset e, no fim, a reserva no service — isto é aviso, não
+   * validação.
+   */
+  function saldoLinha(config = {}) {
+    return {
+      saldoTexto: config.saldoTexto || '',
+      saldoValor: config.saldoValor === undefined ? null : Number(config.saldoValor),
+      saldoRotulo: config.saldoRotulo || 'Disponível',
+      unidade: config.unidade || '',
+      quantidade: '',
+
+      registrarMaterial(item) {
+        if (!item) return;
+        // O rótulo e a unidade também no DOM, e não só no escopo: a
+        // recapitulação do modal reconstrói as linhas visíveis na abertura, e
+        // ler o escopo Alpine de outro componente a partir do `modal.js`
+        // acoplaria os dois. `dataset` é o contrato entre eles.
+        this.$el.dataset.material = item.label || item.nome || '';
+        this.$el.dataset.unidade = item.unidade || '';
+        const temDisponivel = item.saldo_disponivel !== undefined;
+        this.saldoRotulo = temDisponivel ? 'Disponível' : 'Físico';
+        this.saldoTexto = temDisponivel ? item.saldo_disponivel : item.saldo_fisico;
+        this.unidade = item.unidade || '';
+        // `saldo_bruto` é o número em notação de máquina, para comparar; o
+        // `saldo_disponivel` já vem formatado em pt-BR e com vírgula, que
+        // `Number()` não lê. Ausente (payload antigo), a comparação desliga e
+        // só o texto aparece — degradar para menos aviso, nunca para aviso
+        // errado.
+        this.saldoValor =
+          item.saldo_bruto === undefined ? null : Number(item.saldo_bruto);
+      },
+
+      get excedeuSaldo() {
+        if (this.saldoValor === null) return false;
+        const pedido = Number(String(this.quantidade).replace(',', '.'));
+        if (!Number.isFinite(pedido) || pedido <= 0) return false;
+        return pedido > this.saldoValor;
+      },
+    };
+  }
+
   document.addEventListener('alpine:init', () => {
     window.Alpine.data('itensFormset', factory);
+    window.Alpine.data('saldoLinha', saldoLinha);
   });
 })();

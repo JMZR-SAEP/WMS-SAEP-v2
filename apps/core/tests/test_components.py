@@ -3425,7 +3425,11 @@ def test_link_de_cartao_tem_o_cartao_como_alvo():
         relativo = str(caminho.relative_to(raiz))
         if relativo == chrome_relativo:
             continue
-        conteudo = caminho.read_text()
+        # `_sem_comentarios` ANTES de contar, e não só depois: um
+        # `{% comment %}` que explica por que a tela NÃO usa o marcador
+        # contém o nome do atributo e fazia o guarda acusar prosa como
+        # marcação. O mesmo texto limpo alimenta as duas checagens abaixo.
+        conteudo = _sem_comentarios(caminho.read_text())
         ocorrencias = len(atributo_marcador.findall(conteudo))
         if not ocorrencias:
             continue
@@ -3437,7 +3441,7 @@ def test_link_de_cartao_tem_o_cartao_como_alvo():
         # dentro de uma faixa `#card_abertura` … `</article>`, senão o alvo real
         # volta a ser a âncora de texto e a isenção do piso de 44px fica sem
         # lastro (mesma faixa que `_clicaveis_sem_piso` usa).
-        limpo = _sem_comentarios(conteudo)
+        limpo = conteudo
         faixas = _faixas_de_cartao(limpo)
         for _, atributos, numero in elementos(limpo, 'a'):
             if not _tem_atributo(atributos, 'data-cartao-link'):
@@ -3446,12 +3450,31 @@ def test_link_de_cartao_tem_o_cartao_como_alvo():
                 f'{relativo}:{numero} data-cartao-link fora de um cartão'
             )
 
-    # As seis listagens navegáveis. O histórico de importações entrou na #161,
+    # As oito listagens navegáveis. O histórico de importações entrou na #161,
     # quando a importação ganhou detalhe: até ali a única ação do cartão era um
     # download, que não é navegação. O botão de download continua explícito ao
-    # lado — é o alvo do cartão que passou a ser o detalhe. Ledger e catálogo
-    # ficam de fora de propósito: não têm detalhe para onde ir.
-    assert len(telas_marcadas) == 6, telas_marcadas
+    # lado — é o alvo do cartão que passou a ser o detalhe.
+    #
+    # O LEDGER entrou na Etapa 8. A justificativa anterior — "não tem detalhe
+    # para onde ir" — não se sustentava: `Origem: REQ-2026-000005` já É a
+    # identidade do documento que causou o lançamento, e imprimi-la como texto
+    # obrigava a guardar o número e digitá-lo em outra tela. O alvo do cartão é
+    # esse documento; quando é uma saída excepcional e o ator não tem a policy
+    # do destino, o cartão fica inerte em vez de levar a um 403.
+    #
+    # O CATÁLOGO continua fora, e por um motivo estrutural, não por falta de
+    # destino: o `<article>` de lá é literal, porque a borda depende de estado
+    # de domínio (divergência crítica) e `#card_abertura` é string fixa por
+    # contrato da #83. Sem o chrome não há alvo de cartão a herdar, então ele
+    # ganhou um link explícito com piso de 44px para o ledger filtrado.
+    #
+    # AS NOTIFICAÇÕES entraram junto. Era a única das oito listagens fora do
+    # sistema de cartões — `<ul class="divide-y">` de linhas — e com a
+    # afordância invertida: o link para a requisição vinha em 12px cinza sem
+    # sublinhado, idêntico ao carimbo de data logo abaixo, enquanto treze
+    # `Marcar como lida` idênticos ocupavam a borda direita. O descarte parecia
+    # o link e o link parecia metadado.
+    assert len(telas_marcadas) == 8, telas_marcadas
 
 
 def test_isencao_de_cartao_so_vale_para_o_atributo_exato():
@@ -3560,3 +3583,124 @@ def test_grade_de_cartoes_alinha_a_base_em_vez_do_topo():
     denso, normal = grades['cards_abertura_denso'], grades['cards_abertura']
     assert normal == '<div class="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">'
     assert normal.replace('2xl:grid-cols-3', 'xl:grid-cols-3') == denso
+
+
+# ---------------------------------------------------------------------------
+# components/quantidade.html (Etapa 8, backlog da critique)
+# ---------------------------------------------------------------------------
+
+
+class TestComponenteQuantidade:
+    """A quantidade é o dado que este produto existe para controlar.
+
+    Antes deste componente ela recebia tratamento tipográfico em um lugar só —
+    o modal de retirada — e em todo o resto era corpo de 14px igual ao rótulo
+    ao lado, com a unidade ora colada, ora numa linha própria, ora ausente.
+    """
+
+    def _render(self, **contexto):
+        from decimal import Decimal
+
+        from django.template.loader import render_to_string
+
+        base = {'valor': Decimal('820.000'), 'unidade': 'un'}
+        base.update(contexto)
+        return render_to_string('components/quantidade.html', base)
+
+    def test_numero_e_unidade_saem_juntos(self):
+        html = self._render()
+        assert '820' in html
+        assert 'un' in html
+
+    def test_precisao_vem_da_unidade(self):
+        from decimal import Decimal
+
+        assert '820,0' in self._render(valor=Decimal('820.000'), unidade='m')
+        assert '820,0' not in self._render(valor=Decimal('820.000'), unidade='un')
+
+    def test_separador_e_virgula(self):
+        from decimal import Decimal
+
+        html = self._render(valor=Decimal('1250.500'), unidade='m')
+        assert '1250,5' in html
+        assert '1250.5' not in html
+
+    def test_numero_forma_coluna(self):
+        """`tabular-nums` alinha dígito com dígito, não parágrafo com parágrafo.
+
+        O slot do número é alinhado à direita e não quebra; é isso que faz três
+        linhas de rótulos com larguras diferentes terminarem os números no mesmo
+        x, que era o defeito medido no catálogo (x=330, x=361, x=360).
+        """
+        html = self._render()
+        assert 'tabular-nums' in html
+        assert 'text-right' in html
+        assert 'whitespace-nowrap' in html
+
+    def test_unidade_tem_piso_de_largura_para_comecar_no_mesmo_x(self):
+        assert 'min-w-8' in self._render()
+
+    def test_valor_ausente_vira_travessao(self):
+        assert '—' in self._render(valor=None)
+
+    def test_tom_pinta_apenas_o_numero(self):
+        assert 'text-warning-text' in self._render(tom='warning')
+        assert 'text-danger-text' in self._render(tom='danger')
+        assert 'text-text-primary' in self._render()
+
+    def test_referencia_sai_abaixo_em_menor(self):
+        html = self._render(referencia='de 150 autorizada')
+        assert 'de 150 autorizada' in html
+        assert 'text-xs' in html
+
+    def test_nao_e_traduzido_automaticamente(self):
+        """Número com unidade traduzido automaticamente vira outro número."""
+        assert 'translate="no"' in self._render()
+
+    def test_destaque_reservado_ao_momento_de_confirmacao(self):
+        assert 'text-base' in self._render(destaque=True)
+        assert 'text-base' not in self._render()
+
+
+def test_cabecalho_de_cartao_nao_vira_linha_antes_de_xl():
+    """A âncora de varredura tem posição fixa dentro do cartão.
+
+    O `flex-wrap` da Etapa 8 consertou o número público partido em duas linhas a
+    375px e comprou outro defeito: `Cancelada` cabia na linha do título e
+    `Aguardando autorização` — o carimbo mais largo do produto, 192px — descia
+    para baixo da data. O carimbo ocupava a linha 1 em uns cartões e a linha 3
+    em outros, e uma âncora que muda de lugar entre vizinhos é pior que uma
+    âncora deslocada.
+
+    O ponto de virada é `xl` por medição, não por gosto: 192 (carimbo) + 12
+    (gap) + 132 (número) + 32 (padding) = 368px de cartão, que em grade de 2
+    colunas só existe a partir de ~1036px de viewport. `sm` põe a mesma
+    instabilidade um breakpoint adiante.
+    """
+    raiz = Path(__file__).resolve().parents[3]
+    cabecalho = re.compile(r'class="flex[^"]*items-start[^"]*justify-between[^"]*"')
+    # O cartão do ledger é a exceção, e por estrutura: ali o carimbo de tipo é o
+    # PRIMEIRO elemento do cabeçalho — quem fica na ponta direita é a data, e o
+    # material é um `<h2>` abaixo dos dois. A âncora de varredura já nasce no
+    # canto superior esquerdo e não se desloca, então empilhar só faria o cartão
+    # crescer. A regra protege a posição do carimbo, não a classe.
+    isento = 'apps/estoque/templates/estoque/historico_movimentacoes.html'
+    infratores = []
+    for caminho in sorted((raiz / 'apps').rglob('*.html')):
+        if str(caminho.relative_to(raiz)) == isento:
+            continue
+        conteudo = _sem_comentarios(caminho.read_text())
+        if 'components/table.html#card_abertura' not in conteudo:
+            continue
+        for numero, linha in enumerate(conteudo.splitlines(), start=1):
+            achado = cabecalho.search(linha)
+            if not achado:
+                continue
+            classes = achado.group(0)
+            if 'xl:flex-row' in classes and 'flex-col' in classes:
+                continue
+            infratores.append(f'{caminho.relative_to(raiz)}:{numero}')
+    assert infratores == [], (
+        'cabeçalho de cartão em linha antes de `xl` — o carimbo de estado muda '
+        f'de posição entre cartões vizinhos. Ver DESIGN.md: {infratores}'
+    )

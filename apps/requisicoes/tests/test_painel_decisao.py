@@ -413,8 +413,17 @@ def test_estorno_nao_usa_o_vocabulario_de_perigo():
         for linha in detalhe.splitlines()
         if 'heading_id="estornar-titulo"' in linha
     )
+    # `variant_token` aceita a FAMÍLIA, não um valor exato: a Etapa 8 separou
+    # estorno de devolução por degrau dentro do teal (`return-strong`, fundo 100
+    # e borda 300 contra fundo 50 e borda 200), porque a Regra da Reversão Não é
+    # Erro decide a paleta e não decidia a gradação — o resultado eram dois
+    # painéis teal adjacentes de geometria quase idêntica para uma rotina e uma
+    # ação irreversível. O que o guarda protege segue igual: nada de vermelho.
+    assert 'variant_token="return' in banner, (
+        'banner do estorno fora da família return — a Regra da Reversão Não é '
+        'Erro vale para as quatro superfícies da ação, não só para o ícone'
+    )
     for esperado in (
-        'variant_token="return"',
         'botao_variant="return-outline"',
         'confirm_variant="return"',
     ):

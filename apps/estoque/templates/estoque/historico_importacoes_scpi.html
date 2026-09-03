@@ -7,23 +7,32 @@
 
   {# H1 idêntico ao rótulo da nav (issue #160): a fonte única do rótulo é NAVEGACAO em apps/core/templatetags/core_tags.py. Rótulo do link ≠ rótulo do destino tira do operador a confirmação de que chegou no lugar certo. #}
   {% include "components/page_header.html" with titulo="Histórico de importações SCPI" class="mb-4" %}
-  <div class="mb-4 flex items-center justify-between">
-    <p class="text-sm text-text-tertiary">
-      {% if importacoes %}
+  <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+    {% if importacoes %}
+      <p class="text-sm text-text-tertiary">
         {{ page_obj.paginator.count }} importaç{{ page_obj.paginator.count|pluralize:"ão registrada,ões registradas" }}
-      {% else %}
-        Nenhuma importação registrada.
-      {% endif %}
-    </p>
-    {% url 'estoque:preview_importacao_scpi' as url_nova_importacao %}
-    {% include "components/button.html" with variant="secondary" label="Nova importação" href=url_nova_importacao %}
+      </p>
+    {% else %}
+      <span></span>
+    {% endif %}
+    {% comment %}
+      O botão só sai para quem a policy do preview deixa entrar
+      (`pode_importar` = `pode_visualizar_preview_scpi`, superusuário). Esta
+      tela é visível também ao chefe de almoxarifado, que via a ação oferecida
+      e caía num 403 — DESIGN.md manda esconder ação administrativa irrelevante
+      ou explicar o bloqueio, nunca oferecer o que o domínio recusa.
+    {% endcomment %}
+    {% if pode_importar %}
+      {% url 'estoque:preview_importacao_scpi' as url_nova_importacao %}
+      {% include "components/button.html" with variant="secondary" label="Nova importação" href=url_nova_importacao %}
+    {% endif %}
   </div>
 
   {% if importacoes %}
     {% include "components/table.html#cards_abertura" %}
       {% for imp in importacoes %}
         {% include "components/table.html#card_abertura" %}
-          <div class="flex items-start justify-between gap-3">
+          <div class="flex flex-col gap-2 xl:flex-row xl:items-start xl:justify-between xl:gap-3">
             <div class="min-w-0">
               {# 14px semibold como os outros seis cartões: 12px é tamanho de rótulo estrutural, e mono é uma segunda família que o design system não declara — ela fica reservada ao hash, que é onde caractere a caractere importa. #}
               <h2 class="break-all text-sm font-semibold text-text-primary">
@@ -32,10 +41,10 @@
                   href="{% url 'estoque:detalhe_importacao_scpi' pk=imp.pk %}"
                   data-cartao-link
                   class="rounded-sm focus-visible:outline-none"
-                  aria-label="Ver detalhe da importação {{ imp.arquivo_nome }}"
+                  aria-label="Ver detalhes da importação {{ imp.arquivo_nome }}"
                 >{{ imp.arquivo_nome }}</a>
               </h2>
-              <p class="mt-1 text-xs text-text-tertiary">{{ imp.importado_em|date:"d/m/Y H:i" }}</p>
+              <p class="mt-1 text-xs text-text-tertiary">Importada em {{ imp.importado_em|date:"d/m/Y H:i" }}</p>
             </div>
             <span class="shrink-0">
               {% if imp.status == 'concluida' %}
@@ -49,7 +58,7 @@
           </div>
 
           {# Rótulo rebaixado (issue #158): `Rótulo: valor` inline, sem caixa alta, `<dl>/<dt>/<dd>` preservado. Ver DESIGN.md §A Regra da Caixa Alta Estrutural. #}
-          <dl class="mt-4 grid grid-cols-2 gap-3 text-sm">
+          <dl class="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
             <div class="flex gap-x-2">
               <dt class="shrink-0 text-text-tertiary">Usuário:</dt>
               <dd class="min-w-0 text-text-primary">{{ imp.importado_por }}</dd>
@@ -84,6 +93,18 @@
     </div>
 
     {% include 'components/pagination.html' with page_obj=page_obj rotulo_itens='importações' aria_label='Paginação do histórico de importações SCPI' %}
+  {% else %}
+    {% comment %}
+      `empty_state.html` como nas outras listagens. A frase cinza solta que
+      vivia na linha da contagem era o outro estado vazio do produto fora do
+      componente, e não oferecia o próximo passo a quem pode importar.
+    {% endcomment %}
+    {% if pode_importar %}
+      {% url 'estoque:preview_importacao_scpi' as cta_importar_url %}
+      {% include 'components/empty_state.html' with icone='components/icons/_prancheta.html' titulo='Nenhuma importação registrada' descricao='Importe o CSV de saldos do SCPI para conferir os dois sistemas.' cta_url=cta_importar_url cta_label='Nova importação' %}
+    {% else %}
+      {% include 'components/empty_state.html' with icone='components/icons/_prancheta.html' titulo='Nenhuma importação registrada' descricao='Nenhum arquivo de saldos do SCPI foi importado até agora.' %}
+    {% endif %}
   {% endif %}
 
 </div>

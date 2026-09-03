@@ -224,15 +224,31 @@ def exigir_pode_ver_fila_autorizacao(papel: 'PapelEfetivo') -> None:
 
 
 def pode_retornar_para_rascunho(papel: 'PapelEfetivo', requisicao: Requisicao) -> bool:
-    """True se o ator é criador ou beneficiário ativo da requisição."""
+    """True para criador, beneficiário ou o chefe que decide a requisição.
+
+    O chefe entrou depois (Etapa 8), por um beco medido no fluxo: ele autoriza
+    sem ver saldo, a reserva falha, e a mensagem chega numa faixa no topo da
+    página. Sem esta porta, as únicas saídas eram deixar a requisição parada na
+    fila ou **recusar** — encerrar em definitivo o pedido de alguém porque a
+    quantidade digitada não cabia no estoque. Devolver para rascunho é a
+    operação que descreve o que de fato aconteceu: falta ajustar, não negar.
+
+    A condição do chefe é a mesma de autorizar e recusar — chefiar o setor do
+    beneficiário —, então não abre alcance novo: quem já podia encerrar a
+    requisição passa a poder devolvê-la. A consequência da TR-006 continua
+    valendo: depois do retorno o rascunho volta a ser exclusivo do criador, e o chefe
+    sai de cena até o reenvio.
+    """
     if not papel.ativo:
         return False
     if papel.eh_superusuario:
         return True
-    return (
+    if (
         papel.ator_id == requisicao.criador_id
         or papel.ator_id == requisicao.beneficiario_id
-    )
+    ):
+        return True
+    return pode_recusar_requisicao(papel, requisicao)
 
 
 def exigir_pode_retornar_para_rascunho(
@@ -240,7 +256,8 @@ def exigir_pode_retornar_para_rascunho(
 ) -> None:
     if not pode_retornar_para_rascunho(papel, requisicao):
         raise PermissaoNegada(
-            'Apenas o criador ou beneficiário pode retornar esta requisição para rascunho.',
+            'Apenas o criador, o beneficiário ou o chefe do setor do '
+            'beneficiário pode retornar esta requisição para rascunho.',
             code='retornar_rascunho_negado',
         )
 

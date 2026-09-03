@@ -1373,9 +1373,41 @@ def test_retornar_rascunho_beneficiario_redireciona_e_muda_estado(
 
 
 @pytest.mark.django_db
-def test_retornar_rascunho_chefe_nao_pode_retornar(
+def test_retornar_rascunho_chefe_do_setor_pode_devolver(
     client, chefe_obras, req_enviada_solicitante
 ):
+    """Entrou na Etapa 8, por um beco medido no fluxo.
+
+    O chefe autoriza sem ver saldo, a reserva falha, e sem esta porta as únicas
+    saídas eram deixar a requisição parada na fila ou recusar — encerrar em
+    definitivo o pedido de alguém porque a quantidade digitada não cabia no
+    estoque. Devolver para rascunho descreve o que de fato aconteceu.
+    """
+    _login(client, chefe_obras)
+    response = client.post(
+        reverse(
+            'requisicoes:retornar_rascunho', kwargs={'pk': req_enviada_solicitante.pk}
+        )
+    )
+    # O POST não manda `HX-Request`, então `htmx_redirect` faz `redirect(url)` e
+    # o status é sempre 302. Aceitar 204 deixava uma regressão trocar o PRG
+    # nativo por uma resposta sem `Location` sem ficar vermelha.
+    assert response.status_code == 302
+    assert response.url == reverse(
+        'requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk}
+    )
+    req_enviada_solicitante.refresh_from_db()
+    assert req_enviada_solicitante.estado == EstadoRequisicao.RASCUNHO
+
+
+@pytest.mark.django_db
+def test_retornar_rascunho_chefe_de_outro_setor_nao_pode(
+    client, chefe_obras, setor_ti, req_enviada_solicitante
+):
+    """A condição do chefe é a mesma de recusar: chefiar o setor do
+    beneficiário. Não abre alcance novo."""
+    req_enviada_solicitante.setor_beneficiario = setor_ti
+    req_enviada_solicitante.save(update_fields=['setor_beneficiario'])
     _login(client, chefe_obras)
     response = client.post(
         reverse(
@@ -1579,9 +1611,10 @@ def test_recusar_requisicao_outro_setor_retorna_403(
 
 
 @pytest.mark.django_db
-def test_detalhe_exibe_recusa_para_chefe_e_nao_exibe_retorno(
+def test_detalhe_exibe_recusa_e_retorno_para_chefe(
     client, chefe_obras, req_enviada_solicitante
 ):
+    """O painel de decisão do chefe passa a ter a saída não-terminal."""
     _login(client, chefe_obras)
     response = client.get(
         reverse('requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk})
@@ -1590,9 +1623,9 @@ def test_detalhe_exibe_recusa_para_chefe_e_nao_exibe_retorno(
 
     assert response.status_code == 200
     assert response.context['pode_recusar'] is True
-    assert response.context['pode_retornar'] is False
+    assert response.context['pode_retornar'] is True
     assert 'Confirmar recusa' in html
-    assert 'Confirmar retorno' not in html
+    assert 'Confirmar retorno' in html
     assert 'data-modal-trigger="confirmar-recusar"' in html
     assert 'window.confirm' not in html
     assert html.count('id="decisao-autorizacao-titulo"') == 1
@@ -3572,6 +3605,83 @@ def test_estornar_view_get_nao_permitido(client, chefe_almoxarifado, req_atendid
 URL_HISTORICO_REQUISICOES = reverse('requisicoes:historico')
 
 
+class TestSeteListagensNomeiamOMaterial:
+    """As sete listagens contam a mesma história (Etapa 8).
+
+    "Minhas requisições" não dizia nada do conteúdo — número, data e estado — e
+    a fila de autorização dizia só "Itens: N". As duas telas de decisão do
+    fluxo (o solicitante conferindo o que pediu, o chefe autorizando) eram as
+    que menos informavam. A grafia canônica é a da fila de atendimento: nome do
+    primeiro material e, quando há mais de um, "e mais N".
+    """
+
+    def _com_dois_itens(self, requisicao, material_a, material_b):
+        requisicao.itens.create(material=material_a, quantidade_solicitada=1)
+        requisicao.itens.create(material=material_b, quantidade_solicitada=2)
+        return requisicao
+
+    def test_minhas_requisicoes_nomeia_o_material(
+        self,
+        client,
+        solicitante,
+        setor_obras,
+        material_disponivel,
+        material_disponivel_2,
+    ):
+        req = Requisicao.objects.create(
+            estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+            numero_publico='REQ-2026-E801',
+            criador=solicitante,
+            beneficiario=solicitante,
+            setor_beneficiario=setor_obras,
+        )
+        self._com_dois_itens(req, material_disponivel, material_disponivel_2)
+        _login(client, solicitante)
+        html = client.get(reverse('requisicoes:minhas')).content.decode('utf-8')
+        assert material_disponivel.nome in html
+        assert 'e mais 1' in html
+
+    def test_minhas_requisicoes_item_unico_sai_sem_contagem(
+        self, client, solicitante, setor_obras, material_disponivel
+    ):
+        req = Requisicao.objects.create(
+            estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+            numero_publico='REQ-2026-E802',
+            criador=solicitante,
+            beneficiario=solicitante,
+            setor_beneficiario=setor_obras,
+        )
+        req.itens.create(material=material_disponivel, quantidade_solicitada=1)
+        _login(client, solicitante)
+        html = client.get(reverse('requisicoes:minhas')).content.decode('utf-8')
+        assert material_disponivel.nome in html
+        assert 'e mais 1' not in html
+
+    def test_fila_autorizacao_nomeia_o_material(
+        self,
+        client,
+        chefe_obras,
+        solicitante,
+        setor_obras,
+        material_disponivel,
+        material_disponivel_2,
+    ):
+        req = Requisicao.objects.create(
+            estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+            numero_publico='REQ-2026-E803',
+            criador=solicitante,
+            beneficiario=solicitante,
+            setor_beneficiario=setor_obras,
+        )
+        self._com_dois_itens(req, material_disponivel, material_disponivel_2)
+        _login(client, chefe_obras)
+        html = client.get(reverse('requisicoes:autorizacoes')).content.decode('utf-8')
+        assert material_disponivel.nome in html
+        assert 'e mais 1' in html
+        # "Itens: N" era o que a tela dizia antes, e o dígito sozinho não basta.
+        assert 'Itens:' not in html
+
+
 class TestHistoricoRequisicoesView:
     def test_chefe_almox_acessa(self, client, chefe_almoxarifado):
         _login(client, chefe_almoxarifado)
@@ -3791,7 +3901,13 @@ class TestHistoricoRequisicoesView:
         )
         _login(client, superuser)
         response = client.get(URL_HISTORICO_REQUISICOES)
-        assert b'2 itens' in response.content
+        html = response.content.decode('utf-8')
+        # Nome do primeiro material + "e mais N", a mesma grafia das duas filas
+        # e de "Minhas requisições" (Etapa 8). A forma anterior ("2 itens", com
+        # o nome só quando havia um item) escondia o conteúdo justamente nas
+        # requisições maiores.
+        assert material_disponivel.nome in html
+        assert 'e mais 1' in html
 
 
 class TestHistoricoRequisicoesChipsPorPapel:
@@ -4315,7 +4431,9 @@ def test_historico_material_mostra_contagem_para_multi_itens(
     )
     _login(client, superuser)
     response = client.get(reverse('requisicoes:historico'))
-    assert '2 itens'.encode() in response.content
+    html = response.content.decode('utf-8')
+    assert material_disponivel.nome in html
+    assert 'e mais 1' in html
 
 
 @pytest.mark.django_db
@@ -4335,8 +4453,12 @@ def test_historico_material_mostra_nome_como_secundario_para_item_unico(
     _login(client, superuser)
     response = client.get(reverse('requisicoes:historico'))
     html = response.content.decode('utf-8')
-    assert '1 item' in html
+    # Item único não ganha sufixo de contagem: o nome sozinho já é o conteúdo.
+    # `e mais 0` é a forma que um `add:"-1"` sem guarda produziria — e "e mais"
+    # solto colide com "atualmente mais recentes primeiro" do controle de ordem.
     assert material_disponivel.nome in html
+    assert 'e mais 0' not in html
+    assert 'e mais 1' not in html
 
 
 @pytest.mark.django_db
@@ -5804,3 +5926,507 @@ def test_estorno_422_devolve_o_modal_ainda_nomeado(
     assert 'data-modal-registro' in html
     assert 'Esta operação é irreversível.' in html
     assert req_atendida_view.itens.first().material.nome in html
+
+
+class TestEntregueLiquidaVisivelParaQuemLe:
+    """A entregue líquida é leitura, não privilégio.
+
+    Ela vivia só dentro do ramo das operações de escrita (`pode_devolver` /
+    `pode_estornar`), então o beneficiário — dono do pedido — via `ENTREGUE 6` e
+    nunca sabia que 2 tinham voltado ao estoque. O PRODUCT.md a declara derivada
+    das movimentações; derivar e esconder é o pior dos dois mundos.
+    """
+
+    def _atendida_com_devolucao(
+        self, solicitante, setor_obras, material_disponivel, almox
+    ):
+        from apps.requisicoes.services import (
+            autorizar_requisicao,
+            criar_requisicao,
+            enviar_para_autorizacao,
+            registrar_atendimento,
+            registrar_devolucao,
+            separar_para_retirada,
+        )
+        from apps.requisicoes.types import LinhaAtendimento
+
+        req = criar_requisicao(
+            ator_id=solicitante.id,
+            beneficiario_id=solicitante.id,
+            itens=[
+                {
+                    'material_id': material_disponivel.id,
+                    'quantidade_solicitada': Decimal('6'),
+                }
+            ],
+        )
+        enviar_para_autorizacao(ator_id=solicitante.id, requisicao_id=req.id)
+        autorizar_requisicao(ator_id=almox.id, requisicao_id=req.id)
+        separar_para_retirada(ator_id=almox.id, requisicao_id=req.id)
+        item = req.itens.get()
+        registrar_atendimento(
+            ator_id=almox.id,
+            requisicao_id=req.id,
+            itens=[
+                LinhaAtendimento(
+                    item_id=item.id,
+                    quantidade_entregue=Decimal('6'),
+                    justificativa='',
+                )
+            ],
+            retirante_nome='Marcos Vinícius de Andrade',
+        )
+        registrar_devolucao(
+            ator_id=almox.id,
+            requisicao_id=req.id,
+            item_id=item.id,
+            quantidade=Decimal('2'),
+        )
+        return req
+
+    @pytest.mark.django_db
+    def test_beneficiario_ve_a_liquida_e_o_que_voltou(
+        self,
+        client,
+        superuser,
+        solicitante,
+        chefe_obras,
+        setor_obras,
+        material_disponivel,
+    ):
+        """O ator do GET tem de ser quem a regressão escondia.
+
+        Com `superuser` o teste passava dos dois lados: ele acumula criador,
+        beneficiário e almoxarife, logo tem `REGISTRAR_DEVOLUCAO` e `ESTORNAR`
+        em `acoes_disponiveis` e cairia dentro do ramo antigo. O solicitante é
+        beneficiário e não tem nenhuma das duas.
+
+        `chefe_obras` continua na assinatura como pré-condição, não como ator: o
+        envio exige setor com chefe ativo.
+        """
+        req = self._atendida_com_devolucao(
+            solicitante, setor_obras, material_disponivel, superuser
+        )
+        _login(client, solicitante)
+        html = client.get(
+            reverse('requisicoes:detalhe', kwargs={'pk': req.pk})
+        ).content.decode('utf-8')
+        assert 'Líquida' in html
+        assert 'de volta ao estoque' in html
+
+    @pytest.mark.django_db
+    def test_sem_devolucao_a_liquida_nao_aparece(
+        self, client, superuser, chefe_obras, setor_obras, material_disponivel
+    ):
+        """Sem nada devolvido, uma segunda linha com o mesmo número é ruído."""
+        from apps.requisicoes.services import (
+            autorizar_requisicao,
+            criar_requisicao,
+            enviar_para_autorizacao,
+            registrar_atendimento,
+            separar_para_retirada,
+        )
+        from apps.requisicoes.types import LinhaAtendimento
+
+        req = criar_requisicao(
+            ator_id=superuser.id,
+            beneficiario_id=superuser.id,
+            itens=[
+                {
+                    'material_id': material_disponivel.id,
+                    'quantidade_solicitada': Decimal('6'),
+                }
+            ],
+        )
+        enviar_para_autorizacao(ator_id=superuser.id, requisicao_id=req.id)
+        autorizar_requisicao(ator_id=superuser.id, requisicao_id=req.id)
+        separar_para_retirada(ator_id=superuser.id, requisicao_id=req.id)
+        item = req.itens.get()
+        registrar_atendimento(
+            ator_id=superuser.id,
+            requisicao_id=req.id,
+            itens=[
+                LinhaAtendimento(
+                    item_id=item.id,
+                    quantidade_entregue=Decimal('6'),
+                    justificativa='',
+                )
+            ],
+            retirante_nome='Ana Paula Ribeiro',
+        )
+        _login(client, superuser)
+        html = client.get(
+            reverse('requisicoes:detalhe', kwargs={'pk': req.pk})
+        ).content.decode('utf-8')
+        assert 'de volta ao estoque' not in html
+
+
+class TestSaldoVisivelNaDecisao:
+    """Autorizar RESERVA estoque, e era a única escrita do produto confirmada
+    com zero números na tela: o modal dizia "reserva o saldo necessário para
+    todos os itens" sem dizer quanto, de quê, nem se existe."""
+
+    def _com_item(self, requisicao, material):
+        requisicao.itens.create(material=material, quantidade_solicitada=Decimal('3'))
+        return requisicao
+
+    @pytest.mark.django_db
+    def test_chefe_ve_o_disponivel_por_item(
+        self, client, chefe_obras, req_enviada_solicitante, material_disponivel
+    ):
+        self._com_item(req_enviada_solicitante, material_disponivel)
+        _login(client, chefe_obras)
+        response = client.get(
+            reverse('requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk})
+        )
+        html = response.content.decode('utf-8')
+        assert 'Disponível' in html
+
+    @pytest.mark.django_db
+    def test_solicitante_em_rascunho_nao_ve_a_coluna(
+        self, client, solicitante, req_rascunho_solicitante
+    ):
+        """Uma consulta a mais só no estado em que ela decide algo."""
+        _login(client, solicitante)
+        response = client.get(
+            reverse('requisicoes:detalhe', kwargs={'pk': req_rascunho_solicitante.pk})
+        )
+        itens = response.context['itens']
+        assert all(getattr(i, 'saldo_disponivel_exibido', None) is None for i in itens)
+
+    @pytest.mark.django_db
+    def test_item_que_barrou_a_reserva_fica_marcado(
+        self, client, chefe_obras, req_enviada_solicitante, material_disponivel
+    ):
+        """A faixa no topo nomeia o material; a marca diz onde ele está."""
+        self._com_item(req_enviada_solicitante, material_disponivel)
+        material_id = req_enviada_solicitante.itens.first().material_id
+        _login(client, chefe_obras)
+        url = reverse('requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk})
+        html = client.get(f'{url}?item_erro={material_id}').content.decode('utf-8')
+        assert 'aria-invalid="true"' in html
+        assert 'border-danger-border-input' in html
+
+
+class TestTimelineDevolveOQueOFormularioExige:
+    """ "Auditabilidade acima de conveniência" é o princípio 2 do PRODUCT.md.
+
+    A tela de atendimento força `RETIRANTE *` a quem está em pé no galpão; a
+    devolução força a quantidade. Os dois eram gravados em
+    `TimelineRequisicao.metadata` e nunca exibidos — `_timeline.html` só lia
+    `metadata` no caso da EST-07. A pergunta que qualquer conferência faz — quem
+    retirou e por que faltou — era a que o produto coletava e não devolvia.
+    """
+
+    @pytest.mark.django_db
+    def test_retirante_e_quantidade_devolvida_aparecem(
+        self, client, superuser, chefe_obras, setor_obras, material_disponivel
+    ):
+        from apps.requisicoes.services import (
+            autorizar_requisicao,
+            criar_requisicao,
+            enviar_para_autorizacao,
+            registrar_atendimento,
+            registrar_devolucao,
+            separar_para_retirada,
+        )
+        from apps.requisicoes.types import LinhaAtendimento
+
+        req = criar_requisicao(
+            ator_id=superuser.id,
+            beneficiario_id=superuser.id,
+            itens=[
+                {
+                    'material_id': material_disponivel.id,
+                    'quantidade_solicitada': Decimal('6'),
+                }
+            ],
+        )
+        enviar_para_autorizacao(ator_id=superuser.id, requisicao_id=req.id)
+        autorizar_requisicao(ator_id=superuser.id, requisicao_id=req.id)
+        separar_para_retirada(ator_id=superuser.id, requisicao_id=req.id)
+        item = req.itens.get()
+        registrar_atendimento(
+            ator_id=superuser.id,
+            requisicao_id=req.id,
+            itens=[
+                LinhaAtendimento(
+                    item_id=item.id,
+                    quantidade_entregue=Decimal('6'),
+                    justificativa='',
+                )
+            ],
+            retirante_nome='Marcos Vinícius de Andrade',
+        )
+        registrar_devolucao(
+            ator_id=superuser.id,
+            requisicao_id=req.id,
+            item_id=item.id,
+            quantidade=Decimal('2'),
+            observacao='Duas peças devolvidas sem uso.',
+        )
+
+        _login(client, superuser)
+        html = client.get(
+            reverse('requisicoes:detalhe', kwargs={'pk': req.pk})
+        ).content.decode('utf-8')
+
+        assert 'Retirada por' in html
+        assert 'Marcos Vinícius de Andrade' in html
+        assert 'Duas peças devolvidas sem uso.' in html
+        assert material_disponivel.nome in html
+
+
+class TestBuscaNasListasDeTrabalho:
+    """As três listagens onde se AGE sobre um registro não tinham como achar um.
+
+    A divisão era o inverso da necessidade: recorte completo nas duas telas de
+    histórico, que têm cartões inertes, e nada nas três em que se decide.
+    """
+
+    @pytest.mark.django_db
+    def test_minhas_recorta_por_numero_publico(
+        self, client, solicitante, setor_obras, material_disponivel
+    ):
+        alvo = Requisicao.objects.create(
+            estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+            numero_publico='REQ-2026-B001',
+            criador=solicitante,
+            beneficiario=solicitante,
+            setor_beneficiario=setor_obras,
+        )
+        outra = Requisicao.objects.create(
+            estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+            numero_publico='REQ-2026-B999',
+            criador=solicitante,
+            beneficiario=solicitante,
+            setor_beneficiario=setor_obras,
+        )
+        for req in (alvo, outra):
+            req.itens.create(material=material_disponivel, quantidade_solicitada=1)
+
+        _login(client, solicitante)
+        html = client.get(
+            reverse('requisicoes:minhas'), {'busca': 'B001'}
+        ).content.decode('utf-8')
+        assert 'REQ-2026-B001' in html
+        assert 'REQ-2026-B999' not in html
+
+    @pytest.mark.django_db
+    def test_minhas_recorta_pelo_nome_do_material(
+        self,
+        client,
+        solicitante,
+        setor_obras,
+        material_disponivel,
+        material_disponivel_2,
+    ):
+        com_alvo = Requisicao.objects.create(
+            estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+            numero_publico='REQ-2026-B101',
+            criador=solicitante,
+            beneficiario=solicitante,
+            setor_beneficiario=setor_obras,
+        )
+        com_alvo.itens.create(material=material_disponivel, quantidade_solicitada=1)
+        sem_alvo = Requisicao.objects.create(
+            estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+            numero_publico='REQ-2026-B102',
+            criador=solicitante,
+            beneficiario=solicitante,
+            setor_beneficiario=setor_obras,
+        )
+        sem_alvo.itens.create(material=material_disponivel_2, quantidade_solicitada=1)
+
+        _login(client, solicitante)
+        html = client.get(
+            reverse('requisicoes:minhas'), {'busca': material_disponivel.nome}
+        ).content.decode('utf-8')
+        assert 'REQ-2026-B101' in html
+        assert 'REQ-2026-B102' not in html
+
+    @pytest.mark.django_db
+    def test_busca_sem_resultado_nao_diz_que_a_lista_esta_vazia(
+        self, client, solicitante, setor_obras
+    ):
+        """Quem busca "cimento" e não acha lia "Nenhuma requisição ainda" e um
+        convite a criar a primeira — uma frase errada e a ação errada."""
+        Requisicao.objects.create(
+            estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+            numero_publico='REQ-2026-B201',
+            criador=solicitante,
+            beneficiario=solicitante,
+            setor_beneficiario=setor_obras,
+        )
+        _login(client, solicitante)
+        html = client.get(
+            reverse('requisicoes:minhas'), {'busca': 'inexistente'}
+        ).content.decode('utf-8')
+        assert 'Nenhuma requisição ainda' not in html
+        assert 'Limpar busca' in html
+
+    @pytest.mark.django_db
+    def test_item_repetido_nao_duplica_a_requisicao(
+        self,
+        client,
+        solicitante,
+        setor_obras,
+        material_disponivel,
+        material_disponivel_2,
+    ):
+        """O join com `itens` multiplica a requisição por item que casa."""
+        req = Requisicao.objects.create(
+            estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+            numero_publico='REQ-2026-B301',
+            criador=solicitante,
+            beneficiario=solicitante,
+            setor_beneficiario=setor_obras,
+        )
+        req.itens.create(material=material_disponivel, quantidade_solicitada=1)
+        req.itens.create(material=material_disponivel_2, quantidade_solicitada=1)
+
+        _login(client, solicitante)
+        resposta = client.get(reverse('requisicoes:minhas'), {'busca': 'a'})
+        numeros = [r.numero_publico for r in resposta.context['requisicoes']]
+        assert numeros.count('REQ-2026-B301') == 1
+
+    @pytest.mark.django_db
+    def test_a_paginacao_das_tres_listas_preserva_a_busca(
+        self,
+        client,
+        solicitante,
+        chefe_obras,
+        aux_almoxarifado,
+        setor_obras,
+        material_disponivel,
+        monkeypatch,
+    ):
+        """Sem a querystring nos links, a página 2 de uma busca vira a lista inteira.
+
+        As duas filas usam `paginar`, que não devolve querystring alguma — não
+        têm ordenação a preservar. A busca elas têm, e desde a Etapa 8. `minhas`
+        usa `paginar_com_filtros` e o valor existia, sem chegar ao template.
+        """
+        from apps.requisicoes import views as requisicoes_views
+
+        # Dois pares: a fila de autorização só vê `aguardando_autorizacao`, e a
+        # de atendimento só vê `autorizada`/`pronta_para_retirada`. Sem os dois
+        # estados, uma das filas cai na primeira página e o teste não prova nada.
+        cenarios = (
+            ('REQ-2026-B501', EstadoRequisicao.AGUARDANDO_AUTORIZACAO),
+            ('REQ-2026-B502', EstadoRequisicao.AGUARDANDO_AUTORIZACAO),
+            ('REQ-2026-B503', EstadoRequisicao.AUTORIZADA),
+            ('REQ-2026-B504', EstadoRequisicao.AUTORIZADA),
+        )
+        for numero, estado in cenarios:
+            req = Requisicao.objects.create(
+                estado=estado,
+                numero_publico=numero,
+                criador=solicitante,
+                beneficiario=solicitante,
+                setor_beneficiario=setor_obras,
+            )
+            req.itens.create(material=material_disponivel, quantidade_solicitada=1)
+
+        monkeypatch.setattr(requisicoes_views, 'PAGINA_FILA_TAMANHO', 1)
+        monkeypatch.setattr(requisicoes_views, 'PAGINA_MINHAS_REQUISICOES_TAMANHO', 1)
+
+        busca = material_disponivel.nome
+        for usuario, rota in (
+            (solicitante, 'requisicoes:minhas'),
+            (chefe_obras, 'requisicoes:autorizacoes'),
+            (aux_almoxarifado, 'requisicoes:atendimentos'),
+        ):
+            _login(client, usuario)
+            resposta = client.get(reverse(rota), {'busca': busca})
+            html = resposta.content.decode('utf-8')
+            assert 'busca=' in resposta.context['querystring_filtros'], rota
+            assert 'page=2"' in html, rota
+            assert 'href="?page=2"' not in html, rota
+
+    @pytest.mark.django_db
+    def test_as_tres_listas_de_trabalho_tem_o_mesmo_campo(
+        self, client, solicitante, chefe_obras, aux_almoxarifado
+    ):
+        """Uma gramática de busca, não três."""
+        for usuario, rota in (
+            (solicitante, 'requisicoes:minhas'),
+            (chefe_obras, 'requisicoes:autorizacoes'),
+            (aux_almoxarifado, 'requisicoes:atendimentos'),
+        ):
+            _login(client, usuario)
+            html = client.get(reverse(rota)).content.decode('utf-8')
+            assert 'Requisição ou material' in html, rota
+            assert 'role="search"' in html, rota
+
+    @pytest.mark.django_db
+    def test_busca_nao_encolhe_a_contagem_de_itens(
+        self,
+        client,
+        solicitante,
+        setor_obras,
+        material_disponivel,
+        material_disponivel_2,
+    ):
+        """O "e mais N" do cartão conta a requisição inteira, não o recorte.
+
+        Em "Minhas requisições" a busca vem antes do `Count('itens')`: com um
+        join no filtro, a anotação passaria a contar só os itens que casaram e
+        o cartão diria "e mais 0" numa requisição de dois materiais.
+        """
+        req = Requisicao.objects.create(
+            estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+            numero_publico='REQ-2026-B401',
+            criador=solicitante,
+            beneficiario=solicitante,
+            setor_beneficiario=setor_obras,
+        )
+        req.itens.create(material=material_disponivel, quantidade_solicitada=1)
+        req.itens.create(material=material_disponivel_2, quantidade_solicitada=1)
+
+        _login(client, solicitante)
+        resposta = client.get(
+            reverse('requisicoes:minhas'), {'busca': material_disponivel.nome}
+        )
+        encontradas = list(resposta.context['requisicoes'])
+        assert len(encontradas) == 1
+        assert encontradas[0].quantidade_itens == 2
+
+    @pytest.mark.django_db
+    def test_busca_nao_multiplica_a_contagem_na_fila(
+        self,
+        client,
+        chefe_obras,
+        solicitante,
+        setor_obras,
+        material_disponivel,
+        material_disponivel_2,
+    ):
+        """Nas filas a anotação vem antes da busca, e o erro é o oposto.
+
+        `Count('itens')` já existe no seletor; um join no filtro abriria uma
+        segunda cópia da mesma tabela e o produto cartesiano inflaria o total.
+        A busca casa os DOIS itens de propósito: com um só, o produto de 2×1
+        devolve o número certo por acidente e o defeito passa despercebido.
+        """
+        req = Requisicao.objects.create(
+            estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+            numero_publico='REQ-2026-B402',
+            criador=solicitante,
+            beneficiario=solicitante,
+            setor_beneficiario=setor_obras,
+        )
+        req.itens.create(material=material_disponivel, quantidade_solicitada=1)
+        req.itens.create(material=material_disponivel_2, quantidade_solicitada=1)
+
+        prefixo_comum = 'MAT00'
+        assert prefixo_comum in material_disponivel.codigo
+        assert prefixo_comum in material_disponivel_2.codigo
+
+        _login(client, chefe_obras)
+        resposta = client.get(
+            reverse('requisicoes:autorizacoes'), {'busca': prefixo_comum}
+        )
+        encontradas = list(resposta.context['requisicoes'])
+        assert len(encontradas) == 1
+        assert encontradas[0].quantidade_itens == 2

@@ -91,7 +91,7 @@
         {% include "components/table.html#card_abertura" %}
           {% url 'requisicoes:detalhe' pk=req.pk as url_detalhe_req %}
           {% with next_encoded=request.get_full_path|urlencode criada_em=req.criado_em|date:"d/m/Y H:i" %}
-          <div class="flex items-start justify-between gap-3">
+          <div class="flex flex-col gap-2 xl:flex-row xl:items-start xl:justify-between xl:gap-3">
             <div class="min-w-0">
               {% comment %}
                 Rascunho não tem número público — por decisão de domínio: o
@@ -106,7 +106,7 @@
               <h2 class="break-words text-sm font-semibold text-text-primary">
                 {% if req.numero_publico %}<a href="{{ url_detalhe_req }}?next={{ next_encoded }}" data-cartao-link class="rounded-sm focus-visible:outline-none" aria-label="Ver detalhes da requisição {{ req.numero_publico }}">{{ req.numero_publico }}</a>{% else %}<a href="{{ url_detalhe_req }}?next={{ next_encoded }}" data-cartao-link class="rounded-sm text-text-tertiary focus-visible:outline-none" aria-label="Ver detalhes do rascunho de {{ req.beneficiario.nome }} criado em {{ criada_em }}">Rascunho — {{ req.beneficiario.nome }}</a>{% endif %}
               </h2>
-              <p class="mt-1 text-xs text-text-tertiary">{{ req.criado_em|date:"d/m/Y H:i" }}</p>
+              <p class="mt-1 text-xs text-text-tertiary">Criada em {{ req.criado_em|date:"d/m/Y H:i" }}</p>
             </div>
             <div class="shrink-0">
               {% include "requisicoes/partials/_estado_badge.html" with requisicao=req %}
@@ -127,7 +127,23 @@
             `setor_beneficiario_id` diferente e mantém o campo — ali o valor não
             é redundante (ver test_historico_chefe_setor_ve_o_que_criou_fora).
           {% endcomment %}
-          <dl class="mt-4 grid grid-cols-2 gap-3 text-sm">
+          <dl class="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+            {% comment %}
+              Mesma grafia das duas filas e de "Minhas requisições": o nome do
+              material primeiro, a contagem como "e mais N". A forma anterior
+              ("4 itens", com o nome só quando havia um item) escondia o
+              conteúdo exatamente nas requisições maiores, que são as que mais
+              precisam ser distinguidas numa varredura.
+            {% endcomment %}
+            <div class="flex gap-x-2 sm:col-span-2">
+              <dt class="shrink-0 text-text-tertiary">Material:</dt>
+              <dd class="min-w-0 break-words text-text-primary">
+                {{ req.primeiro_material_nome|default:"—" }}
+                {% if req.quantidade_itens > 1 %}
+                  <span class="text-text-tertiary">e mais {{ req.quantidade_itens|add:"-1" }}</span>
+                {% endif %}
+              </dd>
+            </div>
             <div class="flex gap-x-2">
               <dt class="shrink-0 text-text-tertiary">Solicitante:</dt>
               <dd class="min-w-0 text-text-primary">{{ req.criador.nome }}</dd>
@@ -142,15 +158,6 @@
               <dd class="min-w-0 text-text-primary">{{ req.setor_beneficiario.nome }}</dd>
             </div>
             {% endif %}
-            <div class="flex gap-x-2">
-              <dt class="shrink-0 text-text-tertiary">Material:</dt>
-              <dd class="min-w-0 text-text-primary">
-                {{ req.quantidade_itens }} {{ req.quantidade_itens|pluralize:"item,itens" }}
-                {% if req.quantidade_itens == 1 %}
-                  <span class="block break-words text-xs text-text-tertiary">{{ req.primeiro_material_nome }}</span>
-                {% endif %}
-              </dd>
-            </div>
           </dl>
 
           {# Afordância do cartão, não um controle: o link do título já carrega o nome acessível. #}

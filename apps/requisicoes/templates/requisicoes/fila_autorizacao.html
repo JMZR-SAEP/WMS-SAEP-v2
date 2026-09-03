@@ -1,4 +1,5 @@
 {% extends "base_auth.html" %}
+{% load core_tags %}
 
 {% block title %}Fila de autorização — WMS-SAEP{% endblock %}
 
@@ -8,7 +9,11 @@
   Requisições aguardando decisão do setor sob sua chefia.
 </p>
 
+{% url 'requisicoes:autorizacoes' as url_lista %}
+{% include "components/busca_simples.html" with action_url=url_lista id="busca-autorizacoes" name="busca" label="Requisição ou material" value=busca placeholder="Número público, código ou nome do material" %}
+
 {% if requisicoes %}
+  {% include "components/ordenacao_data.html" with page_obj=page_obj rotulo_contagem="requisição,requisições" %}
   {% include "components/table.html#cards_abertura" %}
     {% for req in requisicoes %}
       {% include "components/table.html#card_abertura" %}
@@ -47,7 +52,22 @@
         </div>
 
         {# Rótulo rebaixado (issue #158): `Rótulo: valor` inline, sem caixa alta, `<dl>/<dt>/<dd>` preservado. Ver DESIGN.md §A Regra da Caixa Alta Estrutural. #}
-        <dl class="mt-4 grid grid-cols-2 gap-3 text-sm">
+        <dl class="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+          {% comment %}
+            Material primeiro e em linha inteira, como na fila de atendimento:
+            "Itens: 4" é um dígito, e o chefe de setor autoriza — e reserva
+            saldo — sem saber o que foi pedido. A contagem sobrevive como
+            "e mais N", que responde "quantos?" sem gastar uma linha só nisso.
+          {% endcomment %}
+          <div class="flex gap-x-2 sm:col-span-2">
+            <dt class="shrink-0 text-text-tertiary">Material:</dt>
+            <dd class="min-w-0 break-words text-text-primary">
+              {{ req.primeiro_material_nome|default:"—" }}
+              {% if req.quantidade_itens > 1 %}
+                <span class="text-text-tertiary">e mais {{ req.quantidade_itens|add:"-1" }}</span>
+              {% endif %}
+            </dd>
+          </div>
           <div class="flex gap-x-2">
             <dt class="shrink-0 text-text-tertiary">Beneficiário:</dt>
             <dd class="min-w-0 text-text-primary">
@@ -59,10 +79,6 @@
             <dt class="shrink-0 text-text-tertiary">Setor:</dt>
             <dd class="min-w-0 text-text-primary">{{ req.setor_beneficiario.nome }}</dd>
           </div>
-          <div class="flex gap-x-2">
-            <dt class="shrink-0 text-text-tertiary">Itens:</dt>
-            <dd class="min-w-0 tabular-nums text-text-primary">{{ req.quantidade_itens }}</dd>
-          </div>
         </dl>
 
         {# Afordância do cartão, não um controle: o link do título já carrega o nome acessível com o mesmo verbo. #}
@@ -72,8 +88,15 @@
     {% endfor %}
   </div>
 
-  {% include 'components/pagination.html' with page_obj=page_obj rotulo_itens='requisições' aria_label='Paginação da fila de autorização' %}
+  {% include 'components/pagination.html' with page_obj=page_obj querystring_filtros=querystring_filtros rotulo_itens='requisições' aria_label='Paginação da fila de autorização' %}
 {% else %}
-  {% include 'components/empty_state.html' with icone='components/icons/_caixa_entrada.html' titulo='Nenhuma requisição aguardando autorização' descricao='A fila do seu escopo está vazia.' %}
+  {# Busca sem resultado não é fila vazia — ver o mesmo ramo em lista_minhas.html. #}
+  {% if busca %}
+    {% url 'requisicoes:autorizacoes' as url_limpar_busca %}
+    {% titulo_com_termo busca 'Nenhum resultado para' as titulo_busca %}
+    {% include 'components/empty_state.html' with icone='components/icons/_funil.html' titulo=titulo_busca descricao='Confira o número público ou tente parte do nome do material.' cta_url=url_limpar_busca cta_label='Limpar busca' cta_secundario=True %}
+  {% else %}
+    {% include 'components/empty_state.html' with icone='components/icons/_caixa_entrada.html' titulo='Nenhuma requisição aguardando autorização' descricao='A fila do seu escopo está vazia.' %}
+  {% endif %}
 {% endif %}
 {% endblock %}

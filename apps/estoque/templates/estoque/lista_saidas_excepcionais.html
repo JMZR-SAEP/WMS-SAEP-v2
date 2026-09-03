@@ -2,22 +2,50 @@
 
 {% block title %}Saídas excepcionais — WMS-SAEP{% endblock %}
 
+{% comment %}
+  Ação primária na barra, como em `lista_minhas.html`: o único link para
+  `saidas-excepcionais/nova/` vivia dentro do estado vazio, ou seja, sumia no
+  primeiro registro e não voltava — nem a side nav o oferece. Depois da
+  primeira saída não havia caminho pela interface para registrar a segunda.
+{% endcomment %}
+{% block topbar_actions %}
+  {% if pode_registrar %}
+    <a
+      href="{% url 'estoque:nova_saida_excepcional' %}"
+      class="app-bar__action-icon"
+      aria-label="Nova saída excepcional"
+      title="Nova saída excepcional"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+      </svg>
+    </a>
+  {% endif %}
+{% endblock %}
+
 {% block content %}
 <div class="max-w-screen-xl mx-auto">
 
-  {% include "components/page_header.html" with titulo="Saídas excepcionais" class="mb-2" %}
+  <div class="mb-2 flex flex-wrap items-center justify-between gap-3">
+    {% include "components/page_header.html" with titulo="Saídas excepcionais" %}
+    {% if pode_registrar and saidas %}
+      {% url 'estoque:nova_saida_excepcional' as url_nova_saida %}
+      {% include "components/button.html" with variant="primary" label="Nova saída excepcional" href=url_nova_saida %}
+    {% endif %}
+  </div>
   <p class="mb-6 max-w-3xl text-sm text-text-secondary">
     Baixas administrativas diretas de material no estoque, independentes do fluxo de requisição.
   </p>
 
   {% if saidas %}
 
+    {% include "components/ordenacao_data.html" with url_ordenacao=url_ordenacao ordem=ordem page_obj=page_obj rotulo_contagem="saída excepcional,saídas excepcionais" %}
     {% include "components/table.html#cards_abertura" %}
       {% for saida in saidas %}
         {% include "components/table.html#card_abertura" %}
           {% url 'estoque:detalhe_saida_excepcional' saida.pk as url_detalhe_saida %}
           {% with pk_texto=saida.pk|stringformat:"s" next_encoded=request.get_full_path|urlencode %}
-          <div class="flex items-start justify-between gap-3">
+          <div class="flex flex-col gap-2 xl:flex-row xl:items-start xl:justify-between xl:gap-3">
             <div class="min-w-0">
               {# O link do título é o alvo real; `data-cartao-link` faz o cartão inteiro responder por ele (core/js/cartao-alvo.js). #}
               <h2 class="break-words text-sm font-semibold text-text-primary">
@@ -25,11 +53,11 @@
                   href="{{ url_detalhe_saida }}?next={{ next_encoded }}"
                   data-cartao-link
                   class="rounded-sm focus-visible:outline-none"
-                  aria-label="Ver detalhe da saída {% if saida.numero_publico %}{{ saida.numero_publico }}{% else %}{{ pk_texto }}{% endif %}"
+                  aria-label="Ver detalhes da saída {% if saida.numero_publico %}{{ saida.numero_publico }}{% else %}{{ pk_texto }}{% endif %}"
                 >{{ saida.numero_publico|default:"—" }}</a>
               </h2>
               <p class="mt-1 text-xs text-text-tertiary">
-                {{ saida.criado_em|date:"d/m/Y H:i" }}
+                Registrada em {{ saida.criado_em|date:"d/m/Y H:i" }}
               </p>
             </div>
             <span class="shrink-0">{% include "estoque/partials/_estado_saida_badge.html" with saida=saida %}</span>
@@ -52,13 +80,13 @@
           </dl>
 
           {# Afordância do cartão, não um controle: o link do título já carrega o nome acessível. #}
-          <p class="mt-4 flex items-center gap-1 text-sm font-medium text-primary" aria-hidden="true">Ver detalhe <span>&rarr;</span></p>
+          <p class="mt-4 flex items-center gap-1 text-sm font-medium text-primary" aria-hidden="true">Ver detalhes <span>&rarr;</span></p>
           {% endwith %}
         </article>
       {% endfor %}
     </div>
 
-    {% include 'components/pagination.html' with page_obj=page_obj rotulo_itens='saídas excepcionais' aria_label='Paginação das saídas excepcionais' %}
+    {% include 'components/pagination.html' with page_obj=page_obj querystring_filtros=querystring_filtros rotulo_itens='saídas excepcionais' aria_label='Paginação das saídas excepcionais' %}
 
   {% else %}
 

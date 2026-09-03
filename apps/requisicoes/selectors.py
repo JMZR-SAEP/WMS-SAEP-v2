@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Callable
 
-from django.db.models import Count, F, OuterRef, Q, QuerySet, Subquery
+from django.db.models import Count, Exists, F, OuterRef, Q, QuerySet, Subquery
 
 from apps.accounts.models import Setor, User
 from apps.accounts.papeis import papel_efetivo
@@ -137,6 +137,38 @@ def minhas_requisicoes(ator_id: int) -> QuerySet[Requisicao]:
     ).order_by('-criado_em')
 
 
+def filtrar_por_busca_simples(qs: QuerySet[Requisicao], busca: str) -> QuerySet:
+    """Recorta uma listagem de requisições por número público ou material.
+
+    As três listagens de trabalho — minhas, fila de autorização, fila de
+    atendimento — não tinham como achar um registro, enquanto as duas telas de
+    histórico tinham filtro composto, chips e presets. A divisão era o inverso
+    da necessidade: recorte completo nas telas de cartão inerte, e nada nas
+    telas em que se age sobre um registro.
+
+    Os dois campos que a pessoa tem na mão quando chega: o número que ela anotou
+    e o nome do material que está procurando. Sem busca por pessoa — para isso
+    existe o histórico, que tem o filtro composto e o escopo maior.
+
+    `Exists` correlacionado, e não `filter(itens__material__...)`, porque as
+    três listagens anotam `Count('itens')` para o "e mais N" do cartão e um
+    join com `itens` no filtro corrompe essa contagem nas duas direções: em
+    "Minhas requisições" o filtro vem antes da anotação e o `Count` passa a
+    contar só os itens que casaram com a busca; nas duas filas a anotação já
+    existe no seletor e o filtro abre um segundo join na mesma tabela, cujo
+    produto cartesiano multiplica o total. O subquery não entra no `GROUP BY`,
+    então a contagem continua sendo a da requisição inteira — e sem o join
+    duplicado o `distinct()` deixa de ser necessário.
+    """
+    busca = (busca or '').strip()
+    if not busca:
+        return qs
+    item_casa = ItemRequisicao.objects.filter(
+        requisicao_id=OuterRef('pk'),
+    ).filter(Q(material__nome__icontains=busca) | Q(material__codigo__icontains=busca))
+    return qs.filter(Q(numero_publico__icontains=busca) | Q(Exists(item_casa)))
+
+
 def fila_autorizacao(ator_id: int) -> QuerySet[Requisicao]:
     """Fila de requisições aguardando autorização para chefias autorizadoras."""
     enviada_em_sq = Subquery(
@@ -152,7 +184,21 @@ def fila_autorizacao(ator_id: int) -> QuerySet[Requisicao]:
             'criador', 'beneficiario', 'setor_beneficiario'
         )
         .filter(estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO)
-        .annotate(quantidade_itens=Count('itens'), enviada_em=enviada_em_sq)
+        .annotate(
+            quantidade_itens=Count('itens'),
+            enviada_em=enviada_em_sq,
+            # Mesmo motivo da fila de atendimento: "Itens: 4" é um dígito, e o
+            # chefe de setor decide autorizar sem saber o que foi pedido. A
+            # correção foi aplicada só numa das duas filas quando foi feita.
+            # Subquery e não `prefetch_related('itens__material')`, que
+            # carregaria as N linhas de toda requisição da fila para exibir, no
+            # máximo, um nome por cartão.
+            primeiro_material_nome=Subquery(
+                ItemRequisicao.objects.filter(requisicao=OuterRef('pk'))
+                .order_by('pk')
+                .values('material__nome')[:1]
+            ),
+        )
         .order_by('atualizado_em', 'criado_em', 'id')
     )
     try:
@@ -259,7 +305,7 @@ def material_eh_elegivel(material: Material) -> bool:
 
 
 def saldos_por_materiais(material_ids: list[int]) -> dict[int, dict]:
-    """Retorna dict {material_id: {elegivel, saldo_disponivel, motivo, unidade}}.
+    """Retorna dict {material_id: {elegivel, saldo_disponivel, saldo_bruto, motivo, unidade}}.
 
     Usado para sinalizar itens inelegíveis no form de edição de rascunho copiado.
 
@@ -295,6 +341,10 @@ def saldos_por_materiais(material_ids: list[int]) -> dict[int, dict]:
             'saldo_disponivel': saldo_disponivel,
             'motivo': motivo,
             'unidade': material.unidade,
+            # O mesmo saldo em notação de máquina, para o aviso client-side de
+            # "acima do saldo" comparar. O template imprime `saldo_disponivel`
+            # já formatado em pt-BR, com vírgula, e `Number()` não lê vírgula.
+            'saldo_bruto': str(saldo_disponivel),
         }
     return resultado
 

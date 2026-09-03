@@ -1,0 +1,15 @@
+{% extends "base_auth.html" %}
+
+{% block title %}Acesso negado — WMS-SAEP{% endblock %}
+
+{% comment %}
+  Antes desta tela o Django devolvia o `<h1>403 Forbidden</h1>` cru: sem chrome,
+  sem navegação e sem dizer de quem é o problema. O 403 do produto é rotina, não
+  incidente — papel efetivo é derivado do ator diante de cada registro, e uma
+  tela visível ao chefe de almoxarifado pode apontar para uma ação que só o
+  superusuário executa. Quem chega aqui precisa de um caminho de volta.
+{% endcomment %}
+{% block content %}
+  {% url 'core:home' as url_inicio %}
+  {% include "core/partials/_erro_pagina.html" with codigo="403" titulo="Acesso negado" descricao="Você está autenticado, mas o seu papel não alcança esta tela. Se precisa deste acesso, fale com o administrador do sistema." cta_url=url_inicio cta_label="Ir para o início" %}
+{% endblock %}

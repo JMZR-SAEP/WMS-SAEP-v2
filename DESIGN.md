@@ -244,6 +244,32 @@ Uma paleta de trabalho: um azul de carimbo, um grafite de registro, um papel fri
 
 **A Regra da Reversão Não é Erro.** Devolução e reversão operacional usam teal (`{colors.return}`), jamais vermelho. Vermelho é negação, falha ou divergência; devolver material é o processo funcionando. Nenhum evento legítimo do domínio recebe a cor da recusa.
 
+**A Regra do Cinza Medido.** O piso do cinza de metadado é por *par*, não por
+token. Medido no navegador (Etapa 8), `text-tertiary` (slate-500) dá 4,76:1 sobre
+`surface` e 4,55:1 sobre `bg-page`, mas **4,35:1 sobre `bg-subtle`** — reprova o
+4,5:1 da WCAG 1.4.3. Texto sobre papel frio sombreado usa `text-secondary`
+(9,45:1). A mesma medição condena `danger-accent` (red-500) como cor de texto em
+qualquer superfície do sistema — 3,48:1 a 3,81:1 —; ele continua válido só como
+anel de foco e borda de campo, onde o mínimo é o 3:1 da 1.4.11. Texto de perigo
+é `danger-text` (red-700, 6,42:1 no branco), inclusive o asterisco de campo
+obrigatório.
+
+| sobre → | `surface` | `bg-page` | `bg-subtle` | `primary-subtle` |
+|---|---|---|---|---|
+| `text-tertiary` | 4,76 | 4,55 | **4,35** ✗ | **4,38** ✗ |
+| `text-secondary` | 10,35 | 9,90 | 9,45 | 9,51 |
+| `primary-text` | 6,70 | 6,41 | 6,12 | 6,16 |
+| `danger-accent` | **3,81** ✗ | **3,64** ✗ | **3,48** ✗ | **3,52** ✗ |
+| `danger-text` | 6,42 | 6,14 | 5,86 | 5,90 |
+
+A quarta coluna entrou depois da primeira: `primary-subtle` é o fundo da linha
+não lida de `/notificacoes/` e do cartão de material novo do preview SCPI, e a
+primeira medição desta regra não a cobria. O cinza de metadado reprova nas
+**duas** superfícies tingidas do sistema, não só no papel frio sombreado.
+
+`text-disabled` (slate-400, 2,63:1 no branco) não carrega informação em nenhuma
+superfície: serve a ícone decorativo e a separador, nunca a texto.
+
 **A Regra do Token, Nunca do Shade.** Templates usam a utility semântica (`bg-primary`, `text-danger-text`), nunca a cor crua da paleta (`bg-blue-600`, `text-red-700`) nem a custom property direto no HTML. É isso que torna o rebrand da SAEP uma troca de valor em `input.css`, sem tocar template. A exceção viva é o corpo de `badge.html`, para as variantes de catálogo cru sem token semântico.
 
 > Nota factual: a família `--color-info*` (slate) está declarada em `input.css` mas nenhum template a consome — logo não existe no `app.css` compilado. A variante `info` de `alert.html` e o nível padrão de `_messages.html` renderizam azul via `primary-*`, por decisão. Use `info-*` só quando precisar de um aviso realmente neutro, e recompile.
@@ -312,6 +338,40 @@ Esticar a caixa não desloca o conteúdo. O `<article>` do `card_abertura` não 
 
 Consequência para quem escreve tela nova: não devolver alinhamento vertical ao container de grade. Se um cartão parecer vazio demais no rodapé, o que se ajusta é o corpo do cartão — como o do catálogo foi ajustado na #159 —, nunca o alinhamento da linha.
 
+**A Regra da Identidade Que Não Quebra (2026-09-01, Etapa 8).** O cabeçalho do
+cartão — título à esquerda, badge de estado à direita — é `flex-wrap`, e o
+`<dl>` de rótulo/valor é `grid-cols-1 sm:grid-cols-2`. Medido a 375px: o cartão
+dá 295px de conteúdo, e o badge mais largo do produto ("Aguardando autorização",
+teto de `max-w-48`) come 190px deles. Sem `flex-wrap`, o `min-w-0` do bloco de
+título deixava o número público encolher abaixo do próprio `min-content` e
+`REQ-2026-000009` quebrava em duas linhas — a identidade do registro partida ao
+meio. Com `flex-wrap` o badge desce para a linha de baixo e o número volta a
+caber inteiro (medido: `<h2>` de 40px para 20px). O mesmo vale no `<dl>`: em
+duas colunas a 375px cada célula tem ~145px e `Origem: SXP-2026-000003` quebrava
+o número; em coluna única o cartão cresce 12px (246 → 258px) e nada quebra.
+
+**Emenda (mesma etapa, depois da critique): o carimbo tem posição fixa até
+`xl`.** O `flex-wrap` consertou o número partido e comprou outro defeito, medido
+na critique: `Cancelada` e `Rascunho` cabiam na linha do título enquanto
+`Aguardando autorização` descia para baixo da data. O carimbo de estado — o alvo
+de varredura mais importante da lista — ocupava a linha 1 em uns cartões e a
+linha 3 em outros, e uma âncora que muda de lugar entre vizinhos é pior que uma
+âncora deslocada.
+
+O cabeçalho passa a ser `flex flex-col ... xl:flex-row`. O ponto de virada é
+`xl` e não `sm` por medição: o carimbo mais largo do produto ocupa 192px, o
+número precisa de ~132px e o `gap` de 12 — 336px, mais 32 de padding, dá 368px
+de cartão. Em grade de 2 colunas isso só acontece a partir de ~1036px de
+viewport com a side nav, e `sm` (640px) dá 296px por cartão, ou seja, a mesma
+instabilidade um breakpoint adiante. Medido em `/requisicoes/minhas/`, o
+deslocamento do carimbo em relação ao topo do cartão passou a ter **um valor
+único por viewport** — 68,5px a 375, 700 e 1024; 20,5px a 1366 e 1440 — contra
+dois valores misturados na mesma tela antes.
+
+Consequência para quem escreve tela nova: nenhuma coluna de grade fixa em
+`grid-cols-2` num cartão de listagem, e nenhum cabeçalho de cartão em
+`flex-row` abaixo de `xl`. Um `col-span-2` de campo largo vira `sm:col-span-2`.
+
 **A Regra do Chrome Sem Parâmetro.** Os fragmentos de chrome de listagem não recebem parâmetro de classe. Se um chrome precisa de um parâmetro que descreve conteúdo de célula, a abstração está errada — a célula fica explícita na tela chamadora. Uma variante de estrutura pura (contagem de colunas: `#cards_abertura` vs. `#cards_abertura_denso`) é fragmento irmão de string fixa, não parâmetro, e não fere a regra.
 
 ## Elevation & Depth
@@ -369,7 +429,7 @@ Borda é estrutural, não decorativa: 1px sólido em toda superfície de papel c
 - **Style:** papel branco, borda `border-control` (slate-500), raio 0.5rem, padding `0.5rem 0.75rem`, corpo 14px, largura total do container e **altura mínima de 2.75rem (44px)** — campo é controle acionável e segue o mesmo piso do botão. Radio e checkbox usam `size-5` dentro de uma label de 44px; `textarea` com duas linhas ou mais já passa do piso.
 - **Focus:** borda blue-500 + `ring-2` blue-500, sem outline.
 - **Erro:** borda `danger-border-input` (red-400), `aria-invalid="true"` e mensagem em `role="alert"` abaixo do campo, vinculada por `aria-describedby`. Texto de erro vem sempre do Form, nunca hardcoded no componente.
-- **Rótulo:** acima do campo, 12px semibold caixa alta em cinza de metadado, com asterisco `danger-accent` quando obrigatório. Texto de ajuda fica entre o rótulo e o campo.
+- **Rótulo:** acima do campo, 12px semibold caixa alta em cinza de metadado, com asterisco `danger-text` quando obrigatório — `danger-accent` reprova o 4,5:1 em toda superfície (ver A Regra do Cinza Medido) e o asterisco é o único indicador visual de obrigatoriedade. Texto de ajuda fica entre o rótulo e o campo.
 - **Readonly:** fundo papel frio, borda neutra, cursor padrão — nunca `disabled`, que impediria o envio.
 
 ### Navigation

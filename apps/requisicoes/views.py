@@ -34,7 +34,12 @@ from apps.core.exceptions import (
     PermissaoNegada,
 )
 from apps.core.filtros import montar_chip, montar_presets_periodo
-from apps.core.http import htmx_redirect, parse_data_iso, voltar_url_seguro
+from apps.core.http import (
+    htmx_redirect,
+    parse_data_iso,
+    querystring_sem_page,
+    voltar_url_seguro,
+)
 from apps.core.listagem import contar_filtros_ativos, paginar, paginar_com_filtros
 from apps.core.modal import render_modal_erro
 from apps.core.presentation import traduz_erro_dominio
@@ -73,6 +78,7 @@ from apps.requisicoes.policies import (
 )
 from apps.requisicoes.selectors import (
     acoes_disponiveis,
+    filtrar_por_busca_simples,
     fila_atendimento,
     fila_autorizacao,
     filtrar_historico_requisicoes,
@@ -144,12 +150,31 @@ def _detalhe_context(
     # no modal o que vai voltar ao saldo físico (#138). Ficava dentro do ramo da
     # devolução, e o modal de estorno — que reverte exatamente estes números —
     # não tinha acesso a nenhum deles.
-    if {Operacao.REGISTRAR_DEVOLUCAO, Operacao.ESTORNAR} & set(acoes):
+    # A entregue líquida é LEITURA, não privilégio. Ela vivia só dentro do ramo
+    # das duas operações de escrita, então o beneficiário — dono do pedido — via
+    # `ENTREGUE 6` e nunca sabia que 2 tinham voltado ao estoque. O PRODUCT.md a
+    # declara derivada das movimentações; derivar e esconder é o pior dos dois
+    # mundos. A consulta é uma só e já era feita aqui.
+    algum_entregue = any(i.quantidade_entregue is not None for i in itens)
+    precisa_liquida = algum_entregue or bool(
+        {Operacao.REGISTRAR_DEVOLUCAO, Operacao.ESTORNAR} & set(acoes)
+    )
+    if precisa_liquida:
         entregues = entregue_liquida_por_requisicao(requisicao_id=requisicao.pk)
         for item in itens:
             item.entregue_liquida = entregues.get(item.material_id, Decimal('0'))
             item.modal_devolver_id = f'devolver-{item.pk}'
-            if item.entregue_liquida > 0:
+            # Só aparece quando diverge do entregue bruto: se nada voltou, uma
+            # segunda linha com o mesmo número é ruído numa tela já densa.
+            bruto = item.quantidade_entregue
+            if bruto is not None and item.entregue_liquida != bruto:
+                item.entregue_liquida_exibida = item.entregue_liquida
+                devolvido = bruto - item.entregue_liquida
+                item.rotulo_devolucao = (
+                    f'{formatar_quantidade(devolvido, item.material.unidade)} '
+                    f'{item.material.get_unidade_display()} de volta ao estoque'
+                )
+            if item.entregue_liquida > 0 and Operacao.REGISTRAR_DEVOLUCAO in acoes:
                 itens_devolviveis.append(item)
     # A operação estar disponível não basta: com tudo já devolvido a seção não
     # teria linha nenhuma. A lista é que decide se o bloco existe.
@@ -157,6 +182,30 @@ def _detalhe_context(
     eventos = list(
         requisicao.eventos.select_related('ator').order_by('-criado_em', '-id')
     )
+    # O que o formulário EXIGE volta a ser lido no registro. A tela de
+    # atendimento força `RETIRANTE *`; a devolução força a quantidade. Os dois
+    # eram gravados em `TimelineRequisicao.metadata` e nunca exibidos — o
+    # `_timeline.html` só lia `metadata` no caso da EST-07. O princípio 2 do
+    # PRODUCT.md é "auditabilidade acima de conveniência", e a pergunta que
+    # qualquer conferência faz — quem retirou e por que faltou — era exatamente
+    # a que o produto coletava e não devolvia.
+    #
+    # A resolução é aqui, e não no template: o `item_id` do metadata é um id
+    # cru, e traduzi-lo para o nome do material dentro do template significaria
+    # uma consulta por evento.
+    material_por_item = {i.pk: i.material for i in itens}
+    for evento in eventos:
+        metadata = evento.metadata or {}
+        evento.retirante = metadata.get('retirante') or ''
+        evento.observacao_registrada = metadata.get('observacao') or ''
+        evento.detalhe_quantidade = ''
+        material = material_por_item.get(metadata.get('item_id'))
+        quantidade = metadata.get('quantidade')
+        if material is not None and quantidade is not None:
+            evento.detalhe_quantidade = (
+                f'{formatar_quantidade(quantidade, material.unidade)} '
+                f'{material.get_unidade_display()} de {material.nome}'
+            )
     enviada_em = None
     if requisicao.estado != EstadoRequisicao.RASCUNHO:
         enviada_em = next(
@@ -167,6 +216,31 @@ def _detalhe_context(
     info_cancelamento = cancelamento_info(requisicao) if cancelavel else None
 
     pode_copiar = _pode_copiar_agora(papel, requisicao)
+
+    # Saldo por item quando a decisão é autorizar. Autorizar RESERVA estoque, e
+    # esta era a única escrita do produto confirmada com zero números na tela: o
+    # modal dizia "reserva o saldo necessário para todos os itens" sem dizer
+    # quanto, de quê, nem se existe. O chefe descobria o problema depois de
+    # confirmar. Uma consulta só, e só no estado em que ela decide algo.
+    if Operacao.AUTORIZAR in acoes:
+        saldos = saldos_por_materiais([i.material_id for i in itens])
+        for item in itens:
+            info = saldos.get(item.material_id)
+            if info is None:
+                continue
+            item.saldo_disponivel_exibido = info['saldo_disponivel']
+            item.saldo_insuficiente = (
+                info['saldo_disponivel'] < item.quantidade_solicitada
+            )
+            item.saldo_motivo = info['motivo']
+
+    # `item_erro` chega da querystring quando uma tentativa de autorização
+    # barrou por saldo: o service diz qual material, a view repassa, e a lista
+    # marca a linha. Nada além de marcar — a mensagem já está na faixa.
+    item_erro_bruto = request.GET.get('item_erro', '')
+    item_erro_id = int(item_erro_bruto) if item_erro_bruto.isdigit() else None
+    for item in itens:
+        item.tem_erro = item.material_id == item_erro_id
 
     return {
         'requisicao': requisicao,
@@ -538,6 +612,11 @@ def buscar_materiais(request):
             'saldo_disponivel': formatar_quantidade(
                 saldo_por_material.get(m.pk, 0), m.unidade
             ),
+            # O mesmo saldo em notação de máquina. `saldo_disponivel` já vem
+            # formatado em pt-BR, com vírgula, e `Number()` não lê vírgula — sem
+            # este par o aviso de "acima do saldo" compararia contra NaN e nunca
+            # dispararia. Formatado para ler, cru para comparar.
+            'saldo_bruto': str(saldo_por_material.get(m.pk, 0)),
         }
         for m in materiais
     ]
@@ -596,12 +675,44 @@ def minhas_requisicoes_view(request):
     Rascunhos de terceiros são filtrados pelo selector. Paginado: a lista
     cresce monotonicamente ao longo da vida do usuário e não tem filtro.
     """
-    requisicoes = minhas_requisicoes(request.user.pk)
-    page_obj = paginar(request, requisicoes, per_page=PAGINA_MINHAS_REQUISICOES_TAMANHO)
+    # O cartão precisa nomear o material: esta é a tela do solicitante e a
+    # única que o produto declara operada no celular (PRODUCT.md), e ela era a
+    # única das sete listagens que não dizia o que a requisição pede. Subquery
+    # pelo mesmo motivo do histórico e das duas filas — um
+    # `prefetch_related('itens__material')` carregaria as N linhas de toda
+    # requisição da página para exibir, no máximo, um nome por cartão.
+    primeiro_material_sq = Subquery(
+        ItemRequisicao.objects.filter(requisicao=OuterRef('pk'))
+        .order_by('pk')
+        .values('material__nome')[:1]
+    )
+    busca = request.GET.get('busca', '').strip()
+    requisicoes = filtrar_por_busca_simples(
+        minhas_requisicoes(request.user.pk), busca
+    ).annotate(
+        quantidade_itens=Count('itens'),
+        primeiro_material_nome=primeiro_material_sq,
+    )
+    # `paginar_com_filtros` e não `paginar`: ordenar e contar existiam em 2 das
+    # 7 listagens, e as 5 restantes ficaram de fora só porque nasceram sem
+    # wrapper de swap HTMX. O helper já entrega ordem, URL de inversão e
+    # querystring; o controle degrada para link puro sem `target_id`.
+    resultado = paginar_com_filtros(
+        request, requisicoes, per_page=PAGINA_MINHAS_REQUISICOES_TAMANHO
+    )
     return render(
         request,
         'requisicoes/lista_minhas.html',
-        {'page_obj': page_obj, 'requisicoes': page_obj.object_list},
+        {
+            'page_obj': resultado.page_obj,
+            'requisicoes': resultado.page_obj.object_list,
+            'ordem': resultado.ordem,
+            'url_ordenacao': resultado.url_ordenacao,
+            # Sem isto os links de paginação nascem sem `busca` nem `ordem`: a
+            # página 2 de uma busca volta à listagem inteira.
+            'querystring_filtros': resultado.querystring_filtros,
+            'busca': busca,
+        },
     )
 
 
@@ -620,12 +731,25 @@ def fila_autorizacao_view(request):
     except PermissaoNegada as exc:
         raise PermissionDenied(str(exc))
 
-    requisicoes = fila_autorizacao(request.user.pk)
+    busca = request.GET.get('busca', '').strip()
+    requisicoes = filtrar_por_busca_simples(fila_autorizacao(request.user.pk), busca)
+    # `paginar`, não `paginar_com_filtros`: a fila tem ordem de domínio (FIFO
+    # por `atualizado_em`) e `?ordem=` não se aplica — uma fila de trabalho
+    # ordenada por mais recentes primeiro é o oposto de uma fila. O que faltava
+    # era a contagem, que o mesmo componente entrega sem `url_ordenacao`.
     page_obj = paginar(request, requisicoes, per_page=PAGINA_FILA_TAMANHO)
     return render(
         request,
         'requisicoes/fila_autorizacao.html',
-        {'page_obj': page_obj, 'requisicoes': page_obj.object_list},
+        {
+            'page_obj': page_obj,
+            'requisicoes': page_obj.object_list,
+            # `paginar` não devolve a querystring — a fila não tem ordenação a
+            # preservar. A busca tem: sem isto, a página 2 de uma busca volta
+            # para a fila inteira.
+            'querystring_filtros': querystring_sem_page(request.GET),
+            'busca': busca,
+        },
     )
 
 
@@ -651,7 +775,15 @@ def autorizar_requisicao_view(request, pk: int):
         return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
     except ConflitoDominio as exc:
         messages.warning(request, str(exc))
-        return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
+        # O material que barrou a reserva volta na querystring para o detalhe
+        # marcar o item. A faixa no topo diz o que aconteceu; sem isto o
+        # operador ainda precisa varrer a lista de itens com o olho para achar
+        # qual deles a mensagem nomeia.
+        destino = reverse('requisicoes:detalhe', args=[pk])
+        material_id = exc.detalhes.get('material_id')
+        if material_id:
+            destino = f'{destino}?item_erro={material_id}'
+        return htmx_redirect(request, destino)
     except DadosInvalidos as exc:
         messages.error(request, str(exc))
         return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
@@ -674,12 +806,25 @@ def fila_atendimento_view(request):
     except PermissaoNegada as exc:
         raise PermissionDenied(str(exc))
 
-    requisicoes = fila_atendimento(request.user.pk)
+    busca = request.GET.get('busca', '').strip()
+    requisicoes = filtrar_por_busca_simples(fila_atendimento(request.user.pk), busca)
+    # `paginar`, não `paginar_com_filtros`: a fila tem ordem de domínio (FIFO
+    # por `atualizado_em`) e `?ordem=` não se aplica — uma fila de trabalho
+    # ordenada por mais recentes primeiro é o oposto de uma fila. O que faltava
+    # era a contagem, que o mesmo componente entrega sem `url_ordenacao`.
     page_obj = paginar(request, requisicoes, per_page=PAGINA_FILA_TAMANHO)
     return render(
         request,
         'requisicoes/fila_atendimento.html',
-        {'page_obj': page_obj, 'requisicoes': page_obj.object_list},
+        {
+            'page_obj': page_obj,
+            'requisicoes': page_obj.object_list,
+            # `paginar` não devolve a querystring — a fila não tem ordenação a
+            # preservar. A busca tem: sem isto, a página 2 de uma busca volta
+            # para a fila inteira.
+            'querystring_filtros': querystring_sem_page(request.GET),
+            'busca': busca,
+        },
     )
 
 

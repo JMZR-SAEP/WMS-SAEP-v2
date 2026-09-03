@@ -55,7 +55,17 @@
         {% if importacao.total_divergentes == 1 %}
           {% include "components/button.html" with variant="primary" label="Ver a divergência" href=url_detalhe %}
         {% else %}
-          {% include "components/button.html" with variant="primary" label="Ver as "|add:importacao.total_divergentes|add:" divergências" href=url_detalhe %}
+          {% comment %}
+            `stringformat:"s"` antes do `add`: o filtro `add` do Django tenta
+            `int(value) + int(arg)` e, quando falha, `value + arg` — com um
+            `int` do outro lado a soma de string levanta TypeError e o filtro
+            devolve `""` em silêncio. O rótulo saía como " divergências", sem
+            verbo e sem contagem, justamente no botão que a #161 criou para
+            entregar a lista ao chefe de almoxarifado.
+          {% endcomment %}
+          {% with total_divergentes_texto=importacao.total_divergentes|stringformat:"s" %}
+            {% include "components/button.html" with variant="primary" label="Ver as "|add:total_divergentes_texto|add:" divergências" href=url_detalhe %}
+          {% endwith %}
         {% endif %}
         {% include "components/button.html" with variant="secondary" label="Ver histórico de importações" href=url_historico %}
       {% else %}

@@ -190,9 +190,25 @@ def reservar_saldos_para_autorizacao(
                 code='saldo_divergente',
             )
         if saldo_existente.saldo_disponivel < quantidade:
+            # Os dois números, e o código. A mensagem anterior era
+            # `Saldo insuficiente para reservar '<nome>'` — nomeava o material e
+            # descartava `saldo_disponivel` e `quantidade`, que estavam aqui, na
+            # mão. Quem lia era o chefe de setor, depois de confirmar a
+            # autorização, numa faixa no topo da página: sem saber quanto existe
+            # nem quanto foi pedido, ele não tem como negociar com o solicitante
+            # e a única saída que lhe resta é recusar. O código entra porque é
+            # por ele que se acha o material no catálogo e no SCPI.
+            from apps.core.quantidades import formatar as _formatar
+
+            material = saldo_existente.material
+            pedido = _formatar(quantidade, material.unidade)
+            disponivel = _formatar(saldo_existente.saldo_disponivel, material.unidade)
             raise ConflitoDominio(
-                f"Saldo insuficiente para reservar '{saldo_existente.material.nome}'.",
+                f'Saldo insuficiente: {material.codigo} — {material.nome} '
+                f'pede {pedido} {material.unidade} e há {disponivel} '
+                f'{material.unidade} disponíveis.',
                 code='saldo_insuficiente',
+                detalhes={'material_id': material.pk},
             )
 
     for material_id, quantidade in quantidade_por_material.items():

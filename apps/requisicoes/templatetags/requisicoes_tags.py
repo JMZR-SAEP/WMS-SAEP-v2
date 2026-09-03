@@ -38,11 +38,3 @@ def get_choice_label(field, value):
         if str(opt_value) == str_value:
             return opt_label
     return ''
-
-
-@register.filter
-def get_item(dictionary, key):
-    """Retorna dictionary[key]; compatível com chaves string e int."""
-    if not isinstance(dictionary, dict):
-        return None
-    return dictionary.get(str(key))

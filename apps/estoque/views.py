@@ -32,6 +32,7 @@ from apps.estoque.forms import ItemSaidaExcepcionalFormSet, SaidaExcepcionalForm
 from apps.estoque.presentation import (
     MODAL_COPY,
     registro_arquivo_scpi,
+    registro_novo_saida_excepcional,
     registro_saida_excepcional,
 )
 from apps.estoque.models import Estoque, SaldoEstoque, TipoMovimentacaoEstoque
@@ -47,6 +48,7 @@ from apps.estoque.selectors import (
     listar_saidas_excepcionais,
     movimentacoes_visiveis_para,
     pode_filtrar_movimentacoes_por_setor,
+    unidades_por_materiais,
 )
 from apps.estoque.services import registrar_saida_excepcional
 
@@ -64,13 +66,20 @@ def listar_saidas_excepcionais_view(request):
         raise PermissionDenied(str(exc))
 
     saidas = listar_saidas_excepcionais(request.user.pk)
-    page_obj = paginar(request, saidas, per_page=PAGINA_SAIDAS_EXCEPCIONAIS_TAMANHO)
+    resultado = paginar_com_filtros(
+        request, saidas, per_page=PAGINA_SAIDAS_EXCEPCIONAIS_TAMANHO
+    )
     return render(
         request,
         'estoque/lista_saidas_excepcionais.html',
         {
-            'page_obj': page_obj,
-            'saidas': page_obj.object_list,
+            'page_obj': resultado.page_obj,
+            'saidas': resultado.page_obj.object_list,
+            'ordem': resultado.ordem,
+            'url_ordenacao': resultado.url_ordenacao,
+            # Sem isto os links de paginação nascem sem `ordem`, e a página 2 de
+            # `?ordem=asc` volta silenciosamente para a ordem padrão.
+            'querystring_filtros': resultado.querystring_filtros,
             'pode_registrar': pode_registrar_saida_excepcional(papel),
         },
     )
@@ -198,9 +207,14 @@ def historico_movimentacoes_view(request):
         chaves_multivalor=('tipos',),
     )
 
+    from apps.estoque.policies import pode_consultar_saidas_excepcionais
+
     contexto = {
         'page_obj': resultado.page_obj,
         'is_htmx': resultado.is_htmx,
+        # A origem do ledger vira link, e o destino da saída excepcional tem
+        # policy própria: sem esta flag o link levaria o solicitante a um 403.
+        'pode_consultar_saidas_excepcionais': pode_consultar_saidas_excepcionais(papel),
         'mostrar_filtro_setor': mostrar_filtro_setor,
         'setores_disponiveis': setores_disponiveis,
         'tipos_opcoes': TipoMovimentacaoEstoque.choices,
@@ -251,6 +265,7 @@ def nova_saida_excepcional_view(request):
                 'form': SaidaExcepcionalForm(),
                 'formset': ItemSaidaExcepcionalFormSet(prefix='itens', initial=[{}]),
                 'erro_geral': 'Não há estoque ativo configurado.',
+                'registro_saida_nova': registro_novo_saida_excepcional(None),
             },
             status=409,
         )
@@ -265,6 +280,11 @@ def nova_saida_excepcional_view(request):
                 'formset': ItemSaidaExcepcionalFormSet(
                     prefix='itens', initial=[{}], estoque_id=estoque.pk
                 ),
+                'unidades_itens': {},
+                # A saída ainda não existe — é o que se vai criar —, então o
+                # registro que o modal nomeia é o estoque onde a baixa cai.
+                # Mesma situação do `registro_arquivo_scpi`.
+                'registro_saida_nova': registro_novo_saida_excepcional(estoque),
             },
         )
 
@@ -325,7 +345,19 @@ def nova_saida_excepcional_view(request):
     return render(
         request,
         'estoque/nova_saida_excepcional.html',
-        {'estoque': estoque, 'form': form, 'formset': formset},
+        {
+            'estoque': estoque,
+            'form': form,
+            'formset': formset,
+            # As linhas voltam com o material vinculado e sem evento de seleção
+            # para escrever a unidade no DOM; sem isto a recapitulação do modal
+            # repetiria o número sem dizer de quê, na tela em que a pessoa está
+            # corrigindo o formulário.
+            'unidades_itens': unidades_por_materiais(
+                [f['material_id'].value() for f in formset]
+            ),
+            'registro_saida_nova': registro_novo_saida_excepcional(estoque),
+        },
     )
 
 
@@ -398,6 +430,9 @@ def buscar_materiais_saida_excepcional_view(request):
             'saldo_fisico': formatar_quantidade(
                 saldo_por_material.get(m.pk, 0), m.unidade
             ),
+            # Cru para comparar; o formatado acima é para ler. Ver o par gêmeo
+            # em `apps/requisicoes/views.py`.
+            'saldo_bruto': str(saldo_por_material.get(m.pk, 0)),
         }
         for m in materiais
     ]
@@ -904,7 +939,10 @@ PAGINA_IMPORTACOES_SCPI_TAMANHO = 25
 @require_http_methods(['GET'])
 def historico_importacoes_scpi_view(request):
     from apps.core.exceptions import PermissaoNegada
-    from apps.estoque.policies import exigir_pode_consultar_historico_scpi
+    from apps.estoque.policies import (
+        exigir_pode_consultar_historico_scpi,
+        pode_visualizar_preview_scpi,
+    )
     from apps.estoque.selectors import listar_historico_importacoes_scpi
 
     papel = papel_efetivo(request.user)
@@ -918,7 +956,16 @@ def historico_importacoes_scpi_view(request):
     return render(
         request,
         'estoque/historico_importacoes_scpi.html',
-        {'page_obj': page_obj, 'importacoes': page_obj.object_list},
+        {
+            'page_obj': page_obj,
+            'importacoes': page_obj.object_list,
+            # Quem lê o histórico não é quem importa: `pode_consultar_historico_scpi`
+            # inclui o chefe de almoxarifado e `pode_visualizar_preview_scpi` é só
+            # superusuário. Sem esta flag o "Nova importação" saía sempre, e para o
+            # chefe de almoxarifado terminava num 403 — uma ação oferecida pelo
+            # produto que o domínio recusa.
+            'pode_importar': pode_visualizar_preview_scpi(papel),
+        },
     )
 
 

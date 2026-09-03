@@ -17,7 +17,21 @@ from apps.notificacoes.services import (
 @login_required
 @require_GET
 def lista_notificacoes_view(request):
+    from apps.notificacoes.presentation import desfecho_da_notificacao
+
     notificacoes = notificacoes_com_numero_publico(request.user.pk)
+    # O título do cartão passa a ser o DESFECHO, não o tipo do evento.
+    # `Autorização` é a categoria do aviso, não a notícia — não diz se foi
+    # autorizada. Quem abre esta tela abriu para saber o que aconteceu com o
+    # pedido dela. Tipo fora do catálogo cai no rótulo do próprio model, para
+    # nenhum aviso ficar sem título.
+    for notificacao in notificacoes:
+        notificacao.desfecho = (
+            desfecho_da_notificacao(  # type: ignore[attr-defined]
+                notificacao.tipo
+            )
+            or notificacao.get_tipo_display()
+        )
     return render(
         request,
         'notificacoes/lista.html',

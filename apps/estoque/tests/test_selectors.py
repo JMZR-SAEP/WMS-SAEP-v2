@@ -718,6 +718,17 @@ class TestMovimentacoesVisiveisPara:
             visiveis = movimentacoes_visiveis_para(ator.pk)
             assert set(visiveis.values_list('pk', flat=True)) == todas
 
+            # Ver a LINHA não é poder abrir o DOCUMENTO. A anotação separa os
+            # dois, e é dela que o template tira a decisão de linkar — o ledger
+            # do almoxarifado tem rascunho de terceiro, que o detalhe recusa.
+            escopo = dict(visiveis.values_list('pk', 'requisicao_no_escopo'))
+            assert escopo[movimentacao_requisicao_do_aux.pk] is True
+            # Para o superusuário não há rascunho de terceiro: ele vê o detalhe
+            # de qualquer requisição, e esconder o link seria esconder um destino
+            # que existe.
+            esperado = ator.is_superuser
+            assert escopo[movimentacao_requisicao_rascunho.pk] is esperado
+
     @pytest.mark.django_db
     def test_usuario_inativo_nao_ve_nada(
         self, usuario_inativo, requisicao_autorizada, saida_registrada

@@ -2233,3 +2233,61 @@ def test_tr_015b_continua_bloqueando_separacao_apos_saida_excepcional(
     assert saldo_pos_tentativa.saldo_fisico == fisico_pos_saida
     assert saldo_pos_tentativa.saldo_reservado == reservado_pos_saida
     assert MovimentacaoEstoque.objects.count() == ledger_pos_saida
+
+
+class TestMensagemDeSaldoInsuficiente:
+    """A mensagem tinha os dois números em mãos e descartava os dois.
+
+    `Saldo insuficiente para reservar 'X'` chegava ao chefe de setor numa faixa
+    no topo da página, DEPOIS de ele confirmar a autorização. Sem saber quanto
+    existe nem quanto foi pedido, ele não tem como negociar com o solicitante.
+    """
+
+    @pytest.mark.django_db
+    def test_mensagem_nomeia_codigo_pedido_e_disponivel(
+        self, chefe_almoxarifado, estoque_principal, requisicao_autorizavel
+    ):
+        from decimal import Decimal
+
+        from apps.core.exceptions import ConflitoDominio
+        from apps.estoque.models import Material, SaldoEstoque
+        from apps.estoque.services import (
+            OrigemMovimentacaoEstoque,
+            reservar_saldos_para_autorizacao,
+        )
+
+        material = Material.objects.create(
+            codigo='MAT-777', nome='Parafuso sextavado', unidade='un'
+        )
+        SaldoEstoque.objects.create(
+            material=material,
+            estoque=estoque_principal,
+            saldo_fisico=Decimal('4530.000'),
+            saldo_reservado=Decimal('0.000'),
+        )
+
+        with pytest.raises(ConflitoDominio) as exc:
+            reservar_saldos_para_autorizacao(
+                itens=[
+                    {
+                        'material_id': material.pk,
+                        'quantidade_solicitada': Decimal('99999.000'),
+                    }
+                ],
+                ator_id=chefe_almoxarifado.pk,
+                origem=OrigemMovimentacaoEstoque.de_requisicao(requisicao_autorizavel),
+            )
+
+        # A frase inteira, e não os números soltos: `'99999' in mensagem` aceita
+        # `99999.000`, ou seja, passa também quando a mensagem volta a expor o
+        # `Decimal` cru — que é exatamente a regressão que este teste existe
+        # para pegar. A unidade entra pelo mesmo motivo: quantidade sem unidade
+        # não diz se sobram 4530 quilos ou 4530 caixas.
+        mensagem = str(exc.value)
+        assert mensagem == (
+            'Saldo insuficiente: MAT-777 — Parafuso sextavado '
+            'pede 99999 un e há 4530 un disponíveis.'
+        )
+        # E o identificador que a tela precisa para APONTAR o item, não só
+        # descrevê-lo.
+        assert exc.value.detalhes['material_id'] == material.pk

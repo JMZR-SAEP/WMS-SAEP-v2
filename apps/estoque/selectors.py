@@ -4,12 +4,13 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
-from django.db.models import Count, Q, QuerySet
+from django.db.models import Count, Exists, OuterRef, Q, QuerySet
 
 from apps.accounts.models import User
 from apps.accounts.papeis import papel_efetivo
 from apps.requisicoes.models import EstadoRequisicao
 from apps.estoque.models import (
+    Material,
     MovimentacaoEstoque,
     SaidaExcepcional,
     TipoMovimentacaoEstoque,
@@ -39,6 +40,39 @@ def buscar_materiais_saida_excepcional(q: str = '', limite: int = 20):
     if q:
         qs = qs.filter(Q(codigo__icontains=q) | Q(nome__icontains=q))
     return qs.order_by('nome')[:limite]
+
+
+def unidades_por_materiais(material_ids: list) -> dict[str, str]:
+    """Retorna dict {material_id como string: unidade} para os ids informados.
+
+    Existe para o formulário de saída excepcional re-renderizado por erro: as
+    linhas voltam com o material vinculado, mas nenhum evento de seleção
+    dispara, e a recapitulação do modal — que lê `data-unidade` da linha —
+    mostraria a quantidade sem dizer de quê. Chave em string porque é assim que
+    o filtro `get_item` dos templates procura.
+
+    Os ids chegam CRUS do POST — é `f['material_id'].value()`, não
+    `cleaned_data`, porque o formulário aqui é justamente o que não validou.
+    `pk__in` prepara cada item para o PK inteiro e um `material_id=abc` forjado
+    levantaria `ValueError` no meio do render, trocando a página de erros do
+    formset por um 500. O que não é inteiro é descartado: nenhum material casa
+    com ele de qualquer forma, e a linha correspondente fica sem unidade — a
+    mesma degradação de quando o material ainda não foi escolhido.
+    """
+    ids = []
+    for bruto in material_ids:
+        try:
+            ids.append(int(bruto))
+        except (TypeError, ValueError):
+            continue
+    if not ids:
+        return {}
+    return {
+        str(pk): unidade
+        for pk, unidade in Material.objects.filter(pk__in=ids).values_list(
+            'pk', 'unidade'
+        )
+    }
 
 
 def buscar_detalhe_saida_excepcional(saida_id: int) -> SaidaExcepcional | None:
@@ -293,10 +327,15 @@ def listar_materiais_com_saldo(*, busca: str = ''):
                 output_field=BooleanField(),
             ),
         )
-        # `pk` desempata materiais homônimos: `material__nome` não é único e
-        # sozinho deixa a fronteira de 25 registros da paginação instável entre
-        # requisições.
-        .order_by('material__nome', 'pk')
+        # Pelo código, não pelo nome: o cartão imprime o código como `<h2>` em
+        # semibold e o nome como linha secundária em cinza, então ordenar por
+        # nome deixava a coluna que o olho percorre — a única em destaque —
+        # aparentemente embaralhada (MAT-010, MAT-004, MAT-002, MAT-012…). A
+        # chave de ordenação tem de ser a que a hierarquia visual promete.
+        # `codigo` é único (`Material.codigo`), então não precisa de desempate,
+        # mas o `pk` fica: a fronteira de 25 registros da paginação depende de
+        # ordem total e o custo é zero.
+        .order_by('material__codigo', 'pk')
     )
 
     if busca:
@@ -390,15 +429,33 @@ def movimentacoes_visiveis_para(ator_id: int) -> QuerySet[MovimentacaoEstoque]:
 
     Saída excepcional (``requisicao`` nulo) fica fora do ramo de setor por
     construção: nenhum dos termos do predicado casa com requisição nula.
+
+    ``requisicao_no_escopo`` acompanha cada linha porque LISTAR o metadado e
+    poder ABRIR o documento não são a mesma permissão para o almoxarifado: ele
+    vê o ledger inteiro, inclusive movimentações de rascunho de terceiro, e
+    ``requisicoes_visiveis_para`` — o escopo que ``detalhe_requisicao_view``
+    usa — exclui esses rascunhos. Sem a marca, o template linkava o número e o
+    clique caía em 404. Quem decide continua sendo o selector de requisições,
+    não o template.
     """
-    base_qs = MovimentacaoEstoque.objects.select_related(
-        'material',
-        'estoque',
-        'ator',
-        'requisicao',
-        'requisicao__setor_beneficiario',
-        'saida_excepcional',
-    ).order_by('-criado_em')
+    from apps.requisicoes.selectors import requisicoes_visiveis_para
+
+    base_qs = (
+        MovimentacaoEstoque.objects.select_related(
+            'material',
+            'estoque',
+            'ator',
+            'requisicao',
+            'requisicao__setor_beneficiario',
+            'saida_excepcional',
+        )
+        .annotate(
+            requisicao_no_escopo=Exists(
+                requisicoes_visiveis_para(ator_id).filter(pk=OuterRef('requisicao_id'))
+            )
+        )
+        .order_by('-criado_em')
+    )
 
     try:
         ator = User.objects.get(pk=ator_id)

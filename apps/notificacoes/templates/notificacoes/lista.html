@@ -3,6 +3,20 @@
 {% block title %}Notificações — WMS-SAEP{% endblock %}
 
 {% block content %}
+{% comment %}
+  Cartões, como as outras sete listagens. Esta era a única em
+  `<ul class="divide-y">` de linhas, e a afordância estava invertida: o link
+  para a requisição vinha em 12px cinza sem sublinhado, tipograficamente
+  idêntico ao carimbo de data logo abaixo, enquanto treze `Marcar como lida`
+  idênticos ocupavam a borda direita — o elemento de menor entropia da página
+  com o maior peso visual, exatamente o defeito que `cartao-alvo.js` foi
+  escrito para corrigir nas outras listas.
+
+  Agora o cartão inteiro leva à requisição, o título é o DESFECHO (resolvido em
+  `notificacoes/presentation.py`) e `Marcar como lida` desce para ação
+  secundária. Para o solicitante no celular esta é a tela que responde "cadê meu
+  material?".
+{% endcomment %}
 <div class="space-y-4">
   <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
     {% include "components/page_header.html" with titulo="Notificações" %}
@@ -20,49 +34,87 @@
   </div>
 
   {% if not notificacoes %}
-    <p class="text-text-tertiary text-sm">Nenhuma notificação.</p>
+    {# `empty_state.html`, como nas outras sete listagens: a frase cinza solta era o único estado vazio do produto fora do componente. #}
+    {% include 'components/empty_state.html' with icone='components/icons/_caixa_entrada.html' titulo='Nenhuma notificação' descricao='Avisos sobre suas requisições aparecem aqui.' %}
   {% else %}
-    <ul class="divide-y divide-border rounded-lg border border-border bg-surface">
+    {% include "components/table.html#cards_abertura" %}
       {% for notificacao in notificacoes %}
-        <li class="flex items-start gap-4 p-4 {% if not notificacao.lida %}bg-primary-subtle{% endif %}">
-          <div class="flex-1 min-w-0">
-            <p class="text-sm font-medium text-text-primary">{{ notificacao.get_tipo_display }}</p>
-            {% if notificacao.requisicao_id %}
+        {% include "components/table.html#card_abertura" %}
+          <div class="flex flex-col gap-2 xl:flex-row xl:items-start xl:justify-between xl:gap-3">
+            <div class="min-w-0">
               {% comment %}
-                `inline-flex items-center min-h-11`: este link é a única
-                navegação do cartão, ou seja, ação isolada — e ação isolada segue
-                o piso de 44px, pelo mesmo motivo do `min-h-11` do botão lá em
-                cima. `min-height` não tem efeito em elemento inline, daí o
-                `inline-flex`.
+                O título é o desfecho, não `get_tipo_display`. "Autorização" é a
+                categoria do aviso e não diz se foi autorizada; quem abre esta
+                tela abriu para saber o que aconteceu com o pedido dela.
               {% endcomment %}
-              <a
-                href="{% url 'requisicoes:detalhe' pk=notificacao.requisicao_id %}"
-                class="inline-flex items-center min-h-11 text-xs text-text-tertiary hover:underline"
-              >
-                Requisição {{ notificacao.numero_publico_exibicao }}
-              </a>
-            {% else %}
-              <span class="text-xs text-text-tertiary" aria-hidden="true">&nbsp;</span>
+              <h2 class="break-words text-sm font-semibold text-text-primary">
+                {% if notificacao.requisicao_existe %}
+                  <a
+                    href="{% url 'requisicoes:detalhe' pk=notificacao.requisicao_id %}?next={{ request.get_full_path|urlencode }}"
+                    data-cartao-link
+                    class="rounded-sm focus-visible:outline-none"
+                    aria-label="{{ notificacao.desfecho }} — abrir a requisição {{ notificacao.numero_publico_exibicao }}"
+                  >{{ notificacao.desfecho }}</a>
+                {% else %}
+                  {{ notificacao.desfecho }}
+                {% endif %}
+              </h2>
+              <p class="mt-1 text-xs text-text-secondary">{{ notificacao.criado_em|date:"d/m/Y H:i" }}</p>
+            </div>
+            {% if not notificacao.lida %}
+              <span class="shrink-0">
+                {% include "components/badge.html" with variant="blue" label="Não lida" prefixo_sr="Estado: " %}
+              </span>
             {% endif %}
-            <p class="text-xs text-text-disabled mt-1">{{ notificacao.criado_em|date:"d/m/Y H:i" }}</p>
           </div>
-          {% if not notificacao.lida %}
-            <form method="post" action="{% url 'notificacoes:marcar_lida' notificacao.pk %}">
-              {% csrf_token %}
-              <button
-                type="submit"
-                class="inline-flex min-h-11 shrink-0 items-center rounded text-xs font-medium text-primary-text hover:text-primary-text-emphasis hover:underline cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1"
-                hx-post="{% url 'notificacoes:marcar_lida' notificacao.pk %}"
-                hx-swap="outerHTML"
-                hx-target="closest li"
-              >
-                Marcar como lida
-              </button>
-            </form>
+
+          {% if notificacao.requisicao_existe %}
+            {# Rótulo rebaixado (issue #158): `Rótulo: valor` inline, sem caixa alta, `<dl>/<dt>/<dd>` preservado. #}
+            <dl class="mt-4 space-y-1 text-sm">
+              <div class="flex gap-x-2">
+                <dt class="shrink-0 text-text-tertiary">Requisição:</dt>
+                <dd class="min-w-0 break-words text-text-primary">{{ notificacao.numero_publico_exibicao }}</dd>
+              </div>
+            </dl>
           {% endif %}
-        </li>
+
+          <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+            {% comment %}
+              Afordância do cartão, não um controle: o link do título já carrega
+              o nome acessível. Só onde existe destino: `requisicao_id` é
+              anulável E é um `IntegerField` solto, sem FK — um id órfão é
+              indistinguível de um rascunho pelo valor do campo, e prometer
+              "Ver detalhes" num cartão que leva a 404 é pior que não prometer
+              nada. Quem decide é `requisicao_existe`, do selector.
+            {% endcomment %}
+            {% if notificacao.requisicao_existe %}
+              <p class="flex items-center gap-1 text-sm font-medium text-primary" aria-hidden="true">Ver detalhes <span>&rarr;</span></p>
+            {% else %}
+              <span></span>
+            {% endif %}
+            {% if not notificacao.lida %}
+              {% comment %}
+                Ação secundária, e não o único azul da linha. Continua sendo um
+                POST de verdade; `cartao-alvo.js` ignora clique cujo alvo já é
+                interativo, então ela convive com o cartão clicável.
+              {% endcomment %}
+              <form method="post" action="{% url 'notificacoes:marcar_lida' notificacao.pk %}" class="shrink-0">
+                {% csrf_token %}
+                <button
+                  type="submit"
+                  class="inline-flex min-h-11 shrink-0 cursor-pointer items-center rounded-md px-2 text-xs font-medium text-text-secondary hover:bg-bg-page hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1"
+                  hx-post="{% url 'notificacoes:marcar_lida' notificacao.pk %}"
+                  hx-swap="outerHTML"
+                  hx-target="closest article"
+                >
+                  Marcar como lida
+                </button>
+              </form>
+            {% endif %}
+          </div>
+        </article>
       {% endfor %}
-    </ul>
+    </div>
   {% endif %}
 </div>
 {% endblock %}

@@ -354,6 +354,27 @@ def test_fila_autorizacao_anota_quantidade_itens(
     assert req.quantidade_itens == 1
 
 
+@pytest.mark.django_db
+def test_fila_autorizacao_anota_primeiro_material(
+    chefe_obras, req_solicitante_enviada, material_disponivel, material_disponivel_2
+):
+    """O cartão da fila precisa nomear o que foi pedido.
+
+    "Itens: 4" é um dígito, e o chefe de setor autoriza — e reserva saldo — sem
+    saber o conteúdo. A fila de atendimento já anotava o primeiro material pelo
+    mesmo motivo; a de autorização ficou de fora quando a correção foi feita.
+    """
+    req_solicitante_enviada.itens.create(
+        material=material_disponivel, quantidade_solicitada=1
+    )
+    req_solicitante_enviada.itens.create(
+        material=material_disponivel_2, quantidade_solicitada=2
+    )
+    req = fila_autorizacao(chefe_obras.pk).get(pk=req_solicitante_enviada.pk)
+    assert req.primeiro_material_nome == material_disponivel.nome
+    assert req.quantidade_itens == 2
+
+
 # ---------------------------------------------------------------------------
 # fila_atendimento
 # ---------------------------------------------------------------------------
@@ -595,7 +616,18 @@ def test_acoes_disponiveis_retorna_frozenset():
                 criador_id=999,
                 beneficiario_id=999,
             ),
-            frozenset({Operacao.RECUSAR, Operacao.AUTORIZAR}),
+            # RETORNAR_PARA_RASCUNHO entrou na Etapa 8: sem ela, um saldo
+            # insuficiente descoberto na confirmação deixava o chefe só com
+            # recusar — encerrar em definitivo o pedido de alguém porque a
+            # quantidade não cabia. A condição é a mesma de recusar, então quem
+            # já podia encerrar passa a poder devolver.
+            frozenset(
+                {
+                    Operacao.RECUSAR,
+                    Operacao.AUTORIZAR,
+                    Operacao.RETORNAR_PARA_RASCUNHO,
+                }
+            ),
             id='chefe_setor_em_aguardando_autorizacao',
         ),
         pytest.param(

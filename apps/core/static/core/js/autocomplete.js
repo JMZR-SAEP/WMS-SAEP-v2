@@ -21,6 +21,8 @@
  *   onInvalidate() (opcional) callback chamado quando a edição invalida a
  *                  seleção anterior (hidden zerado) — usar para sincronizar
  *                  estado externo (ex. guarda de duplicidade por linha)
+ *   eventoSelecao  (opcional) nome do CustomEvent que borbulha na seleção,
+ *                  com o item em `detail`. Sem ele nenhum evento é emitido.
  *
  * Uso no template chamador:
  *   <div x-data="autocomplete({ endpoint: '{% url ... %}', minChars: 2 })">
@@ -38,6 +40,7 @@
       campoDisplay: config.campoDisplay || 'label',
       onSelect: typeof config.onSelect === 'function' ? config.onSelect : null,
       onInvalidate: typeof config.onInvalidate === 'function' ? config.onInvalidate : null,
+      eventoSelecao: config.eventoSelecao || null,
 
       idBase: '',
       query: '',
@@ -211,6 +214,27 @@
         // até o blur rodar deixava `mensagemPoucosCaracteresVisivel()` piscar
         // "faltam N caracteres" bem onde o listbox acabou de fechar.
         this.focado = false;
+        // Evento que borbulha, e não uma chamada ao escopo pai a partir do
+        // `onSelect`. Uma arrow function escrita dentro da expressão `x-data`
+        // captura o escopo léxico do momento da avaliação; o `with` do Alpine
+        // que dá acesso ao escopo pai já não está ativo quando ela roda, e
+        // referenciar o método do pai lá dentro estoura `is not defined`. O
+        // evento sobe pelo DOM e chega a quem quiser ouvir, sem acoplar o
+        // componente a quem o envolve.
+        //
+        // O NOME vem de quem instancia. Este componente atende as buscas de
+        // beneficiário e de material, e emitir `material-selecionado` em toda
+        // seleção fazia um combobox de pessoa despachar um evento de material —
+        // um listener acima recebendo o objeto errado é bug silencioso, e um
+        // componente genérico não tem por que conhecer um tipo do domínio.
+        if (this.eventoSelecao) {
+          this.$el.dispatchEvent(
+            new CustomEvent(this.eventoSelecao, {
+              detail: item,
+              bubbles: true,
+            })
+          );
+        }
         this.$nextTick(() => this.$refs.displayInput?.blur());
       },
 

@@ -12,24 +12,17 @@
     Materiais com divergência crítica (físico &lt; reservado) são destacados.
   </p>
 
-  {# Busca #}
-  <form method="get" class="mb-6 flex gap-2 max-w-md" role="search">
-    <label for="id_busca" class="sr-only">Buscar material</label>
-    <input
-      id="id_busca"
-      type="search"
-      name="busca"
-      value="{{ busca }}"
-      placeholder="Código ou nome do material…"
-      class="campo flex-1"
-      aria-label="Buscar por código ou nome"
-    >
-    {% include "components/button.html" with variant="primary" type="submit" label="Buscar" %}
-    {% if busca %}
-      {% url 'estoque:lista_materiais' as url_limpar_busca %}
-      {% include "components/button.html" with variant="secondary" label="Limpar" href=url_limpar_busca %}
-    {% endif %}
-  </form>
+  {% comment %}
+    Busca pelo componente, não escrita à mão. Este form era a terceira gramática
+    de busca do produto — as duas telas de histórico usam `filter_shell` com o
+    campo de `filter_busca.html`, e aqui havia um `<form>` com `<input>` cru,
+    `sr-only` no `<label>` E um `aria-label` diferente por cima dele (dois nomes
+    acessíveis concorrentes para o mesmo campo: "Buscar material" e "Buscar por
+    código ou nome"). Agora o rótulo é um só, visível, e é o mesmo campo das
+    outras listagens.
+  {% endcomment %}
+  {% url 'estoque:lista_materiais' as url_catalogo %}
+  {% include "components/busca_simples.html" with action_url=url_catalogo id="busca-materiais" name="busca" label="Buscar material" value=busca placeholder="Código ou nome do material…" %}
 
   {% if saldos %}
 
@@ -52,16 +45,29 @@
         <article
           class="rounded-xl border {% if saldo.divergente_calculado %}border-danger-border-strong bg-danger-subtle{% else %}border-border bg-surface{% endif %} p-4 shadow-sm"
         >
-          <div class="flex items-start justify-between gap-3">
+          <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="min-w-0">
               <h2 class="break-words text-sm font-semibold text-text-primary">
                 {{ saldo.material.codigo }}
               </h2>
               <p class="mt-0.5 text-xs text-text-secondary">{{ saldo.material.nome }}</p>
             </div>
-            {% if saldo.divergente_calculado %}
-              <span class="shrink-0">
-                {% include "components/badge.html" with variant="red-strong" label="Divergente" aria_label="Divergência crítica" %}
+            {% comment %}
+              Dois carimbos possíveis, e um material pode vestir os dois. O
+              "Inativo" faltava: `Material.ativo` é estado de domínio — material
+              inativo não entra em requisição nova nem em saída excepcional — e
+              o catálogo é a única tela que lista material, então era o único
+              lugar onde esse estado poderia aparecer, e não aparecia. O cartão
+              ficava idêntico ao de um material em uso.
+            {% endcomment %}
+            {% if saldo.divergente_calculado or not saldo.material.ativo %}
+              <span class="flex shrink-0 flex-wrap justify-end gap-1">
+                {% if saldo.divergente_calculado %}
+                  {% include "components/badge.html" with variant="red-strong" label="Divergente" aria_label="Divergência crítica" %}
+                {% endif %}
+                {% if not saldo.material.ativo %}
+                  {% include "components/badge.html" with variant="slate" label="Inativo" aria_label="Material inativo" %}
+                {% endif %}
               </span>
             {% endif %}
           </div>
@@ -72,22 +78,48 @@
           {# apertavam `Disponível: 50 un` e a unidade caía sozinha na linha de baixo, #}
           {# justo a coluna que precisa alinhar. Empilhado, cada `<dd>` tem a largura #}
           {# do cartão e valor+unidade ficam juntos. #}
+          {% comment %}
+            `justify-between` com o valor pelo `components/quantidade.html`, e
+            não `flex gap-x-2` com o número logo após o rótulo. Medido a 1440px,
+            a forma anterior começava os três valores em x=330, x=361 e x=360 no
+            mesmo cartão, porque `Físico:`, `Reservado:` e `Disponível:` têm 41,
+            72 e 71px. O `tabular-nums` não tinha o que alinhar: ele alinha
+            dígito com dígito, não parágrafo com parágrafo. Um livro-razão cuja
+            coluna de números zigueza não é um livro-razão.
+          {% endcomment %}
           <dl class="mt-4 space-y-1 text-sm">
-            <div class="flex gap-x-2">
+            <div class="flex items-baseline justify-between gap-x-2">
               <dt class="shrink-0 text-text-tertiary">Físico:</dt>
-              <dd class="tabular-nums whitespace-nowrap text-text-primary">{{ saldo.saldo_fisico|formatar_quantidade:saldo.material.unidade }} {{ saldo.material.unidade }}</dd>
+              <dd class="shrink-0">{% include "components/quantidade.html" with valor=saldo.saldo_fisico unidade=saldo.material.unidade %}</dd>
             </div>
-            <div class="flex gap-x-2">
+            <div class="flex items-baseline justify-between gap-x-2">
               <dt class="shrink-0 text-text-tertiary">Reservado:</dt>
-              <dd class="tabular-nums whitespace-nowrap text-text-primary">{{ saldo.saldo_reservado|formatar_quantidade:saldo.material.unidade }} {{ saldo.material.unidade }}</dd>
+              <dd class="shrink-0">{% include "components/quantidade.html" with valor=saldo.saldo_reservado unidade=saldo.material.unidade %}</dd>
             </div>
-            <div class="flex gap-x-2">
+            <div class="flex items-baseline justify-between gap-x-2">
               <dt class="shrink-0 text-text-tertiary">Disponível:</dt>
-              <dd class="tabular-nums whitespace-nowrap {% if saldo.divergente_calculado %}text-danger-text font-semibold{% else %}text-text-primary{% endif %}">
-                {{ saldo.saldo_disponivel_calculado|formatar_quantidade:saldo.material.unidade }} {{ saldo.material.unidade }}
-              </dd>
+              <dd class="shrink-0">{% if saldo.divergente_calculado %}{% include "components/quantidade.html" with valor=saldo.saldo_disponivel_calculado unidade=saldo.material.unidade tom="danger" %}{% else %}{% include "components/quantidade.html" with valor=saldo.saldo_disponivel_calculado unidade=saldo.material.unidade %}{% endif %}</dd>
             </div>
           </dl>
+
+          {% comment %}
+            O cartão deixa de ser beco. `Reservado: 2` era um fato sem pergunta
+            respondível: para saber POR QUE 2 estão reservados, o chefe copiava
+            o código e redigitava em Movimentações. O destino é o livro-razão já
+            recortado neste material — a trilha de auditoria que o PRODUCT.md
+            descreve e que terminava em beco nas três telas de estoque.
+
+            Link de verdade com piso de 44px, e não `data-cartao-link`: o
+            `<article>` daqui é literal, porque a borda depende de estado de
+            domínio (divergência crítica) e `#card_abertura` é string fixa por
+            contrato da #83. Sem o chrome, não há alvo de cartão a herdar — o
+            controle carrega o próprio piso.
+          {% endcomment %}
+          <a
+            href="{% url 'estoque:historico_movimentacoes' %}?material={{ saldo.material.codigo|urlencode }}"
+            class="mt-2 inline-flex min-h-11 items-center gap-1 rounded-md text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1"
+            aria-label="Ver movimentações de {{ saldo.material.codigo }} — {{ saldo.material.nome }}"
+          >Ver movimentações <span aria-hidden="true">&rarr;</span></a>
         </article>
       {% endfor %}
     </div>

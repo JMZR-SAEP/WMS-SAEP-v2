@@ -102,22 +102,43 @@
       {% endcomment %}
       <ul class="divide-y divide-border">
         {% for item in itens %}
-          <li class="py-3 first:pt-0 last:pb-0">
+          {% comment %}
+            O item que barrou a reserva fica marcado. A faixa no topo nomeia o
+            material; a marca diz onde ele está na lista — sem ela o operador
+            lê o nome e volta a varrer os itens com o olho. `aria-invalid` no
+            `<li>` porque o grupo inteiro é o que está inválido, não um campo.
+          {% endcomment %}
+          <li
+            class="py-3 first:pt-0 last:pb-0{% if item.tem_erro %} -mx-3 rounded-lg border border-danger-border-input bg-danger-subtle px-3{% endif %}"
+            {% if item.tem_erro %}aria-invalid="true"{% endif %}
+          >
             <p class="text-sm font-medium text-text-primary">
               {{ item.material.codigo }}
               <span class="font-normal text-text-secondary">— {{ item.material.nome }}</span>
             </p>
-            <p class="mt-0.5 text-xs text-text-tertiary">{{ item.material.get_unidade_display }}</p>
+            {% comment %}
+              A unidade sai da linha órfã e passa a viajar colada ao número, via
+              `components/quantidade.html`. Ela vivia num `<p>` três linhas acima
+              do primeiro valor, e a partir do segundo valor não vivia em lugar
+              nenhum: quem lia `AUTORIZADA 150` tinha de subir com o olho até
+              `Unidade` para saber do que se tratava. No galpão, em pé, esse
+              percurso não acontece.
+
+              `ENTREGUE` em `warning` quando difere da autorizada: a entrega
+              parcial era invisível no registro — `150 / 150 / 120` saía com os
+              três números na mesma cor, e a justificativa exigida na hora do
+              atendimento não reaparecia em lugar nenhum.
+            {% endcomment %}
             <dl class="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
               <div>
                 <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Solicitada</dt>
-                <dd class="mt-0.5 tabular-nums text-text-primary">{{ item.quantidade_solicitada|formatar_quantidade:item.material.unidade }}</dd>
+                <dd class="mt-0.5">{% include "components/quantidade.html" with valor=item.quantidade_solicitada unidade=item.material.unidade unidade_label=item.material.get_unidade_display esquerda=True %}</dd>
               </div>
               {% if mostrar_quantidade_autorizada %}
                 {% if item.quantidade_autorizada is not None %}
                   <div>
                     <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Autorizada</dt>
-                    <dd class="mt-0.5 tabular-nums text-text-primary">{{ item.quantidade_autorizada|formatar_quantidade:item.material.unidade }}</dd>
+                    <dd class="mt-0.5">{% include "components/quantidade.html" with valor=item.quantidade_autorizada unidade=item.material.unidade unidade_label=item.material.get_unidade_display esquerda=True %}</dd>
                   </div>
                 {% endif %}
               {% endif %}
@@ -125,9 +146,47 @@
                 {% if item.quantidade_entregue is not None %}
                   <div>
                     <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Entregue</dt>
-                    <dd class="mt-0.5 tabular-nums text-text-primary">{{ item.quantidade_entregue|formatar_quantidade:item.material.unidade }}</dd>
+                    <dd class="mt-0.5">
+                      {% if item.quantidade_entregue < item.quantidade_autorizada %}
+                        {% include "components/quantidade.html" with valor=item.quantidade_entregue unidade=item.material.unidade unidade_label=item.material.get_unidade_display esquerda=True tom="warning" referencia=item.justificativa_entrega %}
+                      {% else %}
+                        {% include "components/quantidade.html" with valor=item.quantidade_entregue unidade=item.material.unidade unidade_label=item.material.get_unidade_display esquerda=True %}
+                      {% endif %}
+                    </dd>
                   </div>
                 {% endif %}
+              {% endif %}
+              {% if item.saldo_disponivel_exibido is not None %}
+                {% comment %}
+                  Só no estado em que a decisão reserva saldo. Em âmbar quando
+                  não cobre o solicitado: é o aviso que faltava ANTES da
+                  confirmação — o chefe lia `Saldo insuficiente` depois de
+                  confirmar, numa faixa no topo, e sem `Retornar para rascunho`
+                  disponível sobrava recusar em definitivo.
+                {% endcomment %}
+                <div>
+                  <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Disponível</dt>
+                  <dd class="mt-0.5">
+                    {% if item.saldo_insuficiente %}
+                      {% include "components/quantidade.html" with valor=item.saldo_disponivel_exibido unidade=item.material.unidade unidade_label=item.material.get_unidade_display esquerda=True tom="warning" referencia=item.saldo_motivo|default:"não cobre o solicitado" %}
+                    {% else %}
+                      {% include "components/quantidade.html" with valor=item.saldo_disponivel_exibido unidade=item.material.unidade unidade_label=item.material.get_unidade_display esquerda=True %}
+                    {% endif %}
+                  </dd>
+                </div>
+              {% endif %}
+              {% if item.entregue_liquida_exibida is not None %}
+                {% comment %}
+                  "Entregue líquida" vivia só dentro do bloco `pode_devolver`,
+                  ou seja, atrás de uma permissão de escrita: o beneficiário via
+                  `ENTREGUE 6` e nunca sabia que 2 tinham voltado. O PRODUCT.md
+                  declara a entregue líquida derivada das movimentações — ela é
+                  leitura, não privilégio.
+                {% endcomment %}
+                <div>
+                  <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Líquida</dt>
+                  <dd class="mt-0.5">{% include "components/quantidade.html" with valor=item.entregue_liquida_exibida unidade=item.material.unidade unidade_label=item.material.get_unidade_display esquerda=True referencia=item.rotulo_devolucao %}</dd>
+                </div>
               {% endif %}
             </dl>
           </li>
@@ -349,7 +408,7 @@
   {% if pode_estornar %}
     {% modal_copy "estornar" as estornar_copy %}
     {% url 'requisicoes:estornar' requisicao.pk as estornar_url %}
-    {% include "requisicoes/partials/_confirmacao_acao.html" with registro=registro layout="banner" variant_token="return" heading_id="estornar-titulo" modal_id="estornar-modal" titulo=estornar_copy.titulo conteudo=estornar_copy.descricao|add:" "|add:estornar_copy.consequencia|add:" "|add:estornar_copy.painel_extra botao_label="Estornar requisição" botao_variant="return-outline" botao_icon="components/icons/estornar.svg" modal_titulo=estornar_copy.titulo modal_descricao=estornar_copy.descricao modal_consequencia=estornar_copy.consequencia action_url=estornar_url confirm_label=estornar_copy.confirm_label confirm_variant="return" icon_variant=estornar_copy.icon_variant form=estorno_form form_body_template="requisicoes/partials/_modal_form_estorno.html" role="alertdialog" corpo_com_campo_focavel=True loading_label="Estornando…" %}
+    {% include "requisicoes/partials/_confirmacao_acao.html" with registro=registro layout="banner" variant_token="return-strong" heading_id="estornar-titulo" modal_id="estornar-modal" titulo=estornar_copy.titulo conteudo=estornar_copy.descricao|add:" "|add:estornar_copy.consequencia|add:" "|add:estornar_copy.painel_extra botao_label="Estornar requisição" botao_variant="return-outline" botao_icon="components/icons/estornar.svg" modal_titulo=estornar_copy.titulo modal_descricao=estornar_copy.descricao modal_consequencia=estornar_copy.consequencia action_url=estornar_url confirm_label=estornar_copy.confirm_label confirm_variant="return" icon_variant=estornar_copy.icon_variant form=estorno_form form_body_template="requisicoes/partials/_modal_form_estorno.html" role="alertdialog" corpo_com_campo_focavel=True loading_label="Estornando…" %}
   {% endif %}
 
   {% if pode_copiar %}

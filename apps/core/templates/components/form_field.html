@@ -40,7 +40,7 @@ Uso:
   >
     {{ label_override|default:field.label }}
     {% if required_marker == False %}{% elif required_marker or field.field.required %}
-      <span class="ml-0.5 text-danger-accent" aria-hidden="true">*</span>
+      <span class="ml-0.5 text-danger-text" aria-hidden="true">*</span>
     {% endif %}
   </label>
   {% if texto_ajuda %}

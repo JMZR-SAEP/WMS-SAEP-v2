@@ -99,10 +99,25 @@ def material_disponivel(db, estoque_principal):
 
 
 @pytest.fixture
-def notificacao_nao_lida(db, solicitante):
+def notificacao_nao_lida(db, solicitante, setor_obras):
+    """Notificação apontando para uma requisição que EXISTE.
+
+    Apontava para `requisicao_id=1`, que nenhum teste criava: um id órfão. O
+    cartão linkava assim mesmo, e era essa a fixture que sustentava o teste do
+    link — ou seja, o próprio caso que o link não devia oferecer.
+    """
+    from apps.requisicoes.models import EstadoRequisicao, Requisicao
+
+    requisicao = Requisicao.objects.create(
+        estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+        numero_publico='REQ-2026-000042',
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+    )
     return Notificacao.objects.create(
         destinatario=solicitante,
         tipo=TipoNotificacao.AUTORIZACAO,
-        requisicao_id=1,
+        requisicao_id=requisicao.pk,
         lida=False,
     )

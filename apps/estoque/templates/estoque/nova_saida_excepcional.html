@@ -21,7 +21,7 @@
     {% include "components/alert.html" with variant="danger" message=erro_geral class="mb-4" %}
   {% endif %}
 
-  <form method="post" novalidate data-prevent-double-submit>
+  <form method="post" novalidate data-prevent-double-submit id="form-nova-saida-excepcional">
     {% csrf_token %}
 
     {% comment %}
@@ -38,7 +38,7 @@
       class="mb-6 rounded-xl border bg-surface {% if form.motivo.errors or form.observacao.errors %}border-danger-border-strong{% else %}border-border{% endif %} p-5 shadow-sm"
     >
       <h2 id="sec-dados-titulo" class="mb-4 text-lg font-semibold text-text-primary">
-        <span class="mr-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-bg-subtle text-xs font-semibold text-text-tertiary" aria-hidden="true">1</span>
+        <span class="mr-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-bg-subtle text-xs font-semibold text-text-secondary" aria-hidden="true">1</span>
         Dados da saída
       </h2>
 
@@ -73,7 +73,7 @@
       class="mb-6 rounded-xl border bg-surface {% if formset.non_form_errors %}border-danger-border-strong{% else %}border-border{% endif %} p-5 shadow-sm focus:outline-none focus:ring-2 focus:ring-danger-accent focus:ring-offset-1"
     >
       <h2 id="sec-materiais-titulo" class="mb-1 text-lg font-semibold text-text-primary">
-        <span class="mr-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-bg-subtle text-xs font-semibold text-text-tertiary" aria-hidden="true">2</span>
+        <span class="mr-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-bg-subtle text-xs font-semibold text-text-secondary" aria-hidden="true">2</span>
         Materiais
       </h2>
       {# Dica estática: sem `role`, porque live region não anuncia conteúdo já presente no load. #}
@@ -109,7 +109,9 @@
         {# Container de linhas — alvo do HTMX swap #}
         <div id="itens-container" data-itens-container class="flex flex-col gap-3">
           {% for item_form in formset %}
-            {% include "components/item_form_row.html" with material_id_field=item_form.material_id material_label_field=item_form.material_label quantidade_field=item_form.quantidade quantidade_label="Quantidade" autocomplete_url_name="estoque:buscar_materiais_saida_excepcional" autocomplete_item_template="estoque/partials/_autocomplete_item_material.html" delete_field=item_form.DELETE form_index=forloop.counter0 habilitar_veto_duplicidade=True %}
+            {% with unidade_item=unidades_itens|get_item:item_form.material_id.value %}
+            {% include "components/item_form_row.html" with material_id_field=item_form.material_id material_label_field=item_form.material_label quantidade_field=item_form.quantidade quantidade_label="Quantidade" autocomplete_url_name="estoque:buscar_materiais_saida_excepcional" autocomplete_item_template="estoque/partials/_autocomplete_item_material.html" delete_field=item_form.DELETE form_index=forloop.counter0 habilitar_veto_duplicidade=True unidade_item=unidade_item %}
+            {% endwith %}
           {% endfor %}
         </div>
 
@@ -161,10 +163,28 @@
       Ações — sticky no mobile, static no sm+. O pb extra respeita a safe area do
       home indicator; sem isso o botão primário encosta na barra do sistema.
     {% endcomment %}
-    <div class="fixed inset-x-0 bottom-0 z-10 flex flex-nowrap items-center justify-end gap-2 border-t border-border bg-surface px-4 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] sm:static sm:z-auto sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:pb-0">
+    {% comment %}
+      Confirmação antes de gravar. Esta é uma baixa administrativa DIRETA no
+      saldo físico — a escrita mais pesada do escopo do chefe de almoxarifado —
+      e era a única do produto sem `<dialog>` nenhum, enquanto `Autorizar`, que
+      só move reserva, tinha `alertdialog`. A cerimônia seguia o template em que
+      a tela foi escrita, não a consequência da ação.
+
+      O corpo é o mesmo padrão do `Confirmar registro de retirada?`: identidade,
+      o que muda, a recapitulação por item com a quantidade e a unidade, e a
+      irreversibilidade em negrito. `validarFormId` faz o modal só abrir com o
+      formulário válido — senão a pessoa confirma uma recapitulação vazia e cai
+      de volta no formulário com erro.
+    {% endcomment %}
+    <div
+      class="fixed inset-x-0 bottom-0 z-10 flex flex-nowrap items-center justify-end gap-2 border-t border-border bg-surface px-4 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] sm:static sm:z-auto sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:pb-0"
+      x-data="modalController({ id: 'confirmar-saida-excepcional', validarFormId: 'form-nova-saida-excepcional' })"
+    >
       {% url 'estoque:listar_saidas_excepcionais' as url_cancelar %}
       {% include "components/button.html" with variant="secondary" label="Cancelar" href=url_cancelar class="shrink-0" %}
-      {% include "components/button.html" with variant="primary" type="submit" label="Registrar saída excepcional" loading_label="Registrando…" icon_template="components/icons/confirmar.svg" icon_class="h-4 w-4 shrink-0" class="shrink-0 transition-colors" %}
+      {% include "components/button.html" with variant="primary" label="Registrar saída excepcional" data_modal_trigger="confirmar-saida-excepcional" aria_haspopup="dialog" icon_template="components/icons/confirmar.svg" icon_class="h-4 w-4 shrink-0" class="shrink-0 transition-colors" %}
+
+      {% include "components/modal.html" with id="confirmar-saida-excepcional" registro=registro_saida_nova titulo="Registrar saída excepcional?" descricao="Estas quantidades serão baixadas do saldo físico do estoque." consequencia="A gravação não pode ser desfeita." form_body_template="estoque/partials/_modal_corpo_saida_excepcional.html" submit_form_id="form-nova-saida-excepcional" confirm_label="Registrar saída excepcional" confirm_variant="danger" icon_variant="danger" role="alertdialog" loading_label="Registrando…" formset=formset form=form %}
     </div>
 
   </form>
