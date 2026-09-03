@@ -5,6 +5,7 @@ from django.urls import reverse
 
 from apps.notificacoes.models import Notificacao, TipoNotificacao
 from apps.requisicoes.models import EstadoRequisicao, Requisicao
+from apps.requisicoes.selectors import fila_autorizacao
 
 
 @pytest.fixture
@@ -178,21 +179,88 @@ def test_marcar_todas_lidas(client_logado, solicitante):
 
 
 @pytest.mark.django_db
-def test_badge_reflete_contagem_nao_lidas(client_logado, solicitante):
+def test_badge_do_sino_conta_pendencia_e_ignora_aviso_informativo(
+    client, chefe_obras, solicitante, setor_obras
+):
+    """O sino conta o que ainda pede ação, não o histórico de avisos (#175).
+
+    Duas notificações do mesmo tipo para o mesmo chefe: uma sobre requisição
+    ainda na fila, outra sobre requisição já atendida. A segunda não pede mais
+    nada — quem decide isso é `acoes_disponiveis`, não o tipo congelado.
+    """
+    na_fila = Requisicao.objects.create(
+        estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+        numero_publico='REQ-2026-000201',
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+    )
+    ja_atendida = Requisicao.objects.create(
+        estado=EstadoRequisicao.ATENDIDA,
+        numero_publico='REQ-2026-000202',
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+    )
+    for requisicao in (na_fila, ja_atendida):
+        Notificacao.objects.create(
+            destinatario=chefe_obras,
+            tipo=TipoNotificacao.ENVIO_AUTORIZACAO,
+            requisicao_id=requisicao.pk,
+            lida=False,
+        )
+    # Aviso informativo: narra um desfecho e nunca pediu ação a quem o recebeu.
     Notificacao.objects.create(
-        destinatario=solicitante,
-        tipo=TipoNotificacao.AUTORIZACAO,
-        requisicao_id=20,
+        destinatario=chefe_obras,
+        tipo=TipoNotificacao.ATENDIMENTO,
+        requisicao_id=ja_atendida.pk,
         lida=False,
     )
-    Notificacao.objects.create(
-        destinatario=solicitante,
-        tipo=TipoNotificacao.RECUSA,
-        requisicao_id=21,
-        lida=True,
+    client.force_login(chefe_obras)
+
+    resp = client.get('/notificacoes/')
+
+    assert resp.context['notificacoes_pendentes'] == 1
+
+
+@pytest.mark.django_db
+def test_contagem_do_sino_bate_com_a_fila_de_autorizacao(
+    client, chefe_obras, solicitante, setor_obras
+):
+    """A conta do sino e a da fila passam a poder ser conferidas uma contra a outra.
+
+    Era o sintoma da #175: 14 no sino, 4 na Fila de autorização, na mesma tela.
+    """
+    for indice, estado in enumerate(
+        [
+            EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+            EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+            EstadoRequisicao.ATENDIDA,
+            EstadoRequisicao.CANCELADA,
+            EstadoRequisicao.RECUSADA,
+        ]
+    ):
+        requisicao = Requisicao.objects.create(
+            estado=estado,
+            numero_publico=f'REQ-2026-00021{indice}',
+            criador=solicitante,
+            beneficiario=solicitante,
+            setor_beneficiario=setor_obras,
+        )
+        Notificacao.objects.create(
+            destinatario=chefe_obras,
+            tipo=TipoNotificacao.ENVIO_AUTORIZACAO,
+            requisicao_id=requisicao.pk,
+        )
+    client.force_login(chefe_obras)
+
+    resp = client.get('/notificacoes/')
+
+    assert (
+        resp.context['notificacoes_pendentes']
+        == fila_autorizacao(chefe_obras.pk).count()
     )
-    resp = client_logado.get('/notificacoes/')
-    assert resp.context['notificacoes_nao_lidas'] == 1
+    assert resp.context['notificacoes_pendentes'] == 2
 
 
 @pytest.mark.django_db
@@ -226,7 +294,7 @@ def test_lista_exibe_rotulo_e_link_de_envio_autorizacao(
     assert resp.status_code == 200
     # O título é o DESFECHO, não o rótulo do tipo: "Envio para autorização" é a
     # categoria do aviso, não a notícia. O guarda contra esquecer um membro novo
-    # é `test_todo_tipo_de_notificacao_tem_desfecho`, que lê o enum.
+    # é `test_todo_tipo_de_notificacao_tem_evento`, que lê o enum.
     assert 'Uma requisição aguarda sua autorização' in corpo
     assert reverse('requisicoes:detalhe', kwargs={'pk': req.pk}) in corpo
     assert 'REQ-2026-000108' in corpo
@@ -261,8 +329,10 @@ def test_lista_exibe_rotulo_e_link_de_separacao_retirada(
 
     assert resp.status_code == 200
     # O título é o DESFECHO, não o rótulo do tipo. O guarda contra esquecer um
-    # membro novo é `test_todo_tipo_de_notificacao_tem_desfecho`, que lê o enum.
-    assert 'Sua requisição está pronta para retirada' in corpo
+    # membro novo é `test_todo_tipo_de_notificacao_tem_evento`, que lê o enum.
+    # Evento no passado + estado atual: o registro é do que aconteceu, e quem
+    # diz como as coisas estão agora é a segunda metade do título.
+    assert 'Sua requisição foi separada para retirada · Pronta para retirada' in corpo
     assert reverse('requisicoes:detalhe', kwargs={'pk': req.pk}) in corpo
     assert 'REQ-2026-000109' in corpo
 
@@ -316,7 +386,7 @@ class TestListaNotificacoesEtapa8:
         assert 'text-text-tertiary' not in ancora
         assert 'Ver detalhes' in html
 
-    def test_todo_tipo_de_notificacao_tem_desfecho(self):
+    def test_todo_tipo_de_notificacao_tem_evento(self):
         """O que os testes por tipo protegiam antes, agora lido do enum.
 
         O título saiu de `get_tipo_display` para um mapa por tipo, e um mapa é
@@ -324,11 +394,11 @@ class TestListaNotificacoesEtapa8:
         exibir o rótulo da categoria sem ninguém notar.
         """
         from apps.notificacoes.models import TipoNotificacao
-        from apps.notificacoes.presentation import DESFECHO_POR_TIPO
+        from apps.notificacoes.presentation import EVENTO_POR_TIPO
 
-        faltando = [t for t in TipoNotificacao if t not in DESFECHO_POR_TIPO]
+        faltando = [t for t in TipoNotificacao if t not in EVENTO_POR_TIPO]
         assert faltando == [], (
-            f'TipoNotificacao sem desfecho em presentation.py: {faltando}'
+            f'TipoNotificacao sem evento em presentation.py: {faltando}'
         )
 
     def test_titulo_do_cartao_e_o_desfecho_nao_a_categoria(
@@ -346,3 +416,135 @@ class TestListaNotificacoesEtapa8:
         html = client.get(self.URL).content.decode('utf-8')
         assert 'Nenhuma notificação' in html
         assert 'border-dashed' in html
+
+
+class TestCartaoReconsultaOEstado:
+    """A notificação afirmava um estado que nunca reconsultava (issue #175)."""
+
+    URL = '/notificacoes/'
+
+    def _requisicao(self, estado, solicitante, setor_obras, numero):
+        return Requisicao.objects.create(
+            estado=estado,
+            numero_publico=numero,
+            criador=solicitante,
+            beneficiario=solicitante,
+            setor_beneficiario=setor_obras,
+        )
+
+    @pytest.mark.django_db
+    def test_titulo_e_evento_mais_estado_atual(
+        self, client, chefe_obras, solicitante, setor_obras
+    ):
+        """O aviso é de quando a requisição entrou na fila; ela já foi atendida."""
+        requisicao = self._requisicao(
+            EstadoRequisicao.ATENDIDA, solicitante, setor_obras, 'REQ-2026-000301'
+        )
+        Notificacao.objects.create(
+            destinatario=chefe_obras,
+            tipo=TipoNotificacao.ENVIO_AUTORIZACAO,
+            requisicao_id=requisicao.pk,
+        )
+        client.force_login(chefe_obras)
+
+        html = client.get(self.URL).content.decode('utf-8')
+
+        assert 'Aguardava sua autorização · Atendida' in html
+        # O presente do indicativo é uma cobrança, e aqui não há o que cobrar.
+        assert 'Uma requisição aguarda sua autorização' not in html
+
+    @pytest.mark.django_db
+    def test_titulo_cobra_enquanto_a_acao_ainda_cabe(
+        self, client, chefe_obras, solicitante, setor_obras
+    ):
+        requisicao = self._requisicao(
+            EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+            solicitante,
+            setor_obras,
+            'REQ-2026-000302',
+        )
+        Notificacao.objects.create(
+            destinatario=chefe_obras,
+            tipo=TipoNotificacao.ENVIO_AUTORIZACAO,
+            requisicao_id=requisicao.pk,
+        )
+        client.force_login(chefe_obras)
+
+        html = client.get(self.URL).content.decode('utf-8')
+
+        assert 'Uma requisição aguarda sua autorização · Aguardando autorização' in html
+        assert 'Resolvida' not in html
+
+    @pytest.mark.django_db
+    def test_cartao_carimba_o_estado_pelo_partial_de_dominio(
+        self, client, chefe_obras, solicitante, setor_obras
+    ):
+        """Mesmo `_estado_badge.html` das filas e do detalhe.
+
+        O `DESIGN.md` proíbe ensinar semântica de domínio ao componente global:
+        um segundo mapa estado -> cor aqui seria a segunda fonte da mesma
+        verdade. `amber-strong` é o carimbo de `aguardando_autorizacao` lá.
+        """
+        requisicao = self._requisicao(
+            EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+            solicitante,
+            setor_obras,
+            'REQ-2026-000303',
+        )
+        Notificacao.objects.create(
+            destinatario=chefe_obras,
+            tipo=TipoNotificacao.ENVIO_AUTORIZACAO,
+            requisicao_id=requisicao.pk,
+        )
+        client.force_login(chefe_obras)
+
+        html = client.get(self.URL).content.decode('utf-8')
+
+        assert 'Estado: ' in html
+        assert 'bg-warning-muted-strong' in html
+
+    @pytest.mark.django_db
+    def test_notificacao_resolvida_continua_visivel_marcada(
+        self, client, chefe_obras, solicitante, setor_obras
+    ):
+        """A decisão de produto da issue: fica na lista, marcada como resolvida.
+
+        `/notificacoes/` é o diário do que aconteceu com as minhas requisições,
+        não uma caixa de entrada — a chamada à ação já tem duas telas dedicadas.
+        """
+        requisicao = self._requisicao(
+            EstadoRequisicao.RECUSADA, solicitante, setor_obras, 'REQ-2026-000304'
+        )
+        Notificacao.objects.create(
+            destinatario=chefe_obras,
+            tipo=TipoNotificacao.ENVIO_AUTORIZACAO,
+            requisicao_id=requisicao.pk,
+        )
+        client.force_login(chefe_obras)
+
+        resp = client.get(self.URL)
+        html = resp.content.decode('utf-8')
+
+        assert len(resp.context['notificacoes']) == 1
+        assert 'REQ-2026-000304' in html
+        assert 'Resolvida' in html
+        assert resp.context['notificacoes_pendentes'] == 0
+
+    @pytest.mark.django_db
+    def test_aviso_sem_link_nao_ganha_carimbo_de_estado(
+        self, client_logado, solicitante
+    ):
+        """Sem requisição não há estado a afirmar nem pendência a resolver."""
+        Notificacao.objects.create(
+            destinatario=solicitante,
+            tipo=TipoNotificacao.ENVIO_AUTORIZACAO,
+            requisicao_id=None,
+        )
+
+        resp = client_logado.get(self.URL)
+        html = resp.content.decode('utf-8')
+
+        assert 'Estado: ' not in html
+        assert 'Resolvida' not in html
+        assert 'Ver detalhes' not in html
+        assert resp.context['notificacoes_pendentes'] == 0

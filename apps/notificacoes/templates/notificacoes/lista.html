@@ -12,10 +12,17 @@
   com o maior peso visual, exatamente o defeito que `cartao-alvo.js` foi
   escrito para corrigir nas outras listas.
 
-  Agora o cartão inteiro leva à requisição, o título é o DESFECHO (resolvido em
-  `notificacoes/presentation.py`) e `Marcar como lida` desce para ação
+  Agora o cartão inteiro leva à requisição, o título é o EVENTO mais o ESTADO
+  ATUAL da requisição (montado em `notificacoes/presentation.py` sobre o que o
+  selector foi consultar no domínio) e `Marcar como lida` desce para ação
   secundária. Para o solicitante no celular esta é a tela que responde "cadê meu
   material?".
+
+  O estado vem carimbado pelo `_estado_badge.html` de `requisicoes`, o mesmo
+  partial das filas e do detalhe: badge de estado é semântica de domínio, e o
+  `DESIGN.md` proíbe ensiná-la ao componente global — `badge.html` recebe
+  variante e rótulo já resolvidos. Um segundo mapa estado -> cor aqui seria a
+  segunda fonte da mesma verdade.
 {% endcomment %}
 <div class="space-y-4">
   <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
@@ -43,9 +50,11 @@
           <div class="flex flex-col gap-2 xl:flex-row xl:items-start xl:justify-between xl:gap-3">
             <div class="min-w-0">
               {% comment %}
-                O título é o desfecho, não `get_tipo_display`. "Autorização" é a
-                categoria do aviso e não diz se foi autorizada; quem abre esta
-                tela abriu para saber o que aconteceu com o pedido dela.
+                O título é evento + estado atual, não `get_tipo_display` e nem só
+                o desfecho congelado: "Autorização" é a categoria do aviso e não
+                diz se foi autorizada, e "Uma requisição aguarda sua autorização"
+                afirmava no presente algo que o chefe já tinha resolvido meses
+                antes (#175).
               {% endcomment %}
               <h2 class="break-words text-sm font-semibold text-text-primary">
                 {% if notificacao.requisicao_existe %}
@@ -53,19 +62,34 @@
                     href="{% url 'requisicoes:detalhe' pk=notificacao.requisicao_id %}?next={{ request.get_full_path|urlencode }}"
                     data-cartao-link
                     class="rounded-sm focus-visible:outline-none"
-                    aria-label="{{ notificacao.desfecho }} — abrir a requisição {{ notificacao.numero_publico_exibicao }}"
-                  >{{ notificacao.desfecho }}</a>
+                    aria-label="{{ notificacao.titulo }} — abrir a requisição {{ notificacao.numero_publico_exibicao }}"
+                  >{{ notificacao.titulo }}</a>
                 {% else %}
-                  {{ notificacao.desfecho }}
+                  {{ notificacao.titulo }}
                 {% endif %}
               </h2>
               <p class="mt-1 text-xs text-text-secondary">{{ notificacao.criado_em|date:"d/m/Y H:i" }}</p>
             </div>
-            {% if not notificacao.lida %}
-              <span class="shrink-0">
-                {% include "components/badge.html" with variant="blue" label="Não lida" prefixo_sr="Estado: " %}
-              </span>
-            {% endif %}
+            {% comment %}
+              Os carimbos, em ordem de importância: o estado da requisição hoje,
+              se este aviso já não pede mais nada, e se ele ainda não foi lido.
+
+              Aviso sem requisição resolvível (sem link ou id órfão) não recebe
+              nenhum dos dois primeiros: sem estado a afirmar, e sem pendência a
+              resolver, ele é notícia solta — carimbá-lo seria justamente
+              disfarçá-lo de item acionável.
+            {% endcomment %}
+            <div class="flex shrink-0 flex-wrap items-center gap-2">
+              {% if notificacao.requisicao_existe %}
+                {% include "requisicoes/partials/_estado_badge.html" with requisicao=notificacao.requisicao_referida %}
+              {% endif %}
+              {% if notificacao.resolvida %}
+                {% include "components/badge.html" with variant="slate" label="Resolvida" prefixo_sr="Pendência: " %}
+              {% endif %}
+              {% if not notificacao.lida %}
+                {% include "components/badge.html" with variant="blue" label="Não lida" prefixo_sr="Leitura: " %}
+              {% endif %}
+            </div>
           </div>
 
           {% if notificacao.requisicao_existe %}
