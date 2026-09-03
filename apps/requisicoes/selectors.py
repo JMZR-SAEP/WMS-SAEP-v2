@@ -7,6 +7,7 @@ Leituras triviais podem usar o ORM direto na view.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import TYPE_CHECKING, Callable
 
 from django.db.models import Count, Exists, F, OuterRef, Q, QuerySet, Subquery
@@ -14,6 +15,7 @@ from django.db.models import Count, Exists, F, OuterRef, Q, QuerySet, Subquery
 from apps.accounts.models import Setor, User
 from apps.accounts.papeis import papel_efetivo
 from apps.estoque.models import Material
+from apps.notificacoes.models import TipoNotificacao
 from apps.requisicoes import policies
 from apps.requisicoes.models import (
     EstadoRequisicao,
@@ -60,6 +62,55 @@ def acoes_disponiveis(
         if _POLICY_POR_OPERACAO[operacao](papel, requisicao):
             acoes.add(operacao)
     return frozenset(acoes)
+
+
+def acoes_disponiveis_em_lote(
+    *, ator_id: int, requisicoes: Iterable[Requisicao]
+) -> dict[int, frozenset[Operacao]]:
+    """`acoes_disponiveis` para um conjunto de requisições, com um papel só.
+
+    `papel_efetivo` é o único boundary de IO da derivação de papel e devolve um
+    snapshot (ADR-0011): resolver uma vez e reutilizar para todas as
+    requisições é o contrato, não otimização. As policies não fazem IO, então o
+    lote não custa consulta por requisição.
+
+    Ator inexistente devolve dicionário vazio — nenhuma ação disponível —, o
+    mesmo desfecho silencioso que `fila_autorizacao` dá para o caso.
+    """
+    requisicoes = list(requisicoes)
+    if not requisicoes:
+        return {}
+    try:
+        ator = User.objects.get(pk=ator_id)
+    except User.DoesNotExist:
+        return {}
+    papel = papel_efetivo(ator)
+    return {
+        requisicao.pk: acoes_disponiveis(papel, requisicao)
+        for requisicao in requisicoes
+    }
+
+
+#: Operação que cada tipo de notificação convoca o **destinatário** a executar.
+#:
+#: Tipo ausente é aviso informativo: narra um desfecho e não pede ação nenhuma a
+#: quem o recebe. `SEPARACAO_RETIRADA` é o caso que engana — ela avisa o
+#: solicitante de que o material está separado, mas quem registra a retirada é o
+#: almoxarifado, pela Fila de atendimento; o destinatário do aviso não tem
+#: operação a executar no sistema, e contá-lo no sino faria o número deixar de
+#: bater com qualquer fila que ele possa abrir.
+#:
+#: Mora em `requisicoes` porque é o app que conhece as duas pontas — o
+#: vocabulário de `Operacao` e o de `TipoNotificacao` —, e a dependência já
+#: corre neste sentido (`requisicoes.services` cria as notificações).
+CHAMADA_DE_ACAO_POR_TIPO_NOTIFICACAO: dict[str, Operacao] = {
+    TipoNotificacao.ENVIO_AUTORIZACAO: Operacao.AUTORIZAR,
+}
+
+
+def operacao_convocada_por_notificacao(tipo: str) -> Operacao | None:
+    """Operação que o aviso pede ao destinatário, ou `None` se ele só informa."""
+    return CHAMADA_DE_ACAO_POR_TIPO_NOTIFICACAO.get(tipo)
 
 
 def materiais_para_requisicao(q: str = '', limite: int = 20) -> QuerySet:
