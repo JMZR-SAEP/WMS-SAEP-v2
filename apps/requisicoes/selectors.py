@@ -91,6 +91,38 @@ def acoes_disponiveis_em_lote(
     }
 
 
+def requisicoes_com_acao_disponivel(
+    *, ator_id: int, operacao: Operacao, entre_ids: 'Iterable[int] | QuerySet'
+) -> set[int]:
+    """Ids, dentre `entre_ids`, em que o ator pode executar `operacao` agora.
+
+    Segunda porta de entrada para a mesma regra de `acoes_disponiveis`, e
+    derivada dela — não uma reimplementação. O pré-filtro no banco usa
+    `TRANSICOES[operacao].estados_origem`, que é literalmente a condição de
+    estado que `acoes_disponiveis` aplicaria em Python antes de consultar a
+    policy; ele só pode descartar requisição que a projeção completa
+    descartaria de todo jeito. A palavra final sobre papel continua sendo de
+    `acoes_disponiveis_em_lote`, para não haver duas respostas possíveis a
+    "quem pode agir" (ADR-0011).
+
+    Existe porque o sino aparece em toda página autenticada: sem o filtro por
+    estado no banco, responder "quantas pendências?" obrigava a carregar todo o
+    histórico referido pelas notificações e decorá-lo em Python, custo que
+    cresce indefinidamente com o uso (revisão da #175).
+    """
+    acionaveis = Requisicao.objects.filter(
+        pk__in=entre_ids, estado__in=TRANSICOES[operacao].estados_origem
+    )
+    acoes_por_requisicao = acoes_disponiveis_em_lote(
+        ator_id=ator_id, requisicoes=acionaveis
+    )
+    return {
+        requisicao_id
+        for requisicao_id, acoes in acoes_por_requisicao.items()
+        if operacao in acoes
+    }
+
+
 #: Operação que cada tipo de notificação convoca o **destinatário** a executar.
 #:
 #: Tipo ausente é aviso informativo: narra um desfecho e não pede ação nenhuma a

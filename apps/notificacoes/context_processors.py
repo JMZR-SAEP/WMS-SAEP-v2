@@ -8,10 +8,14 @@ def notificacoes_ctx(request):
 
     Pendência, e não "não lidas": o sino contava avisos, e aviso é registro de
     evento passado — o número crescia com o histórico e discordava da fila que
-    ele deveria antecipar (issue #175). Passa a contar só o que ainda pede ação
-    ao destinatário, resposta que vem do domínio (tabela de transições +
-    policies) pelo mesmo caminho que a lista usa. Assim a conta do sino pode ser
-    conferida contra a da Fila de autorização sem discordar dela.
+    ele deveria antecipar (issue #175). Passa a contar as requisições em que o
+    destinatário ainda pode agir, resposta que vem do domínio (tabela de
+    transições + policies). Assim a conta do sino pode ser conferida contra a da
+    Fila de autorização sem discordar dela.
+
+    Roda em toda página autenticada, então o seletor filtra no banco pelo estado
+    atual e nunca carrega o histórico do usuário para dentro do Python — o custo
+    acompanha o tamanho da fila, não o do diário.
     """
     usuario = getattr(request, 'user', None)
     if usuario is None or not usuario.is_authenticated:

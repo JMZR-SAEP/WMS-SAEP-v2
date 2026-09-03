@@ -48,31 +48,43 @@ def notificacoes_para_exibicao(destinatario_id: int) -> list[Notificacao]:
 
 
 def contagem_de_notificacoes_pendentes(destinatario_id: int) -> int:
-    """Quantas notificações do destinatário ainda pedem ação — a conta do sino.
+    """Quantos itens de trabalho ainda esperam o destinatário — a conta do sino.
 
-    Lê a mesma regra que a lista (``_decorar_com_pendencia``), e não uma
-    segunda definição de "pendente": era a divergência entre as duas contagens
-    que a issue #175 nomeia. A query já entra filtrada pelos tipos que chegam a
-    convocar alguma operação, para o processador de contexto não carregar o
-    diário inteiro a cada request.
+    Conta **requisições**, não avisos. A mesma requisição gera um aviso a cada
+    envio, e "retornar ao rascunho e reenviar" é fluxo suportado: somando
+    avisos, o sino dizia "2" para uma Fila de autorização de "1". A chave da
+    contagem é o par (requisição, operação convocada) — duas notificações que
+    convocam a mesma operação sobre a mesma requisição são um item só, e tipos
+    que convoquem operações distintas continuam somando separado.
+
+    Quem responde "pode agir agora?" é o domínio, pela mesma regra que a lista
+    usa (`acoes_disponiveis`): aqui pela porta em lote e filtrada no banco
+    (`requisicoes_com_acao_disponivel`), para o processador de contexto não
+    carregar o histórico inteiro a cada request. A decoração completa fica para
+    `/notificacoes/`, que é onde ela é exibida.
     """
-    from apps.requisicoes.selectors import CHAMADA_DE_ACAO_POR_TIPO_NOTIFICACAO
+    from apps.requisicoes.selectors import (
+        CHAMADA_DE_ACAO_POR_TIPO_NOTIFICACAO,
+        requisicoes_com_acao_disponivel,
+    )
 
-    notificacoes = list(
-        Notificacao.objects.filter(
+    tipos_por_operacao: dict[Operacao, list[str]] = {}
+    for tipo, operacao in CHAMADA_DE_ACAO_POR_TIPO_NOTIFICACAO.items():
+        tipos_por_operacao.setdefault(operacao, []).append(tipo)
+
+    total = 0
+    for operacao, tipos in tipos_por_operacao.items():
+        ids_referidos = Notificacao.objects.filter(
             destinatario_id=destinatario_id,
-            tipo__in=list(CHAMADA_DE_ACAO_POR_TIPO_NOTIFICACAO),
+            tipo__in=tipos,
             requisicao_id__isnull=False,
+        ).values('requisicao_id')
+        total += len(
+            requisicoes_com_acao_disponivel(
+                ator_id=destinatario_id, operacao=operacao, entre_ids=ids_referidos
+            )
         )
-    )
-    _decorar(notificacoes, destinatario_id=destinatario_id)
-    return len(
-        [
-            notificacao
-            for notificacao in notificacoes
-            if notificacao.pede_acao  # type: ignore[attr-defined]
-        ]
-    )
+    return total
 
 
 def requisicoes_referidas(requisicao_ids: list[int]) -> dict[int, 'Requisicao']:

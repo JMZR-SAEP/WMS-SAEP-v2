@@ -1,6 +1,8 @@
 """Testes unitários para seletores de notificações."""
 
 import pytest
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 
 from apps.notificacoes.models import Notificacao, TipoNotificacao
 from apps.notificacoes.selectors import (
@@ -9,6 +11,8 @@ from apps.notificacoes.selectors import (
     requisicoes_referidas,
 )
 from apps.requisicoes.models import EstadoRequisicao, Requisicao
+from apps.requisicoes import selectors as requisicoes_selectors
+from apps.requisicoes.selectors import fila_autorizacao
 
 
 def test_requisicoes_referidas_lista_vazia_retorna_dict_vazio():
@@ -277,3 +281,134 @@ class TestPendenciaDaNotificacao:
         assert [n.resolvida for n in notificacoes] == [False, False]
         assert [n.requisicao_existe for n in notificacoes] == [False, False]
         assert contagem_de_notificacoes_pendentes(chefe_obras.pk) == 0
+
+
+class TestContagemDoSino:
+    """O sino conta trabalho, e trabalho é requisição — não aviso.
+
+    A mesma requisição gera um aviso a cada envio (retornar ao rascunho e
+    reenviar é fluxo suportado), e somar avisos fazia o sino dizer "2" para uma
+    Fila de autorização de "1". A conta agora é sobre as requisições em que o
+    destinatário pode agir **agora**, que é exatamente o que a fila lista.
+    """
+
+    def _requisicao(self, estado, solicitante, setor_obras, numero):
+        return Requisicao.objects.create(
+            estado=estado,
+            numero_publico=numero,
+            criador=solicitante,
+            beneficiario=solicitante,
+            setor_beneficiario=setor_obras,
+        )
+
+    @pytest.mark.django_db
+    def test_reenvio_apos_retorno_ao_rascunho_conta_uma_vez(
+        self, chefe_obras, solicitante, setor_obras
+    ):
+        """Dois avisos, uma requisição, um item de trabalho."""
+        requisicao = self._requisicao(
+            EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+            solicitante,
+            setor_obras,
+            'REQ-2026-000400',
+        )
+        # Envio, retorno ao rascunho, reenvio: o segundo aviso convoca a mesma
+        # autorização que o primeiro.
+        for _ in range(2):
+            Notificacao.objects.create(
+                destinatario=chefe_obras,
+                tipo=TipoNotificacao.ENVIO_AUTORIZACAO,
+                requisicao_id=requisicao.pk,
+            )
+
+        assert contagem_de_notificacoes_pendentes(chefe_obras.pk) == 1
+        assert (
+            contagem_de_notificacoes_pendentes(chefe_obras.pk)
+            == fila_autorizacao(chefe_obras.pk).count()
+        )
+
+    @pytest.mark.django_db
+    def test_requisicoes_distintas_continuam_somando(
+        self, chefe_obras, solicitante, setor_obras
+    ):
+        """Deduplicar não pode virar colapsar: duas filas, dois itens."""
+        for indice in range(2):
+            requisicao = self._requisicao(
+                EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+                solicitante,
+                setor_obras,
+                f'REQ-2026-00041{indice}',
+            )
+            Notificacao.objects.create(
+                destinatario=chefe_obras,
+                tipo=TipoNotificacao.ENVIO_AUTORIZACAO,
+                requisicao_id=requisicao.pk,
+            )
+
+        assert contagem_de_notificacoes_pendentes(chefe_obras.pk) == 2
+        assert fila_autorizacao(chefe_obras.pk).count() == 2
+
+    @pytest.mark.django_db
+    def test_custo_da_contagem_nao_cresce_com_o_historico(
+        self, chefe_obras, solicitante, setor_obras, monkeypatch
+    ):
+        """O sino aparece em toda página autenticada: seu custo é fixo.
+
+        Antes, cada request carregava em Python todo o histórico acionável do
+        usuário para descobrir que quase nada dele ainda pedia ação. Aqui o
+        histórico cresce dez vezes sem mudar nem o número de consultas nem o
+        resultado — quem filtra pelo estado atual é o banco.
+        """
+        pendente = self._requisicao(
+            EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+            solicitante,
+            setor_obras,
+            'REQ-2026-000420',
+        )
+        Notificacao.objects.create(
+            destinatario=chefe_obras,
+            tipo=TipoNotificacao.ENVIO_AUTORIZACAO,
+            requisicao_id=pendente.pk,
+        )
+
+        def medir():
+            """Conta consultas e requisições efetivamente avaliadas em Python."""
+            avaliadas = []
+            original = requisicoes_selectors.acoes_disponiveis
+
+            def espiao(papel, requisicao):
+                avaliadas.append(requisicao.pk)
+                return original(papel, requisicao)
+
+            monkeypatch.setattr(requisicoes_selectors, 'acoes_disponiveis', espiao)
+            try:
+                with CaptureQueriesContext(connection) as consultas:
+                    total = contagem_de_notificacoes_pendentes(chefe_obras.pk)
+            finally:
+                monkeypatch.setattr(
+                    requisicoes_selectors, 'acoes_disponiveis', original
+                )
+            return total, len(consultas), len(avaliadas)
+
+        total_curto, consultas_curto, avaliadas_curto = medir()
+
+        for indice in range(30):
+            antiga = self._requisicao(
+                EstadoRequisicao.ATENDIDA,
+                solicitante,
+                setor_obras,
+                f'REQ-2026-0005{indice:02d}',
+            )
+            Notificacao.objects.create(
+                destinatario=chefe_obras,
+                tipo=TipoNotificacao.ENVIO_AUTORIZACAO,
+                requisicao_id=antiga.pk,
+            )
+
+        total_longo, consultas_longo, avaliadas_longo = medir()
+
+        assert total_curto == total_longo == 1
+        assert consultas_curto == consultas_longo
+        # A única requisição avaliada é a que ainda espera autorização; as
+        # trinta já atendidas nem saem do banco.
+        assert avaliadas_curto == avaliadas_longo == 1
