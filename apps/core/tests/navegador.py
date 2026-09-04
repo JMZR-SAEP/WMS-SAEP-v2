@@ -6,6 +6,8 @@ teste em `apps/core/tests/` importado pelos testes dos apps de domínio. Não é
 tem casos em `core` e em `requisicoes`.
 """
 
+import pathlib
+
 
 def autenticar(live_server, context, usuario):
     """Transplanta uma sessão logada do `Client` do Django para o navegador.
@@ -27,3 +29,23 @@ def autenticar(live_server, context, usuario):
             }
         ]
     )
+
+
+_JS_CONTRASTE = (pathlib.Path(__file__).parent / 'navegador_contraste.js').read_text()
+
+
+def medir_contraste(page):
+    """Mede o contraste texto/fundo efetivo de cada nó de texto visível.
+
+    Complementa `test_nenhum_elemento_combina_par_de_cor_reprovado`
+    (`test_tokens_semanticos.py`), que só vê par de cor no mesmo elemento: aqui
+    o fundo é resolvido subindo a árvore, com composição de alpha, o que exige
+    cascade e pipeline de cor reais — daí a lane Navegador (ADR-0019).
+
+    Devolve `(violacoes, nao_convertidas)`. Cada violação carrega o número
+    medido e o limiar aplicável: a #166 exige o valor na mensagem de falha, não
+    só "reprovou". `nao_convertidas` lista cor CSS que o canvas recusou — se vier
+    não-vazia, a medição está cega naquele ponto e o teste deve falhar também.
+    """
+    resultado = page.evaluate(_JS_CONTRASTE)
+    return resultado['violacoes'], resultado['naoConvertidas']
