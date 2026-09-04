@@ -2,7 +2,7 @@
 
 **Documento vivo.** Ponto de partida para quem entra no backlog e ferramenta de acompanhamento para quem já está nele. Visão macro: o detalhe técnico vive na issue, aqui vive a **ordem, a dependência e o estado**.
 
-Última atualização: **2026-09-04**.
+Última atualização: **2026-09-04** (#176 metade 1 e 2 em PR — #62 e #63; spinoffs #178/#179/#180 abertos).
 
 ## Como usar
 
@@ -35,13 +35,31 @@ Snapshots em `.impeccable/critique/` (diretório local, gitignored). O plano de 
 
 **Em andamento**
 
-Nada em execução no momento. Próximo item desbloqueado: **#176, metade barata**.
+- **#176 metade 1** (laço `home()` → `/admin/`) — PR `joaozuneda6/WMS-SAEP-v2#62`, revisão CodeRabbit.
+- **#176 metade 2** (importação SCPI → chefe de almoxarifado) — PR `joaozuneda6/WMS-SAEP-v2#63`, revisão CodeRabbit.
 
-**Aberto — 11 issues**
+**Decisões de domínio da #176 (2026-09-04).** A metade 2 não era divergência matriz↔código: `pode_visualizar_preview_scpi = eh_superusuario` batia com `docs/matriz-permissoes.md` L85-87. O conflito era matriz ↔ `PRODUCT.md:44` + `docs/processos-almoxarifado.md:88-96`. Resolvido:
+1. Preview SCPI → **chefe de almoxarifado** (superusuário mantém override). Feito no #63.
+2. Confirmar SCPI → **chefe também** (preview + confirmar + tela de sucesso). Feito no #63.
+3. Matriz L89 "divergências críticas" = **invariante EST-07** (`físico < reservado`), não divergência SCPI → `divergente_calculado` (`selectors.py:324-328`) vaza o marcador para todo usuário ativo. Virou **#178**.
+4. Inativar material → matriz L74/§3 já concede ao chefe, mas `pode_gerir_catalogo` só é consumida pelo admin do Django e não há UI de produto. **Tirado do #63** (mudar só a policy = código morto). Virou **#180**.
+5. Matriz L83 "Estornar devolução" sem policy nem service → virou **#179**.
+
+Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/accounts/policies.py:56` como a issue diz.
+
+**Spinoffs da #176 — abertos, `needs-triage`, sem onda**
+
+| # | O quê |
+|---|---|
+| 178 | `divergente_calculado` expõe o marcador EST-07 a solicitante/aux. setor/chefe setor (matriz L89) |
+| 179 | `pode_estornar_devolucao` + service — linha de matriz (L83) sem implementação |
+| 180 | inativar material só existe pelo admin do Django; decidir UI de produto ou recuar a matriz |
+
+**Aberto — 11 waves + 3 spinoffs da #176 (tabela acima)**
 
 | # | Onda | Estado | Bloqueio |
 |---|---|---|---|
-| 176 | 1 | metade 1 pronta / metade 2 travada | decisão de matriz de permissões |
+| 176 | 1 | metade 1 em PR (#62) / metade 2 em PR (#63) — ambas em revisão CodeRabbit; 3 spinoffs derivados (#178/#179/#180) | — |
 | 168 | 2 | pronta | — |
 | 177 | 3 | pronta | — |
 | 166 | 3 | pronta | vem depois de 168 e 177 |
@@ -55,13 +73,13 @@ Nada em execução no momento. Próximo item desbloqueado: **#176, metade barata
 
 ## Ordem de ataque
 
-1. **#176, metade barata** — `home()` para de rotear por `is_superuser`. Duas linhas, sem esperar decisão nenhuma, desfaz um beco sem saída. Melhor retorno por linha de toda a fila.
+1. ~~**#176, metade barata** — `home()` para de rotear por `is_superuser`.~~ **Feito — PR #62**, em revisão CodeRabbit.
 2. **#168** — mover `input.css`, apagar `apps/core/staticfiles.py`. Mecânica, e **limpa `test_tokens_semanticos.py` antes dos dois PRs que vão editá-lo** (#166 e #177). Esta é a razão de ela subir na fila, não o valor próprio.
 3. **#177 → `quantidade.html` → #166**, nesta ordem. O eixo do componente. A #177 é barata e obriga a decidir se as quatro variantes ainda existem; o PR de `quantidade.html` fecha os dois P1 sem issue (ver abaixo); a #166 vem por último e nasce medindo o que os anteriores acabaram de consertar.
 4. **#167** — leve o bullet das pílulas do #173 no mesmo PR: mesma tela, mesmo arquivo.
 5. **#173, fatiada em 3** — (a) copy e vocabulário; (b) `DESIGN.md`; (c) navegação e responsivo. Anexar os candidatos novos antes de abrir o primeiro PR.
 6. **#172** — depois que 5(b) documentar a gramática de formas.
-7. **#176, metade de permissão** — quando o domínio disser quem é o dono da importação SCPI.
+7. ~~**#176, metade de permissão** — quem é o dono da importação SCPI.~~ **Feito — PR #63.** Domínio decidiu: chefe de almoxarifado. Gerou #178, #179, #180.
 8. **#170** — quando o chefe de almoxarifado responder.
 9. **#171** — quando o export real chegar. Cada quebra vira issue própria.
 10. **#169** — medir a rede do piloto e decidir. `wontfix` consciente é o desfecho provável.
@@ -92,9 +110,9 @@ A remedição achou itens que não estão no bundle. Anexar antes de fatiar: DEL
 
 ## Disparar cedo, fora da fila
 
-Itens 7, 8 e 9 têm lead time humano e **zero trabalho de código antes da resposta**. Mande os três pedidos assim que a fila começar, e siga pelos itens 1 a 6 enquanto chegam:
+Itens 8 e 9 têm lead time humano e **zero trabalho de código antes da resposta**. Mande os pedidos assim que a fila começar, e siga pelos itens 1 a 6 enquanto chegam:
 
-- **#176 metade 2** — quem é o dono da importação SCPI na matriz de permissões?
+- ~~**#176 metade 2** — quem é o dono da importação SCPI?~~ **Respondido: chefe de almoxarifado.** PR #63.
 - **#170** — "recusa" e "cancelamento" diferem no vocabulário de auditoria do almoxarifado?
 - **#171** — alguém com acesso ao SCPI produzir um export real.
 
