@@ -3607,6 +3607,15 @@ class TestComponenteQuantidade:
         base.update(contexto)
         return render_to_string('components/quantidade.html', base)
 
+    def _linha_de(self, html, texto):
+        """Isola a linha renderizada que contém `texto` (ex. a `referencia`).
+
+        Necessário porque o número e a referência podem carregar a mesma
+        classe de `tom` — contar ocorrências no HTML inteiro não distingue
+        qual span pintou o quê.
+        """
+        return next(linha for linha in html.splitlines() if texto in linha)
+
     def test_numero_e_unidade_saem_juntos(self):
         html = self._render()
         assert '820' in html
@@ -3643,10 +3652,41 @@ class TestComponenteQuantidade:
     def test_valor_ausente_vira_travessao(self):
         assert '—' in self._render(valor=None)
 
-    def test_tom_pinta_apenas_o_numero(self):
-        assert 'text-warning-text' in self._render(tom='warning')
-        assert 'text-danger-text' in self._render(tom='danger')
+    def test_tom_pinta_numero_e_referencia_quando_ha_referencia(self):
+        """`tom` pinta o número e, quando há `referencia`, ela também.
+
+        A referência é o texto que explica *por que* o número está em
+        alerta (`de 150 autorizada` ao lado de um número em `warning`) — ela
+        não pode ficar no mesmo cinza neutro do metadado enquanto o número
+        ao lado grita.
+        """
+        referencia = 'de 150 autorizada'
+
+        html_warning = self._render(tom='warning', referencia=referencia)
+        assert html_warning.count('text-warning-text') == 2
+        assert 'text-warning-text' in self._linha_de(html_warning, referencia)
+
+        html_danger = self._render(tom='danger', referencia=referencia)
+        assert html_danger.count('text-danger-text') == 2
+        assert 'text-danger-text' in self._linha_de(html_danger, referencia)
+
         assert 'text-text-primary' in self._render()
+
+    def test_cor_default_sem_tom_e_secondary_em_toda_parte(self):
+        """Sem `tom`, unidade e referência usam `text-text-secondary`.
+
+        `text-text-tertiary` reprovava o contraste mínimo de 4,5:1 (WCAG
+        1.4.3) em várias superfícies reais do sistema — DESIGN.md, "A Regra
+        do Cinza Medido", prescreve `text-secondary` para texto sobre papel
+        frio sombreado. Ele não pode sobrar em nenhum lugar do render.
+        """
+        sem_referencia = self._render()
+        assert 'text-text-secondary' in sem_referencia
+        assert 'text-text-tertiary' not in sem_referencia
+
+        com_referencia = self._render(referencia='de 150 autorizada')
+        assert com_referencia.count('text-text-secondary') == 2
+        assert 'text-text-tertiary' not in com_referencia
 
     def test_referencia_sai_abaixo_em_menor(self):
         html = self._render(referencia='de 150 autorizada')
