@@ -7,7 +7,7 @@ from django.views.decorators.http import require_GET, require_POST
 
 from apps.core.http import htmx_redirect
 from apps.notificacoes.models import Notificacao
-from apps.notificacoes.selectors import notificacoes_com_numero_publico
+from apps.notificacoes.selectors import notificacoes_para_exibicao
 from apps.notificacoes.services import (
     marcar_notificacao_lida,
     marcar_todas_notificacoes_lidas,
@@ -17,20 +17,22 @@ from apps.notificacoes.services import (
 @login_required
 @require_GET
 def lista_notificacoes_view(request):
-    from apps.notificacoes.presentation import desfecho_da_notificacao
+    from apps.notificacoes.presentation import titulo_da_notificacao
 
-    notificacoes = notificacoes_com_numero_publico(request.user.pk)
-    # O título do cartão passa a ser o DESFECHO, não o tipo do evento.
-    # `Autorização` é a categoria do aviso, não a notícia — não diz se foi
-    # autorizada. Quem abre esta tela abriu para saber o que aconteceu com o
-    # pedido dela. Tipo fora do catálogo cai no rótulo do próprio model, para
-    # nenhum aviso ficar sem título.
+    notificacoes = notificacoes_para_exibicao(request.user.pk)
+    # O título do cartão é o evento (no passado, que é o que a notificação
+    # registra) mais o estado ATUAL da requisição, que o selector foi consultar
+    # no domínio. Projeção de dado já resolvido, não decisão: quem respondeu
+    # "ainda pede ação?" foi `acoes_disponiveis`, via selector. Tipo fora do
+    # catálogo cai no rótulo do próprio model, para nenhum aviso ficar sem
+    # título.
     for notificacao in notificacoes:
-        notificacao.desfecho = (
-            desfecho_da_notificacao(  # type: ignore[attr-defined]
-                notificacao.tipo
-            )
-            or notificacao.get_tipo_display()
+        requisicao = notificacao.requisicao_referida
+        notificacao.titulo = titulo_da_notificacao(  # type: ignore[attr-defined]
+            tipo=notificacao.tipo,
+            rotulo_do_tipo=notificacao.get_tipo_display(),
+            pede_acao=notificacao.pede_acao,
+            estado_label=requisicao.get_estado_display() if requisicao else '',
         )
     return render(
         request,

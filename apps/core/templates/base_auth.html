@@ -115,21 +115,25 @@
 
         {% if user.is_authenticated %}
           {# app-bar__action-icon: botão circular de 44×44 (alvo mínimo de toque) do design system para ações de ícone #}
-          <a href="{% url 'notificacoes:lista' %}" class="app-bar__action-icon relative" aria-label="Notificações{% if notificacoes_nao_lidas %} — {{ notificacoes_nao_lidas }} não lida{{ notificacoes_nao_lidas|pluralize:'s' }}{% endif %}">
+          <a href="{% url 'notificacoes:lista' %}" class="app-bar__action-icon relative" aria-label="Notificações{% if notificacoes_pendentes %} — {{ notificacoes_pendentes }} pendente{{ notificacoes_pendentes|pluralize:'s' }}{% endif %}">
             <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6V11c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
             </svg>
-            {% if notificacoes_nao_lidas %}
+            {% if notificacoes_pendentes %}
               {% comment %}
                 Papel branco sobre a barra azul: vermelho sobre azul mede 1.10:1 e
                 sumia por luminância, além de emprestar a cor da recusa a um evento
                 que não é negação, erro nem divergência. A contagem também está no
                 aria-label do link — o badge é reforço visual, por isso aria-hidden.
+
+                O número é de PENDÊNCIAS, não de avisos não lidos (#175): aviso é
+                registro de evento passado, e contar histórico fazia o sino
+                discordar da fila que ele deveria antecipar.
               {% endcomment %}
               <span
                 aria-hidden="true"
                 class="absolute top-1.5 right-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-surface px-1 text-xs font-semibold whitespace-nowrap text-primary-text-emphasis"
-              >{{ notificacoes_nao_lidas }}</span>
+              >{{ notificacoes_pendentes }}</span>
             {% endif %}
           </a>
         {% endif %}

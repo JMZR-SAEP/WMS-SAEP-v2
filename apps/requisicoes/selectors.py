@@ -7,6 +7,7 @@ Leituras triviais podem usar o ORM direto na view.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import TYPE_CHECKING, Callable
 
 from django.db.models import Count, Exists, F, OuterRef, Q, QuerySet, Subquery
@@ -14,6 +15,7 @@ from django.db.models import Count, Exists, F, OuterRef, Q, QuerySet, Subquery
 from apps.accounts.models import Setor, User
 from apps.accounts.papeis import papel_efetivo
 from apps.estoque.models import Material
+from apps.notificacoes.models import TipoNotificacao
 from apps.requisicoes import policies
 from apps.requisicoes.models import (
     EstadoRequisicao,
@@ -60,6 +62,87 @@ def acoes_disponiveis(
         if _POLICY_POR_OPERACAO[operacao](papel, requisicao):
             acoes.add(operacao)
     return frozenset(acoes)
+
+
+def acoes_disponiveis_em_lote(
+    *, ator_id: int, requisicoes: Iterable[Requisicao]
+) -> dict[int, frozenset[Operacao]]:
+    """`acoes_disponiveis` para um conjunto de requisições, com um papel só.
+
+    `papel_efetivo` é o único boundary de IO da derivação de papel e devolve um
+    snapshot (ADR-0011): resolver uma vez e reutilizar para todas as
+    requisições é o contrato, não otimização. As policies não fazem IO, então o
+    lote não custa consulta por requisição.
+
+    Ator inexistente devolve dicionário vazio — nenhuma ação disponível —, o
+    mesmo desfecho silencioso que `fila_autorizacao` dá para o caso.
+    """
+    requisicoes = list(requisicoes)
+    if not requisicoes:
+        return {}
+    try:
+        ator = User.objects.get(pk=ator_id)
+    except User.DoesNotExist:
+        return {}
+    papel = papel_efetivo(ator)
+    return {
+        requisicao.pk: acoes_disponiveis(papel, requisicao)
+        for requisicao in requisicoes
+    }
+
+
+def requisicoes_com_acao_disponivel(
+    *, ator_id: int, operacao: Operacao, entre_ids: 'Iterable[int] | QuerySet'
+) -> set[int]:
+    """Ids, dentre `entre_ids`, em que o ator pode executar `operacao` agora.
+
+    Segunda porta de entrada para a mesma regra de `acoes_disponiveis`, e
+    derivada dela — não uma reimplementação. O pré-filtro no banco usa
+    `TRANSICOES[operacao].estados_origem`, que é literalmente a condição de
+    estado que `acoes_disponiveis` aplicaria em Python antes de consultar a
+    policy; ele só pode descartar requisição que a projeção completa
+    descartaria de todo jeito. A palavra final sobre papel continua sendo de
+    `acoes_disponiveis_em_lote`, para não haver duas respostas possíveis a
+    "quem pode agir" (ADR-0011).
+
+    Existe porque o sino aparece em toda página autenticada: sem o filtro por
+    estado no banco, responder "quantas pendências?" obrigava a carregar todo o
+    histórico referido pelas notificações e decorá-lo em Python, custo que
+    cresce indefinidamente com o uso (revisão da #175).
+    """
+    acionaveis = Requisicao.objects.filter(
+        pk__in=entre_ids, estado__in=TRANSICOES[operacao].estados_origem
+    )
+    acoes_por_requisicao = acoes_disponiveis_em_lote(
+        ator_id=ator_id, requisicoes=acionaveis
+    )
+    return {
+        requisicao_id
+        for requisicao_id, acoes in acoes_por_requisicao.items()
+        if operacao in acoes
+    }
+
+
+#: Operação que cada tipo de notificação convoca o **destinatário** a executar.
+#:
+#: Tipo ausente é aviso informativo: narra um desfecho e não pede ação nenhuma a
+#: quem o recebe. `SEPARACAO_RETIRADA` é o caso que engana — ela avisa o
+#: solicitante de que o material está separado, mas quem registra a retirada é o
+#: almoxarifado, pela Fila de atendimento; o destinatário do aviso não tem
+#: operação a executar no sistema, e contá-lo no sino faria o número deixar de
+#: bater com qualquer fila que ele possa abrir.
+#:
+#: Mora em `requisicoes` porque é o app que conhece as duas pontas — o
+#: vocabulário de `Operacao` e o de `TipoNotificacao` —, e a dependência já
+#: corre neste sentido (`requisicoes.services` cria as notificações).
+CHAMADA_DE_ACAO_POR_TIPO_NOTIFICACAO: dict[str, Operacao] = {
+    TipoNotificacao.ENVIO_AUTORIZACAO: Operacao.AUTORIZAR,
+}
+
+
+def operacao_convocada_por_notificacao(tipo: str) -> Operacao | None:
+    """Operação que o aviso pede ao destinatário, ou `None` se ele só informa."""
+    return CHAMADA_DE_ACAO_POR_TIPO_NOTIFICACAO.get(tipo)
 
 
 def materiais_para_requisicao(q: str = '', limite: int = 20) -> QuerySet:
