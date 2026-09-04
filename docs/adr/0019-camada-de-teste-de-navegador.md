@@ -66,11 +66,14 @@ comportamento que nenhuma outra camada alcança.
 
 ### Critério de admissão
 
-Um teste só entra na camada Navegador se depende de pelo menos uma destas três coisas:
+Um teste só entra na camada Navegador se depende de pelo menos uma destas quatro coisas (a quarta
+entrou pela Emenda de 2026-09-04, abaixo):
 
 1. **Layout real** — geometria, `getBoundingClientRect`, rolagem, tamanho computado.
 2. **Top layer e semântica nativa de `<dialog>`** — `showModal()`, contenção de foco, `::backdrop`.
 3. **Ida e volta de XHR real** — o ciclo do htmx com resposta de verdade, incluindo swap e erro.
+4. **Cascade resolvida e pipeline de cor** — valor que só existe depois da cascade (fundo herdado de
+   um ancestral, cor efetiva de um par pai/filho) e conversão de espaço de cor (`oklch()` → sRGB).
 
 Se o conserto puder ser provado por um atributo no HTML renderizado, ele **não** entra aqui. Essa é
 a regra que impede a camada de crescer até virar a suíte que ninguém roda.
@@ -204,6 +207,42 @@ que ninguém depura quando pisca vira passivo. É por isso que o escopo está fe
 admissão explícito, e não por bom senso. Uma camada de cinco casos que todo mundo entende vale mais
 que uma de cinquenta que ninguém lê.
 
-Decisão revisável. Critérios de revisão: se a camada passar de ~15 casos sem que cada novo tenha
-passado pelo critério de admissão, o escopo furou. Se a instabilidade obrigar a rodar de novo com
-frequência, o problema é o caso, não o gate.
+Decisão revisável. Critérios de revisão: se um caso novo entrar sem passar pelo critério de
+admissão, o escopo furou. Se a instabilidade obrigar a rodar de novo com frequência, o problema é o
+caso, não o gate. O gatilho de contagem que esta seção trazia foi substituído pela Emenda de
+2026-09-04.
+
+## Emenda — 2026-09-04 (varredura de contraste, issue #166)
+
+Dois ajustes ao critério de admissão e ao gatilho de revisão. Não revogam o ADR: um acrescenta uma
+dependência que a lista original não previa, o outro troca um gatilho que nunca disparou por um que
+mede o custo real.
+
+### Quarto critério de admissão: cascade resolvida e pipeline de cor
+
+A issue #166 pediu uma varredura de contraste que resolve o fundo efetivo de cada nó de texto
+subindo a cadeia de ancestrais, compõe alpha e converte `oklch()` para sRGB. O guarda estático de
+`test_tokens_semanticos.py` não alcança o caso, e o próprio docstring dele registra o porquê: ele vê
+par de cor no **mesmo elemento**, e o defeito que originou a regra tinha o fundo no `<div>` pai e a
+cor no `<span>` filho.
+
+Isso não cabia em nenhum dos três critérios originais. Não é geometria, não é `<dialog>`, não é XHR
+— é o valor computado depois da cascade, mais a conversão de espaço de cor que o navegador faz e
+nenhum parser de template faz. A lista ganha o quarto item em vez de o teste ser encaixado à força
+num dos três, porque a lista fechada é o mecanismo que segura o escopo desta camada, e alargá-la por
+interpretação a esvazia.
+
+O limite continua valendo na direção oposta: se o conserto puder ser provado por um atributo no HTML
+renderizado, ele não entra aqui.
+
+### O gatilho de ~15 casos sai; o relógio entra
+
+O texto original marcava revisão em "~15 casos". Quando a #166 chegou, a camada estava em **48 casos
+em 9 arquivos** — 3,2× o gatilho — e nenhuma revisão tinha sido disparada. O número não falhou por
+descuido de quem o escreveu: ele mede crescimento, e crescimento por casos legitimamente admitidos
+não é o risco que o Trade-off descreve. O risco é a camada ficar lenta ou instável a ponto de
+ninguém rodar.
+
+O gatilho passa a ser o relógio, que é o custo que a ADR diz proteger desde o Contexto: a suíte
+padrão roda em segundos e a lane roda em **~50s** com 59 casos. Se a lane passar de ~3min, o escopo
+precisa de revisão — encolhendo casos, não afrouxando o gate.
