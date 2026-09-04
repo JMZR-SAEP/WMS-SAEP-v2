@@ -54,27 +54,39 @@ def exigir_pode_estornar_saida_excepcional(papel: 'PapelEfetivo') -> None:
 
 
 def pode_visualizar_preview_scpi(papel: 'PapelEfetivo') -> bool:
+    """Chefe de almoxarifado é o dono do ritual de importação SCPI (PRODUCT.md);
+    superusuário mantém acesso como override técnico."""
     if not papel.ativo:
         return False
-    return papel.eh_superusuario
+    if papel.eh_superusuario:
+        return True
+    return papel.eh_chefe_de_almoxarifado
 
 
 def exigir_pode_visualizar_preview_scpi(papel: 'PapelEfetivo') -> None:
     if not pode_visualizar_preview_scpi(papel):
         raise PermissaoNegada(
-            'Apenas superusuários podem visualizar pré-visualizações de importação SCPI.',
+            'Apenas chefes de almoxarifado e superusuários podem visualizar '
+            'pré-visualizações de importação SCPI.',
             code='permissao_negada',
         )
 
 
 def pode_confirmar_importacao_scpi(papel: 'PapelEfetivo') -> bool:
-    return papel.ativo and papel.eh_superusuario
+    """A decisão sobre cada divergência é do chefe de almoxarifado
+    (processos-almoxarifado.md); superusuário mantém acesso como override."""
+    if not papel.ativo:
+        return False
+    if papel.eh_superusuario:
+        return True
+    return papel.eh_chefe_de_almoxarifado
 
 
 def exigir_pode_confirmar_importacao_scpi(papel: 'PapelEfetivo') -> None:
     if not pode_confirmar_importacao_scpi(papel):
         raise PermissaoNegada(
-            'Apenas superusuários podem confirmar importações SCPI.',
+            'Apenas chefes de almoxarifado e superusuários podem confirmar '
+            'importações SCPI.',
             code='permissao_negada',
         )
 

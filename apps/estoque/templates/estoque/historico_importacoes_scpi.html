@@ -17,10 +17,10 @@
     {% endif %}
     {% comment %}
       O botão só sai para quem a policy do preview deixa entrar
-      (`pode_importar` = `pode_visualizar_preview_scpi`, superusuário). Esta
-      tela é visível também ao chefe de almoxarifado, que via a ação oferecida
-      e caía num 403 — DESIGN.md manda esconder ação administrativa irrelevante
-      ou explicar o bloqueio, nunca oferecer o que o domínio recusa.
+      (`pode_importar` = `pode_visualizar_preview_scpi`: chefe de almoxarifado
+      e superusuário). Se o histórico abrir para um papel que só consulta, a
+      ação não deve aparecer — DESIGN.md manda esconder ação administrativa
+      irrelevante, nunca oferecer o que o domínio recusa.
     {% endcomment %}
     {% if pode_importar %}
       {% url 'estoque:preview_importacao_scpi' as url_nova_importacao %}

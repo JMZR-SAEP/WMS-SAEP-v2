@@ -558,7 +558,7 @@ class TestConfirmarImportacaoScpi:
             )
 
     def test_sem_permissao_lanca_permissao_negada(
-        self, db, chefe_almoxarifado, estoque_principal
+        self, db, aux_almoxarifado, estoque_principal
     ):
         import pytest
 
@@ -568,11 +568,29 @@ class TestConfirmarImportacaoScpi:
         csv_bytes = self._csv('000.999.400', 'Parafuso', '1.000')
         with pytest.raises(PermissaoNegada):
             confirmar_importacao_scpi(
-                ator_id=chefe_almoxarifado.pk,
+                ator_id=aux_almoxarifado.pk,
                 conteudo_bytes=csv_bytes,
                 arquivo_nome='negado.csv',
                 estoque_id=estoque_principal.pk,
             )
+
+    def test_chefe_almoxarifado_pode_confirmar(
+        self, db, chefe_almoxarifado, estoque_principal
+    ):
+        """A decisão sobre cada divergência é do chefe de almoxarifado
+        (processos-almoxarifado.md): ele confirma a importação (#176)."""
+        from apps.estoque.models import ImportacaoSCPI
+        from apps.estoque.services import confirmar_importacao_scpi
+
+        csv_bytes = self._csv('000.999.500', 'Bucha', '3.000')
+        importacao = confirmar_importacao_scpi(
+            ator_id=chefe_almoxarifado.pk,
+            conteudo_bytes=csv_bytes,
+            arquivo_nome='chefe.csv',
+            estoque_id=estoque_principal.pk,
+        )
+        assert importacao.importado_por_id == chefe_almoxarifado.pk
+        assert ImportacaoSCPI.objects.filter(pk=importacao.pk).exists()
 
     def test_total_novos_e_divergentes_gravados(
         self, db, superuser, estoque_principal, material_scpi

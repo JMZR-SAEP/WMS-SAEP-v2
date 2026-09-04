@@ -196,8 +196,15 @@ class TestPodeVisualizarPreviewScpi:
     def test_superuser_pode(self):
         assert pode_visualizar_preview_scpi(SUPERUSER) is True
 
-    def test_chefe_almox_nao_pode(self):
-        assert pode_visualizar_preview_scpi(CHEFE_ALMOX) is False
+    def test_chefe_almox_pode(self):
+        """O chefe de almoxarifado é o dono do ritual de importação SCPI
+        (PRODUCT.md); o superusuário mantém acesso como override."""
+        assert pode_visualizar_preview_scpi(CHEFE_ALMOX) is True
+
+    def test_aux_almox_nao_pode(self):
+        """O limite é chefe de almoxarifado, não papel operacional de
+        almoxarifado: o auxiliar não abre o preview."""
+        assert pode_visualizar_preview_scpi(AUX_ALMOX) is False
 
     def test_inativo_nao_pode(self):
         assert pode_visualizar_preview_scpi(INATIVO) is False
@@ -209,6 +216,13 @@ class TestPodeVisualizarPreviewScpi:
 class TestExigirPodeVisualizarPreviewScpi:
     def test_superuser_nao_lanca(self):
         exigir_pode_visualizar_preview_scpi(SUPERUSER)
+
+    def test_chefe_almox_nao_lanca(self):
+        exigir_pode_visualizar_preview_scpi(CHEFE_ALMOX)
+
+    def test_aux_almox_lanca(self):
+        with pytest.raises(PermissaoNegada):
+            exigir_pode_visualizar_preview_scpi(AUX_ALMOX)
 
     def test_solicitante_lanca(self):
         with pytest.raises(PermissaoNegada):
@@ -224,8 +238,13 @@ class TestPodeConfirmarImportacaoScpi:
     def test_superuser_pode(self):
         assert pode_confirmar_importacao_scpi(SUPERUSER) is True
 
-    def test_chefe_almox_nao_pode(self):
-        assert pode_confirmar_importacao_scpi(CHEFE_ALMOX) is False
+    def test_chefe_almox_pode(self):
+        """A decisão sobre cada divergência é do chefe de almoxarifado
+        (processos-almoxarifado.md): quem revisa o preview também confirma."""
+        assert pode_confirmar_importacao_scpi(CHEFE_ALMOX) is True
+
+    def test_aux_almox_nao_pode(self):
+        assert pode_confirmar_importacao_scpi(AUX_ALMOX) is False
 
     def test_inativo_nao_pode(self):
         assert pode_confirmar_importacao_scpi(INATIVO) is False
@@ -234,6 +253,13 @@ class TestPodeConfirmarImportacaoScpi:
 class TestExigirPodeConfirmarImportacaoScpi:
     def test_superuser_nao_lanca(self):
         exigir_pode_confirmar_importacao_scpi(SUPERUSER)
+
+    def test_chefe_almox_nao_lanca(self):
+        exigir_pode_confirmar_importacao_scpi(CHEFE_ALMOX)
+
+    def test_aux_almox_lanca(self):
+        with pytest.raises(PermissaoNegada):
+            exigir_pode_confirmar_importacao_scpi(AUX_ALMOX)
 
     def test_solicitante_lanca(self):
         with pytest.raises(PermissaoNegada):

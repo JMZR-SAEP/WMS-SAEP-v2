@@ -1190,13 +1190,20 @@ class TestPreviewImportacaoScpiView:
         assert resp.status_code == 302
         assert '/login/' in resp['Location']
 
-    def test_sem_permissao_retorna_403(self, client, chefe_almoxarifado):
-        client.force_login(chefe_almoxarifado)
+    def test_sem_permissao_retorna_403(self, client, aux_almoxarifado):
+        """O limite é chefe de almoxarifado: o auxiliar não abre o preview."""
+        client.force_login(aux_almoxarifado)
         resp = client.get(self.URL)
         assert resp.status_code == 403
 
     def test_superuser_get_retorna_200(self, client, superuser):
         client.force_login(superuser)
+        resp = client.get(self.URL)
+        assert resp.status_code == 200
+
+    def test_chefe_almoxarifado_get_retorna_200(self, client, chefe_almoxarifado):
+        """O chefe de almoxarifado é o dono do ritual de importação SCPI."""
+        client.force_login(chefe_almoxarifado)
         resp = client.get(self.URL)
         assert resp.status_code == 200
 
@@ -1901,10 +1908,20 @@ class TestConfirmarImportacaoScpiView:
         assert resp.status_code == 302
         assert '/login/' in resp['Location']
 
-    def test_sem_permissao_retorna_403(self, client, chefe_almoxarifado):
-        client.force_login(chefe_almoxarifado)
+    def test_sem_permissao_retorna_403(self, client, aux_almoxarifado):
+        """O limite é chefe de almoxarifado: o auxiliar não confirma."""
+        client.force_login(aux_almoxarifado)
         resp = client.post(self.URL, {})
         assert resp.status_code == 403
+
+    def test_chefe_almoxarifado_sem_session_retorna_200_com_erro(
+        self, client, chefe_almoxarifado
+    ):
+        """A decisão sobre cada divergência é do chefe: ele confirma. Sem
+        pré-visualização na sessão, cai no erro, não num 403."""
+        client.force_login(chefe_almoxarifado)
+        resp = client.post(self.URL, {})
+        assert resp.status_code == 200
 
     def test_sem_session_retorna_200_com_erro(self, client, superuser):
         client.force_login(superuser)
@@ -2266,15 +2283,13 @@ class TestHistoricoImportacoesScpiView:
         assert f'<title>{rotulo} — WMS-SAEP</title>' in html
         assert 'Importação SCPI — Histórico' not in html
 
-    def test_nova_importacao_so_aparece_para_quem_pode_importar(
+    def test_nova_importacao_aparece_para_quem_pode_importar(
         self, client, superuser, chefe_almoxarifado
     ):
-        """A tela é visível ao chefe de almoxarifado; o preview, não.
-
-        `pode_consultar_historico_scpi` inclui o chefe de almoxarifado e
-        `pode_visualizar_preview_scpi` é só superusuário. O botão saía
-        incondicional, então o chefe via a ação, clicava e caía num 403 —
-        interface oferecendo o que o domínio recusa.
+        """O chefe de almoxarifado é o dono do ritual: vê o histórico e a ação
+        "Nova importação". O botão continua derivando de
+        `pode_visualizar_preview_scpi` para sumir se o histórico abrir para um
+        papel que só consulta.
         """
         client.force_login(superuser)
         html_super = client.get(self.URL).content.decode()
@@ -2282,8 +2297,8 @@ class TestHistoricoImportacoesScpiView:
 
         client.force_login(chefe_almoxarifado)
         html_chefe = client.get(self.URL).content.decode()
-        assert 'Nova importação' not in html_chefe
-        assert '/estoque/importacao-scpi/pre-visualizacao/' not in html_chefe
+        assert 'Nova importação' in html_chefe
+        assert '/estoque/importacao-scpi/pre-visualizacao/' in html_chefe
 
     def test_lista_vazia_usa_o_componente_de_estado_vazio(self, client, superuser):
         """Frase cinza solta era o estado vazio fora do componente — as outras
