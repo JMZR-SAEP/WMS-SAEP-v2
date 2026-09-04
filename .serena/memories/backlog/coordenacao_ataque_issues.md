@@ -2,7 +2,7 @@
 
 **Documento vivo.** Ponto de partida para quem entra no backlog e ferramenta de acompanhamento para quem já está nele. Visão macro: o detalhe técnico vive na issue, aqui vive a **ordem, a dependência e o estado**.
 
-Última atualização: **2026-09-04** (#166 implementada, PR #69 aberta e aguardando merge — inclui emenda à ADR-0019; spinoffs #181/#182 abertos, needs-triage; #167 é a próxima da fila assim que a #69 mergear).
+Última atualização: **2026-09-04** (#166 fechada e mergeada, com emenda à ADR-0019; spinoffs #181/#182 abertos, needs-triage; **#167 é a próxima da fila**, agora com a rede de segurança da varredura de contraste no lugar).
 
 ## Como usar
 
@@ -36,12 +36,11 @@ Snapshots em `.impeccable/critique/` (diretório local, gitignored). O plano de 
 | 168 | `input.css` na árvore de estáticos, storage customizado | PR `joaozuneda6/WMS-SAEP-v2#65`, squash `c3f7fb1`, merged 2026-09-04. Issue fechada. |
 | 177 | 4 variantes cruas de `badge.html` | PR `joaozuneda6/WMS-SAEP-v2#66`, squash `0ee1949`, merged 2026-09-04 (empilhada sobre a #65, retargetou pra `main` sozinha assim que a #65 mergeou). Issue fechada. Nomenclatura: `orange`→`cancel`, `indigo`→`consumption`, `violet`→`reversal`, `yellow`→reuso de `amber`. |
 | — | `quantidade.html`: contraste da unidade + `tom` não propagava pra `referencia` | PR `joaozuneda6/WMS-SAEP-v2#68`, merge `421ce15`, merged 2026-09-04. Sem issue própria. |
+| 166 | Varredura de contraste na lane Navegador (par pai/filho) | PR `joaozuneda6/WMS-SAEP-v2#69`, merge `95e8018`, merged 2026-09-04. Issue fechada. Emendou a ADR-0019: 4º critério de admissão ("cascade resolvida e pipeline de cor") e o gatilho de "~15 casos" deu lugar ao relógio. Deixa pendente uma extensão: `estoque:preview_importacao_scpi` ficou fora (upload multipart), então o guarda nasce cego para o `bg-primary-subtle` que originou o eixo. |
 
 **Em andamento**
 
-- **#166** — PR `joaozuneda6/WMS-SAEP-v2#69`, aberta 2026-09-04, aguardando merge.
-  - **A PR emenda a ADR-0019** — decisão durável, não progresso: 4º critério de admissão ("cascade resolvida e pipeline de cor"), e o gatilho de "~15 casos" dá lugar ao relógio, porque a lane já estava em 3,2× o teto sem nunca ter disparado revisão.
-  - Fora do escopo, anexar ao fechar: `estoque:preview_importacao_scpi` não entrou (exige upload multipart), então o guarda nasce cego para o `bg-primary-subtle` que originou tudo.
+- Nenhuma. #166 mergeada (ver Concluído).
 
 **Decisões de domínio da #176 (2026-09-04).** A metade 2 não era divergência matriz↔código: `pode_visualizar_preview_scpi = eh_superusuario` batia com `docs/matriz-permissoes.md` L85-87. O conflito era matriz ↔ `PRODUCT.md:44` + `docs/processos-almoxarifado.md:88-96`. Resolvido:
 1. Preview SCPI → **chefe de almoxarifado** (superusuário mantém override). Feito no #63.
@@ -67,12 +66,11 @@ Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/account
 | 181 | `pode_ver_notificacao` é policy órfã: sem consumidor de produção, a regra vive no filtro de ORM da view (ADR-0011 existe para evitar as duas fontes) |
 | 182 | `listar_saidas_excepcionais(ator_id)` ignora o parâmetro — assinatura simula recorte por papel que não existe |
 
-**Aberto — 8 waves + 3 spinoffs da #176 (tabela acima)**
+**Aberto — 7 waves + 5 spinoffs (tabelas acima)**
 
 | # | Onda | Estado | Bloqueio |
 |---|---|---|---|
-| 166 | 3 | **em PR (#69)**, aguardando merge | — |
-| 167 | 4 | pronta — **próxima da fila** quando a #69 mergear | — |
+| 167 | 4 | pronta — **próxima da fila** | — |
 | 173 | 5 | precisa ser fatiada | — |
 | 172 | 6 | precisa de decisão de vocabulário visual | 173(b) documentar a gramática de formas |
 | 170 | 7 | pergunta em aberto | resposta do chefe de almoxarifado |
@@ -86,7 +84,7 @@ Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/account
 2. ~~**#168** — mover `input.css`, apagar `apps/core/staticfiles.py`.~~ **Feito e fechada — PR #65** (squash `c3f7fb1`).
 3. ~~**#177** — 4 variantes cruas de `badge.html`.~~ **Feito e fechada — PR #66** (squash `0ee1949`, empilhada sobre a #65, retargetou pra `main` sozinha ao mergear a #65).
 3b. ~~**`quantidade.html`**~~ **Feito e fechada — PR #68** (merge `421ce15`, sem CodeRabbit).
-3c. ~~**#166**~~ **Implementada — PR #69**, aguardando merge. Emenda a ADR-0019 no caminho.
+3c. ~~**#166**~~ **Feita e fechada — PR #69** (merge `95e8018`). Emendou a ADR-0019 no caminho.
 4. **#167** — leve o bullet das pílulas do #173 no mesmo PR: mesma tela, mesmo arquivo.
 5. **#173, fatiada em 3** — (a) copy e vocabulário; (b) `DESIGN.md`; (c) navegação e responsivo. Anexar os candidatos novos antes de abrir o primeiro PR.
 6. **#172** — depois que 5(b) documentar a gramática de formas.
@@ -100,7 +98,7 @@ Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/account
 
 - **#168 → #166, #177.** Os três editam `test_tokens_semanticos.py`. A #168 mexe na constante `INPUT_CSS`; as outras duas acrescentam cobertura. Fora de ordem = conflito garantido.
 - **#177 ≡ #166 em forma.** Cor que existe, par que existe, guarda que não alcança — uma por paleta crua, outra por par pai/filho. Entender o guarda duas vezes é desperdício.
-- **#166 → #167, #173, #174.** A varredura de contraste é a rede de segurança das edições de template seguintes. Toda mudança de markup feita depois dela nasce medida.
+- ~~**#166 → #167, #173, #174.**~~ **Satisfeita.** A varredura está no lugar: toda mudança de markup daqui em diante nasce medida, nas 11 telas cobertas.
 - **#173 ⊃ #167.** O bullet das pílulas do preview SCPI é o mesmo arquivo da #167.
 - **#173(b) → #172.** Os bullets de `DESIGN.md` fixam a gramática que o triângulo vai estender. Documentar antes de acrescentar.
 - **#176 se divide em duas metades independentes.** A do laço fechado é defeito puro e sai sozinha; a da policy espera decisão de domínio.
