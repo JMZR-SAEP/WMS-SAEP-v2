@@ -206,17 +206,202 @@ def test_nenhum_texto_visivel_reprova_o_contraste_minimo(
         f'não abre esta tela, e nada foi medido.'
     )
 
-    violacoes, nao_convertidas = medir_contraste(page)
+    medicao = medir_contraste(page)
 
-    assert nao_convertidas == [], (
-        f'O canvas recusou {len(nao_convertidas)} cor(es) em {rota}, então a '
-        f'medição está cega nesses pontos: {nao_convertidas}'
+    assert medicao.nao_convertidas == [], (
+        f'O canvas recusou {len(medicao.nao_convertidas)} cor(es) em {rota}, '
+        f'então a medição está cega nesses pontos: {medicao.nao_convertidas}'
     )
-    assert violacoes == [], (
-        f'{len(violacoes)} texto(s) abaixo do piso WCAG 1.4.3 em {rota}:\n'
+    assert medicao.nao_suportados == [], (
+        f'{rota} usa efeito de CSS que esta varredura não sabe medir, então o '
+        f'contraste ali não está sendo guardado:\n'
+        + '\n'.join(
+            f'  {n["motivo"]} em {n["seletor"]}: {n["valor"]}'
+            for n in medicao.nao_suportados
+        )
+        + '\n\nOu a varredura passa a cobrir o efeito, ou o elemento recebe '
+        '`data-contraste-ignorar` com justificativa no template.'
+    )
+    assert medicao.violacoes == [], (
+        f'{len(medicao.violacoes)} texto(s) abaixo do piso WCAG 1.4.3 em {rota}:\n'
         + '\n'.join(
             f'  "{v["texto"]}" ({v["seletor"]}): {v["corTexto"]} sobre '
             f'{v["corFundo"]} = {v["contraste"]}:1, piso {v["limiar"]}:1'
-            for v in violacoes
+            for v in medicao.violacoes
         )
     )
+
+
+@pytest.fixture
+def pagina_medivel(live_server, context, page, solicitante):
+    """Página logada e vazia, para injetar casos controlados.
+
+    `requisicoes:minhas` sem nenhuma requisição: pouca marcação própria, então
+    o que os controles abaixo injetam é o que domina a medição.
+    """
+    autenticar(live_server, context, solicitante)
+    page.goto(f'{live_server.url}{reverse("requisicoes:minhas")}')
+    return page
+
+
+def _injetar(page, html):
+    page.evaluate(
+        '(html) => { const c = document.createElement("div");'
+        ' c.innerHTML = html; document.body.appendChild(c); }',
+        html,
+    )
+
+
+def test_a_varredura_reprova_texto_cuja_cor_esta_no_filho_e_o_fundo_no_pai(
+    pagina_medivel,
+):
+    """Controle positivo — sem ele, os testes por tela passariam vazios.
+
+    Onze telas que hoje não têm violação nenhuma continuariam verdes se o walker
+    parasse de visitar texto ou a conta passasse a aceitar tudo. Este caso é o
+    que distingue "não há defeito" de "não há medição": é a forma exata que o
+    guarda estático não vê — `background` no pai, `color` no filho — e ela
+    **precisa** ser reprovada, com o número medido.
+    """
+    _injetar(
+        pagina_medivel,
+        '<div style="background: oklch(0.968 0.007 247.896)">'
+        '<span id="alvo" style="color: oklch(0.75 0.02 250)">quase ilegível</span>'
+        '</div>',
+    )
+
+    medicao = medir_contraste(pagina_medivel)
+
+    alvos = [v for v in medicao.violacoes if v['texto'] == 'quase ilegível']
+    assert len(alvos) == 1, (
+        'a varredura não reprovou o par pai/filho — é a forma que motivou a '
+        f'issue #166. Violações vistas: {medicao.violacoes}'
+    )
+    violacao = alvos[0]
+    assert violacao['limiar'] == 4.5
+    assert violacao['contraste'] < 4.5
+    # O achado precisa dizer *quanto*, e entre quais cores: sem isso ninguém
+    # consegue agir sobre a falha sem reproduzir o teste à mão.
+    assert violacao['corTexto'].startswith('rgb(')
+    assert violacao['corFundo'].startswith('rgb(')
+    assert 'span#alvo' in violacao['seletor']
+
+
+def test_a_varredura_aprova_o_mesmo_par_quando_o_contraste_e_suficiente(
+    pagina_medivel,
+):
+    """Contraprova do controle positivo: não é o seletor que reprova, é a cor."""
+    _injetar(
+        pagina_medivel,
+        '<div style="background: oklch(0.968 0.007 247.896)">'
+        '<span id="alvo" style="color: oklch(0.28 0.03 250)">legível</span>'
+        '</div>',
+    )
+
+    medicao = medir_contraste(pagina_medivel)
+
+    assert [v for v in medicao.violacoes if v['texto'] == 'legível'] == []
+
+
+def test_a_varredura_ignora_texto_que_ninguem_ve(pagina_medivel):
+    """`display:none` e `sr-only` não têm contraste a medir.
+
+    Sem esta prova, um guarda "seguro demais" que reprovasse tudo passaria pelo
+    controle positivo acima e encheria as onze telas de falso positivo.
+    """
+    _injetar(
+        pagina_medivel,
+        '<p style="display: none; background: #fff; color: #eee">oculto</p>'
+        '<p style="position: absolute; width: 1px; height: 1px; overflow: hidden;'
+        ' background: #fff; color: #eee">so para leitor de tela</p>',
+    )
+
+    medicao = medir_contraste(pagina_medivel)
+
+    textos = {v['texto'] for v in medicao.violacoes}
+    assert 'oculto' not in textos
+    assert 'so para leitor de tela' not in textos
+
+
+def test_a_varredura_acusa_cor_legitima_identica_a_uma_sentinela(pagina_medivel):
+    """`fillStyle` inválido não lança — só retém o valor anterior.
+
+    A detecção de recusa usa duas sentinelas justamente para não confundir
+    "cor recusada" com "a cor é exatamente a sentinela". Este caso guarda isso.
+    """
+    _injetar(
+        pagina_medivel,
+        '<p style="background: rgb(1, 2, 3); color: rgb(20, 22, 24)">sentinela um</p>'
+        '<p style="background: #fefdfc; color: #fefdfc">sentinela dois</p>',
+    )
+
+    medicao = medir_contraste(pagina_medivel)
+
+    assert medicao.nao_convertidas == []
+    textos = {v['texto'] for v in medicao.violacoes}
+    assert {'sentinela um', 'sentinela dois'} <= textos
+
+
+_EFEITOS_NAO_SUPORTADOS = [
+    (
+        'background-image',
+        '<div style="background-image: linear-gradient(#fff, #000)">'
+        '<span>sobre gradiente</span></div>',
+    ),
+    (
+        'mix-blend-mode',
+        '<p style="mix-blend-mode: multiply; background: #fff; color: #333">'
+        'misturado</p>',
+    ),
+    (
+        'opacity de ancestral',
+        '<div style="opacity: 0.5"><span style="color: #333">desbotado</span></div>',
+    ),
+    (
+        'texto em ::after',
+        '<style>#com-pseudo::after { content: "Passo 1"; }</style>'
+        '<p id="com-pseudo">rotulado por pseudo-elemento</p>',
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ('motivo', 'html'),
+    _EFEITOS_NAO_SUPORTADOS,
+    ids=[e[0] for e in _EFEITOS_NAO_SUPORTADOS],
+)
+def test_a_varredura_acusa_o_efeito_de_css_que_nao_sabe_medir(
+    pagina_medivel, motivo, html
+):
+    """Cegueira declarada é cegueira mesmo assim — tem que falhar, não constar.
+
+    Estes quatro efeitos não existem no produto hoje. O risco não é o presente,
+    é o dia em que alguém introduzir um deles: sem detecção, o guarda continuaria
+    verde medindo a cor errada, ou medindo nada, sem dizer nada.
+    """
+    _injetar(pagina_medivel, html)
+
+    medicao = medir_contraste(pagina_medivel)
+
+    motivos = {n['motivo'] for n in medicao.nao_suportados}
+    assert motivo in motivos, (
+        f'{motivo} passou despercebido — a varredura ficou cega em silêncio. '
+        f'Não suportados vistos: {medicao.nao_suportados}'
+    )
+
+
+@pytest.mark.parametrize(
+    ('motivo', 'html'),
+    _EFEITOS_NAO_SUPORTADOS,
+    ids=[e[0] for e in _EFEITOS_NAO_SUPORTADOS],
+)
+def test_data_contraste_ignorar_e_a_saida_explicita_para_o_efeito_nao_suportado(
+    pagina_medivel, motivo, html
+):
+    """A exceção existe, mas é visível no template — não herdada em silêncio."""
+    _injetar(pagina_medivel, f'<div data-contraste-ignorar>{html}</div>')
+
+    medicao = medir_contraste(pagina_medivel)
+
+    assert medicao.nao_suportados == []
+    assert medicao.violacoes == []

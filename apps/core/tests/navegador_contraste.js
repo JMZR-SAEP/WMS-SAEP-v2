@@ -12,22 +12,24 @@
  * (`test_tokens_semanticos.py`), que só vê par de cor no *mesmo* elemento. Aqui
  * o fundo é resolvido subindo a árvore de ancestrais, com composição de alpha.
  *
- * Limites conhecidos, todos sem ocorrência no produto hoje — se algum passar a
- * existir, a varredura fica cega naquele ponto **em silêncio**, e o limite vira
- * trabalho:
+ * Quatro efeitos de CSS estão fora do que este módulo sabe medir. Nenhum tem
+ * ocorrência no produto hoje, e nenhum é apenas documentado: cada um é
+ * **detectado** e sai em `naoSuportados`, que o lado Python transforma em falha.
+ * Um guarda que fica cego em silêncio deixa de ser guarda — vale para os quatro:
  *
- * - `background-image` (gradiente, imagem) não é medido: só `background-color`
- *   entra na composição.
- * - Pseudo-elemento com `content` não é visitado. O tree walker anda na árvore
- *   de DOM, e `::before`/`::after` não estão nela. `components/table.html`
- *   registra a decisão de não usar `::after` para alvo de clique; o dia em que
- *   um pseudo-elemento carregar texto, este módulo não o vê.
- * - `opacity` de ancestral não é composta no texto. `getComputedStyle().color`
- *   não embute a opacidade do pai, então texto dentro de um bloco a `opacity:
- *   0.5` seria medido como se fosse opaco. Só `opacity: 0` é tratado, via
- *   `checkVisibility`.
- * - `mix-blend-mode` não é considerado: a cor final na tela deixa de ser a cor
- *   computada, e a medição passa a ser sobre outra coisa.
+ * - `background-image` (gradiente, imagem): só `background-color` entra na
+ *   composição do fundo.
+ * - Pseudo-elemento com `content` textual: o tree walker anda na árvore de DOM,
+ *   e `::before`/`::after` não estão nela.
+ * - `opacity` de ancestral: `getComputedStyle().color` não embute a opacidade do
+ *   pai, então texto dentro de um bloco a `opacity: 0.5` seria medido como se
+ *   fosse opaco. Só `opacity: 0` é tratado, via `checkVisibility`.
+ * - `mix-blend-mode`: a cor final na tela deixa de ser a cor computada, e a
+ *   medição passaria a ser sobre outra coisa.
+ *
+ * Para introduzir um deles de propósito, a saída é `data-contraste-ignorar` no
+ * elemento, que tira o ramo inteiro da varredura — exceção explícita e visível
+ * no template, em vez de cegueira herdada.
  */
 (() => {
   const LIMIAR_NORMAL = 4.5;
@@ -41,6 +43,19 @@
   const SENTINELAS = ['#010203', '#fefdfc'];
 
   const naoConvertidas = [];
+
+  // Efeito de CSS que a varredura não sabe medir, achado no caminho de um texto
+  // que ela mediria. Deduplicado por motivo+seletor: um cabeçalho repetido em
+  // 40 linhas de tabela é um problema, não quarenta.
+  const naoSuportados = [];
+  const jaRegistrados = new Set();
+
+  function registrarNaoSuportado(motivo, elemento, valor) {
+    const chave = `${motivo}|${seletorAproximado(elemento)}|${valor}`;
+    if (jaRegistrados.has(chave)) return;
+    jaRegistrados.add(chave);
+    naoSuportados.push({ motivo, seletor: seletorAproximado(elemento), valor });
+  }
 
   let _tela = null;
   let _ctx = null;
@@ -114,6 +129,24 @@
     let acumulado = { r: 255, g: 255, b: 255, a: 1 };
     for (const el of cadeia) {
       const estilo = getComputedStyle(el);
+
+      // Os três efeitos que invalidariam esta composição, detectados exatamente
+      // na cadeia que ela percorre — não numa varredura genérica do documento,
+      // que acusaria efeito em ramo sem texto nenhum.
+      if (estilo.backgroundImage !== 'none') {
+        registrarNaoSuportado('background-image', el, estilo.backgroundImage);
+      }
+      if (estilo.mixBlendMode !== 'normal') {
+        registrarNaoSuportado('mix-blend-mode', el, estilo.mixBlendMode);
+      }
+      // `opacity: 0` já é tratado como invisível por `checkVisibility`; o que
+      // escapa é a opacidade parcial, que desbota o texto sem que a cor
+      // computada mude.
+      const opacidade = parseFloat(estilo.opacity);
+      if (opacidade > 0 && opacidade < 1) {
+        registrarNaoSuportado('opacity de ancestral', el, estilo.opacity);
+      }
+
       const cor = corCssParaSrgb(estilo.backgroundColor);
       if (cor === null) {
         naoConvertidas.push({ propriedade: 'background-color', valor: estilo.backgroundColor });
@@ -198,6 +231,34 @@
     return `${tag}${id}${classes.length ? '.' + classes.join('.') : ''}`;
   }
 
+  /**
+   * Pseudo-elemento que pinta texto, e que por isso escaparia da varredura.
+   *
+   * Precisa de passe próprio: `::before`/`::after` não estão na árvore de DOM,
+   * então nenhum tree walker os alcança, e o elemento que os hospeda pode não
+   * ter nenhum nó de texto seu.
+   *
+   * Só conta `content` que renderiza texto. `content: ""` decorativo — barra,
+   * ícone, seta — não pinta glifo e não tem contraste a medir.
+   */
+  function varrerPseudoElementos() {
+    for (const elemento of document.body.querySelectorAll('*')) {
+      if (elemento.closest('[data-contraste-ignorar]')) continue;
+      if (ocultoParaLeitura(elemento)) continue;
+
+      for (const pseudo of ['::before', '::after']) {
+        const conteudo = getComputedStyle(elemento, pseudo).content;
+        if (conteudo === 'none' || conteudo === 'normal') continue;
+        // Tira as aspas para distinguir `content: ""` de `content: "Passo 1"`.
+        const texto = conteudo.replace(/^["']|["']$/g, '').trim();
+        if (!texto) continue;
+        registrarNaoSuportado(`texto em ${pseudo}`, elemento, conteudo);
+      }
+    }
+  }
+
+  varrerPseudoElementos();
+
   const violacoes = [];
   const caminhante = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
     acceptNode(no) {
@@ -242,5 +303,5 @@
     });
   }
 
-  return { violacoes, naoConvertidas };
+  return { violacoes, naoConvertidas, naoSuportados };
 })();
