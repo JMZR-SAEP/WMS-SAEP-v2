@@ -37,7 +37,8 @@ Parâmetros:
   destaque       (opcional, bool) número em 16px semibold em vez de 14px medium.
                  Reservado ao momento de confirmação — não à listagem, onde a
                  densidade manda.
-  tom            (opcional) `warning` ou `danger` pintam o número; ausente = grafite.
+  tom            (opcional) `warning` ou `danger` pintam o número e a `referencia`
+                 (quando presente); ausente = cinza padrão em ambos.
   esquerda       (opcional, bool) alinha o bloco à esquerda. Default é à direita,
                  que é o que forma coluna.
   sr_prefixo     (opcional) texto `sr-only` antes do número, quando o rótulo
@@ -57,9 +58,9 @@ Uso:
   {% if sr_prefixo %}<span class="sr-only">{{ sr_prefixo }}</span>{% endif %}
   <span class="text-right tabular-nums whitespace-nowrap {% if destaque %}text-base font-semibold{% else %}font-medium{% endif %} {% if tom == 'warning' %}text-warning-text{% elif tom == 'danger' %}text-danger-text{% else %}text-text-primary{% endif %}">{{ valor|formatar_quantidade:unidade }}</span>
   {% if unidade_label or unidade %}
-    <span class="min-w-8 text-left text-text-tertiary {% if destaque %}text-sm{% else %}text-xs{% endif %}">{{ unidade_label|default:unidade }}</span>
+    <span class="min-w-8 text-left text-text-secondary {% if destaque %}text-sm{% else %}text-xs{% endif %}">{{ unidade_label|default:unidade }}</span>
   {% endif %}
 </span>
 {% if referencia %}
-  <span class="mt-0.5 block text-xs text-text-tertiary {% if esquerda %}text-left{% else %}text-right{% endif %}">{{ referencia }}</span>
+  <span class="mt-0.5 block text-xs {% if tom == 'warning' %}text-warning-text{% elif tom == 'danger' %}text-danger-text{% else %}text-text-secondary{% endif %} {% if esquerda %}text-left{% else %}text-right{% endif %}">{{ referencia }}</span>
 {% endif %}
