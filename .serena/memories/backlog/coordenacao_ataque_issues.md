@@ -2,7 +2,7 @@
 
 **Documento vivo.** Ponto de partida para quem entra no backlog e ferramenta de acompanhamento para quem já está nele. Visão macro: o detalhe técnico vive na issue, aqui vive a **ordem, a dependência e o estado**.
 
-Última atualização: **2026-09-04** (#176 fechada — #62 e #63 merged; spinoffs #178/#179/#180 abertos, needs-triage).
+Última atualização: **2026-09-04** (#176, #168 e #177 fechadas + `quantidade.html` sem issue própria, todas mergeadas; spinoffs #178/#179/#180 abertos, needs-triage; #166 desbloqueada, próxima da fila).
 
 ## Como usar
 
@@ -35,6 +35,7 @@ Snapshots em `.impeccable/critique/` (diretório local, gitignored). O plano de 
 | 176 | Laço `home()` → `/admin/` + dono da importação SCPI | PR #62 e PR #63, ambos merged. Issue fechada em 2026-09-04 com comentário linkando os PRs e os spinoffs. |
 | 168 | `input.css` na árvore de estáticos, storage customizado | PR `joaozuneda6/WMS-SAEP-v2#65`, squash `c3f7fb1`, merged 2026-09-04. Issue fechada. |
 | 177 | 4 variantes cruas de `badge.html` | PR `joaozuneda6/WMS-SAEP-v2#66`, squash `0ee1949`, merged 2026-09-04 (empilhada sobre a #65, retargetou pra `main` sozinha assim que a #65 mergeou). Issue fechada. Nomenclatura: `orange`→`cancel`, `indigo`→`consumption`, `violet`→`reversal`, `yellow`→reuso de `amber`. |
+| — | `quantidade.html`: contraste da unidade + `tom` não propagava pra `referencia` | PR `joaozuneda6/WMS-SAEP-v2#68`, merge `421ce15`, merged 2026-09-04. Sem issue própria. |
 
 **Em andamento**
 
@@ -57,7 +58,7 @@ Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/account
 | 179 | `pode_estornar_devolucao` + service — linha de matriz (L83) sem implementação |
 | 180 | inativar material só existe pelo admin do Django; decidir UI de produto ou recuar a matriz |
 
-**Aberto — 11 waves + 3 spinoffs da #176 (tabela acima)**
+**Aberto — 8 waves + 3 spinoffs da #176 (tabela acima)**
 
 | # | Onda | Estado | Bloqueio |
 |---|---|---|---|
@@ -75,8 +76,8 @@ Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/account
 1. ~~**#176, metade barata** — `home()` para de rotear por `is_superuser`.~~ **Feito e fechada — PR #62.**
 2. ~~**#168** — mover `input.css`, apagar `apps/core/staticfiles.py`.~~ **Feito e fechada — PR #65** (squash `c3f7fb1`).
 3. ~~**#177** — 4 variantes cruas de `badge.html`.~~ **Feito e fechada — PR #66** (squash `0ee1949`, empilhada sobre a #65, retargetou pra `main` sozinha ao mergear a #65).
-3b. **`quantidade.html`** — **em PR, `joaozuneda6/WMS-SAEP-v2#68`**, sem revisão ainda.
-4. **#166** — nasce medindo o que os anteriores acabaram de consertar. **Próxima da fila** — mas só depois da #68 mergear, senão mede estado pré-fix.
+3b. ~~**`quantidade.html`**~~ **Feito e fechada — PR #68** (merge `421ce15`, sem CodeRabbit).
+3c. **#166** — nasce medindo o que os anteriores acabaram de consertar. **Próxima da fila**, desbloqueada.
 4. **#167** — leve o bullet das pílulas do #173 no mesmo PR: mesma tela, mesmo arquivo.
 5. **#173, fatiada em 3** — (a) copy e vocabulário; (b) `DESIGN.md`; (c) navegação e responsivo. Anexar os candidatos novos antes de abrir o primeiro PR.
 6. **#172** — depois que 5(b) documentar a gramática de formas.
@@ -98,7 +99,7 @@ Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/account
 
 ## Trabalho sem issue própria
 
-**Fechado — PR `joaozuneda6/WMS-SAEP-v2#68`.** Os dois P1 vizinhos de `components/quantidade.html` (linha 60, `text-tertiary` reprovando contraste; linha 64, `tom` não propagava pra `referencia`) saíram no mesmo PR, sem CodeRabbit ainda revisado. Pull request criada com corpo corrompido por expansão de crase no shell (`` `tom` `` virou tentativa de comando) — corrigido via `gh pr edit --body-file`. Nota pra próxima vez: nunca passar `--body` inline com crases dentro de aspas duplas no bash; usar heredoc/arquivo.
+**Fechado e mergeado — PR `joaozuneda6/WMS-SAEP-v2#68`** (merge `421ce15`, sem CodeRabbit, merge manual do usuário). Os dois P1 vizinhos de `components/quantidade.html` (linha 60, `text-tertiary` reprovando contraste; linha 64, `tom` não propagava pra `referencia`) saíram no mesmo PR. Pull request criada com corpo corrompido por expansão de crase no shell (`` `tom` `` virou tentativa de comando) — corrigido via `gh pr edit --body-file`. Nota pra próxima vez: nunca passar `--body` inline com crases dentro de aspas duplas no bash; usar heredoc/arquivo.
 
 ## Candidatos a anexar ao #173
 
