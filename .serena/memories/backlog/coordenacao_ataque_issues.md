@@ -2,7 +2,7 @@
 
 **Documento vivo.** Ponto de partida para quem entra no backlog e ferramenta de acompanhamento para quem já está nele. Visão macro: o detalhe técnico vive na issue, aqui vive a **ordem, a dependência e o estado**.
 
-Última atualização: **2026-09-04** (#176 metade 1 e 2 em PR — #62 e #63; spinoffs #178/#179/#180 abertos).
+Última atualização: **2026-09-04** (#176 fechada — #62 e #63 merged; spinoffs #178/#179/#180 abertos, needs-triage).
 
 ## Como usar
 
@@ -32,11 +32,13 @@ Snapshots em `.impeccable/critique/` (diretório local, gitignored). O plano de 
 |---|---|---|
 | 165 | Remedir a baseline heurística | Segunda medição rodada em 2026-09-03: 21 → 27. Gerou #175, #176 e #177. |
 | 175 | Notificação afirmava estado que nunca reconsultava (P0) | PR #61, merged 2026-09-04. Sino passou de 14 para 4 e passou a bater com a fila. Decisão de produto registrada: `/notificacoes/` é **diário**, não caixa de entrada — aviso vencido fica visível marcado "Resolvida" e sai só da contagem. |
+| 176 | Laço `home()` → `/admin/` + dono da importação SCPI | PR #62 e PR #63, ambos merged. Issue fechada em 2026-09-04 com comentário linkando os PRs e os spinoffs. |
+| 168 | `input.css` na árvore de estáticos, storage customizado | PR `joaozuneda6/WMS-SAEP-v2#65`, squash `c3f7fb1`, merged 2026-09-04. Issue fechada. |
+| 177 | 4 variantes cruas de `badge.html` | PR `joaozuneda6/WMS-SAEP-v2#66`, squash `0ee1949`, merged 2026-09-04 (empilhada sobre a #65, retargetou pra `main` sozinha assim que a #65 mergeou). Issue fechada. Nomenclatura: `orange`→`cancel`, `indigo`→`consumption`, `violet`→`reversal`, `yellow`→reuso de `amber`. |
 
 **Em andamento**
 
-- **#176 metade 1** (laço `home()` → `/admin/`) — PR `joaozuneda6/WMS-SAEP-v2#62`, revisão CodeRabbit.
-- **#176 metade 2** (importação SCPI → chefe de almoxarifado) — PR `joaozuneda6/WMS-SAEP-v2#63`, revisão CodeRabbit.
+- Nenhuma. #168 e #177 mergeadas (ver Concluído).
 
 **Decisões de domínio da #176 (2026-09-04).** A metade 2 não era divergência matriz↔código: `pode_visualizar_preview_scpi = eh_superusuario` batia com `docs/matriz-permissoes.md` L85-87. O conflito era matriz ↔ `PRODUCT.md:44` + `docs/processos-almoxarifado.md:88-96`. Resolvido:
 1. Preview SCPI → **chefe de almoxarifado** (superusuário mantém override). Feito no #63.
@@ -59,10 +61,7 @@ Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/account
 
 | # | Onda | Estado | Bloqueio |
 |---|---|---|---|
-| 176 | 1 | metade 1 em PR (#62) / metade 2 em PR (#63) — ambas em revisão CodeRabbit; 3 spinoffs derivados (#178/#179/#180) | — |
-| 168 | 2 | pronta | — |
-| 177 | 3 | pronta | — |
-| 166 | 3 | pronta | vem depois de 168 e 177 |
+| 166 | 3 | pronta — **próxima da fila**, agora que 168/177/quantidade.html estão mergeadas ou em PR | — |
 | 167 | 4 | pronta | — |
 | 173 | 5 | precisa ser fatiada | — |
 | 172 | 6 | precisa de decisão de vocabulário visual | 173(b) documentar a gramática de formas |
@@ -73,13 +72,15 @@ Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/account
 
 ## Ordem de ataque
 
-1. ~~**#176, metade barata** — `home()` para de rotear por `is_superuser`.~~ **Feito — PR #62**, em revisão CodeRabbit.
-2. **#168** — mover `input.css`, apagar `apps/core/staticfiles.py`. Mecânica, e **limpa `test_tokens_semanticos.py` antes dos dois PRs que vão editá-lo** (#166 e #177). Esta é a razão de ela subir na fila, não o valor próprio.
-3. **#177 → `quantidade.html` → #166**, nesta ordem. O eixo do componente. A #177 é barata e obriga a decidir se as quatro variantes ainda existem; o PR de `quantidade.html` fecha os dois P1 sem issue (ver abaixo); a #166 vem por último e nasce medindo o que os anteriores acabaram de consertar.
+1. ~~**#176, metade barata** — `home()` para de rotear por `is_superuser`.~~ **Feito e fechada — PR #62.**
+2. ~~**#168** — mover `input.css`, apagar `apps/core/staticfiles.py`.~~ **Feito e fechada — PR #65** (squash `c3f7fb1`).
+3. ~~**#177** — 4 variantes cruas de `badge.html`.~~ **Feito e fechada — PR #66** (squash `0ee1949`, empilhada sobre a #65, retargetou pra `main` sozinha ao mergear a #65).
+3b. **`quantidade.html`** — **em PR, `joaozuneda6/WMS-SAEP-v2#68`**, sem revisão ainda.
+4. **#166** — nasce medindo o que os anteriores acabaram de consertar. **Próxima da fila** — mas só depois da #68 mergear, senão mede estado pré-fix.
 4. **#167** — leve o bullet das pílulas do #173 no mesmo PR: mesma tela, mesmo arquivo.
 5. **#173, fatiada em 3** — (a) copy e vocabulário; (b) `DESIGN.md`; (c) navegação e responsivo. Anexar os candidatos novos antes de abrir o primeiro PR.
 6. **#172** — depois que 5(b) documentar a gramática de formas.
-7. ~~**#176, metade de permissão** — quem é o dono da importação SCPI.~~ **Feito — PR #63.** Domínio decidiu: chefe de almoxarifado. Gerou #178, #179, #180.
+7. ~~**#176, metade de permissão** — quem é o dono da importação SCPI.~~ **Feito e fechada — PR #63.** Domínio decidiu: chefe de almoxarifado. Gerou #178, #179, #180.
 8. **#170** — quando o chefe de almoxarifado responder.
 9. **#171** — quando o export real chegar. Cada quebra vira issue própria.
 10. **#169** — medir a rede do piloto e decidir. `wontfix` consciente é o desfecho provável.
@@ -97,12 +98,7 @@ Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/account
 
 ## Trabalho sem issue própria
 
-Dois P1 da remedição que não viraram issue porque caem dentro de PRs já previstos. **Se o eixo do componente for reordenado, eles ficam órfãos — recupere-os aqui.**
-
-- `components/quantidade.html:60` — `text-tertiary` reprova 4,5:1 em 3 das 7 superfícies do sistema. É a justificativa medida da #166.
-- `components/quantidade.html:64` — `tom` não propaga para `referencia`, então o aviso "acima do saldo" sai no mesmo cinza do metadado. É o P0 da Etapa 8 entregue pela metade: o botão que vai falhar é 5,4× maior que o texto que diz que vai falhar.
-
-Mesmo arquivo, linhas vizinhas: **um PR fecha os dois.**
+**Fechado — PR `joaozuneda6/WMS-SAEP-v2#68`.** Os dois P1 vizinhos de `components/quantidade.html` (linha 60, `text-tertiary` reprovando contraste; linha 64, `tom` não propagava pra `referencia`) saíram no mesmo PR, sem CodeRabbit ainda revisado. Pull request criada com corpo corrompido por expansão de crase no shell (`` `tom` `` virou tentativa de comando) — corrigido via `gh pr edit --body-file`. Nota pra próxima vez: nunca passar `--body` inline com crases dentro de aspas duplas no bash; usar heredoc/arquivo.
 
 ## Candidatos a anexar ao #173
 
@@ -112,7 +108,7 @@ A remedição achou itens que não estão no bundle. Anexar antes de fatiar: DEL
 
 Itens 8 e 9 têm lead time humano e **zero trabalho de código antes da resposta**. Mande os pedidos assim que a fila começar, e siga pelos itens 1 a 6 enquanto chegam:
 
-- ~~**#176 metade 2** — quem é o dono da importação SCPI?~~ **Respondido: chefe de almoxarifado.** PR #63.
+- ~~**#176 metade 2** — quem é o dono da importação SCPI?~~ **Respondido: chefe de almoxarifado.** PR #63, issue fechada.
 - **#170** — "recusa" e "cancelamento" diferem no vocabulário de auditoria do almoxarifado?
 - **#171** — alguém com acesso ao SCPI produzir um export real.
 
