@@ -20,7 +20,7 @@ Referência rápida de papéis, escopos e ações permitidas para implementar `p
 | Auxiliar de setor | `auxiliar_setor` | Próprio setor | Criar em nome de funcionários do próprio setor; consultar histórico das requisições e movimentações que ele mesmo criou | Outros setores, autorização, operação de estoque, supervisão do setor |
 | Chefe de setor | `chefe_setor` | Setor sob responsabilidade | Criar para o próprio setor; ver/autorizar/recusar requisições do setor | Outros setores, estoque, rascunhos de terceiros |
 | Auxiliar de Almoxarifado | `auxiliar_almoxarifado` | Todos os setores na operação de Almoxarifado | Criar para qualquer funcionário; ver todos; atender; devolver; consultar saídas excepcionais | Autorizar; registrar saída excepcional; estornar saída excepcional |
-| Chefe de Almoxarifado | `chefe_almoxarifado` | Todos os setores para operação; setor Almoxarifado para autorização | Herda auxiliar; consultar/registrar saída excepcional; estornar; inativação permitida; histórico importações | Autorizar outros setores; ajuste manual |
+| Chefe de Almoxarifado | `chefe_almoxarifado` | Todos os setores para operação; setor Almoxarifado para autorização | Herda auxiliar; consultar/registrar saída excepcional; estornar; inativação permitida; importação SCPI (pré-visualizar, confirmar, histórico) | Autorizar outros setores; ajuste manual |
 | Superusuário | `superuser` | Superuser | Tudo | Nada |
 
 Conceitos de escopo:
@@ -82,9 +82,9 @@ Valores: **Sim**, **Não**, **Apenas próprio setor**, **Qualquer setor**, **Ape
 | Estornar requisição finalizada | Não | Não | Não | Não | Sim | Sim | Apenas chefe de Almoxarifado. |
 | Estornar devolução | Não | Não | Não | Não | Sim | Sim | Exige saldo disponível suficiente. |
 | Executar carga inicial técnica | Não | Não | Não | Não | Não | Sim | Piloto pode usar script/modo técnico. |
-| Executar importação SCPI | Não | Não | Não | Não | Não | Sim | MVP: superusuário em fluxo técnico. |
-| Pré-visualizar importação | Não | Não | Não | Não | Não | Sim | Sem persistência. |
-| Confirmar importação com alertas | Não | Não | Não | Não | Não | Sim | Confirmação explícita. |
+| Executar importação SCPI | Não | Não | Não | Não | Sim | Sim | Chefe de almoxarifado é o dono do ritual recorrente (PRODUCT.md); superusuário mantém acesso como override técnico. |
+| Pré-visualizar importação | Não | Não | Não | Não | Sim | Sim | Sem persistência. |
+| Confirmar importação com alertas | Não | Não | Não | Não | Sim | Sim | Confirmação explícita; a decisão sobre cada divergência é do chefe de almoxarifado (processos-almoxarifado.md). |
 | Consultar histórico de importações | Não | Não | Não | Não | Sim | Sim | Chefe consulta; superusuário completo. |
 | Consultar divergências críticas | Não | Não | Não | Sim | Sim | Sim | Gestão do Almoxarifado/suporte. |
 | Receber notificações das próprias requisições | Sim | Sim | Sim | Sim | Sim | Sim | Criador e beneficiário. |
@@ -103,6 +103,7 @@ Valores: **Sim**, **Não**, **Apenas próprio setor**, **Qualquer setor**, **Ape
 - Almoxarifado vê requisições de todos os setores fora de rascunhos e vê a fila de atendimento (estados `autorizada` e `pronta_para_retirada`).
 - Chefe de setor vê fila de autorização do próprio setor; chefe de Almoxarifado vê apenas setor Almoxarifado.
 - Saídas excepcionais são consultáveis por chefe de Almoxarifado, auxiliar de Almoxarifado e superuser; registro e estorno ficam restritos ao chefe de Almoxarifado e ao override técnico do superuser.
+- Importação SCPI: pré-visualizar e confirmar ficam restritos ao chefe de Almoxarifado e ao override técnico do superuser; o histórico de importações é consultável também por quem só acompanha, mas hoje `pode_consultar_historico_scpi` coincide com o par acima. Auxiliar de Almoxarifado não abre o preview (#176).
 - Histórico de movimentações de estoque (ledger `MovimentacaoEstoque`): almoxarifado (chefe/aux) e superusuário veem tudo, incluindo saídas excepcionais; chefe de setor não-almox vê as movimentações de requisições do setor que chefia mais as de requisições que ele criou; auxiliar de setor não-almox vê **apenas as de requisições que ele criou** — ser auxiliar não é supervisionar o setor (#112, estendendo ao ledger a decisão da #106; substitui a regra anterior de "próprio setor" para o auxiliar). Fora do almoxarifado e do superusuário, saída excepcional e rascunho nunca aparecem — rascunho é excluído por predicado explícito, porque `MovimentacaoEstoque.requisicao` é anulável e o model não tem constraint de estado. O ledger nunca é mais amplo que a visibilidade do detalhe da requisição. Solicitante e usuário inativo não veem nada. A fronteira vive em `estoque/selectors.py::movimentacoes_visiveis_para`; `pode_consultar_movimentacoes_estoque` decide só o acesso à página.
 - Histórico de requisições (`requisicoes:historico`): superusuário vê tudo, incluindo rascunhos; almoxarifado (chefe/aux) vê tudo fora de rascunho; chefe de setor não-almox vê as requisições do setor que chefia mais as que ele criou; auxiliar de setor não-almox vê **apenas as que ele criou** — ser auxiliar não é supervisionar o setor (§4, "Ver requisições do setor" = Não para Aux. setor). Fora do superusuário, rascunho nunca aparece no histórico — nem para quem o criou; para isso existe `requisicoes:minhas`. O histórico nunca é mais amplo que a visibilidade do detalhe: o que aparece na lista abre no detalhe (#106). A fronteira vive em `requisicoes/selectors.py::historico_requisicoes_visiveis_para`; `pode_consultar_historico_requisicoes` decide só o acesso à página.
 - Relatórios gerais: Almoxarifado e suporte/admin. Chefe de setor: apenas relatórios do próprio setor.
@@ -124,5 +125,5 @@ Valores: **Sim**, **Não**, **Apenas próprio setor**, **Qualquer setor**, **Ape
 
 ## 7. Pontos a confirmar
 
-- Superfície da carga inicial SCPI: piloto pode usar script/modo técnico; MVP exige fluxo técnico controlado por superusuário.
+- ~~Superfície da carga inicial SCPI: piloto pode usar script/modo técnico; MVP exige fluxo técnico controlado por superusuário.~~ **Resolvido (#176):** a importação SCPI (pré-visualizar, confirmar, histórico) é do chefe de almoxarifado — é o "ritual recorrente" que o `PRODUCT.md` descreve e o papel que decide cada divergência (`processos-almoxarifado.md`). Superusuário mantém acesso como override técnico. A carga inicial técnica (§4 linha própria) segue exclusiva do superusuário.
 - ~~Detalhe de material deve explicitar se histórico de movimentações completo é visível a todos os autenticados ou só a papéis operacionais/admin.~~ **Resolvido (US-17/#6), emendado (#112):** histórico escopado por papel — almoxarifado/superusuário veem tudo; chefe de setor vê o setor chefiado mais o que criou; auxiliar de setor vê só o que criou; nenhum dos dois vê saída excepcional ou rascunho (ver §4 linha "Consultar histórico de movimentações" e §5).

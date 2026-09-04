@@ -832,8 +832,8 @@ def sucesso_importacao_scpi_view(request, pk: int):
 def detalhe_importacao_scpi_view(request, pk: int):
     """Endereço durável de uma importação e da lista de divergências dela (#161).
 
-    Atrás da policy do histórico, não da de confirmar: quem confirma é o
-    superusuário, mas quem faz a conferência no SCPI é o chefe de almoxarifado.
+    Atrás da policy do histórico, não da de confirmar: o histórico também abre
+    para quem só consulta, sem poder rodar ou confirmar a importação.
     """
     from django.http import Http404
 
@@ -959,11 +959,9 @@ def historico_importacoes_scpi_view(request):
         {
             'page_obj': page_obj,
             'importacoes': page_obj.object_list,
-            # Quem lê o histórico não é quem importa: `pode_consultar_historico_scpi`
-            # inclui o chefe de almoxarifado e `pode_visualizar_preview_scpi` é só
-            # superusuário. Sem esta flag o "Nova importação" saía sempre, e para o
-            # chefe de almoxarifado terminava num 403 — uma ação oferecida pelo
-            # produto que o domínio recusa.
+            # Quem lê o histórico pode ser mais do que quem importa: a flag
+            # deriva de `pode_visualizar_preview_scpi` para que o "Nova
+            # importação" só apareça para quem pode de fato iniciar o ritual.
             'pode_importar': pode_visualizar_preview_scpi(papel),
         },
     )
