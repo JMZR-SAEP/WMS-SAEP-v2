@@ -2,7 +2,7 @@
 
 **Documento vivo.** Ponto de partida para quem entra no backlog e ferramenta de acompanhamento para quem já está nele. Visão macro: o detalhe técnico vive na issue, aqui vive a **ordem, a dependência e o estado**.
 
-Última atualização: **2026-09-04** (#176, #168 e #177 fechadas + `quantidade.html` sem issue própria, todas mergeadas; spinoffs #178/#179/#180 abertos, needs-triage; #166 desbloqueada, próxima da fila).
+Última atualização: **2026-09-04** (#166 implementada, PR #69 aberta e aguardando merge — inclui emenda à ADR-0019; spinoffs #181/#182 abertos, needs-triage; #167 é a próxima da fila assim que a #69 mergear).
 
 ## Como usar
 
@@ -39,7 +39,9 @@ Snapshots em `.impeccable/critique/` (diretório local, gitignored). O plano de 
 
 **Em andamento**
 
-- Nenhuma. #168 e #177 mergeadas (ver Concluído).
+- **#166** — PR `joaozuneda6/WMS-SAEP-v2#69`, aberta 2026-09-04, aguardando merge. Varredura de contraste na lane Navegador: 11 telas, fundo efetivo resolvido subindo a árvore, cor convertida por canvas (o computado sai em `oklch()`). Suíte verde: 59 navegador, 2681 unitários, ruff, mypy. Controle negativo provou que pega o par pai/filho e ignora `display:none`/`sr-only`; 964 nós medidos, zero violação no produto.
+  - **A PR emenda a ADR-0019** (commit próprio): 4º critério de admissão, "cascade resolvida e pipeline de cor" — a lista de três era fechada de propósito e o teste não cabia em nenhum. Na mesma emenda, o gatilho de "~15 casos" saiu: a lane já estava em **48 casos** quando a #166 chegou e nunca disparou revisão. Novo gatilho é o relógio (~3min; hoje ~50s).
+  - Fora do escopo, anexar ao fechar: `estoque:preview_importacao_scpi` não entrou (exige upload multipart), então o guarda nasce cego para o `bg-primary-subtle` que originou tudo.
 
 **Decisões de domínio da #176 (2026-09-04).** A metade 2 não era divergência matriz↔código: `pode_visualizar_preview_scpi = eh_superusuario` batia com `docs/matriz-permissoes.md` L85-87. O conflito era matriz ↔ `PRODUCT.md:44` + `docs/processos-almoxarifado.md:88-96`. Resolvido:
 1. Preview SCPI → **chefe de almoxarifado** (superusuário mantém override). Feito no #63.
@@ -58,12 +60,19 @@ Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/account
 | 179 | `pode_estornar_devolucao` + service — linha de matriz (L83) sem implementação |
 | 180 | inativar material só existe pelo admin do Django; decidir UI de produto ou recuar a matriz |
 
+**Spinoffs da #166 — abertos, `needs-triage`, sem onda.** Achados pela auditoria de papéis que escolheu o usuário de cada tela do parametrize. Nenhum é vazamento de autorização hoje; os dois são defeito de contrato.
+
+| # | O quê |
+|---|---|
+| 181 | `pode_ver_notificacao` é policy órfã: sem consumidor de produção, a regra vive no filtro de ORM da view (ADR-0011 existe para evitar as duas fontes) |
+| 182 | `listar_saidas_excepcionais(ator_id)` ignora o parâmetro — assinatura simula recorte por papel que não existe |
+
 **Aberto — 8 waves + 3 spinoffs da #176 (tabela acima)**
 
 | # | Onda | Estado | Bloqueio |
 |---|---|---|---|
-| 166 | 3 | pronta — **próxima da fila**, agora que 168/177/quantidade.html estão mergeadas ou em PR | — |
-| 167 | 4 | pronta | — |
+| 166 | 3 | **em PR (#69)**, aguardando merge | — |
+| 167 | 4 | pronta — **próxima da fila** quando a #69 mergear | — |
 | 173 | 5 | precisa ser fatiada | — |
 | 172 | 6 | precisa de decisão de vocabulário visual | 173(b) documentar a gramática de formas |
 | 170 | 7 | pergunta em aberto | resposta do chefe de almoxarifado |
@@ -77,7 +86,7 @@ Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/account
 2. ~~**#168** — mover `input.css`, apagar `apps/core/staticfiles.py`.~~ **Feito e fechada — PR #65** (squash `c3f7fb1`).
 3. ~~**#177** — 4 variantes cruas de `badge.html`.~~ **Feito e fechada — PR #66** (squash `0ee1949`, empilhada sobre a #65, retargetou pra `main` sozinha ao mergear a #65).
 3b. ~~**`quantidade.html`**~~ **Feito e fechada — PR #68** (merge `421ce15`, sem CodeRabbit).
-3c. **#166** — nasce medindo o que os anteriores acabaram de consertar. **Próxima da fila**, desbloqueada.
+3c. ~~**#166**~~ **Implementada — PR #69**, aguardando merge. Emenda a ADR-0019 no caminho.
 4. **#167** — leve o bullet das pílulas do #173 no mesmo PR: mesma tela, mesmo arquivo.
 5. **#173, fatiada em 3** — (a) copy e vocabulário; (b) `DESIGN.md`; (c) navegação e responsivo. Anexar os candidatos novos antes de abrir o primeiro PR.
 6. **#172** — depois que 5(b) documentar a gramática de formas.
