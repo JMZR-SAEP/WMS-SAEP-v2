@@ -157,10 +157,20 @@
     return acumulado;
   }
 
+  /**
+   * Luminância relativa (WCAG, definição de "relative luminance").
+   *
+   * O ponto de corte é `0.04045`, e não o `0.03928` que circula em muita
+   * implementação: aquele valor veio de uma proposta antiga do sRGB, e o W3C
+   * corrigiu a definição em maio de 2021 para o número da norma IEC. Em canal
+   * de 8 bits os dois dão o mesmo resultado — o corte cai entre 10 e 11 nos
+   * dois casos —, mas aqui a cor pode chegar fracionária, vinda da composição
+   * de alpha, e aí a faixa entre os dois valores existe de verdade.
+   */
   function luminanciaRelativa({ r, g, b }) {
     const canal = (c) => {
       const n = c / 255;
-      return n <= 0.03928 ? n / 12.92 : ((n + 0.055) / 1.055) ** 2.4;
+      return n <= 0.04045 ? n / 12.92 : ((n + 0.055) / 1.055) ** 2.4;
     };
     return 0.2126 * canal(r) + 0.7152 * canal(g) + 0.0722 * canal(b);
   }
