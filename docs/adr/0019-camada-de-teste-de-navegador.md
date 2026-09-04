@@ -204,8 +204,9 @@ passa a ter mecanismo.
 
 O risco real não é técnico, é de manutenção: projeto piloto, equipe pequena, e suíte de navegador
 que ninguém depura quando pisca vira passivo. É por isso que o escopo está fechado por critério de
-admissão explícito, e não por bom senso. Uma camada de cinco casos que todo mundo entende vale mais
-que uma de cinquenta que ninguém lê.
+admissão explícito, e não por bom senso. Uma camada que todo mundo entende vale mais que uma maior
+que ninguém lê — e o que a mantém legível é cada caso ter passado pelo critério, não um teto de
+contagem (ver a Emenda de 2026-09-04).
 
 Decisão revisável. Critérios de revisão: se um caso novo entrar sem passar pelo critério de
 admissão, o escopo furou. Se a instabilidade obrigar a rodar de novo com frequência, o problema é o

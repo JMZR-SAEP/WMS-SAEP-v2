@@ -39,8 +39,8 @@ Snapshots em `.impeccable/critique/` (diretório local, gitignored). O plano de 
 
 **Em andamento**
 
-- **#166** — PR `joaozuneda6/WMS-SAEP-v2#69`, aberta 2026-09-04, aguardando merge. Varredura de contraste na lane Navegador: 11 telas, fundo efetivo resolvido subindo a árvore, cor convertida por canvas (o computado sai em `oklch()`). Suíte verde: 59 navegador, 2681 unitários, ruff, mypy. Controle negativo provou que pega o par pai/filho e ignora `display:none`/`sr-only`; 964 nós medidos, zero violação no produto.
-  - **A PR emenda a ADR-0019** (commit próprio): 4º critério de admissão, "cascade resolvida e pipeline de cor" — a lista de três era fechada de propósito e o teste não cabia em nenhum. Na mesma emenda, o gatilho de "~15 casos" saiu: a lane já estava em **48 casos** quando a #166 chegou e nunca disparou revisão. Novo gatilho é o relógio (~3min; hoje ~50s).
+- **#166** — PR `joaozuneda6/WMS-SAEP-v2#69`, aberta 2026-09-04, aguardando merge.
+  - **A PR emenda a ADR-0019** — decisão durável, não progresso: 4º critério de admissão ("cascade resolvida e pipeline de cor"), e o gatilho de "~15 casos" dá lugar ao relógio, porque a lane já estava em 3,2× o teto sem nunca ter disparado revisão.
   - Fora do escopo, anexar ao fechar: `estoque:preview_importacao_scpi` não entrou (exige upload multipart), então o guarda nasce cego para o `bg-primary-subtle` que originou tudo.
 
 **Decisões de domínio da #176 (2026-09-04).** A metade 2 não era divergência matriz↔código: `pode_visualizar_preview_scpi = eh_superusuario` batia com `docs/matriz-permissoes.md` L85-87. O conflito era matriz ↔ `PRODUCT.md:44` + `docs/processos-almoxarifado.md:88-96`. Resolvido:
