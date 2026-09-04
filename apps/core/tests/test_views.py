@@ -16,7 +16,12 @@ def test_home_nao_autenticado_redireciona_login(client):
 
 
 @pytest.mark.django_db
-def test_home_superuser_redireciona_admin(client):
+def test_home_superuser_e_roteado_pelo_produto_nao_pelo_admin(client):
+    """`is_superuser` é flag técnica do Django, fora do domínio (PRODUCT.md): não
+    sequestra a raiz. O superusuário é roteado pelo papel efetivo como qualquer
+    outro — e o superusuário passa em `pode_ver_fila_atendimento`, logo cai na
+    fila de atendimentos. O admin fica acessível por link explícito, não pela
+    home."""
     User = get_user_model()
     usuario = User.objects.create_superuser(
         matricula='SUPER-001',
@@ -26,7 +31,8 @@ def test_home_superuser_redireciona_admin(client):
     client.force_login(usuario)
     resposta = client.get(reverse('core:home'))
     assert resposta.status_code == 302
-    assert resposta['Location'] == '/admin/'
+    assert resposta['Location'] == reverse('requisicoes:atendimentos')
+    assert resposta['Location'] != '/admin/'
 
 
 @pytest.mark.django_db

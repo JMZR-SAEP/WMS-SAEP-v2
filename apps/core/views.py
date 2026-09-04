@@ -13,11 +13,13 @@ from apps.requisicoes.policies import (
 
 @login_required
 def home(request):
-    """Dispatcher pós-login — redireciona por papel efetivo do usuário."""
-    user = request.user
-    if user.is_superuser:
-        return redirect('/admin/')
-    papel = papel_efetivo(user)
+    """Dispatcher pós-login — redireciona por papel efetivo do usuário.
+
+    `is_superuser` é flag técnica do Django, fora do domínio (PRODUCT.md): não
+    sequestra a raiz. O superusuário chega ao admin por link explícito e, no
+    produto, é roteado pelo papel efetivo como qualquer outro usuário.
+    """
+    papel = papel_efetivo(request.user)
     if pode_ver_fila_atendimento(papel):
         return redirect(reverse('requisicoes:atendimentos'))
     if pode_ver_fila_autorizacao(papel):
