@@ -23,6 +23,7 @@ from apps.estoque.types import (
 from apps.estoque.models import (
     Estoque,
     ItemSaidaExcepcional,
+    MotivoSaidaExcepcional,
     MovimentacaoEstoque,
     SaidaExcepcional,
     SaldoEstoque,
@@ -476,6 +477,20 @@ def registrar_saida_excepcional(
     papel = papel_efetivo(ator)
     exigir_pode_registrar_saida_excepcional(papel)
 
+    # `choices` no model não valida `objects.create()` nem `save()` — só
+    # `full_clean()`, que o service não chama. Sem esta conversão, o vocabulário
+    # fechado que a SAE-09 exige valia apenas no `ChoiceField` do form, e
+    # qualquer outro chamador do service gravava texto livre no livro-razão.
+    # Antes da primeira escrita, de propósito: o motivo é o cabeçalho do
+    # documento, e recusá-lo depois de baixar saldo dependeria do rollback para
+    # o que a validação resolve sozinha.
+    try:
+        motivo_validado = MotivoSaidaExcepcional(motivo)
+    except ValueError as exc:
+        raise DadosInvalidos(
+            'Motivo de saída inválido.', code='motivo_invalido'
+        ) from exc
+
     if not itens:
         raise DadosInvalidos('A saída precisa ter ao menos um item.', code='sem_itens')
 
@@ -526,7 +541,7 @@ def registrar_saida_excepcional(
             )
 
     saida = SaidaExcepcional.objects.create(
-        motivo=motivo,
+        motivo=motivo_validado,
         observacao=observacao,
         registrado_por=ator,
         estoque=estoque,

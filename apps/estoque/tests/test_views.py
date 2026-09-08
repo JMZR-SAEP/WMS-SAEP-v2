@@ -70,6 +70,7 @@ class TestListarSaidasExcepcionaisView:
         """A lista só cresce: `listar_saidas_excepcionais` não tem recorte de
         período nem filtro, e a tela renderizava o queryset inteiro em cartões.
         """
+        from apps.estoque.models import MotivoSaidaExcepcional
         from apps.estoque.services import registrar_saida_excepcional
         from apps.estoque.views import PAGINA_SAIDAS_EXCEPCIONAIS_TAMANHO
 
@@ -78,7 +79,10 @@ class TestListarSaidasExcepcionaisView:
             registrar_saida_excepcional(
                 ator_id=chefe_almoxarifado.pk,
                 estoque_id=estoque_principal.pk,
-                motivo=f'Descarte {i}',
+                # O que distingue as saídas aqui é a paginação, não o motivo:
+                # ele era `f'Descarte {i}'`, texto livre que o vocabulário
+                # fechado agora recusa.
+                motivo=MotivoSaidaExcepcional.AVARIA,
                 observacao='',
                 itens=[{'material_id': material_disponivel.pk, 'quantidade': '1'}],
             )

@@ -37,6 +37,40 @@ class TestRegistrarSaidaExcepcional:
         )
         assert saldo.saldo_fisico == 95  # 100 - 5
 
+    def test_motivo_fora_do_vocabulario_nao_grava_nada(
+        self, chefe_almoxarifado, estoque_principal, material_disponivel
+    ):
+        """`choices` no model não valida `objects.create()` — só `full_clean()`.
+
+        Enquanto a checagem existia apenas no `ChoiceField` do form, qualquer
+        outro chamador do service gravava texto livre no livro-razão, que é o
+        defeito que a #187 fechou na exibição e deixou aberto na escrita.
+
+        A recusa acontece antes da primeira escrita, então nem saída, nem item,
+        nem movimentação, nem baixa de saldo sobram.
+        """
+        from apps.core.exceptions import DadosInvalidos
+        from apps.estoque.models import ItemSaidaExcepcional, MovimentacaoEstoque
+        from apps.estoque.services import registrar_saida_excepcional
+
+        with pytest.raises(DadosInvalidos) as exc:
+            registrar_saida_excepcional(
+                ator_id=chefe_almoxarifado.pk,
+                estoque_id=estoque_principal.pk,
+                motivo='Descarte por avaria',
+                observacao='texto livre onde o vocabulário é fechado',
+                itens=[{'material_id': material_disponivel.pk, 'quantidade': '5'}],
+            )
+        assert exc.value.code == 'motivo_invalido'
+
+        assert not SaidaExcepcional.objects.exists()
+        assert not ItemSaidaExcepcional.objects.exists()
+        assert not MovimentacaoEstoque.objects.exists()
+        saldo = SaldoEstoque.objects.get(
+            estoque=estoque_principal, material=material_disponivel
+        )
+        assert saldo.saldo_fisico == 100
+
     def test_numero_publico_formato_sxp(
         self, chefe_almoxarifado, estoque_principal, material_disponivel
     ):
