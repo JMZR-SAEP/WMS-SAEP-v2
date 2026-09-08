@@ -376,9 +376,17 @@ class LinhaDivergenteSCPI(models.Model):
 
     É um instantâneo de auditoria, não uma projeção: os valores são gravados
     como estavam no instante da confirmação e não acompanham renomeação de
-    material nem movimentação posterior de saldo. Por isso `denominacao` é texto
-    copiado e não FK — o registro tem de continuar legível mesmo que o catálogo
-    mude depois.
+    material nem movimentação posterior de saldo. Por isso `denominacao` e
+    `unidade` são texto copiado e não FK — o registro tem de continuar legível
+    mesmo que o catálogo mude depois.
+
+    `unidade` acompanha os três saldos pelo mesmo motivo que a denominação
+    acompanha o CADPRO: quantidade sem unidade não é informação. Sem ela, a tela
+    de confirmação imprimia `WMS 820 · SCPI 700` onde a pré-visualização, que é
+    efêmera, mostrava `820,0 m · 700,0 m` — o registro durável e exportável
+    ficava menos preciso que a tela descartável, e um delta de −120 metros era
+    indistinguível de −120 unidades na mesma coluna. Vazia só em linha gravada
+    antes deste campo existir.
 
     Só linhas divergentes entram aqui. Linha "ok" não é informação, e linha
     "novo" vira material com saldo no mesmo commit — o resultado dela já é
@@ -393,6 +401,13 @@ class LinhaDivergenteSCPI(models.Model):
     )
     cadpro = models.CharField('CADPRO', max_length=32)
     denominacao = models.CharField('denominação', max_length=255, blank=True)
+    unidade = models.CharField(
+        'unidade',
+        max_length=10,
+        choices=UnidadeMedida.choices,
+        blank=True,
+        help_text='unidade do material no WMS, copiada no instante da confirmação.',
+    )
     saldo_wms = models.DecimalField(
         'saldo no WMS',
         max_digits=12,

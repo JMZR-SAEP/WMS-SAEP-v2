@@ -559,7 +559,7 @@ def test_as_tres_superficies_do_delta_incluem_o_mesmo_atomo(template):
 # ---------------------------------------------------------------------------
 
 
-def _render_cartoes_divergencias(saldo_wms, saldo_scpi, delta):
+def _render_cartoes_divergencias(saldo_wms, saldo_scpi, delta, unidade=''):
     """Renderiza `_cartoes_divergencias_scpi.html` com uma linha só.
 
     O partial espera um iterável de `LinhaDivergenteSCPI`; um objeto simples com
@@ -568,6 +568,7 @@ def _render_cartoes_divergencias(saldo_wms, saldo_scpi, delta):
     linha = SimpleNamespace(
         cadpro='001.001.001',
         denominacao='ELETRODUTO RIGIDO ROSCAVEL 3/4',
+        unidade=unidade,
         saldo_wms=Decimal(saldo_wms),
         saldo_scpi=Decimal(saldo_scpi),
         delta=Decimal(delta),
@@ -594,10 +595,30 @@ def test_saldos_da_divergencia_passam_pela_politica_de_precisao():
 
 
 def test_saldo_fracionario_da_divergencia_mantem_a_casa_significativa():
-    """Sem unidade (o CSV do SCPI não a informa) a política degrada para casa
-    significativa — o mesmo caminho do átomo do delta."""
+    """Sem unidade — linha gravada antes do campo existir — a política degrada
+    para casa significativa, o mesmo caminho do átomo do delta."""
     html = _render_cartoes_divergencias('18.750', '18.500', '-0.250')
     assert '18,75' in html
+
+
+def test_divergencia_qualifica_os_tres_numeros_com_a_unidade():
+    """Os três saldos do cartão vestem a unidade que o instantâneo guarda.
+
+    Sem ela a tela de confirmação imprimia `WMS 820 · SCPI 700` onde a
+    pré-visualização mostrava `820,0 m · 700,0 m`, e um delta de −120 metros era
+    indistinguível de −120 unidades na mesma coluna. O registro durável era
+    menos preciso que a tela descartável.
+    """
+    html = _render_cartoes_divergencias('820.000', '700.000', '-120.000', unidade='m')
+    # Símbolo nos dois saldos, via `components/quantidade.html`.
+    assert html.count('>m<') == 2
+    # Precisão de uma casa nos três, que é a política de `m` — e não o inteiro
+    # que a ausência de unidade produzia. O átomo do delta carrega a unidade
+    # para a precisão mas não imprime o símbolo: é decisão dele, compartilhada
+    # com o histórico de movimentações, e mudá-la sai do escopo desta fatia.
+    assert '820,0' in html
+    assert '700,0' in html
+    assert '120,0' in html
     assert '18,750' not in html
     # Notação pt-BR: nunca o ponto, que aqui seria lido como separador de milhar.
     assert '18.75' not in html

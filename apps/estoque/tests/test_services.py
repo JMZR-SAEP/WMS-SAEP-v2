@@ -651,6 +651,31 @@ class TestConfirmarImportacaoScpiDivergenciasPersistidas:
         assert linha.saldo_wms == Decimal('100.000')
         assert linha.saldo_scpi == Decimal('130.000')
         assert linha.delta == Decimal('30.000')
+        assert linha.unidade == material_scpi.unidade
+
+    def test_grava_a_unidade_do_material_no_instantaneo(
+        self, db, superuser, estoque_principal, material_scpi_critico
+    ):
+        """Quantidade sem unidade não é informação.
+
+        O CSV do SCPI não informa unidade, mas o WMS conhece a do material — e
+        a pré-visualização já a exibia. A unidade era descartada na fronteira
+        entre o preview e a gravação, então o registro durável e exportável
+        ficava menos preciso que a tela efêmera que o originou.
+        """
+        from apps.estoque.models import LinhaDivergenteSCPI, UnidadeMedida
+        from apps.estoque.services import confirmar_importacao_scpi
+
+        csv_bytes = self._csv(material_scpi_critico.codigo, 'Tinta', '9.000')
+        importacao = confirmar_importacao_scpi(
+            ator_id=superuser.pk,
+            conteudo_bytes=csv_bytes,
+            arquivo_nome='div.csv',
+            estoque_id=estoque_principal.pk,
+        )
+
+        (linha,) = LinhaDivergenteSCPI.objects.filter(importacao=importacao)
+        assert linha.unidade == UnidadeMedida.LITRO
 
     def test_importacao_sem_divergencia_nao_grava_linha(
         self, db, superuser, estoque_principal, material_scpi

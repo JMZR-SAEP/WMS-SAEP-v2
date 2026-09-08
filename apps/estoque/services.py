@@ -779,6 +779,11 @@ def confirmar_importacao_scpi(
                     # material. A denominação do SCPI é o reserva para o caso
                     # de um material sem nome gravado.
                     denominacao=linha.nome_material or linha.denominacao_scpi,
+                    # A unidade já vem na linha do preview (`LinhaPreviewSCPI`);
+                    # era descartada exatamente nesta fronteira, e a tela de
+                    # confirmação ficava sem como qualificar os três saldos.
+                    # Nenhuma consulta a mais: o dado está na variável do laço.
+                    unidade=linha.unidade,
                     saldo_wms=linha.saldo_wms,
                     saldo_scpi=linha.saldo_scpi,
                     delta=linha.delta,
