@@ -4621,3 +4621,52 @@ class TestCerimoniaDaSaidaExcepcional:
         )
         assert response.status_code == 200
         assert 'data-unidade=""' in response.content.decode('utf-8')
+
+
+# ---------------------------------------------------------------------------
+# #187 — o livro-razão mostra o rótulo do motivo, não o slug
+# ---------------------------------------------------------------------------
+
+
+def test_detalhe_da_saida_mostra_o_rotulo_do_motivo(
+    client, chefe_almoxarifado, saida_registrada
+):
+    """Quem confirma lê "Avaria / Deterioração"; quem audita lia "avaria".
+
+    O campo era `TextField` sem `choices`, então `get_motivo_display` não
+    existia e o template não tinha como resolver o rótulo — o vocabulário vivia
+    numa lista literal do form, fora do alcance do model. O registro é durável e
+    o modal de confirmação já mostrava o rótulo: a divergência aparecia só
+    depois de gravar.
+    """
+    client.force_login(chefe_almoxarifado)
+    html = client.get(
+        reverse('estoque:detalhe_saida_excepcional', kwargs={'pk': saida_registrada.pk})
+    ).content.decode()
+    assert 'Avaria / Deterioração' in html
+    assert '>avaria<' not in html
+
+
+def test_lista_de_saidas_mostra_o_rotulo_do_motivo(
+    client, chefe_almoxarifado, saida_registrada
+):
+    """O mesmo defeito vivia na lista, fora do corpo da issue."""
+    client.force_login(chefe_almoxarifado)
+    html = client.get(reverse('estoque:listar_saidas_excepcionais')).content.decode()
+    assert 'Avaria / Deterioração' in html
+    assert '>avaria<' not in html
+
+
+def test_seletor_de_motivo_consome_o_vocabulario_do_model(db):
+    """Uma fonte só para o vocabulário: o form lê `MotivoSaidaExcepcional`.
+
+    Enquanto os choices eram lista literal do form, o valor gravado não tinha
+    como voltar a ser rótulo — e nada impedia as duas listas de divergirem.
+    """
+    from apps.estoque.forms import SaidaExcepcionalForm
+    from apps.estoque.models import MotivoSaidaExcepcional
+
+    choices = SaidaExcepcionalForm().fields['motivo'].choices
+    assert choices[0][0] == ''
+    assert [c[0] for c in choices[1:]] == [c[0] for c in MotivoSaidaExcepcional.choices]
+    assert 'doacao' not in [c[0] for c in choices]

@@ -3,7 +3,7 @@
 import pytest
 
 from apps.accounts.papeis import papel_efetivo
-from apps.estoque.models import SaidaExcepcional
+from apps.estoque.models import SaidaExcepcional, MotivoSaidaExcepcional
 from apps.estoque.selectors import listar_saidas_excepcionais
 
 
@@ -14,7 +14,7 @@ class TestListarSaidasExcepcionais:
 
     def test_retorna_saidas_existentes(self, db, chefe_almoxarifado, estoque_principal):
         saida = SaidaExcepcional.objects.create(
-            motivo='Descarte por vencimento',
+            motivo=MotivoSaidaExcepcional.VENCIMENTO,
             registrado_por=chefe_almoxarifado,
             estoque=estoque_principal,
         )
@@ -30,12 +30,12 @@ class TestListarSaidasExcepcionais:
         branch — compara conjunto de IDs, não presença individual.
         """
         do_chefe = SaidaExcepcional.objects.create(
-            motivo='Registrada pelo chefe',
+            motivo=MotivoSaidaExcepcional.OUTRO,
             registrado_por=chefe_almoxarifado,
             estoque=estoque_principal,
         )
         do_aux = SaidaExcepcional.objects.create(
-            motivo='Registrada pelo auxiliar',
+            motivo=MotivoSaidaExcepcional.OUTRO,
             registrado_por=aux_almoxarifado,
             estoque=estoque_principal,
         )
@@ -47,12 +47,12 @@ class TestListarSaidasExcepcionais:
         self, db, chefe_almoxarifado, estoque_principal
     ):
         s1 = SaidaExcepcional.objects.create(
-            motivo='Primeiro',
+            motivo=MotivoSaidaExcepcional.OUTRO,
             registrado_por=chefe_almoxarifado,
             estoque=estoque_principal,
         )
         s2 = SaidaExcepcional.objects.create(
-            motivo='Segundo',
+            motivo=MotivoSaidaExcepcional.OUTRO,
             registrado_por=chefe_almoxarifado,
             estoque=estoque_principal,
         )
@@ -70,10 +70,14 @@ class TestListarSaidasExcepcionais:
 
         instante = timezone.now()
         s1 = SaidaExcepcional.objects.create(
-            motivo='A', registrado_por=chefe_almoxarifado, estoque=estoque_principal
+            motivo=MotivoSaidaExcepcional.OUTRO,
+            registrado_por=chefe_almoxarifado,
+            estoque=estoque_principal,
         )
         s2 = SaidaExcepcional.objects.create(
-            motivo='B', registrado_por=chefe_almoxarifado, estoque=estoque_principal
+            motivo=MotivoSaidaExcepcional.OUTRO,
+            registrado_por=chefe_almoxarifado,
+            estoque=estoque_principal,
         )
         SaidaExcepcional.objects.filter(pk__in=[s1.pk, s2.pk]).update(
             criado_em=instante
@@ -87,7 +91,7 @@ class TestListarSaidasExcepcionais:
         from apps.estoque.models import ItemSaidaExcepcional
 
         saida = SaidaExcepcional.objects.create(
-            motivo='Com itens',
+            motivo=MotivoSaidaExcepcional.OUTRO,
             registrado_por=chefe_almoxarifado,
             estoque=estoque_principal,
         )

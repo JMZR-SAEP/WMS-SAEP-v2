@@ -6,7 +6,7 @@ Sem factory_boy, sem seed_dev como pré-condição (ADR-0010).
 import pytest
 
 from apps.accounts.models import Setor, SetorClassificacao, User, VinculoAuxiliar
-from apps.estoque.models import Estoque
+from apps.estoque.models import Estoque, MotivoSaidaExcepcional
 
 
 @pytest.fixture
@@ -164,7 +164,7 @@ def saida_registrada(db, chefe_almoxarifado, estoque_principal, material_disponi
     return registrar_saida_excepcional(
         ator_id=chefe_almoxarifado.pk,
         estoque_id=estoque_principal.pk,
-        motivo='Descarte por avaria',
+        motivo=MotivoSaidaExcepcional.AVARIA,
         observacao='Itens danificados',
         itens=[{'material_id': material_disponivel.pk, 'quantidade': '5'}],
     )

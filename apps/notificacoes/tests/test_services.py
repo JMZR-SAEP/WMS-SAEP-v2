@@ -278,7 +278,11 @@ def test_on_commit_nao_dispara_em_rollback(solicitante, outro_solicitante):
 
 def _criar_material_critico(estoque):
     """Material com saldo_fisico < saldo_reservado (divergência pré-existente)."""
-    from apps.estoque.models import Material, SaldoEstoque, UnidadeMedida
+    from apps.estoque.models import (
+        Material,
+        SaldoEstoque,
+        UnidadeMedida,
+    )
 
     m = Material.objects.create(
         codigo='000.001.001',
@@ -841,6 +845,7 @@ def _material_com_reserva(estoque, *, codigo, fisico, reservado):
 
 
 def _baixar_com_aviso(*, ator, estoque, material, quantidade):
+    from apps.estoque.models import MotivoSaidaExcepcional
     from apps.estoque.services import registrar_saida_excepcional
     from apps.requisicoes.services.ciclo_vida import (
         registrar_timeline_divergencia_saida_excepcional,
@@ -849,7 +854,7 @@ def _baixar_com_aviso(*, ator, estoque, material, quantidade):
     return registrar_saida_excepcional(
         ator_id=ator.pk,
         estoque_id=estoque.pk,
-        motivo='Descarte por avaria',
+        motivo=MotivoSaidaExcepcional.AVARIA,
         observacao='Material avariado em vistoria',
         itens=[{'material_id': material.pk, 'quantidade': quantidade}],
         _pos_saida_hook=registrar_timeline_divergencia_saida_excepcional,

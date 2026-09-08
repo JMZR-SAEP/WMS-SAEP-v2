@@ -2,7 +2,12 @@
 
 import pytest
 
-from apps.estoque.models import EstadoSaidaExcepcional, SaidaExcepcional, SaldoEstoque
+from apps.estoque.models import (
+    EstadoSaidaExcepcional,
+    SaidaExcepcional,
+    SaldoEstoque,
+    MotivoSaidaExcepcional,
+)
 
 
 class TestRegistrarSaidaExcepcional:
@@ -14,7 +19,7 @@ class TestRegistrarSaidaExcepcional:
         saida = registrar_saida_excepcional(
             ator_id=chefe_almoxarifado.pk,
             estoque_id=estoque_principal.pk,
-            motivo='Descarte por avaria',
+            motivo=MotivoSaidaExcepcional.AVARIA,
             observacao='Caixas molhadas',
             itens=[{'material_id': material_disponivel.pk, 'quantidade': '5'}],
         )
@@ -41,7 +46,7 @@ class TestRegistrarSaidaExcepcional:
         saida = registrar_saida_excepcional(
             ator_id=chefe_almoxarifado.pk,
             estoque_id=estoque_principal.pk,
-            motivo='Teste formato',
+            motivo=MotivoSaidaExcepcional.OUTRO,
             observacao='obs',
             itens=[{'material_id': material_disponivel.pk, 'quantidade': '1'}],
         )
@@ -69,14 +74,14 @@ class TestRegistrarSaidaExcepcional:
         saida1 = registrar_saida_excepcional(
             ator_id=chefe_almoxarifado.pk,
             estoque_id=estoque_principal.pk,
-            motivo='A',
+            motivo=MotivoSaidaExcepcional.OUTRO,
             observacao='',
             itens=[{'material_id': material_disponivel.pk, 'quantidade': '1'}],
         )
         saida2 = registrar_saida_excepcional(
             ator_id=chefe_almoxarifado.pk,
             estoque_id=estoque_principal.pk,
-            motivo='B',
+            motivo=MotivoSaidaExcepcional.OUTRO,
             observacao='',
             itens=[{'material_id': m2.pk, 'quantidade': '1'}],
         )
@@ -95,7 +100,7 @@ class TestRegistrarSaidaExcepcional:
             registrar_saida_excepcional(
                 ator_id=chefe_almoxarifado.pk,
                 estoque_id=estoque_principal.pk,
-                motivo='Teste',
+                motivo=MotivoSaidaExcepcional.OUTRO,
                 observacao='Teste válido',
                 itens=[],
             )
@@ -110,7 +115,7 @@ class TestRegistrarSaidaExcepcional:
             registrar_saida_excepcional(
                 ator_id=chefe_almoxarifado.pk,
                 estoque_id=estoque_principal.pk,
-                motivo='Duplicado',
+                motivo=MotivoSaidaExcepcional.OUTRO,
                 observacao='Teste válido',
                 itens=[
                     {'material_id': material_disponivel.pk, 'quantidade': '5'},
@@ -133,7 +138,7 @@ class TestRegistrarSaidaExcepcional:
             registrar_saida_excepcional(
                 ator_id=chefe_almoxarifado.pk,
                 estoque_id=estoque_principal.pk,
-                motivo='Sem saldo',
+                motivo=MotivoSaidaExcepcional.OUTRO,
                 observacao='Teste válido',
                 itens=[{'material_id': m.pk, 'quantidade': '1'}],
             )
@@ -148,7 +153,7 @@ class TestRegistrarSaidaExcepcional:
             registrar_saida_excepcional(
                 ator_id=chefe_almoxarifado.pk,
                 estoque_id=estoque_principal.pk,
-                motivo='Qtd zero',
+                motivo=MotivoSaidaExcepcional.OUTRO,
                 observacao='Teste válido',
                 itens=[{'material_id': material_disponivel.pk, 'quantidade': '0'}],
             )
@@ -164,7 +169,7 @@ class TestRegistrarSaidaExcepcional:
             registrar_saida_excepcional(
                 ator_id=chefe_almoxarifado.pk,
                 estoque_id=estoque_principal.pk,
-                motivo='Muito',
+                motivo=MotivoSaidaExcepcional.OUTRO,
                 observacao='Teste válido',
                 itens=[{'material_id': material_disponivel.pk, 'quantidade': '9999'}],
             )
@@ -185,7 +190,7 @@ class TestRegistrarSaidaExcepcionalAuth:
             registrar_saida_excepcional(
                 ator_id=aux_almoxarifado.pk,
                 estoque_id=estoque_principal.pk,
-                motivo='Avaria',
+                motivo=MotivoSaidaExcepcional.AVARIA,
                 observacao='Teste válido',
                 itens=[{'material_id': material_disponivel.pk, 'quantidade': '1'}],
             )
@@ -1775,7 +1780,7 @@ class TestSaidaExcepcionalDivergenciaTimeline:
         return registrar_saida_excepcional(
             ator_id=ator.pk,
             estoque_id=estoque.pk,
-            motivo='Descarte por avaria',
+            motivo=MotivoSaidaExcepcional.AVARIA,
             observacao='Material avariado em vistoria',
             itens=[{'material_id': material.pk, 'quantidade': quantidade}],
             _pos_saida_hook=hook,
@@ -1929,7 +1934,7 @@ class TestSaidaExcepcionalDivergenciaTimeline:
         saida = registrar_saida_excepcional(
             ator_id=chefe_almoxarifado.pk,
             estoque_id=estoque_principal.pk,
-            motivo='Descarte por avaria',
+            motivo=MotivoSaidaExcepcional.AVARIA,
             observacao='Lote inteiro avariado',
             itens=[{'material_id': m.pk, 'quantidade': '5'} for m in materiais],
             _pos_saida_hook=_hook_divergencia_saida,
@@ -2094,7 +2099,7 @@ class TestSaidaExcepcionalDivergenciaTimeline:
         saida = registrar_saida_excepcional(
             ator_id=chefe_almoxarifado.pk,
             estoque_id=estoque_principal.pk,
-            motivo='Descarte por avaria',
+            motivo=MotivoSaidaExcepcional.AVARIA,
             observacao='Material avariado em vistoria',
             itens=[{'material_id': material_disponivel.pk, 'quantidade': '98'}],
         )
@@ -2182,7 +2187,7 @@ def test_falha_ao_notificar_pos_commit_nao_reverte_a_saida(
             saida = registrar_saida_excepcional(
                 ator_id=chefe_almoxarifado.pk,
                 estoque_id=estoque_principal.pk,
-                motivo='Descarte por avaria',
+                motivo=MotivoSaidaExcepcional.AVARIA,
                 observacao='Material avariado em vistoria',
                 itens=[{'material_id': material_disponivel.pk, 'quantidade': '98'}],
                 _pos_saida_hook=registrar_timeline_divergencia_saida_excepcional,
@@ -2225,7 +2230,7 @@ def test_tr_015b_continua_bloqueando_separacao_apos_saida_excepcional(
     registrar_saida_excepcional(
         ator_id=chefe_almoxarifado.pk,
         estoque_id=estoque_principal.pk,
-        motivo='Descarte por avaria',
+        motivo=MotivoSaidaExcepcional.AVARIA,
         observacao='Material avariado em vistoria',
         itens=[{'material_id': material_disponivel.pk, 'quantidade': '98'}],
         _pos_saida_hook=registrar_timeline_divergencia_saida_excepcional,
