@@ -1,11 +1,5 @@
 # AGENTS.md — WMS-SAEP-v2
 
-@/Users/jmzr/.codex/RTK.md
-
-<!-- context7 -->
-Use o Context7 MCP para buscar documentação atualizada sempre que o usuário perguntar sobre uma biblioteca, framework, SDK, API, CLI ou serviço de nuvem — mesmo os bem conhecidos, como Tailwind ou Django. Isso inclui sintaxe de API, configuração, migração de versão, debugging específico de biblioteca, instruções de setup e uso de CLI. Use mesmo quando achar que já sabe a resposta — seu treinamento pode não refletir mudanças recentes. Prefira isso a busca na web para documentação de bibliotecas.
-<!-- context7 -->
-
 ## Referência rápida de IDs de biblioteca no Context7:
 - Django 6: `/django/django/6_0a1`
 - django-htmx: `/adamchainz/django-htmx`
