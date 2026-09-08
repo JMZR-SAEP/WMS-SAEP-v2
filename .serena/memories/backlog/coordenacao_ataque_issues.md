@@ -2,7 +2,7 @@
 
 **Documento vivo.** Ponto de partida para quem entra no backlog e ferramenta de acompanhamento para quem já está nele. Visão macro: o detalhe técnico vive na issue, aqui vive a **ordem, a dependência e o estado**.
 
-Última atualização: **2026-09-04** (#166 fechada e mergeada, com emenda à ADR-0019; spinoffs #181/#182 abertos, needs-triage; **#167 é a próxima da fila**, agora com a rede de segurança da varredura de contraste no lugar).
+Última atualização: **2026-09-08** (ondas 4 e 5 atacadas em bloco: **#167, #178, #181 e #182 estão em PR aberta**, aguardando review e merge. Nenhuma mergeada ainda. Gerou a #183. A próxima da fila depois do merge é a **#173**, que precisa ser fatiada antes de virar trabalho).
 
 ## Como usar
 
@@ -38,9 +38,25 @@ Snapshots em `.impeccable/critique/` (diretório local, gitignored). O plano de 
 | — | `quantidade.html`: contraste da unidade + `tom` não propagava pra `referencia` | PR `joaozuneda6/WMS-SAEP-v2#68`, merge `421ce15`, merged 2026-09-04. Sem issue própria. |
 | 166 | Varredura de contraste na lane Navegador (par pai/filho) | PR `joaozuneda6/WMS-SAEP-v2#69`, merge `95e8018`, merged 2026-09-04. Issue fechada. Emendou a ADR-0019: 4º critério de admissão ("cascade resolvida e pipeline de cor") e o gatilho de "~15 casos" deu lugar ao relógio. Deixa pendente uma extensão: `estoque:preview_importacao_scpi` ficou fora (upload multipart), então o guarda nasce cego para o `bg-primary-subtle` que originou o eixo. |
 
-**Em andamento**
+**Em andamento — 4 PRs abertas, nenhuma mergeada**
 
-- Nenhuma. #166 mergeada (ver Concluído).
+| # | PR | O que entrega |
+|---|---|---|
+| 182 | `joaozuneda6#70` | `listar_saidas_excepcionais` perde o `ator_id` morto. Leva nota normativa ao `CONVENTIONS.md`: `ator_id` em selector é reservado ao sufixo `_visiveis_para`. |
+| 167 | `joaozuneda6#71` | Legenda do preview SCPI **removida**, não corrigida — ver decisão abaixo. |
+| 178 | `joaozuneda6#72` | Marcador EST-07 restrito ao almoxarifado, com `pode_consultar_divergencias_criticas` nova e os operandos `Físico`/`Reservado` gated. Bullet de catálogo na matriz §5. |
+| 181 | `joaozuneda6#73` | `marcar_lida_view` passa a consumir a policy; negativa vira `Http404`. Cláusula de atividade no selector, corrigindo o USR-01. Bullet de notificações na matriz §5. |
+
+**Decisões desta rodada, que mudaram o escopo do que as issues pediam:**
+
+1. **#167 fechou por remoção.** A issue pedia alinhar o shade dos swatches e acrescentar a linha do estado `OK`. Ao ler a tela inteira: são **três** cores por estado (cartão `-subtle`, badge `-muted`, swatch `-muted`), e o swatch batia com o badge, não com o cartão. Pior, acrescentar a linha `OK` sob o alinhamento pedido exigiria um swatch `bg-surface` — quadrado branco invisível, o mesmo modo de falha que a #164 diagnosticou. E a legenda **duplicava os chips**: explicava exatamente o par que `Só divergências` e `Só materiais novos` já nomeiam poucas linhas acima. Argumento que fechou: todo badge da tela é **texto**, e legenda existe para decodificar sinal não-textual.
+2. **A L89 governa o marcador do catálogo, não um painel.** A observação da L89 ("Gestão do Almoxarifado/suporte") é o nome da L96, e a L96 nega ao auxiliar o que a L89 concede. Sob a leitura do painel, a L89 seria permissão morta para o auxiliar de almoxarifado — e nenhum painel existe no código. Decidido: é o marcador.
+3. **#178 esconde o badge E os operandos.** EST-07 é `físico < reservado`, e o cartão imprimia os dois lados sem gate: esconder só o booleano removeria o rótulo, não a informação. `Disponível` fica para todos (L72), com resíduo declarado — num material divergente ele é negativo, e a L71 já bloqueia a seleção desse material por desenho.
+4. **#181 mantém o 404, não adota o 403.** ADR-0010:118 (404 por não-enumeração) e ADR-0011 (`PermissaoNegada` → 403) colidem exatamente neste caso. Notificação de terceiro é objeto fora do escopo de visibilidade, então o 404 vence: um 403 confirmaria a existência da notificação a qualquer autenticado. Substituição explícita e comentada, que a emenda da ADR-0011 autoriza.
+5. **Policy nova sem par `exigir_pode_*`, de propósito.** `pode_consultar_divergencias_criticas` não guarda endpoint — só decide escopo de conteúdo. Criar um `exigir_*` sem chamador plantaria de novo o defeito que a #181 existe para consertar.
+6. **Estilo de selector escopado: `ator_id` + `papel_efetivo` interno.** O repo tem dois padrões vivos e nenhuma ADR decide. Escolhido o do vizinho direto (`movimentacoes_visiveis_para`), cujo padrão a matriz §5 L107 já ratifica. A nota nova do `CONVENTIONS.md` (PR #70) descreve esse padrão.
+
+**Restrição de ambiente descoberta na rodada:** worktrees paralelos **não** servem aqui. O banco é PostgreSQL único e `make resetpostgres` apaga o schema `public`; duas suítes pytest simultâneas colidem em `test_<dbname>`, e migrations são gitignored, então worktree novo exige `make setup`, que reseta o banco compartilhado. Paralelismo vai na **análise** (read-only, sem branch, sem DB); implementação é sequencial.
 
 **Decisões de domínio da #176 (2026-09-04).** A metade 2 não era divergência matriz↔código: `pode_visualizar_preview_scpi = eh_superusuario` batia com `docs/matriz-permissoes.md` L85-87. O conflito era matriz ↔ `PRODUCT.md:44` + `docs/processos-almoxarifado.md:88-96`. Resolvido:
 1. Preview SCPI → **chefe de almoxarifado** (superusuário mantém override). Feito no #63.
@@ -51,32 +67,44 @@ Snapshots em `.impeccable/critique/` (diretório local, gitignored). O plano de 
 
 Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/accounts/policies.py:56` como a issue diz.
 
-**Spinoffs da #176 — abertos, `needs-triage`, sem onda**
+**Spinoffs da #176 — triados, onda 5**
 
-| # | O quê |
-|---|---|
-| 178 | `divergente_calculado` expõe o marcador EST-07 a solicitante/aux. setor/chefe setor (matriz L89) |
-| 179 | `pode_estornar_devolucao` + service — linha de matriz (L83) sem implementação |
-| 180 | inativar material só existe pelo admin do Django; decidir UI de produto ou recuar a matriz |
-
-**Spinoffs da #166 — abertos, `needs-triage`, sem onda.** Achados pela auditoria de papéis que escolheu o usuário de cada tela do parametrize. Nenhum é vazamento de autorização hoje; os dois são defeito de contrato.
-
-| # | O quê |
-|---|---|
-| 181 | `pode_ver_notificacao` é policy órfã: sem consumidor de produção, a regra vive no filtro de ORM da view (ADR-0011 existe para evitar as duas fontes) |
-| 182 | `listar_saidas_excepcionais(ator_id)` ignora o parâmetro — assinatura simula recorte por papel que não existe |
-
-**Aberto — 7 waves + 5 spinoffs (tabelas acima)**
-
-| # | Onda | Estado | Bloqueio |
+| # | O quê | Label | Bloqueio |
 |---|---|---|---|
-| 167 | 4 | pronta — **próxima da fila** | — |
-| 173 | 5 | precisa ser fatiada | — |
-| 172 | 6 | precisa de decisão de vocabulário visual | 173(b) documentar a gramática de formas |
-| 170 | 7 | pergunta em aberto | resposta do chefe de almoxarifado |
-| 171 | 8 | sem trabalho de código | export real do SCPI |
-| 169 | 9 | triagem | medição da rede do piloto |
-| 174 | 10 | precisa de decisão de contrato | — |
+| 178 | `divergente_calculado` expõe o marcador EST-07 a solicitante/aux. setor/chefe setor (matriz L89) | `ready-for-agent` | — |
+| 179 | `pode_estornar_devolucao` + service — linha de matriz (L83) sem implementação | `needs-info` | decisão de domínio: entra no MVP ou fica pra depois do piloto? |
+| 180 | inativar material só existe pelo admin do Django; decidir UI de produto ou recuar a matriz | `needs-info` | decisão de domínio: UI de produto ou recuar a matriz L74/§3? |
+
+**Spinoffs da #166 — triados, onda 5.** Achados pela auditoria de papéis que escolheu o usuário de cada tela do parametrize. Nenhum é vazamento de autorização hoje; os dois são defeito de contrato.
+
+| # | O quê | Label | Bloqueio |
+|---|---|---|---|
+| 181 | `pode_ver_notificacao` é policy órfã: sem consumidor de produção, a regra vive no filtro de ORM da view (ADR-0011 existe para evitar as duas fontes) | `ready-for-agent` | — |
+| 182 | `listar_saidas_excepcionais(ator_id)` ignora o parâmetro — assinatura simula recorte por papel que não existe | `ready-for-agent` | — |
+
+**Spinoff da #181 — aberto 2026-09-08**
+
+| # | O quê | Label | Bloqueio |
+|---|---|---|---|
+| 183 | contagem do sino em `except Exception` com fallback zero, em toda página autenticada — zero é indistinguível de "nada pendente". Mesma classe de defeito que a #175 consertou. | `ready-for-agent` | — |
+
+**Aberto — 8 waves, todas as issues triadas (nenhuma `needs-triage` restante)**
+
+| # | Onda | Label | Bloqueio |
+|---|---|---|---|
+| 167 | 4 | **em PR** (`joaozuneda6#71`) | — |
+| 178 | 5 | **em PR** (`joaozuneda6#72`) | — |
+| 181 | 5 | **em PR** (`joaozuneda6#73`) | — |
+| 182 | 5 | **em PR** (`joaozuneda6#70`) | — |
+| 183 | 5 | `ready-for-agent` (spinoff da #181) | — |
+| 173 | 6 | `ready-for-human` (guarda-chuva, fatiar exige julgamento humano) | — |
+| 172 | 7 | `ready-for-human` (decisão de vocabulário visual) | 173(b) documentar a gramática de formas |
+| 170 | 8 | `needs-info` | resposta do chefe de almoxarifado |
+| 171 | 9 | `needs-info` | export real do SCPI |
+| 169 | 10 | `needs-info` | medição da rede do piloto |
+| 174 | 11 | `ready-for-human` (decisão de contrato, maior item) | — |
+| 179 | — | `needs-info` | decisão de domínio: entra no MVP? |
+| 180 | — | `needs-info` | decisão de domínio: UI de produto ou recuar matriz? |
 
 ## Ordem de ataque
 
@@ -85,14 +113,16 @@ Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/account
 3. ~~**#177** — 4 variantes cruas de `badge.html`.~~ **Feito e fechada — PR #66** (squash `0ee1949`, empilhada sobre a #65, retargetou pra `main` sozinha ao mergear a #65).
 3b. ~~**`quantidade.html`**~~ **Feito e fechada — PR #68** (merge `421ce15`, sem CodeRabbit).
 3c. ~~**#166**~~ **Feita e fechada — PR #69** (merge `95e8018`). Emendou a ADR-0019 no caminho.
-4. **#167** — leve o bullet das pílulas do #173 no mesmo PR: mesma tela, mesmo arquivo.
-5. **#173, fatiada em 3** — (a) copy e vocabulário; (b) `DESIGN.md`; (c) navegação e responsivo. Anexar os candidatos novos antes de abrir o primeiro PR.
-6. **#172** — depois que 5(b) documentar a gramática de formas.
-7. ~~**#176, metade de permissão** — quem é o dono da importação SCPI.~~ **Feito e fechada — PR #63.** Domínio decidiu: chefe de almoxarifado. Gerou #178, #179, #180.
-8. **#170** — quando o chefe de almoxarifado responder.
-9. **#171** — quando o export real chegar. Cada quebra vira issue própria.
-10. **#169** — medir a rede do piloto e decidir. `wontfix` consciente é o desfecho provável.
-11. **#174** — a maior. Primeira a cortar do escopo se o piloto apertar.
+4. ~~**#167**~~ **Em PR — `joaozuneda6#71`.** Fechada por remoção da legenda. O bullet das pílulas do #173 **não** entrou: a premissa dele estava errada (ver "Candidatos"), e a colisão real precisa de mudança no componente global.
+5. ~~**#178, #181, #182**~~ **Em PR — `joaozuneda6#72`, `#73`, `#70`.** Confirmado que não há conflito de hunk entre #178 e #182, apesar de editarem o mesmo `selectors.py`: as regiões são disjuntas (20-27 vs 304-338; testes 9-78 vs 467-549). A #178 gerou a #183.
+6. **#173, fatiada em 3** — (a) copy e vocabulário; (b) `DESIGN.md`; (c) navegação e responsivo. Anexar os candidatos novos antes de abrir o primeiro PR.
+7. **#172** — depois que 6(b) documentar a gramática de formas.
+8. ~~**#176, metade de permissão** — quem é o dono da importação SCPI.~~ **Feito e fechada — PR #63.** Domínio decidiu: chefe de almoxarifado. Gerou #178, #179, #180.
+9. **#170** — quando o chefe de almoxarifado responder.
+10. **#171** — quando o export real chegar. Cada quebra vira issue própria.
+11. **#169** — medir a rede do piloto e decidir. `wontfix` consciente é o desfecho provável.
+12. **#174** — a maior. Primeira a cortar do escopo se o piloto apertar.
+13. **#179, #180** — `needs-info`, esperando decisão de domínio (ver "Disparar cedo"). Sem código antes da resposta.
 
 ## Dependências
 
@@ -112,6 +142,11 @@ Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/account
 
 A remedição achou itens que não estão no bundle. Anexar antes de fatiar: DELTA do SCPI sem unidade nas duas telas; `motivo` gravado como slug no livro-razão imutável; `Doação` num seletor que o `PRODUCT.md` declara fora de escopo; `@drop` que submete sem revisão e mata o `data-prevent-double-submit`; ordenação que exibe o inverso do que mostra; `IntegerField` num material medido em metros.
 
+**Correção de um bullet existente, medida na #167 (2026-09-08).** O bullet que diz que contadores (`5 linhas`) e filtros (`Só divergências`) vestem a mesma pílula a ~170px **não se sustenta**: os contadores são `rounded-lg` com `px-4 py-2.5` — retângulos, não pílulas — e os chips são `rounded-full`; já se distinguem por forma, e os três contadores se distinguem entre si por matiz. Substituir pelos dois achados reais:
+
+- **Chip ativo × badge do cartão vestem a mesma pílula.** `filter_chips.html` no estado ativo usa `rounded-full border px-3 py-1.5 bg-primary-muted text-primary-text-strong`; `badge.html variant="blue"` usa `rounded-full bg-primary-muted px-2.5 py-0.5 text-primary-text-strong ring-1`. Mesma cor, mesma forma, diferindo só em tamanho. **Um é link que alterna filtro, o outro é marcador estático de estado** — é defeito de affordance, não de vocabulário. Fica fora do escopo da #167 porque `filter_chips.html` é componente global (o ledger também o usa) e mexer nele arrasta as 11 telas da varredura de contraste da #166.
+- **A região de resultados do preview SCPI não tem heading próprio.** Lacuna preexistente, não criada pela #167 — o `<h2 class="sr-only">` que saiu com a legenda nomeava a legenda, não os resultados. Um `<h2 class="sr-only">` para as linhas do arquivo daria a leitor de tela um alvo de salto para o conteúdo real da tela.
+
 ## Disparar cedo, fora da fila
 
 Itens 8 e 9 têm lead time humano e **zero trabalho de código antes da resposta**. Mande os pedidos assim que a fila começar, e siga pelos itens 1 a 6 enquanto chegam:
@@ -119,6 +154,8 @@ Itens 8 e 9 têm lead time humano e **zero trabalho de código antes da resposta
 - ~~**#176 metade 2** — quem é o dono da importação SCPI?~~ **Respondido: chefe de almoxarifado.** PR #63, issue fechada.
 - **#170** — "recusa" e "cancelamento" diferem no vocabulário de auditoria do almoxarifado?
 - **#171** — alguém com acesso ao SCPI produzir um export real.
+- **#179** — estorno de devolução entra no MVP ou fica pra depois do piloto?
+- **#180** — inativar material ganha UI de produto, ou a matriz L74/§3 recua pra só-superusuário (admin do Django)?
 
 ## Regras de coordenação
 
