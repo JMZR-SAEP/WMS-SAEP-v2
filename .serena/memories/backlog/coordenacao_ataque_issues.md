@@ -137,7 +137,7 @@ Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/account
 
 | # | Onda | Label | Bloqueio |
 |---|---|---|---|
-| 187 | 6 | **implementada**, branch `fix/173d-defeitos-comportamento`, sem PR | — |
+| 187 | 6 | **em PR** (`JMZR-SAEP#188`, CI verde) — ver "Em andamento" | — |
 | 184 | 6 | `ready-for-agent` — fatia (a) da #173 | — |
 | 185 | 6 | `ready-for-agent` — fatia (b) da #173 | — |
 | 186 | 6 | `ready-for-agent` — fatia (c) da #173 | — |
@@ -223,7 +223,8 @@ Itens 8 e 9 têm lead time humano e **zero trabalho de código antes da resposta
 - **Não rode a próxima critique antes de fechar a onda 4.** Rodar no meio mistura o efeito dos P0 com o do eixo do componente — o erro de atribuição que a #165 existia justamente para não repetir.
 - **Comparação de nota só é válida like-for-like**: mesmo alvo, mesmo slug (`apps`), sem alvo específico, e sem mostrar a pontuação anterior aos agentes. Calibração diferente entre rodadas vira falso progresso ou falsa regressão.
 - ~~**#173 é guarda-chuva, não issue.**~~ **Fatiada em #184/#185/#186/#187.** Fica aberta como capa até as quatro fecharem.
-- **Merge não fecha issue de outro remote.** Depois de cada merge, fechar a issue no `origin` é passo manual, com comentário linkando a PR e o commit de merge. Quatro issues ficaram abertas por quatro dias porque as PRs *afirmavam* o fechamento em vez de fazê-lo.
+- ~~**Merge não fecha issue de outro remote.**~~ **Revogada em 2026-09-08**, quando os PRs passaram a nascer no `origin`. Com PR e issue no mesmo repo, `Closes #N` fecha a issue no merge — sem passo manual. O incidente das quatro issues abertas por quatro dias fica como histórico na seção "Ondas 4 e 5", não como regra ativa. **Vale só se algum PR voltar a nascer no fork:** aí o auto-close não cruza e o fechamento manual volta a ser obrigatório.
+- **O gate de review mudou de dono.** O CodeRabbit responde no `origin` (validado na #188, 3 achados), mas o plano dá **1 review por hora** — e o check `CodeRabbit` pode aparecer `pass` com "Review skipped" sem ter revisado nada. Não confundir check verde com review feita; conferir se há comentários antes de tratar o gate como cumprido.
 - **#169, #170 e #171 não são tarefas de código** — são uma medição, uma pergunta e um pedido. Não devem ocupar slot de implementação.
 - **#174 é dívida declarada com produção correta.** Primeira a sair do escopo sob pressão de prazo. A #168 fica só porque é barata.
 - Uma branch por issue, nunca commit direto na `main`; vocabulário de triagem em `docs/agents/triage-labels.md`.
