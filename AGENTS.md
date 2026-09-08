@@ -8,10 +8,6 @@
 
 > Este projeto é server-rendered (Django + HTMX + Alpine.js, sem camada de API REST). `django-rest-framework` não é dependência — não busque a documentação dele a menos que a stack mude.
 
-<!-- serena -->
-Use o Serena MCP para entendimento semântico do código e navegação ciente de símbolos sempre que o usuário perguntar sobre um projeto, repositório, módulo, classe, função ou detalhe de implementação existente.
-<!-- serena -->
-
 ## Skills de agente
 
 ### Rastreador de issues
