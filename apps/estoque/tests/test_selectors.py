@@ -2,6 +2,7 @@
 
 import pytest
 
+from apps.accounts.papeis import papel_efetivo
 from apps.estoque.models import SaidaExcepcional
 from apps.estoque.selectors import listar_saidas_excepcionais
 
@@ -492,7 +493,7 @@ class TestListarMateriaisComSaldo:
     ):
         from apps.estoque.selectors import listar_materiais_com_saldo
 
-        resultado = listar_materiais_com_saldo()
+        resultado = listar_materiais_com_saldo(papel=papel_efetivo(chefe_almoxarifado))
         assert resultado.count() == 1
         saldo = resultado.first()
         assert saldo.material == material_disponivel
@@ -502,7 +503,7 @@ class TestListarMateriaisComSaldo:
     ):
         from apps.estoque.selectors import listar_materiais_com_saldo
 
-        resultado = listar_materiais_com_saldo()
+        resultado = listar_materiais_com_saldo(papel=papel_efetivo(chefe_almoxarifado))
         saldo = resultado.get(material=material_disponivel)
         # material_disponivel: fisico=100, reservado=10 → disponivel=90
         assert saldo.saldo_disponivel_calculado == 90
@@ -512,7 +513,7 @@ class TestListarMateriaisComSaldo:
     ):
         from apps.estoque.selectors import listar_materiais_com_saldo
 
-        resultado = listar_materiais_com_saldo()
+        resultado = listar_materiais_com_saldo(papel=papel_efetivo(chefe_almoxarifado))
         saldo = resultado.get(material=material_scpi_critico)
         assert saldo.divergente_calculado is True
 
@@ -521,7 +522,7 @@ class TestListarMateriaisComSaldo:
     ):
         from apps.estoque.selectors import listar_materiais_com_saldo
 
-        resultado = listar_materiais_com_saldo()
+        resultado = listar_materiais_com_saldo(papel=papel_efetivo(chefe_almoxarifado))
         saldo = resultado.get(material=material_disponivel)
         assert saldo.divergente_calculado is False
 
@@ -534,7 +535,9 @@ class TestListarMateriaisComSaldo:
     ):
         from apps.estoque.selectors import listar_materiais_com_saldo
 
-        resultado = listar_materiais_com_saldo(busca='MAT001')
+        resultado = listar_materiais_com_saldo(
+            papel=papel_efetivo(chefe_almoxarifado), busca='MAT001'
+        )
         assert set(resultado.values_list('material__pk', flat=True)) == {
             material_disponivel.pk
         }
@@ -548,7 +551,9 @@ class TestListarMateriaisComSaldo:
     ):
         from apps.estoque.selectors import listar_materiais_com_saldo
 
-        resultado = listar_materiais_com_saldo(busca='Tinta')
+        resultado = listar_materiais_com_saldo(
+            papel=papel_efetivo(chefe_almoxarifado), busca='Tinta'
+        )
         assert set(resultado.values_list('material__pk', flat=True)) == {
             material_scpi_critico.pk
         }
@@ -562,11 +567,77 @@ class TestListarMateriaisComSaldo:
     ):
         from apps.estoque.selectors import listar_materiais_com_saldo
 
-        resultado = listar_materiais_com_saldo(busca='')
+        resultado = listar_materiais_com_saldo(
+            papel=papel_efetivo(chefe_almoxarifado), busca=''
+        )
         assert set(resultado.values_list('material__pk', flat=True)) == {
             material_disponivel.pk,
             material_scpi_critico.pk,
         }
+
+    # --- Escopo do marcador EST-07 (L89) --------------------------------
+
+    @pytest.mark.parametrize(
+        'papel', ['solicitante', 'aux_obras', 'chefe_obras', 'usuario_inativo']
+    )
+    def test_marcador_est07_nao_vaza_para_fora_do_almoxarifado(
+        self, request, papel, material_scpi_critico, estoque_principal
+    ):
+        """L89 nega divergência crítica a solicitante, aux. setor e chefe setor.
+
+        `material_scpi_critico` tem físico < reservado, então o marcador é
+        verdadeiro para quem pode ver. Para estes papéis vem `False` **anotado**,
+        não ausente: o queryset segue homogêneo e ninguém colhe `AttributeError`.
+        """
+        from apps.estoque.selectors import listar_materiais_com_saldo
+
+        ator = request.getfixturevalue(papel)
+        resultado = listar_materiais_com_saldo(papel=papel_efetivo(ator))
+        saldo = resultado.get(material=material_scpi_critico)
+        assert saldo.divergente_calculado is False
+
+    @pytest.mark.parametrize(
+        'papel', ['chefe_almoxarifado', 'aux_almoxarifado', 'superuser']
+    )
+    def test_marcador_est07_chega_ao_almoxarifado_e_ao_superuser(
+        self, request, papel, material_scpi_critico, estoque_principal
+    ):
+        from apps.estoque.selectors import listar_materiais_com_saldo
+
+        ator = request.getfixturevalue(papel)
+        resultado = listar_materiais_com_saldo(papel=papel_efetivo(ator))
+        saldo = resultado.get(material=material_scpi_critico)
+        assert saldo.divergente_calculado is True
+
+    def test_catalogo_segue_completo_para_quem_nao_ve_o_marcador(
+        self,
+        solicitante,
+        material_disponivel,
+        material_scpi_critico,
+        estoque_principal,
+    ):
+        """O escopo é do marcador, não das linhas.
+
+        A L72 dá o catálogo aos seis papéis. Restringir o EST-07 não pode virar
+        recorte de material, senão o solicitante perde a tela inteira.
+        """
+        from apps.estoque.selectors import listar_materiais_com_saldo
+
+        resultado = listar_materiais_com_saldo(papel=papel_efetivo(solicitante))
+        assert set(resultado.values_list('material__pk', flat=True)) == {
+            material_disponivel.pk,
+            material_scpi_critico.pk,
+        }
+
+    def test_papel_inativo_nao_recebe_o_marcador(
+        self, usuario_inativo, material_scpi_critico, estoque_principal
+    ):
+        """Papel sem ``ativo`` cai no lado fechado, não no aberto."""
+        from apps.estoque.selectors import listar_materiais_com_saldo
+
+        resultado = listar_materiais_com_saldo(papel=papel_efetivo(usuario_inativo))
+        saldo = resultado.get(material=material_scpi_critico)
+        assert saldo.divergente_calculado is False
 
 
 class TestMovimentacoesVisiveisPara:

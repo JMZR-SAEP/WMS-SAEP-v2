@@ -1009,7 +1009,10 @@ PAGINA_MATERIAIS_TAMANHO = 25
 @require_GET
 def lista_materiais_view(request):
     from apps.core.exceptions import PermissaoNegada
-    from apps.estoque.policies import exigir_pode_consultar_catalogo_estoque
+    from apps.estoque.policies import (
+        exigir_pode_consultar_catalogo_estoque,
+        pode_consultar_divergencias_criticas,
+    )
     from apps.estoque.selectors import listar_materiais_com_saldo
 
     papel = papel_efetivo(request.user)
@@ -1019,7 +1022,7 @@ def lista_materiais_view(request):
         raise PermissionDenied(str(exc))
 
     busca = request.GET.get('busca', '').strip()
-    saldos = listar_materiais_com_saldo(busca=busca)
+    saldos = listar_materiais_com_saldo(papel=papel, busca=busca)
     page_obj = paginar(request, saldos, per_page=PAGINA_MATERIAIS_TAMANHO)
     return render(
         request,
@@ -1029,5 +1032,14 @@ def lista_materiais_view(request):
             'saldos': page_obj.object_list,
             'busca': busca,
             'querystring_filtros': querystring_sem_page(request.GET),
+            # O marcador EST-07 já vem zerado do selector para quem não pode
+            # vê-lo, então a lavagem e o badge do cartão caem sozinhos. A flag
+            # serve aos dois `<dt>` de operando (`Físico:` e `Reservado:`), que
+            # não dependem de `divergente_calculado` e por isso precisam de
+            # gate próprio: `físico < reservado` é o invariante, e imprimir os
+            # dois lados enquanto se esconde o rótulo não implementaria a L89.
+            # ADR-0011 autoriza view/template a chamar `pode_*` para controle
+            # de renderização.
+            'pode_ver_divergencias': pode_consultar_divergencias_criticas(papel),
         },
     )

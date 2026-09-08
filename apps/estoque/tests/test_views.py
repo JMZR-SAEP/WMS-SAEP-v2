@@ -3001,6 +3001,61 @@ class TestListaMateriaisView:
         critico = next(s for s in saldos if s.material == material_scpi_critico)
         assert critico.divergente_calculado is True
 
+    # --- Escopo do marcador EST-07 no HTML renderizado (L89, #178) --------
+
+    def test_solicitante_nao_ve_o_marcador_de_divergencia(
+        self, client, solicitante, material_scpi_critico, estoque_principal
+    ):
+        """L89 nega divergência crítica a quem não é do almoxarifado.
+
+        Smoke de renderização, não réplica da matriz (ADR-0010): o recorte é
+        travado nos testes de policy e de selector. Aqui só se confirma que o
+        gate chega ao HTML — era o HTML que vazava.
+        """
+        client.force_login(solicitante)
+        response = client.get(URL_MATERIAIS)
+        assert response.status_code == 200
+        conteudo = response.content.decode()
+        assert 'Divergente' not in conteudo
+        assert 'Divergência crítica' not in conteudo
+        assert 'border-danger-border-strong' not in conteudo
+
+    def test_solicitante_nao_ve_os_operandos_do_invariante(
+        self, client, solicitante, material_scpi_critico, estoque_principal
+    ):
+        """EST-07 é `físico < reservado`.
+
+        Esconder o badge e imprimir os dois lados deixaria a subtração na tela:
+        seria remover o rótulo, não a informação.
+        """
+        client.force_login(solicitante)
+        conteudo = client.get(URL_MATERIAIS).content.decode()
+        assert 'Físico:' not in conteudo
+        assert 'Reservado:' not in conteudo
+
+    def test_solicitante_continua_vendo_o_disponivel(
+        self, client, solicitante, material_disponivel, estoque_principal
+    ):
+        """Guarda contra esconder demais.
+
+        A L72 dá o catálogo aos seis papéis, e `Disponível` é o número que o
+        solicitante usa para pedir. Se este teste falhar, o recorte do #178
+        passou do marcador para o dado de requisição.
+        """
+        client.force_login(solicitante)
+        conteudo = client.get(URL_MATERIAIS).content.decode()
+        assert 'Disponível:' in conteudo
+
+    def test_almoxarifado_continua_vendo_marcador_e_operandos(
+        self, client, aux_almoxarifado, material_scpi_critico, estoque_principal
+    ):
+        """Controle positivo: a L89 concede ao auxiliar de almoxarifado."""
+        client.force_login(aux_almoxarifado)
+        conteudo = client.get(URL_MATERIAIS).content.decode()
+        assert 'Divergente' in conteudo
+        assert 'Físico:' in conteudo
+        assert 'Reservado:' in conteudo
+
     def test_renderiza_cartoes(
         self, client, chefe_almoxarifado, material_disponivel, estoque_principal
     ):

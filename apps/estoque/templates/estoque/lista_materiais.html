@@ -87,15 +87,33 @@
             dígito com dígito, não parágrafo com parágrafo. Um livro-razão cuja
             coluna de números zigueza não é um livro-razão.
           {% endcomment %}
+          {% comment %}
+            `Físico` e `Reservado` só para o almoxarifado (#178). O marcador de
+            divergência crítica é a L89 da matriz, e EST-07 é exatamente
+            `físico < reservado`: esconder o badge e manter os dois operandos
+            lado a lado removeria o rótulo, não a informação — a subtração
+            estaria na tela. A lavagem do cartão, o badge "Divergente" e o
+            `tom="danger"` do Disponível não precisam desta flag porque o
+            selector já entrega `divergente_calculado` falso para quem não pode
+            vê-lo.
+
+            `Disponível` fica para todos: é a L72, é o número que o solicitante
+            usa para pedir, e é o único que sobra. Num material divergente ele
+            é negativo, então a divergência segue derivável por quem souber ler
+            o sinal — limite assumido, e a L71 já bloqueia a seleção desse
+            material no autocomplete de requisição por desenho.
+          {% endcomment %}
           <dl class="mt-4 space-y-1 text-sm">
-            <div class="flex items-baseline justify-between gap-x-2">
-              <dt class="shrink-0 text-text-tertiary">Físico:</dt>
-              <dd class="shrink-0">{% include "components/quantidade.html" with valor=saldo.saldo_fisico unidade=saldo.material.unidade %}</dd>
-            </div>
-            <div class="flex items-baseline justify-between gap-x-2">
-              <dt class="shrink-0 text-text-tertiary">Reservado:</dt>
-              <dd class="shrink-0">{% include "components/quantidade.html" with valor=saldo.saldo_reservado unidade=saldo.material.unidade %}</dd>
-            </div>
+            {% if pode_ver_divergencias %}
+              <div class="flex items-baseline justify-between gap-x-2">
+                <dt class="shrink-0 text-text-tertiary">Físico:</dt>
+                <dd class="shrink-0">{% include "components/quantidade.html" with valor=saldo.saldo_fisico unidade=saldo.material.unidade %}</dd>
+              </div>
+              <div class="flex items-baseline justify-between gap-x-2">
+                <dt class="shrink-0 text-text-tertiary">Reservado:</dt>
+                <dd class="shrink-0">{% include "components/quantidade.html" with valor=saldo.saldo_reservado unidade=saldo.material.unidade %}</dd>
+              </div>
+            {% endif %}
             <div class="flex items-baseline justify-between gap-x-2">
               <dt class="shrink-0 text-text-tertiary">Disponível:</dt>
               <dd class="shrink-0">{% if saldo.divergente_calculado %}{% include "components/quantidade.html" with valor=saldo.saldo_disponivel_calculado unidade=saldo.material.unidade tom="danger" %}{% else %}{% include "components/quantidade.html" with valor=saldo.saldo_disponivel_calculado unidade=saldo.material.unidade %}{% endif %}</dd>

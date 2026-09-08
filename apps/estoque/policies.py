@@ -119,6 +119,33 @@ def exigir_pode_consultar_catalogo_estoque(papel: 'PapelEfetivo') -> None:
         )
 
 
+def pode_consultar_divergencias_criticas(papel: 'PapelEfetivo') -> bool:
+    """Pode ver o marcador de divergência crítica (invariante EST-07).
+
+    ``docs/matriz-permissoes.md`` L89 ("Consultar divergências críticas"):
+    auxiliar de almoxarifado, chefe de almoxarifado e superuser. Solicitante,
+    auxiliar de setor e chefe de setor não — o marcador é informação de gestão
+    de estoque, não de requisição.
+
+    Policy própria, e não reuso de ``pode_consultar_saidas_excepcionais``, que
+    hoje tem corpo idêntico: L77 e L89 são duas linhas distintas da matriz, e
+    amarrá-las faria uma mudança futura em uma mover a outra em silêncio
+    (ADR-0011: uma policy por decisão de domínio).
+
+    Sem par ``exigir_pode_*``: esta policy não guarda endpoint nenhum. O acesso
+    ao catálogo é da L72 e continua aberto a todo usuário ativo — aqui só se
+    decide o *escopo do conteúdo*, consumido por
+    ``selectors.listar_materiais_com_saldo`` e pelo template. Criar um
+    ``exigir_*`` que ninguém chama plantaria de novo o defeito que a #181
+    diagnosticou em ``pode_ver_notificacao``.
+    """
+    if not papel.ativo:
+        return False
+    if papel.eh_superusuario:
+        return True
+    return _eh_almoxarifado(papel)
+
+
 def pode_gerir_catalogo(papel: 'PapelEfetivo') -> bool:
     """Superusuário pode gerir (ativar/desativar) materiais do catálogo."""
     return papel.ativo and papel.eh_superusuario
@@ -129,10 +156,6 @@ def exigir_pode_gerir_catalogo(papel: 'PapelEfetivo') -> None:
         raise PermissaoNegada(
             'Apenas superusuários podem gerir o catálogo de materiais.'
         )
-
-
-def _eh_chefe_ou_aux_setor_nao_almox(papel: 'PapelEfetivo') -> bool:
-    return bool(papel.setores_em_escopo)
 
 
 def pode_consultar_movimentacoes_estoque(papel: 'PapelEfetivo') -> bool:

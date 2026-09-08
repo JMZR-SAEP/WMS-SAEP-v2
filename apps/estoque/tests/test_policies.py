@@ -15,6 +15,7 @@ from apps.estoque.policies import (
     exigir_pode_registrar_saida_excepcional,
     exigir_pode_visualizar_preview_scpi,
     pode_consultar_catalogo_estoque,
+    pode_consultar_divergencias_criticas,
     pode_consultar_historico_scpi,
     pode_consultar_movimentacoes_estoque,
     pode_consultar_saidas_excepcionais,
@@ -318,6 +319,13 @@ class TestPodeConsultarCatalogoEstoque:
     def test_solicitante_pode(self):
         assert pode_consultar_catalogo_estoque(SOLICITANTE) is True
 
+    def test_chefe_setor_nao_almox_pode(self):
+        """L72 dá o catálogo aos seis papéis; faltava na matriz testada (#178)."""
+        assert pode_consultar_catalogo_estoque(CHEFE_OBRAS) is True
+
+    def test_aux_setor_nao_almox_pode(self):
+        assert pode_consultar_catalogo_estoque(AUX_OBRAS) is True
+
     def test_inativo_nao_pode(self):
         assert pode_consultar_catalogo_estoque(INATIVO) is False
 
@@ -329,6 +337,35 @@ class TestExigirPodeConsultarCatalogoEstoque:
     def test_inativo_lanca(self):
         with pytest.raises(PermissaoNegada):
             exigir_pode_consultar_catalogo_estoque(INATIVO)
+
+
+# ---------------------------------------------------------------------------
+# pode_consultar_divergencias_criticas
+# ---------------------------------------------------------------------------
+
+
+class TestPodeConsultarDivergenciasCriticas:
+    """L89 da matriz: Não | Não | Não | Sim | Sim | Sim."""
+
+    @pytest.mark.parametrize('papel', [CHEFE_ALMOX, AUX_ALMOX, SUPERUSER])
+    def test_almoxarifado_e_superuser_podem(self, papel):
+        assert pode_consultar_divergencias_criticas(papel) is True
+
+    @pytest.mark.parametrize(
+        'papel', [SOLICITANTE, CHEFE_OBRAS, AUX_OBRAS, INATIVO, SUPERUSER_INATIVO]
+    )
+    def test_fora_do_almoxarifado_e_inativo_nao_podem(self, papel):
+        assert pode_consultar_divergencias_criticas(papel) is False
+
+    def test_nao_coincide_com_o_acesso_ao_catalogo(self):
+        """L72 abre o catálogo a todos, L89 não abre o marcador.
+
+        As duas decisões vivem na mesma tela e são diferentes. Se algum dia
+        coincidirem, é regressão — foi essa coincidência que deixou o marcador
+        do EST-07 visível a solicitante, auxiliar e chefe de setor.
+        """
+        assert pode_consultar_catalogo_estoque(SOLICITANTE) is True
+        assert pode_consultar_divergencias_criticas(SOLICITANTE) is False
 
 
 # ---------------------------------------------------------------------------

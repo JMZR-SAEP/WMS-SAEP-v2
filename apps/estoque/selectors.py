@@ -7,7 +7,7 @@ from decimal import Decimal, InvalidOperation
 from django.db.models import Count, Exists, OuterRef, Q, QuerySet
 
 from apps.accounts.models import User
-from apps.accounts.papeis import papel_efetivo
+from apps.accounts.papeis import PapelEfetivo, papel_efetivo
 from apps.requisicoes.models import EstadoRequisicao
 from apps.estoque.models import (
     Material,
@@ -301,7 +301,26 @@ def listar_divergencias_importacao_scpi(*, importacao_id: int):
     )
 
 
-def listar_materiais_com_saldo(*, busca: str = ''):
+def listar_materiais_com_saldo(*, papel: PapelEfetivo, busca: str = ''):
+    """Catálogo de materiais com saldo, com o marcador EST-07 escopado.
+
+    RBAC do *conteúdo* (fronteira de segurança — nunca na view/template): o
+    acesso à página é a L72 e vale para todo usuário ativo, mas
+    ``divergente_calculado`` é o marcador do invariante EST-07 (``físico <
+    reservado``), que a ``docs/matriz-permissoes.md`` L89 restringe ao
+    almoxarifado (chefe/aux) e ao superuser.
+
+    Para quem não pode ver, o campo é anotado como ``False`` constante em vez de
+    omitido. Queryset heterogêneo daria dois comportamentos para o mesmo dado
+    ausente: ``AttributeError`` em qualquer acesso Python e falsy silencioso no
+    template, que resolve atributo inexistente por ``string_if_invalid``.
+
+    Recebe o ``PapelEfetivo`` já resolvido em vez de ``ator_id``: a view leva o
+    mesmo marcador para o template, e a ADR-0011 manda resolver o snapshot uma
+    vez por caso de uso — dois ``papel_efetivo`` para a mesma requisição
+    abririam janela para o vínculo mudar entre as consultas e liberar os
+    operandos enquanto o marcador é negado (ou vice-versa).
+    """
     from django.db.models import (
         BooleanField,
         Case,
@@ -309,10 +328,24 @@ def listar_materiais_com_saldo(*, busca: str = ''):
         ExpressionWrapper,
         F,
         Q,
+        Value,
         When,
     )
 
     from apps.estoque.models import SaldoEstoque
+    from apps.estoque.policies import pode_consultar_divergencias_criticas
+
+    pode_ver_divergencia = pode_consultar_divergencias_criticas(papel)
+
+    divergente = (
+        Case(
+            When(saldo_fisico__lt=F('saldo_reservado'), then=True),
+            default=False,
+            output_field=BooleanField(),
+        )
+        if pode_ver_divergencia
+        else Value(False, output_field=BooleanField())
+    )
 
     qs = (
         SaldoEstoque.objects.select_related('material', 'estoque')
@@ -321,11 +354,7 @@ def listar_materiais_com_saldo(*, busca: str = ''):
                 F('saldo_fisico') - F('saldo_reservado'),
                 output_field=DecimalField(max_digits=12, decimal_places=3),
             ),
-            divergente_calculado=Case(
-                When(saldo_fisico__lt=F('saldo_reservado'), then=True),
-                default=False,
-                output_field=BooleanField(),
-            ),
+            divergente_calculado=divergente,
         )
         # Pelo código, não pelo nome: o cartão imprime o código como `<h2>` em
         # semibold e o nome como linha secundária em cinza, então ordenar por
