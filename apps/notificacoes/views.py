@@ -1,12 +1,16 @@
 """Views de notificações in-app."""
 
 from django.contrib.auth.decorators import login_required
+from django.http import Http404
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST
 
+from apps.accounts.papeis import papel_efetivo
+from apps.core.exceptions import PermissaoNegada
 from apps.core.http import htmx_redirect
 from apps.notificacoes.models import Notificacao
+from apps.notificacoes.policies import exigir_pode_ver_notificacao
 from apps.notificacoes.selectors import notificacoes_para_exibicao
 from apps.notificacoes.services import (
     marcar_notificacao_lida,
@@ -44,7 +48,32 @@ def lista_notificacoes_view(request):
 @login_required
 @require_POST
 def marcar_lida_view(request, pk: int):
-    notificacao = get_object_or_404(Notificacao, pk=pk, destinatario=request.user)
+    """Marca uma notificação como lida, com a policy decidindo o acesso.
+
+    A carga é sem escopo e quem nega é ``exigir_pode_ver_notificacao`` (#181).
+    Antes, o recorte por destinatário estava no ``get_object_or_404``, e a
+    regra "só o destinatário vê a notificação" tinha duas fontes de verdade —
+    a policy e o filtro de ORM — que a ADR-0011 existe para evitar. A policy
+    era a que ninguém chamava: no dia em que a regra mudasse, mudaria de um
+    lado só.
+    """
+    notificacao = get_object_or_404(Notificacao, pk=pk)
+    try:
+        exigir_pode_ver_notificacao(papel_efetivo(request.user), notificacao)
+    except PermissaoNegada as exc:
+        # 404 e não 403, de propósito. Notificação de terceiro é objeto **fora
+        # do escopo de visibilidade**, e a ADR-0010 reserva o 403 para ação
+        # proibida em objeto visível: "para objetos sensíveis (detail view fora
+        # do escopo de visibilidade do ator): 404 para não revelar existência".
+        # Um 403 aqui confirmaria a existência da notificação `pk` a qualquer
+        # usuário autenticado, abrindo enumeração — o mesmo argumento que
+        # `requisicoes/views.py` já aplica.
+        #
+        # É substituição explícita do mapeamento canônico da ADR-0011
+        # (`PermissaoNegada` → 403), que a própria emenda autoriza "por
+        # requisito de contrato do endpoint... nunca acidente".
+        raise Http404(str(exc)) from exc
+
     marcar_notificacao_lida(ator_id=request.user.pk, notificacao_id=notificacao.pk)
     return htmx_redirect(request, reverse('notificacoes:lista'))
 

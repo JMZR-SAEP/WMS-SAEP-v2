@@ -8,6 +8,8 @@ from apps.notificacoes.models import Notificacao, TipoNotificacao
 from apps.notificacoes.services import (
     criar_notificacoes_para,
     criar_notificacoes_para_destinatarios,
+    marcar_notificacao_lida,
+    marcar_todas_notificacoes_lidas,
 )
 
 
@@ -943,3 +945,70 @@ def test_saida_excepcional_sem_divergencia_nao_notifica(
     assert not Notificacao.objects.filter(
         tipo=TipoNotificacao.DIVERGENCIA_ESTOQUE
     ).exists()
+
+
+# ---------------------------------------------------------------------------
+# Issue #181 — o filtro por destinatário nos services de leitura
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_marcar_notificacao_lida_ignora_notificacao_alheia(
+    solicitante, outro_solicitante
+):
+    """O ``destinatario_id`` do filtro é revalidação, e precisa de teste.
+
+    A #181 rebaixou esse filtro de regra a consequência — a regra passou para
+    ``pode_ver_notificacao``, chamada pela view. Sem este teste, a próxima
+    refatoração remove o filtro e nada falha: a view protege o caminho HTTP,
+    mas o service é chamável de management command, shell e futuro caso de uso.
+    """
+    alheia = Notificacao.objects.create(
+        destinatario=solicitante,
+        tipo=TipoNotificacao.AUTORIZACAO,
+        requisicao_id=10,
+    )
+
+    marcar_notificacao_lida(ator_id=outro_solicitante.pk, notificacao_id=alheia.pk)
+
+    alheia.refresh_from_db()
+    assert alheia.lida is False
+
+
+@pytest.mark.django_db
+def test_marcar_notificacao_lida_marca_a_propria(solicitante):
+    """Controle positivo do teste acima."""
+    propria = Notificacao.objects.create(
+        destinatario=solicitante,
+        tipo=TipoNotificacao.AUTORIZACAO,
+        requisicao_id=10,
+    )
+
+    marcar_notificacao_lida(ator_id=solicitante.pk, notificacao_id=propria.pk)
+
+    propria.refresh_from_db()
+    assert propria.lida is True
+
+
+@pytest.mark.django_db
+def test_marcar_todas_lidas_nao_alcanca_outro_destinatario(
+    solicitante, outro_solicitante
+):
+    """O recorte por ator é o escopo da operação — não pode transbordar."""
+    minha = Notificacao.objects.create(
+        destinatario=solicitante,
+        tipo=TipoNotificacao.AUTORIZACAO,
+        requisicao_id=10,
+    )
+    alheia = Notificacao.objects.create(
+        destinatario=outro_solicitante,
+        tipo=TipoNotificacao.AUTORIZACAO,
+        requisicao_id=11,
+    )
+
+    marcar_todas_notificacoes_lidas(ator_id=solicitante.pk)
+
+    minha.refresh_from_db()
+    alheia.refresh_from_db()
+    assert minha.lida is True
+    assert alheia.lida is False

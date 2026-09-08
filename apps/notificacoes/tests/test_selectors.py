@@ -412,3 +412,36 @@ class TestContagemDoSino:
         # A única requisição avaliada é a que ainda espera autorização; as
         # trinta já atendidas nem saem do banco.
         assert avaliadas_curto == avaliadas_longo == 1
+
+
+# ---------------------------------------------------------------------------
+# Issue #181 — USR-01: pessoa inativa não lê notificação
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_notificacoes_para_exibicao_devolve_vazio_para_inativo(solicitante):
+    """USR-01 na camada de leitura, não só no ``login_required``.
+
+    A ``docs/matriz-invariantes.md`` credita a garantia à policy de leitura, e
+    a policy não era chamada — nem o selector tinha cláusula de atividade. O
+    ``ModelBackend`` já barra o inativo no caminho HTTP, mas o selector é
+    chamável de shell e de management command.
+    """
+    Notificacao.objects.create(
+        destinatario=solicitante,
+        tipo=TipoNotificacao.AUTORIZACAO,
+        requisicao_id=10,
+    )
+    assert notificacoes_para_exibicao(solicitante.pk) != []
+
+    solicitante.is_active = False
+    solicitante.save(update_fields=['is_active'])
+
+    assert notificacoes_para_exibicao(solicitante.pk) == []
+
+
+@pytest.mark.django_db
+def test_notificacoes_para_exibicao_devolve_vazio_para_ator_inexistente(db):
+    """Destinatário que não resolve cai no lado fechado, não no aberto."""
+    assert notificacoes_para_exibicao(10**9) == []

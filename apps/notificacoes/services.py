@@ -51,7 +51,14 @@ def criar_notificacoes_para(
 
 @transaction.atomic
 def marcar_notificacao_lida(*, ator_id: int, notificacao_id: int) -> None:
-    """Marca notificação individual como lida, ignorando se já lida."""
+    """Marca notificação individual como lida, ignorando se já lida.
+
+    O ``destinatario_id=ator_id`` no filtro é **revalidação sob transação**, não
+    a regra: a regra vive em ``policies.pode_ver_notificacao``, chamada pela
+    view antes daqui (#181). Fica porque um ``.update()`` sem ele confiaria em
+    todo chamador presente e futuro ter passado pelo gate — mas não é a fonte
+    de verdade, e não deve ser lido como tal.
+    """
     Notificacao.objects.filter(
         pk=notificacao_id,
         destinatario_id=ator_id,
@@ -61,5 +68,10 @@ def marcar_notificacao_lida(*, ator_id: int, notificacao_id: int) -> None:
 
 @transaction.atomic
 def marcar_todas_notificacoes_lidas(*, ator_id: int) -> None:
-    """Marca todas as notificações não lidas do ator como lidas."""
+    """Marca todas as notificações não lidas do ator como lidas.
+
+    Não há objeto único a autorizar: o recorte por ``ator_id`` **é** o escopo
+    da operação, no mesmo espírito do selector da listagem. Ver a nota de
+    ``marcar_notificacao_lida`` sobre revalidação.
+    """
     Notificacao.objects.filter(destinatario_id=ator_id, lida=False).update(lida=True)
