@@ -22,7 +22,16 @@
       :class="arrastando ? 'border-border-focus bg-primary-subtle' : ''"
       @dragover.prevent="arrastando = true"
       @dragleave.prevent="arrastando = false"
-      @drop.prevent="arrastando = false; $refs.arquivo.files = $event.dataTransfer.files; $refs.form.submit()"
+      {% comment %}
+        Soltar o arquivo SELECIONA, como a instrução da tela promete ("Arraste
+        o arquivo aqui ou clique para selecionar") — não envia. Antes chamava
+        `$refs.form.submit()`, que além de divergir do caminho por clique é
+        submissão programática: não dispara o evento `submit`, então pulava a
+        guarda `data-prevent-double-submit`, o rótulo de carregamento e a
+        validação de `required`. O `change` sintético existe porque atribuir
+        `.files` por script não emite evento nenhum.
+      {% endcomment %}
+      @drop.prevent="arrastando = false; $refs.arquivo.files = $event.dataTransfer.files; $refs.arquivo.dispatchEvent(new Event('change', { bubbles: true }))"
     >
       <div class="mx-auto max-w-md text-center">
         <div
@@ -219,7 +228,11 @@
         <span class="hidden max-w-[12rem] truncate text-xs text-text-tertiary sm:block" title="{{ nome_arquivo }}">
           {{ nome_arquivo }}
         </span>
-        <form method="post" enctype="multipart/form-data" class="inline">
+        {% comment %}
+          `data-prevent-double-submit` aqui porque a seleção do arquivo É o
+          gesto de envio: não há botão intermediário para travar.
+        {% endcomment %}
+        <form method="post" enctype="multipart/form-data" class="inline" data-prevent-double-submit>
           {% csrf_token %}
           <label
             for="arquivo-novo"
@@ -240,7 +253,11 @@
               name="arquivo"
               accept=".csv,text/csv,text/plain"
               class="sr-only"
-              onchange="this.form.submit()"
+              {% comment %}
+                `requestSubmit()`, não `submit()`: só ele dispara o evento
+                `submit` de que a guarda de duplo envio depende.
+              {% endcomment %}
+              onchange="this.form.requestSubmit()"
             >
           </label>
         </form>

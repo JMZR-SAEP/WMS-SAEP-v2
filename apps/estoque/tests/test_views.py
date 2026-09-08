@@ -1207,6 +1207,20 @@ class TestPreviewImportacaoScpiView:
         resp = client.get(self.URL)
         assert resp.status_code == 200
 
+    def test_dropzone_nao_submete_programaticamente(self, client, chefe_almoxarifado):
+        """Soltar o arquivo seleciona; quem envia é o botão.
+
+        `form.submit()` não dispara o evento `submit`: o caminho por arraste
+        pulava a guarda de duplo envio, o rótulo de carregamento e a validação
+        de `required`, e ainda enviava sem a revisão que o caminho por clique
+        exige. A tela promete "Arraste o arquivo aqui ou clique para
+        selecionar" — o código prometia outra coisa.
+        """
+        client.force_login(chefe_almoxarifado)
+        html = client.get(self.URL).content.decode()
+        assert '.submit()' not in html
+        assert "dispatchEvent(new Event('change'" in html
+
     def test_post_csv_valido_retorna_200_com_preview(
         self, client, superuser, estoque_principal, material_scpi
     ):
