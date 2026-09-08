@@ -118,6 +118,30 @@ def _voltar_url(request, default: str = '') -> str:
     return voltar_url_seguro(request, default=default or reverse('requisicoes:minhas'))
 
 
+def _saldo_info_do_formset(formset) -> dict[str, dict]:
+    """`saldo_info` reconstruído a partir dos materiais já vinculados no formset.
+
+    O GET monta esse mapa a partir dos itens gravados, mas o POST inválido
+    re-renderiza o formulário sem ele — e `components/item_form_row.html` lê dali
+    a unidade que estreita o `step` do campo de quantidade. Sem o mapa, a linha
+    voltava com o passo genérico depois de um erro de validação, e um material
+    medido em unidade passava a aceitar `1,5` no navegador.
+
+    Lê o valor cru do campo (`BoundField.value()`) porque no caminho inválido
+    `cleaned_data` pode não existir: o material continua escolhido na tela mesmo
+    quando outra linha derrubou a validação.
+    """
+    ids: list[int] = []
+    for form in formset.forms:
+        try:
+            ids.append(int(form['material_id'].value()))
+        except (TypeError, ValueError):
+            continue
+    if not ids:
+        return {}
+    return {str(k): v for k, v in saldos_por_materiais(ids).items()}
+
+
 def _pode_copiar_agora(papel: PapelEfetivo, requisicao: Requisicao) -> bool:
     """Estado copiável + permissão do ator.
 
@@ -417,6 +441,7 @@ def nova_requisicao(request):
                 'formset': formset,
                 'modo': 'criar',
                 'escopo': escopo,
+                'saldo_info': _saldo_info_do_formset(formset),
             },
         )
 
@@ -495,6 +520,7 @@ def editar_rascunho_view(request, pk: int):
                 'formset': formset,
                 'modo': 'editar',
                 'requisicao': requisicao,
+                'saldo_info': _saldo_info_do_formset(formset),
             },
         )
 

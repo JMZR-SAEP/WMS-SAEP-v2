@@ -6557,3 +6557,70 @@ def test_autocomplete_de_materiais_manda_o_passo_da_unidade(
     passos = {r['codigo']: r['step'] for r in dados['resultados']}
     assert passos['MAT001'] == '1'
     assert passos['MAT900'] == '0.1'
+
+
+def test_post_invalido_preserva_o_passo_da_unidade_do_material(
+    client, solicitante, material_disponivel
+):
+    """Depois de um erro de validação, a linha volta com o passo da unidade.
+
+    O POST inválido re-renderizava o formulário sem `saldo_info`, então
+    `unidade_efetiva` ficava vazia e o campo voltava com o `step` genérico. Num
+    material medido em unidade isso fazia o navegador aceitar `1,5` — o passo
+    fixo antigo protegia esse caso por acidente, e a correção da fração o
+    desprotegeu.
+    """
+    _login(client, solicitante)
+    # Quantidade zero derruba a validação e força o re-render.
+    dados = _formset_post(material_disponivel.pk, quantidade='0')
+    html = client.post(reverse('requisicoes:nova_requisicao'), dados).content.decode()
+    campo = re.search(
+        r'<input[^>]*id="id_itens-0-quantidade_solicitada"[^>]*>', html
+    ).group()
+    assert 'step="1"' in campo
+    assert 'step="any"' not in campo
+
+
+def test_servidor_recusa_fracao_em_material_medido_em_unidade(
+    client, solicitante, material_disponivel
+):
+    """O `step` é barreira de navegador, e barreira de navegador não valida.
+
+    `DecimalField(decimal_places=3)` aceita `1,5` para `un` tanto quanto para
+    `kg`: sem esta checagem, quem contornasse o campo numérico gravava meia
+    unidade de parafuso no ledger.
+    """
+    _login(client, solicitante)
+    dados = _formset_post(material_disponivel.pk, quantidade='1.5')
+    resp = client.post(reverse('requisicoes:nova_requisicao'), dados)
+
+    assert resp.status_code == 200
+    assert not Requisicao.objects.filter(criador=solicitante).exists()
+    assert 'não admite fração' in resp.content.decode()
+
+
+def test_servidor_aceita_a_fracao_que_a_unidade_admite(
+    client, solicitante, material_em_metros
+):
+    """A recusa é da casa a mais, não da fração — metro admite uma casa."""
+    _login(client, solicitante)
+    resp = client.post(
+        reverse('requisicoes:nova_requisicao'),
+        _formset_post(material_em_metros.pk, quantidade='2.5'),
+    )
+    assert resp.status_code == 302
+    assert Requisicao.objects.filter(criador=solicitante).exists()
+
+
+def test_servidor_recusa_casa_a_mais_do_que_a_unidade_admite(
+    client, solicitante, material_em_metros
+):
+    """Metro admite uma casa; `2,55` é precisão que a medida não sustenta."""
+    _login(client, solicitante)
+    resp = client.post(
+        reverse('requisicoes:nova_requisicao'),
+        _formset_post(material_em_metros.pk, quantidade='2.55'),
+    )
+    assert resp.status_code == 200
+    assert not Requisicao.objects.filter(criador=solicitante).exists()
+    assert 'no máximo 1 casa decimal' in resp.content.decode()
