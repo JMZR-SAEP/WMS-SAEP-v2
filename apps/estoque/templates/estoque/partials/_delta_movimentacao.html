@@ -50,6 +50,22 @@ certo, nunca o `1,000` que a Regra existe para impedir. É por esse caminho que
 a lista de divergências do SCPI, que não tem unidade, ainda imprime o número
 certo.
 
+── `mostrar_unidade`, opt-in (#187) ──────────────────────────────────────────
+
+`unidade` sozinha decide a **precisão**; `mostrar_unidade` decide se o símbolo
+aparece ao lado do número. São coisas separadas porque os chamadores querem
+coisas diferentes.
+
+No histórico de movimentações a coluna inteira é de um material só, nomeado no
+cabeçalho do cartão: repetir `m` em cada linha seria ruído, e por isso o default
+é não imprimir. Nas duas telas do SCPI a lista mistura materiais de unidades
+diferentes na mesma coluna, e ali `−120` e `−140` sem símbolo são a lacuna que a
+#187 existe para fechar — a precisão distingue `−120,0` de `−140`, mas só quando
+a unidade é fracionária; entre dois materiais de 3 casas ela não distingue nada.
+
+O símbolo vai em `text-text-secondary`, um degrau abaixo do número: quem lê a
+coluna compara grandezas, e a unidade é qualificador, não o dado.
+
 O zero segue impresso como literal `0` e não pelo filtro: é ausência de
 movimento, não uma quantidade medida, e não deve ganhar a casa decimal que a
 unidade fracionária imporia. Fica sem o `font-medium` e sem triângulo — nada
@@ -57,9 +73,9 @@ aconteceu para destacar.
 {% endcomment %}
 {% with u=unidade|default:'' %}
   {% if valor > 0 %}
-    <span class="font-mono font-medium tabular-nums text-text-primary"><span aria-hidden="true">▲</span> +{{ valor|formatar_quantidade:u }}</span>
+    <span class="font-mono font-medium tabular-nums text-text-primary"><span aria-hidden="true">▲</span> +{{ valor|formatar_quantidade:u }}{% if mostrar_unidade and u %} <span class="text-text-secondary">{{ u }}</span>{% endif %}</span>
   {% elif valor < 0 %}
-    <span class="font-mono font-medium tabular-nums text-text-primary"><span aria-hidden="true">▼</span> −{{ valor|formatar_quantidade:u|cut:"-" }}</span>
+    <span class="font-mono font-medium tabular-nums text-text-primary"><span aria-hidden="true">▼</span> −{{ valor|formatar_quantidade:u|cut:"-" }}{% if mostrar_unidade and u %} <span class="text-text-secondary">{{ u }}</span>{% endif %}</span>
   {% else %}
     <span class="font-mono tabular-nums text-text-tertiary">0</span>
   {% endif %}

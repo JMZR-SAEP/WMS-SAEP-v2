@@ -411,7 +411,7 @@
                   passa por `formatar_quantidade`, então a precisão por unidade
                   desta tela (a razão de ela existir) segue intacta.
                 {% endcomment %}
-                <dd class="mt-0.5">{% include 'estoque/partials/_delta_movimentacao.html' with valor=linha.delta unidade=linha.unidade %}</dd>
+                <dd class="mt-0.5">{% include 'estoque/partials/_delta_movimentacao.html' with valor=linha.delta unidade=linha.unidade mostrar_unidade=True %}</dd>
               </div>
             </dl>
           </article>

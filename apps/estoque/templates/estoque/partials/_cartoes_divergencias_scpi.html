@@ -58,14 +58,16 @@ Quem chama fecha o container: </div>
             Delta pelo átomo `_delta_movimentacao.html` — a mesma grafia do
             histórico de movimentações e do preview do SCPI (issue #163):
             `font-mono`, cor neutra, `▲`/`▼` `aria-hidden` com o sinal `+`/`−`
-            (U+2212) em texto como portador da direção. Com `unidade` o átomo
-            aplica a precisão da unidade e imprime o símbolo: um delta de −120
-            metros deixa de ser indistinguível de −120 unidades na mesma coluna.
-            Sem ela — linha gravada antes do campo — degrada para casa
-            significativa, que já some com o `,000` do `{{ linha.delta }}` cru.
+            (U+2212) em texto como portador da direção. `mostrar_unidade=True`
+            porque esta coluna mistura materiais de unidades diferentes: sem o
+            símbolo, −120 metros e −140 unidades são o mesmo texto. No histórico
+            de movimentações, onde a coluna é de um material só, o átomo segue
+            sem imprimi-lo. Linha gravada antes do campo tem unidade vazia e
+            degrada para casa significativa, que já some com o `,000` do
+            `{{ linha.delta }}` cru.
           {% endcomment %}
           <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Delta</dt>
-          <dd class="mt-0.5">{% include "estoque/partials/_delta_movimentacao.html" with valor=linha.delta unidade=linha.unidade %}</dd>
+          <dd class="mt-0.5">{% include "estoque/partials/_delta_movimentacao.html" with valor=linha.delta unidade=linha.unidade mostrar_unidade=True %}</dd>
         </div>
       </dl>
     </article>

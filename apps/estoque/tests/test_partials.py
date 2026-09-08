@@ -610,12 +610,13 @@ def test_divergencia_qualifica_os_tres_numeros_com_a_unidade():
     menos preciso que a tela descartável.
     """
     html = _render_cartoes_divergencias('820.000', '700.000', '-120.000', unidade='m')
-    # Símbolo nos dois saldos, via `components/quantidade.html`.
-    assert html.count('>m<') == 2
+    # Os TRÊS números: os dois saldos por `components/quantidade.html` e o delta
+    # pelo átomo, que nesta coluna recebe `mostrar_unidade=True`. Esperar dois
+    # consolidaria a lacuna que a issue descreve — o delta é justamente o número
+    # que a coluna existe para comparar entre materiais de unidades diferentes.
+    assert html.count('>m<') == 3
     # Precisão de uma casa nos três, que é a política de `m` — e não o inteiro
-    # que a ausência de unidade produzia. O átomo do delta carrega a unidade
-    # para a precisão mas não imprime o símbolo: é decisão dele, compartilhada
-    # com o histórico de movimentações, e mudá-la sai do escopo desta fatia.
+    # que a ausência de unidade produzia.
     assert '820,0' in html
     assert '700,0' in html
     assert '120,0' in html
