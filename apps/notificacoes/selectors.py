@@ -17,7 +17,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from apps.accounts.models import User
 from apps.notificacoes.models import Notificacao
 
 if TYPE_CHECKING:
@@ -39,26 +38,23 @@ def notificacoes_para_exibicao(destinatario_id: int) -> list[Notificacao]:
       que existe e ainda não tem número.
     - ``pede_acao`` / ``resolvida``: ver ``_decorar_com_pendencia``.
 
-    Pessoa inativa não lê notificação (USR-01): o selector devolve lista vazia,
-    espelhando ``requisicoes/selectors.py::requisicoes_visiveis_para``. Na
+    Pessoa inativa não lê notificação (USR-01): o filtro exige
+    ``destinatario__is_active=True``, então destinatário ausente ou inativo
+    devolve lista vazia — espelhando
+    ``requisicoes/selectors.py::requisicoes_visiveis_para``. Em uma única
+    consulta, e não ``User.objects.get`` seguido de checagem: se ``is_active``
+    mudar entre as duas operações, a janela liberava notificação de inativo. Na
     prática o ``login_required`` mais o ``ModelBackend.get_user`` já barram o
     inativo no caminho HTTP, mas a ``docs/matriz-invariantes.md`` credita a
     garantia à camada de leitura, e uma chamada fora do caminho HTTP não tinha
     defesa alguma. ``PapelEfetivo.ativo`` é exatamente ``usuario.is_active``,
     então esta cláusula não diverge de ``pode_ver_notificacao`` (#181).
     """
-    try:
-        destinatario = User.objects.get(pk=destinatario_id)
-    except User.DoesNotExist:
-        return []
-
-    if not destinatario.is_active:
-        return []
-
     notificacoes = list(
-        Notificacao.objects.filter(destinatario_id=destinatario_id).order_by(
-            '-criado_em'
-        )
+        Notificacao.objects.filter(
+            destinatario_id=destinatario_id,
+            destinatario__is_active=True,
+        ).order_by('-criado_em')
     )
     _decorar(notificacoes, destinatario_id=destinatario_id)
     return notificacoes
