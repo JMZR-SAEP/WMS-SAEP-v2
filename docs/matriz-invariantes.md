@@ -75,7 +75,7 @@ Para cada mudança, localizar o invariante aplicável, implementar na camada ind
 - **Requisições/itens:** estados e transições ficam em `estado-transicoes-requisicao.md`; este arquivo lista invariantes que não podem ser contornados.
 - **Estoque:** qualquer mutação de saldo/reserva é transacional, auditável e recalcula disponibilidade no ponto crítico.
 - **Saída excepcional:** fluxo próprio de estoque; detalhes de ciclo, número, permissões e front-end ficam em `processos-saida-excepcional.md`.
-- **Notificações:** efeito colateral pós-commit, nunca pré-condição de transição. Falha ao notificar é registrada em log e não desfaz a transição já commitada. O filtro de atividade na resolução do destinatário é proteção do caminho normal; a garantia de que pessoa inativa não lê notificação está na policy de leitura (`pode_ver_notificacao` exige `papel.ativo`).
+- **Notificações:** efeito colateral pós-commit, nunca pré-condição de transição. Falha ao notificar é registrada em log e não desfaz a transição já commitada. O filtro de atividade na resolução do destinatário é proteção do caminho normal; a garantia de que pessoa inativa não lê notificação está na policy de leitura (`pode_ver_notificacao` exige `papel.ativo`), consumida por `notificacoes/views.py::marcar_lida_view`, e na cláusula de atividade de `notificacoes/selectors.py::notificacoes_para_exibicao`. Até a #181 esta frase era falsa: a policy existia sem nenhum consumidor de produção e o selector não checava atividade — quem barrava o inativo era só o `login_required` mais o `ModelBackend`, o que não cobre chamada fora do caminho HTTP.
 
 ## 5. Checklist para PRs
 
