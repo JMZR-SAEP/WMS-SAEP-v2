@@ -5,13 +5,17 @@ from decimal import Decimal
 from django import forms
 from django.forms import BaseFormSet, formset_factory
 
+# Doação e empréstimo ficam de fora por decisão de escopo já tomada em
+# PRODUCT.md e CONTEXT.md: são fluxos de estoque com regras próprias, não
+# variantes de saída excepcional. A opção existia no seletor sem service,
+# policy ou registro que a sustentasse — oferecer no form o que o domínio
+# não implementa convida a baixa administrativa rotulada de doação.
 MOTIVO_SAIDA_OPCOES = [
     ('avaria', 'Avaria / Deterioração'),
     ('vencimento', 'Vencimento / Prazo expirado'),
     ('obsolescencia', 'Descarte por obsolescência'),
     ('extravio', 'Perda / Extravio'),
     ('ajuste', 'Ajuste de inventário'),
-    ('doacao', 'Doação'),
     ('outro', 'Outro'),
 ]
 
