@@ -27,6 +27,7 @@ from apps.core.listagem import contar_filtros_ativos, paginar, paginar_com_filtr
 from apps.core.modal import render_modal_erro
 from apps.core.presentation import traduz_erro_dominio
 from apps.core.querystring import caminho_canonico
+from apps.core.quantidades import step as step_por_unidade
 from apps.core.templatetags.core_tags import formatar_quantidade
 from apps.estoque.forms import ItemSaidaExcepcionalFormSet, SaidaExcepcionalForm
 from apps.estoque.presentation import (
@@ -426,6 +427,11 @@ def buscar_materiais_saida_excepcional_view(request):
             'codigo': m.codigo,
             'nome': m.nome,
             'unidade': m.unidade,
+            # O passo do campo numérico sai do servidor porque a política de
+            # precisão por unidade vive em `apps.core.quantidades` e não pode
+            # ter uma segunda cópia em JavaScript. O cliente aplica, não
+            # decide.
+            'step': step_por_unidade(m.unidade),
             'label': f'{m.codigo} — {m.nome}',
             'saldo_fisico': formatar_quantidade(
                 saldo_por_material.get(m.pk, 0), m.unidade

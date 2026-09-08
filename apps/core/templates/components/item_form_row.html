@@ -6,10 +6,14 @@ de item compartilhado em vez de reimplementado por tela.
 Parâmetros de contexto (todos BoundField, exceto indicado):
   material_id_field      — campo hidden com o id do material
   material_label_field    — campo de autocomplete (texto exibido)
-  quantidade_field        — campo numérico de quantidade. `min` e `step` saem
-    dos attrs do widget declarado no Form, não de parâmetro deste componente:
-    são restrição de domínio (unidade inteira na requisição, fracionária na
-    saída) e pertencem à camada que valida, não ao template que desenha.
+  quantidade_field        — campo numérico de quantidade. O widget do Form
+    declara o `step`/`min` de partida (`any`/`0.001`, os mais permissivos), e
+    este componente os estreita para a precisão da unidade quando ela já é
+    conhecida no render. A premissa anterior — "unidade inteira na requisição,
+    fracionária na saída" — não era restrição de domínio e sim engano: o mesmo
+    catálogo, medido em metro, quilograma ou litro, alimenta as duas telas.
+    Depois da carga quem reaplica é `registrarMaterial`, a cada troca de
+    material.
   autocomplete_url_name   — nome da URL do endpoint de busca de materiais (string, resolvido via {% url %})
   autocomplete_item_template — path do template de item do dropdown (string)
   form_index              — índice numérico da linha (int)
@@ -145,7 +149,21 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
   {% endcomment %}
   {# `@input` no wrapper, e não `x-model` no campo: o evento borbulha, e assim o componente não precisa de um `attrs_extra` só para se ligar ao próprio escopo. #}
   <div class="w-28 shrink-0" @input="quantidade = $event.target.value">
-    {% include "components/form_field.html" with field=quantidade_field label_override=quantidade_label|default:"Quantidade" %}
+    {% comment %}
+      `step`/`min` da unidade já no HTML servido, e não só depois da seleção:
+      na edição de rascunho e no POST re-renderizado por erro o material já
+      está escolhido e nenhum evento de seleção dispara, então sem isto o
+      campo voltaria com o passo genérico e recusaria a própria quantidade que
+      o banco guarda. Sem unidade conhecida, `step_por_unidade` devolve o passo
+      mais fino — na dúvida não estreitar o que o domínio aceita.
+    {% endcomment %}
+    {% firstof unidade_item saldo_item.unidade '' as unidade_efetiva %}
+    {% if unidade_efetiva %}
+      {% attrs_widget step=unidade_efetiva|step_por_unidade min=unidade_efetiva|step_por_unidade as attrs_quantidade %}
+      {% include "components/form_field.html" with field=quantidade_field label_override=quantidade_label|default:"Quantidade" attrs_extra=attrs_quantidade %}
+    {% else %}
+      {% include "components/form_field.html" with field=quantidade_field label_override=quantidade_label|default:"Quantidade" %}
+    {% endif %}
     <p x-show="excedeuSaldo" x-cloak role="status" class="mt-1.5 flex items-start gap-1 text-xs font-medium text-warning-text-subtle">
       {% icon "atencao" class="mt-0.5 h-3.5 w-3.5 shrink-0" %}
       <span>Acima do saldo</span>

@@ -49,6 +49,7 @@ from apps.requisicoes.presentation import cancelamento_copy, registro_requisicao
 from apps.core.quantidades import formatar as formatar_quantidade
 from apps.core.templatetags.core_tags import coletar_erros
 from apps.core.quantidades import normalizar
+from apps.core.quantidades import step as step_por_unidade
 from apps.estoque.models import SaldoEstoque
 from apps.estoque.selectors import entregue_liquida_por_requisicao
 from apps.requisicoes.forms import (
@@ -507,7 +508,10 @@ def editar_rascunho_view(request, pk: int):
         {
             'material_id': item.material_id,
             'material_label': str(item.material),
-            'quantidade_solicitada': int(item.quantidade_solicitada)
+            # `normalizar`, não `int`: o `int()` truncava em silêncio a parte
+            # fracionária de um `DecimalField(12, 3)` já gravado — reabrir um
+            # rascunho de 2,5 m de cabo e salvar de novo o rebaixava para 2.
+            'quantidade_solicitada': normalizar(item.quantidade_solicitada)
             if item.quantidade_solicitada
             else '',
         }
@@ -608,6 +612,11 @@ def buscar_materiais(request):
             'codigo': m.codigo,
             'nome': m.nome,
             'unidade': m.unidade,
+            # O passo do campo numérico sai do servidor porque a política de
+            # precisão por unidade vive em `apps.core.quantidades` e não pode
+            # ter uma segunda cópia em JavaScript. O cliente aplica, não
+            # decide.
+            'step': step_por_unidade(m.unidade),
             'label': f'{m.codigo} — {m.nome}',
             'saldo_disponivel': formatar_quantidade(
                 saldo_por_material.get(m.pk, 0), m.unidade

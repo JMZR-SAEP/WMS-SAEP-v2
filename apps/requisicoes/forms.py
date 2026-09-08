@@ -106,17 +106,28 @@ class ItemRequisicaoForm(forms.Form):
             }
         ),
     )
-    quantidade_solicitada = forms.IntegerField(
+    # `DecimalField`, não `IntegerField`. Era inteiro com `step='1'` fixo, num
+    # catálogo cujas unidades incluem metro, quilograma e litro: pedir 2,5 m de
+    # cabo era irrepresentável no único formulário por onde uma requisição
+    # nasce. O modelo sempre foi `DecimalField(12, 3)` e o service sempre
+    # recebeu `Decimal` — o inteiro estava só aqui, estreitando o domínio na
+    # porta de entrada. `step`/`min` reais saem da unidade do material, que só
+    # é conhecida depois da seleção: o template os aplica quando ela já existe
+    # e o `registrarMaterial` os reaplica a cada troca. `step='any'` é o
+    # default enquanto não há material, para não recusar o que o domínio aceita.
+    quantidade_solicitada = forms.DecimalField(
         label='Quantidade',
-        min_value=1,
+        min_value=Decimal('0.001'),
+        decimal_places=3,
+        max_digits=12,
         required=False,
         widget=forms.NumberInput(
             attrs={
                 'class': 'campo',
-                'inputmode': 'numeric',
+                'inputmode': 'decimal',
                 'autocomplete': 'off',
-                'step': '1',
-                'min': '1',
+                'step': 'any',
+                'min': '0.001',
             }
         ),
     )

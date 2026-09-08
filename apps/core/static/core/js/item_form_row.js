@@ -217,6 +217,7 @@
         // acoplaria os dois. `dataset` é o contrato entre eles.
         this.$el.dataset.material = item.label || item.nome || '';
         this.$el.dataset.unidade = item.unidade || '';
+        this.aplicarPassoDaUnidade(item.step);
         const temDisponivel = item.saldo_disponivel !== undefined;
         this.saldoRotulo = temDisponivel ? 'Disponível' : 'Físico';
         this.saldoTexto = temDisponivel ? item.saldo_disponivel : item.saldo_fisico;
@@ -228,6 +229,30 @@
         // errado.
         this.saldoValor =
           item.saldo_bruto === undefined ? null : Number(item.saldo_bruto);
+      },
+
+      /**
+       * O `step` do campo numérico segue a unidade do material selecionado.
+       *
+       * Enquanto o passo era fixo, o campo recusava 2,5 num material medido em
+       * metros — o navegador barra valor fora do passo antes de qualquer
+       * validação de servidor, então o formulário não tinha como aceitar o que
+       * o domínio aceita. O valor vem do payload e não é calculado aqui: a
+       * política de precisão por unidade tem uma fonte só, em
+       * `apps.core.quantidades`, e uma segunda cópia em JavaScript divergiria
+       * dela sem que nada avisasse.
+       *
+       * Ausente (payload antigo), o passo permanece como está — degradar para o
+       * passo anterior, nunca para um passo inventado.
+       */
+      aplicarPassoDaUnidade(passo) {
+        if (!passo) return;
+        const campo = this.$el.querySelector('input[type="number"]');
+        if (!campo) return;
+        campo.step = passo;
+        campo.min = passo;
+        // Teclado numérico sem separador decimal só onde fração não existe.
+        campo.inputMode = passo === '1' ? 'numeric' : 'decimal';
       },
 
       get excedeuSaldo() {
