@@ -153,7 +153,15 @@ def test_marcar_lida_marca_notificacao(client_logado, notificacao_nao_lida):
 def test_marcar_lida_outro_usuario_retorna_404(
     client, outro_solicitante, notificacao_nao_lida
 ):
-    """Query escopada por destinatario — notificação alheia não existe para este usuário."""
+    """Notificação alheia não existe para este usuário.
+
+    O 404 permanece, mas a razão mudou (#181): antes vinha da query escopada no
+    ``get_object_or_404``; agora vem de ``exigir_pode_ver_notificacao``, cuja
+    ``PermissaoNegada`` a view traduz explicitamente para ``Http404``. O status
+    é deliberado e não deve virar 403: objeto fora do escopo de visibilidade
+    responde 404 para não revelar existência (ADR-0010), e um 403 abriria
+    enumeração de notificações alheias a qualquer usuário autenticado.
+    """
     client.force_login(outro_solicitante)
     resp = client.post(f'/notificacoes/{notificacao_nao_lida.pk}/lida/')
     assert resp.status_code == 404
