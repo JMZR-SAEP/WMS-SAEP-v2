@@ -65,7 +65,7 @@ def listar_saidas_excepcionais_view(request):
     except PermissaoNegada as exc:
         raise PermissionDenied(str(exc))
 
-    saidas = listar_saidas_excepcionais(request.user.pk)
+    saidas = listar_saidas_excepcionais()
     resultado = paginar_com_filtros(
         request, saidas, per_page=PAGINA_SAIDAS_EXCEPCIONAIS_TAMANHO
     )

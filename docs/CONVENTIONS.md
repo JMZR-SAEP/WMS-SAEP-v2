@@ -74,6 +74,18 @@ para erro de domínio previsível.
 atendimento, escopo de visibilidade por papel e listagens filtradas. Leitura
 trivial pode usar o ORM direto na view.
 
+**`ator_id` em selector é dependência do ator, não decoração.** Um selector só
+recebe `ator_id` quando o resultado *depende* do ator — seja um queryset
+recortado por papel (o padrão `_visiveis_para`: `movimentacoes_visiveis_para`,
+`historico_requisicoes_visiveis_para`, que resolvem `papel_efetivo`
+internamente), seja um fato calculado por ator (`acoes_disponiveis_em_lote` →
+`dict`, `pode_filtrar_movimentacoes_por_setor` → `bool`). Leitura global, cujo
+único recorte é o gate `exigir_pode_*` da view, não recebe `ator_id`: a
+assinatura anunciaria uma fronteira que não existe, e quem audita autorização
+pela assinatura colhe um falso positivo (#182). A recíproca não vale — `ator_id`
+na assinatura não prova recorte de segurança; é o corpo do selector que diz se
+há filtro por papel.
+
 **Models não orquestram.** Guardam schema, constraints, choices e properties
 simples (ex.: `saldo_disponivel`). Não importam services, não disparam casos
 de uso em `save()`, não geram timeline por signals.

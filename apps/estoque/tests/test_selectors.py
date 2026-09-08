@@ -8,7 +8,7 @@ from apps.estoque.selectors import listar_saidas_excepcionais
 
 class TestListarSaidasExcepcionais:
     def test_retorna_queryset_vazio_quando_sem_registros(self, db, chefe_almoxarifado):
-        qs = listar_saidas_excepcionais(chefe_almoxarifado.pk)
+        qs = listar_saidas_excepcionais()
         assert list(qs) == []
 
     def test_retorna_saidas_existentes(self, db, chefe_almoxarifado, estoque_principal):
@@ -17,8 +17,30 @@ class TestListarSaidasExcepcionais:
             registrado_por=chefe_almoxarifado,
             estoque=estoque_principal,
         )
-        qs = listar_saidas_excepcionais(chefe_almoxarifado.pk)
+        qs = listar_saidas_excepcionais()
         assert saida in qs
+
+    def test_retorno_e_global_nao_filtra_por_registrado_por(
+        self, db, chefe_almoxarifado, aux_almoxarifado, estoque_principal
+    ):
+        """O selector é global: dois atores distintos, os dois registros voltam.
+
+        Guarda contra regressão que reintroduza o filtro por ator removido nesta
+        branch — compara conjunto de IDs, não presença individual.
+        """
+        do_chefe = SaidaExcepcional.objects.create(
+            motivo='Registrada pelo chefe',
+            registrado_por=chefe_almoxarifado,
+            estoque=estoque_principal,
+        )
+        do_aux = SaidaExcepcional.objects.create(
+            motivo='Registrada pelo auxiliar',
+            registrado_por=aux_almoxarifado,
+            estoque=estoque_principal,
+        )
+
+        ids = set(listar_saidas_excepcionais().values_list('pk', flat=True))
+        assert ids == {do_chefe.pk, do_aux.pk}
 
     def test_ordena_por_mais_recente_primeiro(
         self, db, chefe_almoxarifado, estoque_principal
@@ -33,7 +55,7 @@ class TestListarSaidasExcepcionais:
             registrado_por=chefe_almoxarifado,
             estoque=estoque_principal,
         )
-        qs = list(listar_saidas_excepcionais(chefe_almoxarifado.pk))
+        qs = list(listar_saidas_excepcionais())
         assert qs[0] == s2
         assert qs[1] == s1
 
@@ -55,7 +77,7 @@ class TestListarSaidasExcepcionais:
         SaidaExcepcional.objects.filter(pk__in=[s1.pk, s2.pk]).update(
             criado_em=instante
         )
-        qs = list(listar_saidas_excepcionais(chefe_almoxarifado.pk))
+        qs = list(listar_saidas_excepcionais())
         assert [s.pk for s in qs] == [s2.pk, s1.pk]
 
     def test_anota_quantidade_itens(
@@ -71,7 +93,7 @@ class TestListarSaidasExcepcionais:
         ItemSaidaExcepcional.objects.create(
             saida=saida, material=material_disponivel, quantidade=5
         )
-        qs = listar_saidas_excepcionais(chefe_almoxarifado.pk)
+        qs = listar_saidas_excepcionais()
         saida_anotada = qs.get(pk=saida.pk)
         assert saida_anotada.quantidade_itens == 1
 
