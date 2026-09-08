@@ -4958,6 +4958,11 @@ def test_historico_ordenacao_disponivel_no_mobile(
     html = client.get(reverse('requisicoes:historico')).content.decode()
     assert 'Mais antigas primeiro' in html
     assert 'Mais recentes primeiro' not in html
+    # A seta nomeia o estado corrente, ao contrário do texto: em `desc` a lista
+    # mostra as mais recentes primeiro, então ela aponta para baixo. Apontava
+    # para cima, contradizendo a tela e o `aria-label` ao mesmo tempo.
+    assert 'Mais antigas primeiro ↓' in html
+    assert 'Mais antigas primeiro ↑' not in html
     assert (
         html.count(
             'aria-label="Ordenar por mais antigas primeiro; '

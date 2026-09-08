@@ -55,6 +55,14 @@ Uso:
     aquilo clicava e recebia o oposto. `url_ordenacao` sempre inverte; o texto
     agora acompanha.
 
+    A **seta** nomeia o estado corrente, e por isso aponta para o lado oposto ao
+    do texto. Ela acompanhava o destino, e o par ficava contraditório: em
+    `ordem='desc'` — mais recentes no topo — o controle exibia "Mais antigas
+    primeiro ↑", enquanto o `aria-label` dizia corretamente "atualmente mais
+    recentes primeiro". Quem enxergava a tela sabia menos que quem usa leitor de
+    tela. Texto e seta respondem a perguntas diferentes: "para onde vou" e "onde
+    estou".
+
     `id` estável: este controle vive DENTRO do próprio `hx-target`, então o swap
     o destrói e recria. O htmx restaura o foco procurando o mesmo `id` no DOM
     novo — sem `id`, quem ordena pelo teclado é jogado de volta para o <body> e
@@ -79,15 +87,15 @@ Uso:
   {% with seletor_alvo="#"|add:alvo id_ordenacao="ordenacao-"|add:alvo|default:"ordenacao-listagem" %}
     {% if alvo %}
       {% if ordem == 'asc' %}
-        {% include "components/button.html" with variant="secondary" button_id=id_ordenacao label="Mais recentes primeiro ↓" href=url_ordenacao hx_get=url_ordenacao hx_target=seletor_alvo hx_push_url="true" aria_label="Ordenar por mais recentes primeiro; atualmente mais antigas primeiro" %}
+        {% include "components/button.html" with variant="secondary" button_id=id_ordenacao label="Mais recentes primeiro ↑" href=url_ordenacao hx_get=url_ordenacao hx_target=seletor_alvo hx_push_url="true" aria_label="Ordenar por mais recentes primeiro; atualmente mais antigas primeiro" %}
       {% else %}
-        {% include "components/button.html" with variant="secondary" button_id=id_ordenacao label="Mais antigas primeiro ↑" href=url_ordenacao hx_get=url_ordenacao hx_target=seletor_alvo hx_push_url="true" aria_label="Ordenar por mais antigas primeiro; atualmente mais recentes primeiro" %}
+        {% include "components/button.html" with variant="secondary" button_id=id_ordenacao label="Mais antigas primeiro ↓" href=url_ordenacao hx_get=url_ordenacao hx_target=seletor_alvo hx_push_url="true" aria_label="Ordenar por mais antigas primeiro; atualmente mais recentes primeiro" %}
       {% endif %}
     {% else %}
       {% if ordem == 'asc' %}
-        {% include "components/button.html" with variant="secondary" button_id=id_ordenacao label="Mais recentes primeiro ↓" href=url_ordenacao aria_label="Ordenar por mais recentes primeiro; atualmente mais antigas primeiro" %}
+        {% include "components/button.html" with variant="secondary" button_id=id_ordenacao label="Mais recentes primeiro ↑" href=url_ordenacao aria_label="Ordenar por mais recentes primeiro; atualmente mais antigas primeiro" %}
       {% else %}
-        {% include "components/button.html" with variant="secondary" button_id=id_ordenacao label="Mais antigas primeiro ↑" href=url_ordenacao aria_label="Ordenar por mais antigas primeiro; atualmente mais recentes primeiro" %}
+        {% include "components/button.html" with variant="secondary" button_id=id_ordenacao label="Mais antigas primeiro ↓" href=url_ordenacao aria_label="Ordenar por mais antigas primeiro; atualmente mais recentes primeiro" %}
       {% endif %}
     {% endif %}
   {% endwith %}
