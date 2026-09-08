@@ -4,6 +4,7 @@ from decimal import Decimal
 
 import pytest
 
+from apps.core.exceptions import PermissaoNegada
 from apps.notificacoes.models import Notificacao, TipoNotificacao
 from apps.notificacoes.services import (
     criar_notificacoes_para,
@@ -722,7 +723,6 @@ def test_separacao_sem_permissao_nao_notifica(
     `test_separar_para_retirada_permissao_negada_chefe_setor`. Aqui fica só a
     metade de notificação.
     """
-    from apps.core.exceptions import PermissaoNegada
     from apps.requisicoes.services import separar_para_retirada
 
     req = _autorizar_nova_requisicao(
@@ -948,20 +948,20 @@ def test_saida_excepcional_sem_divergencia_nao_notifica(
 
 
 # ---------------------------------------------------------------------------
-# Issue #181 — o filtro por destinatário nos services de leitura
+# Issue #181 — a autorização de leitura vive no service
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.django_db
-def test_marcar_notificacao_lida_ignora_notificacao_alheia(
+def test_marcar_notificacao_lida_nega_notificacao_alheia(
     solicitante, outro_solicitante
 ):
-    """O ``destinatario_id`` do filtro é revalidação, e precisa de teste.
+    """Autorização única no service (ADR-0011): notificação de terceiro nega.
 
-    A #181 rebaixou esse filtro de regra a consequência — a regra passou para
-    ``pode_ver_notificacao``, chamada pela view. Sem este teste, a próxima
-    refatoração remove o filtro e nada falha: a view protege o caminho HTTP,
-    mas o service é chamável de management command, shell e futuro caso de uso.
+    O service resolve o ``PapelEfetivo`` e aplica ``exigir_pode_ver_notificacao``
+    — não há mais filtro ``destinatario_id=ator_id`` a mascarar a negativa com
+    um ``UPDATE`` de zero linhas. A view traduz a ``PermissaoNegada`` para 404;
+    o service é chamável de management command, shell e futuro caso de uso.
     """
     alheia = Notificacao.objects.create(
         destinatario=solicitante,
@@ -969,10 +969,18 @@ def test_marcar_notificacao_lida_ignora_notificacao_alheia(
         requisicao_id=10,
     )
 
-    marcar_notificacao_lida(ator_id=outro_solicitante.pk, notificacao_id=alheia.pk)
+    with pytest.raises(PermissaoNegada):
+        marcar_notificacao_lida(ator_id=outro_solicitante.pk, notificacao_id=alheia.pk)
 
     alheia.refresh_from_db()
     assert alheia.lida is False
+
+
+@pytest.mark.django_db
+def test_marcar_notificacao_lida_nega_notificacao_inexistente(solicitante):
+    """Inexistente e alheia caem na mesma negativa — não revelar existência."""
+    with pytest.raises(PermissaoNegada):
+        marcar_notificacao_lida(ator_id=solicitante.pk, notificacao_id=10**9)
 
 
 @pytest.mark.django_db
