@@ -7,7 +7,7 @@ from decimal import Decimal, InvalidOperation
 from django.db.models import Count, Exists, OuterRef, Q, QuerySet
 
 from apps.accounts.models import User
-from apps.accounts.papeis import papel_efetivo
+from apps.accounts.papeis import PapelEfetivo, papel_efetivo
 from apps.requisicoes.models import EstadoRequisicao
 from apps.estoque.models import (
     Material,
@@ -301,7 +301,7 @@ def listar_divergencias_importacao_scpi(*, importacao_id: int):
     )
 
 
-def listar_materiais_com_saldo(*, ator_id: int, busca: str = ''):
+def listar_materiais_com_saldo(*, papel: PapelEfetivo, busca: str = ''):
     """Catálogo de materiais com saldo, com o marcador EST-07 escopado.
 
     RBAC do *conteúdo* (fronteira de segurança — nunca na view/template): o
@@ -315,9 +315,11 @@ def listar_materiais_com_saldo(*, ator_id: int, busca: str = ''):
     ausente: ``AttributeError`` em qualquer acesso Python e falsy silencioso no
     template, que resolve atributo inexistente por ``string_if_invalid``.
 
-    Recebe ``ator_id`` e resolve o papel internamente, como
-    ``movimentacoes_visiveis_para`` — ver ``docs/CONVENTIONS.md``, seção de
-    selectors.
+    Recebe o ``PapelEfetivo`` já resolvido em vez de ``ator_id``: a view leva o
+    mesmo marcador para o template, e a ADR-0011 manda resolver o snapshot uma
+    vez por caso de uso — dois ``papel_efetivo`` para a mesma requisição
+    abririam janela para o vínculo mudar entre as consultas e liberar os
+    operandos enquanto o marcador é negado (ou vice-versa).
     """
     from django.db.models import (
         BooleanField,
@@ -333,12 +335,7 @@ def listar_materiais_com_saldo(*, ator_id: int, busca: str = ''):
     from apps.estoque.models import SaldoEstoque
     from apps.estoque.policies import pode_consultar_divergencias_criticas
 
-    try:
-        ator = User.objects.get(pk=ator_id)
-    except User.DoesNotExist:
-        pode_ver_divergencia = False
-    else:
-        pode_ver_divergencia = pode_consultar_divergencias_criticas(papel_efetivo(ator))
+    pode_ver_divergencia = pode_consultar_divergencias_criticas(papel)
 
     divergente = (
         Case(

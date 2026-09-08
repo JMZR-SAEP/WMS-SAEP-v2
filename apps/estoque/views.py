@@ -1022,7 +1022,7 @@ def lista_materiais_view(request):
         raise PermissionDenied(str(exc))
 
     busca = request.GET.get('busca', '').strip()
-    saldos = listar_materiais_com_saldo(ator_id=request.user.pk, busca=busca)
+    saldos = listar_materiais_com_saldo(papel=papel, busca=busca)
     page_obj = paginar(request, saldos, per_page=PAGINA_MATERIAIS_TAMANHO)
     return render(
         request,
