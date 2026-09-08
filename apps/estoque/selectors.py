@@ -17,7 +17,7 @@ from apps.estoque.models import (
 )
 
 
-def listar_saidas_excepcionais(ator_id: int) -> QuerySet:
+def listar_saidas_excepcionais() -> QuerySet:
     return (
         SaidaExcepcional.objects.select_related('registrado_por', 'estoque')
         .annotate(quantidade_itens=Count('itens'))
