@@ -876,6 +876,11 @@ def detalhe_importacao_scpi_view(request, pk: int):
 CABECALHO_CSV_DIVERGENCIAS_SCPI = (
     'CADPRO',
     'DENOMINACAO',
+    # `UNIDADE` ao lado da denominação, antes dos números que ela qualifica.
+    # Sem a coluna, o artefato que existe para reconciliar no SCPI deixa
+    # `120` de um material medido em metros indistinguível de `120` unidades —
+    # o mesmo defeito que a tela tinha, sobrevivendo no arquivo que sai dela.
+    'UNIDADE',
     'SALDO_WMS',
     'SALDO_SCPI',
     'DELTA',
@@ -921,6 +926,7 @@ def baixar_divergencias_importacao_scpi_view(request, pk: int):
             [
                 linha.cadpro,
                 linha.denominacao,
+                linha.unidade,
                 linha.saldo_wms,
                 linha.saldo_scpi,
                 linha.delta,

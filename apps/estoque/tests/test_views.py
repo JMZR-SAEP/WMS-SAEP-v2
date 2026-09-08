@@ -2673,6 +2673,7 @@ class _BaseImportacaoComDivergencias:
             ImportacaoSCPI,
             LinhaDivergenteSCPI,
             StatusImportacaoSCPI,
+            UnidadeMedida,
         )
 
         importacao = ImportacaoSCPI.objects.create(
@@ -2694,6 +2695,8 @@ class _BaseImportacaoComDivergencias:
                 importacao=importacao,
                 cadpro=f'000.777.{i:03d}',
                 denominacao=f'Parafuso sextavado {i}',
+                # A unidade acompanha o instantâneo, como o service a grava.
+                unidade=UnidadeMedida.UNIDADE,
                 saldo_wms=10,
                 saldo_scpi=13,
                 delta=3,
@@ -2808,8 +2811,12 @@ class TestBaixarDivergenciasImportacaoScpiView(_BaseImportacaoComDivergencias):
         )
         texto = resp.content.decode('utf-8-sig')
         linhas = texto.splitlines()
-        assert linhas[0] == 'CADPRO;DENOMINACAO;SALDO_WMS;SALDO_SCPI;DELTA'
-        assert linhas[1] == '000.777.000;Parafuso sextavado 0;10.000;13.000;3.000'
+        # `UNIDADE` ao lado da denominação: gravar a unidade e não exportá-la
+        # deixava o defeito vivo no arquivo que sai da tela — `10` de um
+        # material medido em litros é indistinguível de `10` unidades na
+        # planilha em que a conciliação acontece.
+        assert linhas[0] == 'CADPRO;DENOMINACAO;UNIDADE;SALDO_WMS;SALDO_SCPI;DELTA'
+        assert linhas[1] == '000.777.000;Parafuso sextavado 0;un;10.000;13.000;3.000'
         assert len(linhas) == 3
 
     def test_bom_utf8_preserva_acento_na_planilha(
@@ -2829,7 +2836,7 @@ class TestBaixarDivergenciasImportacaoScpiView(_BaseImportacaoComDivergencias):
         resp = client.get(self._url(importacao.pk))
         assert resp.status_code == 200
         assert resp.content.decode('utf-8-sig').splitlines() == [
-            'CADPRO;DENOMINACAO;SALDO_WMS;SALDO_SCPI;DELTA'
+            'CADPRO;DENOMINACAO;UNIDADE;SALDO_WMS;SALDO_SCPI;DELTA'
         ]
 
 
