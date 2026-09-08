@@ -43,6 +43,7 @@ Snapshots em `.impeccable/critique/` (diretório local, gitignored). O plano de 
 | # | PR | Merge | O que entregou |
 |---|---|---|---|
 | 182 | `joaozuneda6#70` | `9e52881` | `listar_saidas_excepcionais` perdeu o `ator_id` morto. Levou nota normativa ao `CONVENTIONS.md`: `ator_id` em selector é reservado ao sufixo `_visiveis_para`. |
+| 183 | `joaozuneda6#75` | `46ee10c` | Contagem do sino saiu do `except Exception` com fallback zero: tolera só `django.db.Error` e devolve `None`. **Issue fechada manualmente em 2026-09-08** — de novo o merge não a fechou, terceira vez que a mesma armadilha cobra. |
 | 167 | `joaozuneda6#71` | `43b6dee` | Legenda do preview SCPI **removida**, não corrigida — ver decisão abaixo. |
 | 178 | `joaozuneda6#72` | `f3dd967` | Marcador EST-07 restrito ao almoxarifado, com `pode_consultar_divergencias_criticas` nova e os operandos `Físico`/`Reservado` gated. Bullet de catálogo na matriz §5. |
 | 181 | `joaozuneda6#73` | `4fdf1e0` | `marcar_lida_view` passou a consumir a policy; negativa vira `Http404`. Cláusula de atividade no selector, corrigindo o USR-01. Bullet de notificações na matriz §5. |
@@ -51,9 +52,45 @@ Snapshots em `.impeccable/critique/` (diretório local, gitignored). O plano de 
 
 **Em andamento**
 
-| # | PR | O que entrega |
+| # | Branch | O que entrega |
 |---|---|---|
-| 183 | `joaozuneda6#75` | Contagem do sino sai do `except Exception` com fallback zero: tolera só `django.db.Error` e devolve `None`. Sem mudança de template — os dois `{% if %}` de `base_auth.html` já tratam falsy. |
+| 187 | **PR `JMZR-SAEP#188`** (6 commits) | As seis peças da fatia (d). Suíte 2729 ✅, Navegador 71 ✅, ruff/mypy ✅. Ver "A #187 na prática" abaixo. |
+
+**⚠️ A topologia de remotes mudou em 2026-09-08, por decisão do usuário.** PRs passam a
+nascer no **`origin`** (`JMZR-SAEP/WMS-SAEP-v2`), o mesmo repo das issues; o fork
+`joaozuneda6` sai do fluxo. A PR #188 validou: push + `gh pr create --repo JMZR-SAEP/...`
+de primeira, conta com permissão ADMIN.
+
+**Consequência que apaga uma regra inteira deste documento:** `Closes #N` agora vincula
+de verdade (`closingIssuesReferences` confirmou a #187 ligada à #188). O merge fecha a
+issue sozinho — a regra "merge não fecha issue de outro remote", que cobrou quatro
+rodadas, deixa de valer. Some também o passo de sync `push origin upstream/main:main`.
+
+**Contrapartida:** o CodeRabbit não revisa no `origin`. O check aparece **`pass`** com
+`Review skipped: manual review required for this OSS repository` — verde sem review
+nenhum. O gate de review que motivava o fork **não existe mais no fluxo**; revisão passa
+a ser humana. Ver `project_coderabbit_inactive_and_stacked_merge`.
+
+**A #187 na prática — três dos seis itens estavam mal diagnosticados na issue.** A análise (3 `Explore` em paralelo, read-only) desmentiu o corpo antes de qualquer linha de código:
+
+| Item | O que a issue dizia | O que era |
+|---|---|---|
+| `motivo` slug | "falta `get_motivo_display`" | o método **não existia**: campo era `TextField` **sem `choices`**, vocabulário morava em lista literal do form. Conserto = mover choices ao model ⇒ vira **peça de schema**. E o defeito era **par**: `detalhe_` e `lista_saidas_excepcionais.html` |
+| `IntegerField` | peça de schema | é **`forms.IntegerField`** (`requisicoes/forms.py:109`) — **não toca schema**. Nenhum campo de quantidade do domínio é inteiro; o padrão é `DecimalField(12,3)` em 11 campos. Reincidia em `views.py:510` com `int()` truncando decimal já gravado |
+| ordenação | "exibe o inverso do que mostra" | `order_by` e `aria-label` **corretos**; só a **seta** contradizia. Decisão de vocabulário visual, não bug de dado |
+| `@drop` | 1 ocorrência | **duas** — `:25` e `:243` (`onchange`). E `.submit()` também pula validação de `required`, o que a issue não registra |
+| unidade do SCPI | schema (correto) | **barato**: `LinhaPreviewSCPI` já carrega `unidade`; o service a descartava no `bulk_create`. Zero consulta nova |
+| `Doação` | 1 linha (correto) | confirmado: zero migration, zero seed, zero teste |
+
+**Decisões tomadas nesta rodada:**
+
+1. **O drop passa a só selecionar, não enviar.** A copy da tela já decidia: *"Arraste o arquivo aqui ou clique para selecionar"*. Sem `.submit()` programático as duas falhas somem juntas — guarda de duplo envio, rótulo de carregamento e validação de `required` voltam a valer no único caminho de envio.
+2. **A seta nomeia o estado corrente; o texto segue nomeando o destino.** Respondem a perguntas diferentes ("onde estou" × "para onde vou"). O comentário do componente explicava o texto e silenciava sobre a seta — que era a metade errada.
+3. **`motivo` sem migração de dados.** Ambiente efêmero (ADR-0009), sem base a preservar. Fixtures que gravavam texto livre passam ao slug, que é o que o form sempre produziu.
+4. **`step` do campo numérico é calculado no servidor** e viaja no payload do autocomplete. Calculá-lo em JS criaria segunda tabela de unidades, livre para divergir de `apps/core/quantidades.py`. O cliente aplica, não decide.
+5. **Resíduo declarado:** `_delta_movimentacao.html` usa a unidade para a precisão mas **não imprime o símbolo** — decisão do átomo, compartilhada com o histórico de movimentações. Mudá-la arrastaria as 11 telas da varredura da #166. Fica fora da fatia, como o chip que foi para a #185.
+
+**Armadilha de template reincidente:** usei `{# … #}` multi-linha e o guard `test_nenhum_template_usa_comentario_de_linha_em_varias_linhas` pegou. A memória `project_guards_template` já registrava. Dentro de tag HTML aberta, `{% comment %}` funciona.
 
 **Decisões desta rodada, que mudaram o escopo do que as issues pediam:**
 
@@ -100,8 +137,7 @@ Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/account
 
 | # | Onda | Label | Bloqueio |
 |---|---|---|---|
-| 183 | 5 | **em PR** (`joaozuneda6#75`) | — |
-| 187 | 6 | `bug`, `ready-for-agent` — fatia (d) da #173 | — |
+| 187 | 6 | **implementada**, branch `fix/173d-defeitos-comportamento`, sem PR | — |
 | 184 | 6 | `ready-for-agent` — fatia (a) da #173 | — |
 | 185 | 6 | `ready-for-agent` — fatia (b) da #173 | — |
 | 186 | 6 | `ready-for-agent` — fatia (c) da #173 | — |
@@ -123,7 +159,7 @@ Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/account
 3c. ~~**#166**~~ **Feita e fechada — PR #69** (merge `95e8018`). Emendou a ADR-0019 no caminho.
 4. ~~**#167**~~ **Feita e fechada — PR `joaozuneda6#71`** (merge `43b6dee`). Fechada por remoção da legenda. O bullet das pílulas do #173 **não** entrou: a premissa dele estava errada (ver "Candidatos"), e a colisão real precisa de mudança no componente global.
 5. ~~**#178, #181, #182**~~ **Feitas e fechadas — PRs `joaozuneda6#72`, `#73`, `#70`.** Não houve conflito de hunk entre #178 e #182, apesar de editarem o mesmo `selectors.py`: as regiões eram disjuntas (20-27 vs 304-338; testes 9-78 vs 467-549). A #178 gerou a #183.
-5b. **#183** — **em PR, `joaozuneda6#75`.**
+5b. ~~**#183**~~ **Feita e fechada — PR `joaozuneda6#75`** (merge `46ee10c`).
 6. ~~**#173, fatiada em 3**~~ **Fatiada em 4 e aberta: #184 (a), #185 (b), #186 (c), #187 (d).** A quarta fatia existe porque cinco dos candidatos anexados não eram achado estético e sim **defeito de comportamento** — diluí-los em (a)/(b)/(c) enterraria bug sob revisão de copy. **Ordem: #187 primeiro**, depois #185 (que destrava a #172), depois #184 e #186.
 7. **#172** — depois que a **#185** documentar a gramática de formas.
 8. ~~**#176, metade de permissão** — quem é o dono da importação SCPI.~~ **Feito e fechada — PR #63.** Domínio decidiu: chefe de almoxarifado. Gerou #178, #179, #180.
