@@ -2,7 +2,9 @@
 
 **Documento vivo.** Ponto de partida para quem entra no backlog e ferramenta de acompanhamento para quem já está nele. Visão macro: o detalhe técnico vive na issue, aqui vive a **ordem, a dependência e o estado**.
 
-Última atualização: **2026-09-08, segunda passada** (ondas 4 e 5 **fechadas**: as PRs `joaozuneda6#70`, `#71`, `#72` e `#73` mergearam e as issues #167, #178, #181 e #182 foram fechadas manualmente — o fechamento que os corpos das PRs prometiam não tinha acontecido. A #183 está em PR (`joaozuneda6#75`). A #173 foi fatiada em **quatro**, não três: #184, #185, #186 e #187; a #187 vai na frente por ser bug de comportamento, não achado estético).
+Última atualização: **2026-09-09** (a #187 — fatia (d) da #173 — **mergeou e fechou** via PR `JMZR-SAEP#188`, `d2db3b3`. O auto-close funcionou: `closingIssuesReferences` ligou a #187 à #188 e o merge fechou a issue sozinho, primeira vez que isso acontece no novo fluxo `origin`. A #173 segue aberta como capa até #184, #185 e #186 fecharem. Próximo alvo: **#185**, que destrava a #172).
+
+Última atualização anterior: **2026-09-08, segunda passada** (ondas 4 e 5 **fechadas**: as PRs `joaozuneda6#70`, `#71`, `#72` e `#73` mergearam e as issues #167, #178, #181 e #182 foram fechadas manualmente — o fechamento que os corpos das PRs prometiam não tinha acontecido. A #183 está em PR (`joaozuneda6#75`). A #173 foi fatiada em **quatro**, não três: #184, #185, #186 e #187; a #187 vai na frente por ser bug de comportamento, não achado estético).
 
 ## Como usar
 
@@ -50,11 +52,43 @@ Snapshots em `.impeccable/critique/` (diretório local, gitignored). O plano de 
 
 **Armadilha de processo, custou uma rodada inteira.** Os corpos das quatro PRs diziam "issue fechada manualmente após o merge, já que a issue vive no outro remote" — e ninguém fechou. O merge não fecha issue de outro remote, e `Closes #N` no corpo também não atravessa. **Fechar é passo manual explícito depois do merge**, não consequência dele. As quatro passaram quatro dias abertas dizendo que o trabalho estava por fazer.
 
+**Onda 6 — fatia (d) fechada em 2026-09-09**
+
+| # | PR | Merge | O que entregou |
+|---|---|---|---|
+| 187 | `JMZR-SAEP#188` (6 commits) | `d2db3b3` | As seis peças da fatia (d). Suíte 2729 ✅, Navegador 71 ✅, ruff/mypy ✅. Ver "A #187 na prática" abaixo. **Auto-close funcionou** — o merge fechou a issue sozinho, sem passo manual, validando a topologia nova. |
+
 **Em andamento**
 
 | # | Branch | O que entrega |
 |---|---|---|
-| 187 | **PR `JMZR-SAEP#188`** (6 commits) | As seis peças da fatia (d). Suíte 2729 ✅, Navegador 71 ✅, ruff/mypy ✅. Ver "A #187 na prática" abaixo. |
+| 185 | **PR `JMZR-SAEP#189`** (`fix/design-system-fatia-b-173`, 8 commits) | As 5 entregas. CI: 8 checks ✅, `mergeState` CLEAN. Revisado por `cavecrew-reviewer` (1 nit 🔵) + `revisor-camadas` (E5 isolada) + 2 achados 🟡 do `joaorighetto` na PR — todos corrigidos, threads resolvidos (ver "Achados de review da #189" abaixo). **Aguarda merge humano** (CodeRabbit não roda no `origin`). Escopo travado — ver "A #185 na prática". |
+
+**A #185 na prática — a análise re-triou 2 dos ~5 itens (2026-09-09).**
+
+| Item da issue | Veredito da análise | Decisão |
+|---|---|---|
+| `font-mono` indocumentado | lacuna real. 11 usos em templates (só `apps/estoque/`), +2 que a issue não cita (`detalhe_saida_excepcional.html:79`, `_alert_sucesso_importacao_corpo.html:45`). `--font-mono` **nem está no `@theme` do `input.css`** — vem do default do Tailwind v4. | Doc em DESIGN.md §Typography + design-system.md §Tipografia; declarar `--font-mono` explícito no `input.css` ⇒ `make css-build`. |
+| exceção do `grid-cols-2` | parcial. `historico_movimentacoes.html:141` é `grid grid-cols-2` fixo num `<dl>` de cartão de listagem, contra a consequência explícita da "Regra da Identidade Que Não Quebra" — mas o código (`06b88d5`, #163) é **1 dia anterior** à regra (`abbd109`), e há **2ª ocorrência fixa** em `requisicoes/detalhe.html:132` (fora de listagem). A regra vive só no DESIGN.md, nem é citada no índice de regras nomeadas de `design-system.md`. | Registrar como exceção consciente (dado numérico curto, sobrevive a 295px, feito de propósito). Sem mudar template. Nota da 2ª ocorrência. |
+| `ConflitoDominio` em âmbar | **premissa errada.** O mapa `→ severity='warning'` é **canônico**: `CONVENTIONS.md:201`, ADR-0011 Emenda `:246`, e travado por 4+ testes (`test_presentation.py:39`, `estoque/tests/test_views.py:611,997` — docstring *"Drift 6 (canônico): ... nunca messages.error"*). `DESIGN.md:232` **lista literalmente** "saldo insuficiente inline" como uso válido do âmbar. `SaldoInsuficiente`/`MaterialInativo`/`SaldoDivergente` **não são classes** — são `code=` em `ConflitoDominio` levantada de `apps/estoque/services.py`. | **Item fechado — premissa contradita pela própria doc.** Em vez disso: limpar o texto original do ADR-0011 `:70-72` (ainda diz `ConflitoDominio → error`) marcando-o `> Substituído pela Emenda de 2026-06-26`, alinhando com as outras revogações do arquivo (`:110-112`, `:146-148`). |
+| gramática de formas | lacuna real, **pré-requisito da #172**. §Shapes só cobre border-radius por superfície. `danger` (`alerta.svg`) e `info` (`informacao.svg`) usam o **contorno circular idêntico** (`M18 10A8 8 0 1 1 2 10a8 8 0 0 1 16 0Z`) — só o miolo muda (! vs i). `design-system.md:461/463` os chama "círculo de informação"/"círculo de alerta" fingindo distinção geométrica. Sem regra "cada nível de feedback tem forma própria". Registry `{% icon %}` / `components/icons/` não documentado como parte do design system. | Doc: inventário das 3 silhuetas, a colisão `danger`≈`info` declarada como **dívida conhecida** (ancora a #172), regra pílula×retângulo, regra chip×badge. |
+| anexo #167 — chip × badge | colisão real. Chip ativo (`filter_chips.html`) e `badge.html variant="blue"` = mesmo `bg-primary-muted` + `text-primary-text-strong` + `rounded-full`; diferem em contorno (`border` vs `ring`), padding, peso, `min-h-11`, glifo `✕`. `filter_chips.html` incluído por **3 telas** (`historico_requisicoes`, ledger `historico_movimentacoes`, `preview_importacao_scpi`) — as 3 rendam badge azul. `filter_presets_periodo.html:27` usa string **idêntica** à do chip ativo. **Zero teste** afere as classes do chip (badge tem teste por variante — assimetria). Chip **já tem** `focus-visible` canônico (não é alvo da #186). "11 telas da #166" = custo de regressão do gate, não 11 telas com chip (só 2 das 11 têm). | **Decisão: diferenciar o chip** (é o elemento com o defeito de affordance — quem age deve parecer acionável). Regra nova em DESIGN.md + ajuste em `filter_chips.html` (e `filter_presets_periodo.html`). `make test-navegador` obrigatório. Novo teste de classes do chip. |
+
+Correção de bullet já registrada: contadores (`5 linhas`, `rounded-lg px-4 py-2.5`) e chips (`rounded-full`) **não** colidem — já se distinguem por forma. Sai da #173 (era premissa falsa do corpo original).
+
+**Achados de review da #189 (2026-09-09, `joaorighetto`, 2× 🟡):**
+
+1. **Guarda de `--font-mono` era teatro** (`test_tokens_semanticos.py`). `assert '--font-mono' in conteudo` passava com menção em comentário — e o próprio bloco de comentário do `@theme` cita a família 3×. O teste do `app.css` era tautologia: o default do Tailwind sempre emite `--font-mono`, então passaria em `main`, antes do PR. Corrigido (`7364cd0`): `_corpo_theme_sem_comentario` remove comentários CSS e isola o corpo do `@theme`; regex exige a declaração `--font-mono: <valor>;`; controle negativo sintético (`test_entrada_sintetica_font_mono_so_no_comentario_e_reprovada`) prova que o guarda morde. Padrão vizinho: `frontend_step_nao_e_validacao` — restrição fora do caminho de escrita não valida.
+2. **Contradição na regra de forma** (`DESIGN.md`). `rounded-full` = "marcador estático" mas a lista incluía o botão-ícone da barra, que é acionável. Corrigido (`87e52d4`): o eixo deixou de ser acionável×estático e virou **rótulo textual × sem rótulo**. Controle com rótulo → `rounded-md`; ação circular icon-only → pílula, nomeada como exceção que §Shapes:447 já reservava.
+
+Os dois threads foram respondidos com o SHA e resolvidos via GraphQL.
+
+**Achados do CodeRabbit na #189 (2026-09-09, disparado manual — repo <10 stars não recebe auto-review; 2× 🟡):**
+
+3. **`input.css:39` — Stylelint `value-keyword-case`** em `SFMono-Regular`/`Menlo`/`Monaco`/`Consolas`. **Declinado** (`3971371189`): o projeto não tem Stylelint (sem config, sem dep, sem job de CI — o pipeline de CSS é só `make css-build`); o valor é cópia verbatim do default do Tailwind v4, que é o propósito do PR; são nomes próprios de família de fonte, não keywords.
+4. **Medição ausente nas regras novas do `DESIGN.md`** — o `.coderabbit.yaml` tem path instruction para `DESIGN.md` exigindo "a medição que justifica" cada regra nomeada. Corrigido (`44527d2`): (a) exceção do `grid-cols-2` em `requisicoes/detalhe.html:132` ganhou a medição a 375px (~295px de contêiner via `p-6`+`p-4`, ~140px/célula, número `whitespace-nowrap`, unidade/justificativa quebram em altura sem estouro); (b) a regra pílula×raio-de-controle foi marcada como taxonomia (não medição de viewport) com evidência = precedente §Paridade + colisão de classe verificável `filter_chips.html`≈`badge.html blue`; (c) `docs/design-system.md` alinhado. LanguageTool (vírgula após travessão, repetição) resolvido na reescrita.
+
+Nota durável: **guardas de teste que fazem substring match em arquivo com comentário são teatro** — mesma classe de `frontend_step_nao_e_validacao`. O `.coderabbit.yaml` deste repo tem path instructions fortes (services/policies/selectors/DESIGN.md com regras próprias) — vale ler antes de mexer nessas superfícies.
 
 **⚠️ A topologia de remotes mudou em 2026-09-08, por decisão do usuário.** PRs passam a
 nascer no **`origin`** (`JMZR-SAEP/WMS-SAEP-v2`), o mesmo repo das issues; o fork
@@ -137,11 +171,11 @@ Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/account
 
 | # | Onda | Label | Bloqueio |
 |---|---|---|---|
-| 187 | 6 | **em PR** (`JMZR-SAEP#188`, CI verde) — ver "Em andamento" | — |
+| ~~187~~ | 6 | **fechada** (`JMZR-SAEP#188`, merge `d2db3b3`) — fatia (d) da #173 | — |
+| 185 | 6 | `ready-for-agent` — fatia (b) da #173. **Próximo alvo.** Destrava a #172 | — |
 | 184 | 6 | `ready-for-agent` — fatia (a) da #173 | — |
-| 185 | 6 | `ready-for-agent` — fatia (b) da #173 | — |
 | 186 | 6 | `ready-for-agent` — fatia (c) da #173 | — |
-| 173 | 6 | guarda-chuva, aberta até as quatro filhas fecharem | #184, #185, #186, #187 |
+| 173 | 6 | guarda-chuva, aberta até as três filhas restantes fecharem | #184, #185, #186 |
 | 172 | 7 | `ready-for-human` (decisão de vocabulário visual) | **#185** documentar a gramática de formas |
 | 170 | 8 | `needs-info` | resposta do chefe de almoxarifado |
 | 171 | 9 | `needs-info` | export real do SCPI |
@@ -160,7 +194,7 @@ Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/account
 4. ~~**#167**~~ **Feita e fechada — PR `joaozuneda6#71`** (merge `43b6dee`). Fechada por remoção da legenda. O bullet das pílulas do #173 **não** entrou: a premissa dele estava errada (ver "Candidatos"), e a colisão real precisa de mudança no componente global.
 5. ~~**#178, #181, #182**~~ **Feitas e fechadas — PRs `joaozuneda6#72`, `#73`, `#70`.** Não houve conflito de hunk entre #178 e #182, apesar de editarem o mesmo `selectors.py`: as regiões eram disjuntas (20-27 vs 304-338; testes 9-78 vs 467-549). A #178 gerou a #183.
 5b. ~~**#183**~~ **Feita e fechada — PR `joaozuneda6#75`** (merge `46ee10c`).
-6. ~~**#173, fatiada em 3**~~ **Fatiada em 4 e aberta: #184 (a), #185 (b), #186 (c), #187 (d).** A quarta fatia existe porque cinco dos candidatos anexados não eram achado estético e sim **defeito de comportamento** — diluí-los em (a)/(b)/(c) enterraria bug sob revisão de copy. **Ordem: #187 primeiro**, depois #185 (que destrava a #172), depois #184 e #186.
+6. ~~**#173, fatiada em 3**~~ **Fatiada em 4: #184 (a), #185 (b), #186 (c), #187 (d).** A quarta fatia existe porque cinco dos candidatos anexados não eram achado estético e sim **defeito de comportamento** — diluí-los em (a)/(b)/(c) enterraria bug sob revisão de copy. **~~#187 primeiro~~ — feita e fechada (PR #188).** Ordem restante: **#185** (que destrava a #172), depois #184 e #186.
 7. **#172** — depois que a **#185** documentar a gramática de formas.
 8. ~~**#176, metade de permissão** — quem é o dono da importação SCPI.~~ **Feito e fechada — PR #63.** Domínio decidiu: chefe de almoxarifado. Gerou #178, #179, #180.
 9. **#170** — quando o chefe de almoxarifado responder.
