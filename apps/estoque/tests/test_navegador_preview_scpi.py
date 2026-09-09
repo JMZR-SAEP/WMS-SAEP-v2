@@ -174,3 +174,40 @@ def test_sem_rolagem_horizontal_nova_a_375(pagina_preview):
 
     barra = _retangulo(pagina_preview, '[x-data^="modalController"]')
     assert barra['bottom'] <= barra['altura'] + 1
+
+
+def test_regiao_das_linhas_tem_heading_de_salto(pagina_preview):
+    """#186 (anexo #167): sem um heading nomeando a região, quem navega por
+    heading não tem alvo para pular até o conteúdo real da tela — as linhas do
+    arquivo. O `<h2 sr-only>` removido na #167 nomeava a legenda, não isto.
+    """
+    regiao = pagina_preview.get_by_role('heading', name='Linhas do arquivo SCPI')
+    assert regiao.count() == 1
+
+
+def test_cada_cartao_de_linha_expoe_o_cadpro_como_heading(pagina_preview):
+    """Cada `<article>` usava `<code>` como título — invisível para navegação
+    por heading. Mesmo padrão de cartão de `lista_materiais` e
+    `historico_movimentacoes` (docs/design-system.md), guardado em
+    `test_views.py` para catálogo e movimentações.
+    """
+    import re
+
+    artigos = pagina_preview.locator('#resultados-preview-scpi article')
+    headings = pagina_preview.locator('#resultados-preview-scpi article h2')
+    assert headings.count() == artigos.count() == TOTAL_DE_LINHAS
+    # cada heading é o CADPRO da linha, no padrão 000.000.000
+    assert re.search(r'\d{3}\.\d{3}\.\d{3}', headings.first.text_content())
+
+
+def test_heading_da_regiao_sobrevive_ao_recorte_por_chip(pagina_preview):
+    """O heading vive DENTRO do partial trocado pelo HTMX: fora dele, sumiria
+    no primeiro recorte.
+    """
+    pagina_preview.click('#filter-chips a:has-text("Só divergências")')
+    pagina_preview.wait_for_function(
+        'document.querySelectorAll("#resultados-preview-scpi article").length === %d'
+        % LINHAS_DIVERGENTES
+    )
+    regiao = pagina_preview.get_by_role('heading', name='Linhas do arquivo SCPI')
+    assert regiao.count() == 1
