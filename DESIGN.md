@@ -481,10 +481,13 @@ que é dívida. O `warning` já está fora dela, com o triângulo.
 "marcador ou controle?". O critério para um elemento novo: *sou um marcador que
 só informa, ou um controle que o usuário aciona?* A forma segue da resposta.
 
-- `rounded-full` (pílula) = marcador estático: badge de estado, avatar,
-  botão-ícone da barra de aplicação.
-- `rounded-md` (raio de controle, 0.375rem) = elemento acionável: botão, chip de
-  filtro, preset de período, toggle.
+- `rounded-full` (pílula) = marcador estático **ou** ação circular icon-only:
+  badge de estado, avatar, botão-ícone da barra de aplicação. Nestes o círculo é
+  o alvo de toque inteiro e não há rótulo que peça raio de controle — é a
+  exceção já reservada em §Shapes.
+- `rounded-md` (raio de controle, 0.375rem) = controle com rótulo textual:
+  botão, chip de filtro, preset de período, toggle rotulado. É a acionabilidade
+  *com rótulo* que puxa o raio de controle, não a acionabilidade sozinha.
 
 Tem precedente na §Paridade entre o banner e a faixa de flash de
 `docs/design-system.md`: *"alerta é campo, não controle… a faixa usava raio de
