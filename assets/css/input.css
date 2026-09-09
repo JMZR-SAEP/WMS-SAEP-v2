@@ -460,6 +460,18 @@
     color: inherit;
   }
 
+  /*
+    A marca é um link (para a tela inicial) e caía no anel default do navegador,
+    enquanto todo irmão da barra — nav-icon, nav-toggle, action, action-icon —
+    já declara o seu. Mesma gramática de foco desses irmãos: anel branco por
+    `outline`, não o anel azul de `border-focus`, porque a barra tem fundo
+    próprio (DESIGN.md §Navigation).
+  */
+  .app-bar__brand:focus-visible {
+    outline: 2px solid var(--app-bar-focus-ring);
+    outline-offset: 2px;
+  }
+
   .app-bar__logo {
     width: 1.75rem;
     height: 1.75rem;
