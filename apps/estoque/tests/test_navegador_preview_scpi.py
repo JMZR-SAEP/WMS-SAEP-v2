@@ -181,7 +181,9 @@ def test_regiao_das_linhas_tem_heading_de_salto(pagina_preview):
     heading não tem alvo para pular até o conteúdo real da tela — as linhas do
     arquivo. O `<h2 sr-only>` removido na #167 nomeava a legenda, não isto.
     """
-    regiao = pagina_preview.get_by_role('heading', name='Linhas do arquivo SCPI')
+    regiao = pagina_preview.locator('#resultados-preview-scpi').get_by_role(
+        'heading', name='Linhas do arquivo SCPI'
+    )
     assert regiao.count() == 1
 
 
@@ -209,5 +211,7 @@ def test_heading_da_regiao_sobrevive_ao_recorte_por_chip(pagina_preview):
         'document.querySelectorAll("#resultados-preview-scpi article").length === %d'
         % LINHAS_DIVERGENTES
     )
-    regiao = pagina_preview.get_by_role('heading', name='Linhas do arquivo SCPI')
+    regiao = pagina_preview.locator('#resultados-preview-scpi').get_by_role(
+        'heading', name='Linhas do arquivo SCPI'
+    )
     assert regiao.count() == 1

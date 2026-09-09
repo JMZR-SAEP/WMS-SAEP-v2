@@ -124,14 +124,20 @@ def test_detalhe_a_ordem_visual_da_pilha_bate_com_a_de_foco_a_375(
     page.wait_for_selector(container)
 
     controles = _controles_visiveis(page, container)
-    assert [c['texto'] for c in controles] == [
-        c['texto'] for c in sorted(controles, key=lambda c: c['top'])
-    ], f'ordem do DOM não desce na tela na mesma ordem: {controles}'
+    textos = [c['texto'] for c in controles]
+    assert textos == [
+        'Descartar rascunho',
+        'Editar rascunho',
+        'Enviar para autorização',
+    ], f'a pilha de ações não traz os três controles esperados: {controles}'
+    tops = [c['top'] for c in controles]
+    assert all(anterior < seguinte for anterior, seguinte in zip(tops, tops[1:])), (
+        f'a pilha não desce estritamente na vertical a 375px (regressão de '
+        f'`flex-row`?): {controles}'
+    )
 
     tabulacao = _ordem_de_tabulacao(page, container, len(controles))
-    assert tabulacao == [c['texto'] for c in controles], (
-        f'Tab visita a pilha fora da ordem visual: {tabulacao}'
-    )
+    assert tabulacao == textos, f'Tab visita a pilha fora da ordem visual: {tabulacao}'
 
 
 def test_copiar_confirmacao_a_ordem_visual_bate_com_a_de_foco_a_375(
@@ -145,12 +151,15 @@ def test_copiar_confirmacao_a_ordem_visual_bate_com_a_de_foco_a_375(
     page.wait_for_selector(container)
 
     controles = _controles_visiveis(page, container)
-    assert len(controles) == 2, controles
-    assert [c['texto'] for c in controles] == [
-        c['texto'] for c in sorted(controles, key=lambda c: c['top'])
-    ], f'ordem do DOM não desce na tela na mesma ordem: {controles}'
+    textos = [c['texto'] for c in controles]
+    assert textos == ['Cancelar', 'Criar rascunho'], (
+        f'a pilha de ações não traz os dois controles esperados: {controles}'
+    )
+    tops = [c['top'] for c in controles]
+    assert all(anterior < seguinte for anterior, seguinte in zip(tops, tops[1:])), (
+        f'a pilha não desce estritamente na vertical a 375px (regressão de '
+        f'`flex-row`?): {controles}'
+    )
 
     tabulacao = _ordem_de_tabulacao(page, container, len(controles))
-    assert tabulacao == [c['texto'] for c in controles], (
-        f'Tab visita a pilha fora da ordem visual: {tabulacao}'
-    )
+    assert tabulacao == textos, f'Tab visita a pilha fora da ordem visual: {tabulacao}'
