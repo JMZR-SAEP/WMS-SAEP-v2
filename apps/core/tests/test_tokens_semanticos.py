@@ -319,6 +319,75 @@ def test_tokens_novos_documentados_existem_no_input_css():
     assert faltando == [], f'Tokens ausentes em input.css: {faltando}'
 
 
+# ─── Família de fonte mono: declaração ativa no @theme, não menção solta ──
+# `font-mono` é a única família fora de `ui-sans-serif` no produto (livro-razão:
+# delta de movimentação, CADPRO do SCPI, hash de importação — ver DESIGN.md
+# §Typography). Funcionava só pelo tema default embutido do Tailwind v4; a fatia
+# b da #173 declarou `--font-mono` no @theme de input.css para virar token de
+# primeira classe.
+#
+# O guarda não pode se contentar com a substring `--font-mono`: o próprio
+# comentário do @theme cita a família três vezes, e o app.css sempre trouxe o
+# token herdado do default do Tailwind (o assert passaria em `main`, antes do
+# PR). Tem que ver uma DECLARAÇÃO ativa (`--font-mono: <valor>;`) dentro do
+# corpo do `@theme`, com os comentários removidos — mesma disciplina de entrada
+# sintética dos guardas de cor crua acima.
+
+_COMENTARIO_CSS_RE = re.compile(r'/\*.*?\*/', re.DOTALL)
+_DECL_FONT_MONO_RE = re.compile(r'--font-mono\s*:\s*[^;{}]+;')
+
+
+def _corpo_theme_sem_comentario(css):
+    """Corpo de `@theme { ... }` com os comentários CSS removidos."""
+    sem_comentario = _COMENTARIO_CSS_RE.sub('', css)
+    inicio = sem_comentario.find('@theme')
+    if inicio == -1 or '{' not in sem_comentario[inicio:]:
+        return ''
+    abre = sem_comentario.index('{', inicio)
+    profundidade = 0
+    for i in range(abre, len(sem_comentario)):
+        if sem_comentario[i] == '{':
+            profundidade += 1
+        elif sem_comentario[i] == '}':
+            profundidade -= 1
+            if profundidade == 0:
+                return sem_comentario[abre + 1 : i]
+    return sem_comentario[abre + 1 :]
+
+
+def _font_mono_declarada(css):
+    """Função pura: `--font-mono` é declaração ativa dentro do @theme?"""
+    return bool(_DECL_FONT_MONO_RE.search(_corpo_theme_sem_comentario(css)))
+
+
+def test_familia_mono_e_declaracao_ativa_dentro_do_theme():
+    css = INPUT_CSS.read_text(encoding='utf-8')
+    assert _font_mono_declarada(css), (
+        '--font-mono precisa ser uma declaração ativa dentro de @theme em '
+        'input.css — menção em comentário não conta (era herança implícita do '
+        'tema default do Tailwind; ver DESIGN.md §Typography)'
+    )
+
+
+def test_entrada_sintetica_font_mono_so_no_comentario_e_reprovada():
+    """Controle negativo: só a declaração ativa sai; a família continua citada
+    no comentário do @theme. O guarda tem que reprovar mesmo assim."""
+    css = INPUT_CSS.read_text(encoding='utf-8')
+    sem_decl = _DECL_FONT_MONO_RE.sub('/* --font-mono removido */', css, count=1)
+    assert '--font-mono' in sem_decl, 'o comentário do @theme ainda cita a família'
+    assert not _font_mono_declarada(sem_decl)
+
+
+def test_familia_mono_sobrevive_ao_build():
+    """Sanidade do build, não prova do PR: o default do Tailwind já traz o
+    token; o que se checa é que um erro no @theme não derrubou as famílias
+    tipográficas do app.css compilado."""
+    app_css = APP_CSS.read_text(encoding='utf-8')
+    assert _DECL_FONT_MONO_RE.search(app_css), (
+        '--font-mono sumiu do app.css compilado — rode `make css-build`'
+    )
+
+
 @pytest.mark.skipif(
     not TAILWIND_CLI.exists() and shutil.which('tailwindcss') is None,
     reason=(

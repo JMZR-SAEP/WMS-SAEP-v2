@@ -70,6 +70,12 @@ Views traduzem para HTTP explicitamente:
 - `EstadoInvalido` / `DadosInvalidos` → redirect com `messages.error`
 - `ConflitoDominio` → idem
 
+> **Substituído pela Emenda 2026-06-26 — ver "Mapeamento canônico exceção →
+> HTTP".** O mapa acima precede o tradutor puro `traduz_erro_dominio`. No
+> mapeamento canônico vigente, `DadosInvalidos` segue em `messages.error`
+> (`422`), mas `EstadoInvalido` e `ConflitoDominio` passaram a
+> `messages.warning` (`409`). `PermissaoNegada` → `403` continua valendo.
+
 `IntegrityError` não é o caminho normal para erro de domínio previsível. Se o service sabe qual regra será violada, lança a exceção de domínio adequada antes do `save()`. `IntegrityError` é última barreira para condições de corrida e conflitos impossíveis de evitar só com validação prévia — nesse caso, capturar e relançar como `ConflitoDominio`.
 
 Forms Django podem continuar usando `django.core.exceptions.ValidationError` onde o framework espera (model `clean()`, form validation).

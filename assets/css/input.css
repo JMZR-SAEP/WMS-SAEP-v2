@@ -23,6 +23,21 @@
 */
 
 @theme {
+  /* ─── Famílias tipográficas ────────────────────────────────────────── */
+  /*
+    A fonte do sistema é a do próprio dispositivo (`--font-sans`, herdada do
+    tema default do Tailwind v4): uma família só, zero webfont. `--font-mono`
+    é a família de exceção — dado que forma coluna ou precisa de largura fixa:
+    delta assinado do livro-razão, código CADPRO do SCPI, hash de importação.
+    Ela não substitui a fonte do sistema; é pontual. Ver DESIGN.md §Typography
+    e docs/design-system.md §Tipografia.
+
+    Declarada aqui com o mesmo valor do tema default do Tailwind, para a
+    família virar token de primeira classe do sistema em vez de herança
+    implícita — o mesmo motivo de todo `--color-*` morar neste bloco.
+  */
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+
   /* ─── Cor primária ─────────────────────────────────────────────────── */
   --color-primary:              var(--color-blue-600);
   --color-primary-hover:        var(--color-blue-700);

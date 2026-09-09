@@ -103,6 +103,12 @@ typography:
     fontWeight: 600
     lineHeight: 1.33
     letterSpacing: "0.025em"
+  mono:
+    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
+    fontSize: "inherit"
+    fontWeight: "inherit"
+    lineHeight: "inherit"
+    letterSpacing: "normal"
 rounded:
   sm: "0.25rem"
   md: "0.375rem"
@@ -289,7 +295,17 @@ superfície: serve a ícone decorativo e a separador, nunca a texto.
 
 ## Typography
 
-**Display/Body/Label Font:** a fonte do sistema (`ui-sans-serif, system-ui, sans-serif`). Uma família só, zero webfont, zero CDN.
+**Display/Body/Label Font:** a fonte do sistema (`ui-sans-serif, system-ui, sans-serif`). Uma família só para texto, zero webfont, zero CDN.
+
+**Mono Font** (`--font-mono`: `ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace`): a única família fora da fonte do sistema. **Não a substitui** — é exceção pontual para dado que forma coluna ou precisa de largura fixa, onde o passo constante do dígito e do glifo carrega informação. Onde se usa hoje (11 pontos, todos em `apps/estoque/`):
+
+- delta assinado do livro-razão, com `tabular-nums` (`partials/_delta_movimentacao.html`);
+- código CADPRO do SCPI (`preview_importacao_scpi.html`, `partials/_cartoes_divergencias_scpi.html`) e os nomes de coluna do arquivo citados em prosa — `CADPRO`/`QUAN3` (`preview_importacao_scpi.html`);
+- hash do arquivo de importação (`historico_importacoes_scpi.html`, `detalhe_importacao_scpi.html`);
+- código do material na saída excepcional (`detalhe_saida_excepcional.html`);
+- nome do arquivo importado (`partials/_alert_sucesso_importacao_corpo.html`).
+
+> Nota factual: `--font-mono` foi consumida por meses via a classe `.font-mono`, que funcionava só pelo tema default embutido do Tailwind v4 — a chave nunca esteve no `@theme` do `input.css`. A fatia b da #173 declarou o token explicitamente, com o mesmo valor, para a família deixar de ser herança implícita e virar token de primeira classe. É o inverso da nota de `--color-info*` acima: lá o token está declarado sem consumidor; aqui havia consumidor sem token.
 
 **Character:** neutra e institucional por omissão deliberada — a personalidade do sistema está na estrutura e na sinalética, não no desenho da letra. A escala é curta e o peso faz quase todo o trabalho de hierarquia: 400 para conteúdo, 500 para controles e títulos de barra, 600 para títulos de tela e rótulos estruturais.
 
@@ -299,6 +315,7 @@ superfície: serve a ícone decorativo e a separador, nunca a texto.
 - **Title** (500, 1.125rem, lh 1.25, ls 0.0125em): título dentro da barra de aplicação e nome da marca; trunca com reticências em vez de quebrar linha.
 - **Body** (400, 0.875rem, lh 1.5): o tamanho dominante do sistema — célula de tabela, corpo de card, texto de botão, alerta, campo de formulário. Prosa longa limitada a 65–75ch.
 - **Label** (600, 0.75rem, ls 0.025em, caixa alta): cabeçalho de coluna, rótulo de campo, título de seção do menu. Também é o tamanho do badge — que usa 600 mas **sem** caixa alta, porque badge carrega conteúdo de domínio.
+- **Mono** (`font-mono`, exceção — não é degrau da escala): herda o tamanho e o peso do contexto (`text-sm`/`text-xs`, 400–600), em geral com `tabular-nums`. Só para dado tabular ou de largura fixa; nunca prosa nem rótulo. O corpo do sistema segue sendo a fonte de `ui-sans-serif`.
 
 ### Named Rules
 
@@ -385,6 +402,35 @@ Consequência para quem escreve tela nova: nenhuma coluna de grade fixa em
 `grid-cols-2` num cartão de listagem, e nenhum cabeçalho de cartão em
 `flex-row` abaixo de `xl`. Um `col-span-2` de campo largo vira `sm:col-span-2`.
 
+**Emenda (2026-09-09, fatia b da #173): duas exceções conscientes ao
+`grid-cols-2` fixo, nomeadas.** A consequência acima proíbe coluna de grade fixa
+em `grid-cols-2` num cartão de listagem. Duas ocorrências ficam como estão de
+propósito, e ficam registradas:
+
+- **`estoque/historico_movimentacoes.html` — o par Δ Físico / Δ Reservado**
+  (`<div class="grid grid-cols-2 gap-3">` dentro do `<dl>` do cartão, #163). Não
+  são pares rótulo→valor: são duas grandezas numéricas curtas (`font-mono` +
+  `tabular-nums`, via `_delta_movimentacao.html`) que medem uma coluna ao lado
+  da outra — a leitura é a comparação dos dois deltas, e empilhar a mataria. O
+  dado é curto e assinado (`+1.000` / `−140`); medido cabendo a 375px (cartão de
+  ~295px, ~140px por coluna) sem quebra. Fica fixo.
+- **`requisicoes/detalhe.html:132` — as três quantidades Solicitada /
+  Autorizada / Entregue de um item** (`<dl class="mt-2 grid grid-cols-2 gap-x-4
+  …">`). Não é cartão de listagem — é o bloco de quantidades dentro da tela de
+  detalhe — mas é `grid-cols-2` sem breakpoint. Medido a 375px: o `p-6` do
+  `<main>` e o `p-4` da `<section>` deixam ~295px, e o `gap-x-4` divide em
+  ~140px por célula (a mesma conta do caso acima). Cada célula é um rótulo em
+  caixa alta (`SOLICITADA`, ~75px) mais o número da quantidade
+  (`whitespace-nowrap` em `components/quantidade.html`, ≤~100px nas grandezas
+  deste domínio) mais a unidade por extenso (`Metro quadrado`, o mais longo dos
+  nove rótulos de `UnidadeMedida`). A unidade e a `justificativa_entrega`
+  quebram em **altura**, sem estouro horizontal. E não há aqui nenhuma âncora
+  de identidade que possa se partir (o número público mora na barra de
+  aplicação), então crescer em altura é aceitável. Fica fixo.
+
+A regra segue valendo para o caso geral: `col-span-2` de campo largo ou par
+rótulo→valor de texto continua indo para `sm:col-span-2` / `sm:grid-cols-2`.
+
 **A Regra do Chrome Sem Parâmetro.** Os fragmentos de chrome de listagem não recebem parâmetro de classe. Se um chrome precisa de um parâmetro que descreve conteúdo de célula, a abstração está errada — a célula fica explícita na tela chamadora. Uma variante de estrutura pura (contagem de colunas: `#cards_abertura` vs. `#cards_abertura_denso`) é fragmento irmão de string fixa, não parâmetro, e não fere a regra.
 
 ## Elevation & Depth
@@ -410,9 +456,71 @@ Retângulos de cantos suaves, sem chanfro, sem forma orgânica, sem clipping dec
 
 Borda é estrutural, não decorativa: 1px sólido em toda superfície de papel com `border`/`border-strong`, `border-control` (slate-500) em todo controle cuja borda é a única delimitação — campo, select, botão secundário, upload —, e `border-dashed` exclusivamente no estado vazio — a única textura de contorno do sistema, sinalizando "aqui caberia conteúdo".
 
+### Gramática de silhueta
+
+O `border-radius` acima descreve a superfície; a silhueta descreve o glifo e a
+forma do marcador. Duas coisas ficam registradas aqui (a segunda é pré-requisito
+da #172).
+
+#### As três silhuetas de glifo de nível de feedback
+
+Arquivos em `apps/core/templates/components/icons/`, mapeados por
+`apps/core/templates/components/_icone_nivel.html`:
+
+| Nível | Arquivo | Silhueta |
+|---|---|---|
+| `warning` | `atencao.svg` | triângulo arredondado — silhueta própria |
+| `danger` | `alerta.svg` | círculo, path `M18 10A8 8 0 1 1 2 10a8 8 0 0 1 16 0Z` + miolo de exclamação |
+| `info` | `informacao.svg` | **o mesmo círculo idêntico** `M18 10A8 8 0 1 1 2 10a8 8 0 0 1 16 0Z` + miolo "i" |
+
+**A colisão `danger` ≈ `info` é dívida conhecida, não escolha.** O único sinal
+não-cromático que hoje separa perigo de informação é o caractere interno do
+glifo (`!` vs `i`); o contorno é bit a bit igual. Quando a cor cai — impressão
+P&B, daltonismo de vermelho, alto contraste — os dois viram o mesmo círculo. A
+#172 vai dar silhueta própria ao `danger`; aqui só se registra o estado atual e
+que é dívida. O `warning` já está fora dela, com o triângulo.
+
 ### Named Rules
 
 **A Regra do Raio Crescente.** Se um elemento novo não sabe qual raio usar, ele responde uma pergunta: sou um controle, um campo, um papel ou um overlay? O raio segue da resposta. Um raio intermediário inventado quebra a leitura de hierarquia por geometria.
+
+**A Regra do Raio Crescente também decide pílula × retângulo.** A escala
+0.375 / 0.5 / 0.75 / 1rem responde "que camada?"; falta a pergunta anterior,
+"marcador ou controle?". O critério para um elemento novo: *sou um marcador que
+só informa, ou um controle que o usuário aciona?* A forma segue da resposta.
+
+É regra de taxonomia, não de viewport — a evidência que a obriga não é uma
+medição em px e sim o precedente da §Paridade (abaixo) e uma colisão de classe
+verificável no repo: `filter_chips.html` no estado ativo e `badge.html
+variant="blue"` resolvem os dois para `rounded-full bg-primary-muted
+text-primary-text-strong`, a mesma silhueta e o mesmo preenchimento para um
+controle e um marcador estático.
+
+- `rounded-full` (pílula) = marcador estático **ou** ação circular icon-only:
+  badge de estado, avatar, botão-ícone da barra de aplicação. Nestes o círculo é
+  o alvo de toque inteiro e não há rótulo que peça raio de controle — é a
+  exceção já reservada em §Shapes.
+- `rounded-md` (raio de controle, 0.375rem) = controle com rótulo textual:
+  botão, chip de filtro, preset de período, toggle rotulado. É a acionabilidade
+  *com rótulo* que puxa o raio de controle, não a acionabilidade sozinha.
+
+Tem precedente na §Paridade entre o banner e a faixa de flash de
+`docs/design-system.md`: *"alerta é campo, não controle… a faixa usava raio de
+controle e saiu dele"*. O inverso vale aqui — um `<a>` que alterna estado de
+query não pode vestir a forma de um `<span>` estático.
+
+**Chip de filtro não é badge de estado.** Os dois compartilhavam `rounded-full`
++ `bg-primary-muted` + `text-primary-text-strong`, e a seção "Badges de estado"
+abaixo tratava os dois como sinônimos. São coisas diferentes de forma:
+
+- **Badge** (`components/badge.html`) é `<span>` estático — marcador. **Pílula.**
+- **Chip de filtro** (`components/filter_chips.html`) é `<a>` com `hx-get` +
+  `hx-push-url` que alterna um recorte de query — controle. **Raio de
+  controle.** O **preset de período** (`components/filter_presets_periodo.html`)
+  é o mesmo caso: toggle, raio de controle.
+
+A troca de markup do chip e do preset (`rounded-full` → `rounded-md`) é a fatia b
+da #173.
 
 ## Components
 
@@ -427,8 +535,9 @@ Borda é estrutural, não decorativa: 1px sólido em toda superfície de papel c
 - **Desabilitado:** `opacity-60` + `cursor-not-allowed`, mantendo a variante. Ação de workflow bloqueada permanece visível, com o motivo em texto na tela amarrado por `aria-describedby` — e o botão usa `aria-disabled`, não `disabled` nativo, porque um botão desabilitado sai da ordem de tabulação e leva o motivo junto. A ativação é barrada por `core/js/acao-bloqueada.js`. Sem motivo a declarar (paginação), `disabled` nativo. Ação administrativa irrelevante é removida da marcação.
 - **Loading:** o label troca por texto de progresso (`data-submit-loading-label`), `aria-busy="true"` e submit duplo bloqueado — em form HTMX, por `hx-sync="this:drop"` no próprio form, porque o `preventDefault` do `form-submit.js` roda depois do HTMX. Não há spinner de submit: o vocabulário existia sem nenhuma tela que o produzisse.
 
-### Chips (badges de estado)
-- **Style:** pill (`9999px`), fundo `-muted` (shade 100), texto `-text-strong` (shade 900), `ring-1 ring-inset` na cor `-border` (shade 200). 0.75rem semibold, sem caixa alta.
+### Badges de estado
+- **Style:** pill (`9999px`) — badge é marcador estático, não controle (ver §Gramática de silhueta). Fundo `-muted` (shade 100), texto `-text-strong` (shade 900), `ring-1 ring-inset` na cor `-border` (shade 200). 0.75rem semibold, sem caixa alta.
+- **Não confundir com o chip de filtro.** `components/filter_chips.html` e `components/filter_presets_periodo.html` são `<a>` que alternam recorte de query — controles, com **raio de controle** (`rounded-md`), não pílula. O nome "chip" já cobriu os dois; a forma os separa.
 - **Variantes fortes** (`blue-strong`, `amber-strong`, `red-strong`, `teal-strong`): sobem um degrau — fundo 200, ring 300 — para o estado que precisa se destacar dentro de uma lista de badges. `teal-strong` é o carimbo de "Estornada": no varrimento de uma listagem, o fundo `-muted` do teal fica a ΔL 0,009 / ΔC 0,007 do verde de "Atendida" — dois desfechos opostos com o mesmo carimbo. Subir para o fundo 200 leva o par a ΔL 0,052 / ΔC 0,052 (Δh 24° preservado), distinguível num relance. A Regra da Reversão Não é Erro continua: teal mais forte, nunca vermelho.
 - **Contrato:** o badge não conhece enum de domínio. Partials de domínio mapeiam estado → `variant`/`label`/`role`/`aria_label` antes do include. A variante desconhecida cai num badge vermelho preenchido escrito "Indisponível" — falha visível, nunca silenciosa.
 

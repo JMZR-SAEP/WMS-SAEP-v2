@@ -38,13 +38,19 @@ saíram do ar em silêncio, sem quebrar teste nenhum.
 | **Piso de 44px** | Todo controle acionável tem `min-h-11` — botão, campo, select, e a *label* que embrulha radio/checkbox. A mesma tela é operada com o dedo, em pé no galpão, e com teclado no escritório. **Exceção: a variante `link` de `button.html`**, que é texto inline no meio de prosa e teria a linha quebrada por uma caixa de 44px (WCAG 2.5.8 isenta link em sentença). `link` usado como ação isolada recebe `class="min-h-11"` explícito — ver `notificacoes/lista.html`. | `test_nenhum_controle_abaixo_do_piso_de_44px`, que varre `<a>` e `<button>` de `apps/**/*.html` e cobra **piso comprovável** de cada um: `min-h-11` literal fora de `{% if %}`, classe cujo bloco em `input.css` declara `--size-touch-target`, classe vinda de `{% classes_botao %}`, ou — para quem inclui `button.html` com `variant="link"` — `min-h-11` no `class`. Falha na **ausência** de piso, não só em número menor. Para o checkbox de filtro há um segundo guarda, `test_todo_checkbox_esta_dentro_da_label_que_carrega_o_piso`: contar `min-h-11` não prova que o piso está na label que **embrulha** o input, e é o aninhamento que faz a caixa de 44px inteira valer como alvo — medido no navegador com o CSS compilado, 120 sondas em 15 labels, todas resolvendo para a label (issue #160) |
 | **Campo tem uma definição só** | Campo de texto, número, busca, select e textarea usam `class="campo"` (definida em `input.css`). Não se escreve a string de campo à mão, nem em template nem em `forms.py`. | `test_nenhum_template_escreve_campo_na_mao` |
 | **Botão tem uma definição só** | Toda ação passa por `components/button.html`. Se uma variante não existe, ela nasce no componente — não numa tela. | revisão |
-| **Raio crescente** | Controle 0.375rem → campo 0.5rem → papel 0.75rem → modal 1rem → pill. Um raio intermediário inventado quebra a leitura de hierarquia por geometria. | revisão |
+| **Raio crescente** | Controle 0.375rem → campo 0.5rem → papel 0.75rem → modal 1rem → pill. Um raio intermediário inventado quebra a leitura de hierarquia por geometria. A pílula é marcador estático (badge, avatar, botão-ícone) ou ação circular icon-only; controle com rótulo textual (botão, chip de filtro, preset) usa raio de controle — ver §Gramática de silhueta no `DESIGN.md`. | revisão |
 | **Quatro degraus de elevação** | 0dp repouso, 1dp papel, 8dp menu, 24dp modal, mais o 4dp exclusivo da barra de aplicação. Nenhuma sombra nova para componente novo. | revisão |
 | **Reversão não é erro** | Devolução e reversão usam teal (`return`), jamais vermelho. Vermelho é negação, falha ou divergência; devolver material é o processo funcionando. | revisão |
 
 As demais regras nomeadas — Sinal Único, Cartão Único, Chrome Sem Parâmetro,
-Caixa Alta Estrutural, 14px, Empilhamento Fechado — estão em `DESIGN.md` com a
-prosa e a medição que as originaram.
+Caixa Alta Estrutural, 14px, Empilhamento Fechado, Identidade Que Não Quebra —
+estão em `DESIGN.md` com a prosa e a medição que as originaram. A Identidade Que
+Não Quebra (número público e valor de `<dl>` não partem em duas linhas no
+cartão) tem o lado do cabeçalho travado por
+`test_cabecalho_de_cartao_nao_vira_linha_antes_de_xl`; o lado do `grid-cols-2`
+fixo em cartão de listagem é revisão + lane Navegador (layout medido a 375px),
+com duas exceções conscientes nomeadas no `DESIGN.md`, ambas medidas a 375px
+(~295px de contêiner, ~140px por célula).
 
 ## Tokens
 
@@ -105,7 +111,8 @@ de um aviso realmente neutro.
 
 ### Tipografia
 
-Fonte do sistema, sem CDN: `ui-sans-serif, system-ui, sans-serif`.
+Fonte do sistema, sem CDN: `ui-sans-serif, system-ui, sans-serif`. O corpo do
+sistema é essa família — mono é exceção pontual (última linha da tabela).
 
 | Papel | Tamanho | Peso | Onde |
 |---|---|---|---|
@@ -114,10 +121,17 @@ Fonte do sistema, sem CDN: `ui-sans-serif, system-ui, sans-serif`.
 | Title | 1rem → 1.125rem em `sm` | 500 | título e marca na barra de aplicação |
 | Body | **0.875rem** | 400 | o tamanho dominante do sistema |
 | Label | 0.75rem | 600 | rótulo de campo, cabeçalho de seção, badge (sem caixa alta) |
+| Mono | herda do contexto | herda | `--font-mono` / `.font-mono`, **exceção**: dado que forma coluna ou precisa de largura fixa — delta do livro-razão (com `tabular-nums`), código CADPRO do SCPI, hash de importação. Hoje 11 pontos, todos em `apps/estoque/`. Ver `DESIGN.md` §Typography |
 
 O corpo é 0.875rem e não 1rem — decisão de densidade operacional (Regra dos 14px,
 `DESIGN.md`). Se um texto precisa de mais presença, mude o peso ou o tom, não o
 tamanho.
+
+Mono não é degrau da escala: o corpo do sistema continua sendo `ui-sans-serif`,
+e mono só entra em dado tabular ou de largura fixa, nunca em prosa ou rótulo. O
+token `--font-mono` vive no `@theme` de `input.css` desde a fatia b da #173 —
+antes disso a classe `.font-mono` funcionava só pela herança do tema default do
+Tailwind.
 
 Controles (botão, item de menu, ação da barra, skip link) usam peso **500**.
 
@@ -458,15 +472,27 @@ parâmetro, e três dos oito consumidores reais não passavam nada.
 
 | Variante | Glifo | Cor | Quando usar |
 |---|---|---|---|
-| `info` | círculo de informação | azul | ação neutra, sem consequência a destacar |
-| `warning` | triângulo de atenção | âmbar | pede cuidado redobrado antes de confirmar |
-| `danger` | círculo de alerta | vermelho | recusar/cancelar: encerram a requisição, mas a trilha é append-only |
+| `info` | círculo (`informacao.svg`), miolo "i" | azul | ação neutra, sem consequência a destacar |
+| `warning` | triângulo arredondado (`atencao.svg`) | âmbar | pede cuidado redobrado antes de confirmar |
+| `danger` | círculo (`alerta.svg`), miolo "!" | vermelho | recusar/cancelar: encerram a requisição, mas a trilha é append-only |
 | `descarte` | lixeira | vermelho | reservada à única operação que remove um registro sem rastro (descarte de rascunho sem número público) |
 | `return` | seta de devolução | teal | devolução **e estorno** — reversão operacional, Regra da Reversão Não é Erro |
 
-Todos os cinco glifos saem do registry `{% icon %}` (`core_tags.py`), nunca de
-SVG inline — era assim que `_modal_icon.html` tinha dois mecanismos de ícone
-no mesmo arquivo (`danger` no registry, `warning`/`info` inline).
+**`info` e `danger` têm a mesma silhueta.** `informacao.svg` e `alerta.svg`
+compartilham o contorno de círculo bit a bit (`M18 10A8 8 0 1 1 2 10a8 8 0 0 1
+16 0Z`); a distinção é só o miolo — "i" contra "!". Não há distinção geométrica,
+e a redação anterior ("círculo de informação" / "círculo de alerta") fingia uma.
+É dívida conhecida, registrada na §Gramática de silhueta do `DESIGN.md` e ancorada
+pela #172. Só o `warning`, com o triângulo, tem silhueta própria.
+
+Os cinco glifos saem do **registry de ícones** (`{% icon %}` de `core_tags.py`,
+com os SVGs em `apps/core/templates/components/icons/`), nunca de `<path>`
+inline. O registry é parte do design system, ainda que só citado de passagem
+neste doc: um catálogo de nome → SVG que garante um único desenho por glifo —
+`_modal_icon.html` já teve dois mecanismos no mesmo arquivo (`danger` no
+registry, `warning`/`info` inline) e as cópias divergiram no espaçamento do
+path. `_icone_nivel.html` mapeia nível → glifo do registry, e `test_icons.py`
+trava a reincidência do inline.
 
 Mapa por consumidor (os 8 reais, não o componente isolado):
 
