@@ -10,6 +10,10 @@ então é renderizado DENTRO do partial `campos` do filtro — que já é reemit
 via `hx-swap-oob` (`oob_campos`) em respostas HTMX. Por isso este bloco não
 carrega `hx-swap-oob` próprio (ver isenção em test_components.py).
 
+Forma: `rounded-md` (raio de controle), não `rounded-full` — o preset é um
+toggle, mesma classe de controle que o chip de filtro. Ver DESIGN.md §Shapes
+(fatia b da #173). Guarda: apps/core/tests/test_components_filter_chips.py.
+
 Parâmetros:
   presets     (obrigatório) iterável de PresetPeriodo; vazio → nada renderiza
   target_id   (obrigatório) id do wrapper HTMX alvo do swap (sem #)
@@ -24,7 +28,7 @@ Parâmetros:
       hx-target="#{{ target_id }}"
       hx-push-url="true"
       {% if preset.ativo %}aria-current="true"{% endif %}
-      class="inline-flex min-h-11 items-center rounded-full border px-3 py-1.5 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1 {% if preset.ativo %}border-primary-border-strong bg-primary-muted text-primary-text-strong{% else %}border-border bg-surface text-text-secondary hover:bg-bg-page{% endif %}"
+      class="inline-flex min-h-11 items-center rounded-md border px-3 py-1.5 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1 {% if preset.ativo %}border-primary-border-strong bg-primary-muted text-primary-text-strong{% else %}border-border bg-surface text-text-secondary hover:bg-bg-page{% endif %}"
     >{{ preset.rotulo }}</a>
   {% endfor %}
 </div>

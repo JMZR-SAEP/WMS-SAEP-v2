@@ -4,6 +4,11 @@ lista `chips` (apps/core/filtros.ChipFiltro), cada um já resolvido para a URL
 canônica de ligar/desligar (issue #152). Link (não submit): alterna a URL num
 único request.
 
+Forma: `rounded-md` (raio de controle), não `rounded-full`. O chip é um `<a>`
+que aciona um recorte de query — controle, não marcador estático como o badge.
+Ver DESIGN.md §Shapes, "Chip de filtro não é badge de estado" (fatia b da #173).
+Guarda: apps/core/tests/test_components_filter_chips.py.
+
 Distinção visual chip x preset é por POSIÇÃO (#153): os chips vivem ACIMA dos
 resultados e recortam o conjunto inteiro; os presets ficam colados ao par
 De/Até. Por isso este bloco vive FORA do alvo do swap de resultados
@@ -29,7 +34,7 @@ Parâmetros:
       hx-target="#{{ target_id }}"
       hx-push-url="true"
       {% if chip.ativo %}aria-current="true"{% endif %}
-      class="inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1 {% if chip.ativo %}border-primary-border-strong bg-primary-muted text-primary-text-strong{% else %}border-border bg-surface text-text-secondary hover:bg-bg-page{% endif %}"
+      class="inline-flex min-h-11 items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1 {% if chip.ativo %}border-primary-border-strong bg-primary-muted text-primary-text-strong{% else %}border-border bg-surface text-text-secondary hover:bg-bg-page{% endif %}"
     >
       {% if chip.glifo %}<span aria-hidden="true">{{ chip.glifo }}</span>{% endif %}
       {{ chip.rotulo }}
