@@ -471,15 +471,27 @@ parâmetro, e três dos oito consumidores reais não passavam nada.
 
 | Variante | Glifo | Cor | Quando usar |
 |---|---|---|---|
-| `info` | círculo de informação | azul | ação neutra, sem consequência a destacar |
-| `warning` | triângulo de atenção | âmbar | pede cuidado redobrado antes de confirmar |
-| `danger` | círculo de alerta | vermelho | recusar/cancelar: encerram a requisição, mas a trilha é append-only |
+| `info` | círculo (`informacao.svg`), miolo "i" | azul | ação neutra, sem consequência a destacar |
+| `warning` | triângulo arredondado (`atencao.svg`) | âmbar | pede cuidado redobrado antes de confirmar |
+| `danger` | círculo (`alerta.svg`), miolo "!" | vermelho | recusar/cancelar: encerram a requisição, mas a trilha é append-only |
 | `descarte` | lixeira | vermelho | reservada à única operação que remove um registro sem rastro (descarte de rascunho sem número público) |
 | `return` | seta de devolução | teal | devolução **e estorno** — reversão operacional, Regra da Reversão Não é Erro |
 
-Todos os cinco glifos saem do registry `{% icon %}` (`core_tags.py`), nunca de
-SVG inline — era assim que `_modal_icon.html` tinha dois mecanismos de ícone
-no mesmo arquivo (`danger` no registry, `warning`/`info` inline).
+**`info` e `danger` têm a mesma silhueta.** `informacao.svg` e `alerta.svg`
+compartilham o contorno de círculo bit a bit (`M18 10A8 8 0 1 1 2 10a8 8 0 0 1
+16 0Z`); a distinção é só o miolo — "i" contra "!". Não há distinção geométrica,
+e a redação anterior ("círculo de informação" / "círculo de alerta") fingia uma.
+É dívida conhecida, registrada na §Gramática de silhueta do `DESIGN.md` e ancorada
+pela #172. Só o `warning`, com o triângulo, tem silhueta própria.
+
+Os cinco glifos saem do **registry de ícones** (`{% icon %}` de `core_tags.py`,
+com os SVGs em `apps/core/templates/components/icons/`), nunca de `<path>`
+inline. O registry é parte do design system, ainda que só citado de passagem
+neste doc: um catálogo de nome → SVG que garante um único desenho por glifo —
+`_modal_icon.html` já teve dois mecanismos no mesmo arquivo (`danger` no
+registry, `warning`/`info` inline) e as cópias divergiram no espaçamento do
+path. `_icone_nivel.html` mapeia nível → glifo do registry, e `test_icons.py`
+trava a reincidência do inline.
 
 Mapa por consumidor (os 8 reais, não o componente isolado):
 
