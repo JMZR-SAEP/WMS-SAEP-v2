@@ -2,9 +2,9 @@
 
 **Documento vivo.** Ponto de partida para quem entra no backlog e ferramenta de acompanhamento para quem já está nele. Visão macro: o detalhe técnico vive na issue, aqui vive a **ordem, a dependência e o estado**.
 
-Última atualização: **2026-09-09** (a #187 — fatia (d) da #173 — **mergeou e fechou** via PR `JMZR-SAEP#188`, `d2db3b3`. O auto-close funcionou: `closingIssuesReferences` ligou a #187 à #188 e o merge fechou a issue sozinho, primeira vez que isso acontece no novo fluxo `origin`. A #173 segue aberta como capa até #184, #185 e #186 fecharem. Próximo alvo: **#185**, que destrava a #172).
+Última atualização: **2026-09-09, segunda passada** (a #185 — fatia (b) da #173 — **mergeou e fechou** via PR `JMZR-SAEP#189`, `11a6d65`. Auto-close funcionou de novo (2ª vez seguida no `origin`). O job `navegador` da CI ficou vermelho no commit de merge por **flake de infra** — `apt` Hash Sum mismatch baixando o repo do Google Chrome, não código; rerun disparado. A #172 está **destravada** (a #185 documentou a gramática de formas), mas segue `ready-for-human`. Próximos alvos: **#186** (fatia c, tem peso de comportamento) depois **#184** (fatia a, quase toda copy). Análise das duas disparada em paralelo — 2 `Explore` read-only).
 
-Última atualização anterior: **2026-09-08, segunda passada** (ondas 4 e 5 **fechadas**: as PRs `joaozuneda6#70`, `#71`, `#72` e `#73` mergearam e as issues #167, #178, #181 e #182 foram fechadas manualmente — o fechamento que os corpos das PRs prometiam não tinha acontecido. A #183 está em PR (`joaozuneda6#75`). A #173 foi fatiada em **quatro**, não três: #184, #185, #186 e #187; a #187 vai na frente por ser bug de comportamento, não achado estético).
+Última atualização anterior: **2026-09-09** (a #187 — fatia (d) da #173 — **mergeou e fechou** via PR `JMZR-SAEP#188`, `d2db3b3`. O auto-close funcionou: `closingIssuesReferences` ligou a #187 à #188 e o merge fechou a issue sozinho, primeira vez que isso acontece no novo fluxo `origin`).
 
 ## Como usar
 
@@ -52,17 +52,18 @@ Snapshots em `.impeccable/critique/` (diretório local, gitignored). O plano de 
 
 **Armadilha de processo, custou uma rodada inteira.** Os corpos das quatro PRs diziam "issue fechada manualmente após o merge, já que a issue vive no outro remote" — e ninguém fechou. O merge não fecha issue de outro remote, e `Closes #N` no corpo também não atravessa. **Fechar é passo manual explícito depois do merge**, não consequência dele. As quatro passaram quatro dias abertas dizendo que o trabalho estava por fazer.
 
-**Onda 6 — fatia (d) fechada em 2026-09-09**
+**Onda 6 — fatias (d) e (b) fechadas em 2026-09-09**
 
 | # | PR | Merge | O que entregou |
 |---|---|---|---|
 | 187 | `JMZR-SAEP#188` (6 commits) | `d2db3b3` | As seis peças da fatia (d). Suíte 2729 ✅, Navegador 71 ✅, ruff/mypy ✅. Ver "A #187 na prática" abaixo. **Auto-close funcionou** — o merge fechou a issue sozinho, sem passo manual, validando a topologia nova. |
+| 185 | `JMZR-SAEP#189` (8 commits) | `11a6d65` | As 5 entregas da fatia (b). Revisado por `cavecrew-reviewer` (1 nit 🔵) + `revisor-camadas` + 2 achados 🟡 do `joaorighetto` + 2 achados 🟡 do CodeRabbit (disparo manual) — todos corrigidos, threads resolvidos (ver "Achados de review da #189" e "Achados do CodeRabbit na #189" abaixo). **Auto-close funcionou** (2ª vez seguida). Job `navegador` vermelho no merge por flake de infra (`apt` Hash Sum mismatch no repo do Chrome), não código — rerun disparado. Escopo travado — ver "A #185 na prática". |
 
 **Em andamento**
 
 | # | Branch | O que entrega |
 |---|---|---|
-| 185 | **PR `JMZR-SAEP#189`** (`fix/design-system-fatia-b-173`, 8 commits) | As 5 entregas. CI: 8 checks ✅, `mergeState` CLEAN. Revisado por `cavecrew-reviewer` (1 nit 🔵) + `revisor-camadas` (E5 isolada) + 2 achados 🟡 do `joaorighetto` na PR — todos corrigidos, threads resolvidos (ver "Achados de review da #189" abaixo). **Aguarda merge humano** (CodeRabbit não roda no `origin`). Escopo travado — ver "A #185 na prática". |
+| — | — | Nada em PR. Análise de #186 e #184 em curso (2 `Explore` read-only, paralelos). |
 
 **A #185 na prática — a análise re-triou 2 dos ~5 itens (2026-09-09).**
 
@@ -172,11 +173,11 @@ Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/account
 | # | Onda | Label | Bloqueio |
 |---|---|---|---|
 | ~~187~~ | 6 | **fechada** (`JMZR-SAEP#188`, merge `d2db3b3`) — fatia (d) da #173 | — |
-| 185 | 6 | `ready-for-agent` — fatia (b) da #173. **Próximo alvo.** Destrava a #172 | — |
-| 184 | 6 | `ready-for-agent` — fatia (a) da #173 | — |
-| 186 | 6 | `ready-for-agent` — fatia (c) da #173 | — |
-| 173 | 6 | guarda-chuva, aberta até as três filhas restantes fecharem | #184, #185, #186 |
-| 172 | 7 | `ready-for-human` (decisão de vocabulário visual) | **#185** documentar a gramática de formas |
+| ~~185~~ | 6 | **fechada** (`JMZR-SAEP#189`, merge `11a6d65`) — fatia (b) da #173 | — |
+| 186 | 6 | `ready-for-agent` — fatia (c) da #173. **Próximo alvo** (peso de comportamento). Análise disparada | — |
+| 184 | 6 | `ready-for-agent` — fatia (a) da #173. Alvo seguinte. Análise disparada; tem ponto de decisão (normalização SCPI) | — |
+| 173 | 6 | guarda-chuva, aberta até #184 e #186 fecharem | #184, #186 |
+| 172 | 7 | `ready-for-human` (decisão de vocabulário visual) | **destravada** — #185 documentou a gramática de formas |
 | 170 | 8 | `needs-info` | resposta do chefe de almoxarifado |
 | 171 | 9 | `needs-info` | export real do SCPI |
 | 169 | 10 | `needs-info` | medição da rede do piloto |
@@ -194,8 +195,8 @@ Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/account
 4. ~~**#167**~~ **Feita e fechada — PR `joaozuneda6#71`** (merge `43b6dee`). Fechada por remoção da legenda. O bullet das pílulas do #173 **não** entrou: a premissa dele estava errada (ver "Candidatos"), e a colisão real precisa de mudança no componente global.
 5. ~~**#178, #181, #182**~~ **Feitas e fechadas — PRs `joaozuneda6#72`, `#73`, `#70`.** Não houve conflito de hunk entre #178 e #182, apesar de editarem o mesmo `selectors.py`: as regiões eram disjuntas (20-27 vs 304-338; testes 9-78 vs 467-549). A #178 gerou a #183.
 5b. ~~**#183**~~ **Feita e fechada — PR `joaozuneda6#75`** (merge `46ee10c`).
-6. ~~**#173, fatiada em 3**~~ **Fatiada em 4: #184 (a), #185 (b), #186 (c), #187 (d).** A quarta fatia existe porque cinco dos candidatos anexados não eram achado estético e sim **defeito de comportamento** — diluí-los em (a)/(b)/(c) enterraria bug sob revisão de copy. **~~#187 primeiro~~ — feita e fechada (PR #188).** Ordem restante: **#185** (que destrava a #172), depois #184 e #186.
-7. **#172** — depois que a **#185** documentar a gramática de formas.
+6. ~~**#173, fatiada em 3**~~ **Fatiada em 4: #184 (a), #185 (b), #186 (c), #187 (d).** A quarta fatia existe porque cinco dos candidatos anexados não eram achado estético e sim **defeito de comportamento** — diluí-los em (a)/(b)/(c) enterraria bug sob revisão de copy. **~~#187~~ fechada (PR #188). ~~#185~~ fechada (PR #189).** Ordem restante: **#186** (peso de comportamento: drawer corta "Sair", ordem de foco WCAG 2.4.3, focus-visible ausente), depois **#184** (copy; ponto de decisão: normalização da denominação SCPI na escrita × na exibição). Sem dependência de código entre as duas — análise em paralelo, implementação sequencial.
+7. **#172** — destravada (a #185 documentou a gramática de formas). `ready-for-human`.
 8. ~~**#176, metade de permissão** — quem é o dono da importação SCPI.~~ **Feito e fechada — PR #63.** Domínio decidiu: chefe de almoxarifado. Gerou #178, #179, #180.
 9. **#170** — quando o chefe de almoxarifado responder.
 10. **#171** — quando o export real chegar. Cada quebra vira issue própria.
@@ -209,8 +210,8 @@ Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/account
 - **#177 ≡ #166 em forma.** Cor que existe, par que existe, guarda que não alcança — uma por paleta crua, outra por par pai/filho. Entender o guarda duas vezes é desperdício.
 - ~~**#166 → #167, #173, #174.**~~ **Satisfeita.** A varredura está no lugar: toda mudança de markup daqui em diante nasce medida, nas 11 telas cobertas.
 - ~~**#173 ⊃ #167.**~~ **Resolvida por medição**: o bullet das pílulas era falso (ver "Candidatos"), e a colisão real foi para a **#185**, que toca `filter_chips.html` — componente global que arrasta as 11 telas da varredura da #166.
-- **#185 → #172.** Os bullets de `DESIGN.md` fixam a gramática que o triângulo vai estender. Documentar antes de acrescentar.
-- **#187 antes de #184/#186.** Não é dependência de código, é de severidade: bug de comportamento não espera revisão de copy.
+- ~~**#185 → #172.**~~ **Satisfeita** — a #185 (merge `11a6d65`) documentou a gramática de formas no `DESIGN.md`. A #172 está livre para acontecer quando o humano decidir o vocabulário visual.
+- **#187/#185 antes de #184/#186.** Feito. #186 antes de #184 é severidade (comportamento antes de copy), não código — sem dependência de build entre as duas.
 - **#176 se divide em duas metades independentes.** A do laço fechado é defeito puro e sai sozinha; a da policy espera decisão de domínio.
 - **Sem dependência de código real entre as demais.** As dependências que importam neste backlog são de **informação** (respostas humanas) e de **contaminação de medição**, não de build.
 
