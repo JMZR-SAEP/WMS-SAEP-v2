@@ -454,6 +454,12 @@ uma pilha só, com foco e leitura na mesma ordem. Precedente: `rascunho_form
 (onde DOM e visual coincidem), sem inverter o DOM — "Enter num campo não
 promove o rascunho para autorização".
 
+Exceção temporária rastreada: `components/_modal_body.html:198` — o footer de
+todo modal ainda usa `flex-col-reverse` e viola esta regra. A correção arrasta
+as 11 telas da varredura de contraste da #166, então foi isolada na **#190**.
+Enquanto a #190 não fecha, o footer de modal é o único ponto autorizado a
+manter `flex-col-reverse`; nenhum template novo pode reintroduzi-lo.
+
 **A Regra do Chrome Sem Parâmetro.** Os fragmentos de chrome de listagem não recebem parâmetro de classe. Se um chrome precisa de um parâmetro que descreve conteúdo de célula, a abstração está errada — a célula fica explícita na tela chamadora. Uma variante de estrutura pura (contagem de colunas: `#cards_abertura` vs. `#cards_abertura_denso`) é fragmento irmão de string fixa, não parâmetro, e não fere a regra.
 
 ## Elevation & Depth
