@@ -21,6 +21,7 @@ from django.urls import reverse
 from apps.accounts.models import User, VinculoAuxiliar
 from apps.core.tests.navegador import autenticar, medir_contraste
 from apps.estoque.models import (
+    MotivoSaidaExcepcional,
     Estoque,
     Material,
     MovimentacaoEstoque,
@@ -106,7 +107,7 @@ def cenario(db, setor_comum, setor_almoxarifado, chefe_comum, chefe_almox, solic
     saida = registrar_saida_excepcional(
         ator_id=chefe_almox.pk,
         estoque_id=estoque.pk,
-        motivo='Material avariado no transporte.',
+        motivo=MotivoSaidaExcepcional.AVARIA,
         observacao='Descarte autorizado pela chefia.',
         itens=[{'material_id': material.pk, 'quantidade': '4'}],
     )

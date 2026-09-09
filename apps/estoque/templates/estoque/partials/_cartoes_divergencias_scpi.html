@@ -37,31 +37,37 @@ Quem chama fecha o container: </div>
         `820.000` e a localização pt-BR do Django o renderizava `820,000` — que
         em pt-BR se lê *oitocentos e vinte mil*. É o bug que
         `apps/core/quantidades.py` existe para matar, na tela cuja função
-        inteira é comparar dois saldos. `LinhaDivergenteSCPI` não guarda
-        unidade (o CSV do SCPI não a informa), então a política degrada para
-        casa significativa — o mesmo caminho que o átomo do delta já usa.
+        inteira é comparar dois saldos. A unidade vem de `LinhaDivergenteSCPI`,
+        copiada do material na confirmação: o CSV do SCPI de fato não a informa,
+        mas o WMS a conhece, e era o registro durável que ficava sem ela
+        enquanto a pré-visualização efêmera a exibia. Linha antiga, gravada
+        antes do campo existir, tem unidade vazia e degrada para casa
+        significativa — o comportamento anterior, agora só na ausência do dado.
       {% endcomment %}
       <dl class="mt-4 grid grid-cols-3 gap-3 text-sm">
         <div>
           <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">WMS</dt>
-          <dd class="mt-0.5">{% include "components/quantidade.html" with valor=linha.saldo_wms unidade="" esquerda=True %}</dd>
+          <dd class="mt-0.5">{% include "components/quantidade.html" with valor=linha.saldo_wms unidade=linha.unidade esquerda=True %}</dd>
         </div>
         <div>
           <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">SCPI</dt>
-          <dd class="mt-0.5">{% include "components/quantidade.html" with valor=linha.saldo_scpi unidade="" esquerda=True %}</dd>
+          <dd class="mt-0.5">{% include "components/quantidade.html" with valor=linha.saldo_scpi unidade=linha.unidade esquerda=True %}</dd>
         </div>
         <div>
           {% comment %}
             Delta pelo átomo `_delta_movimentacao.html` — a mesma grafia do
             histórico de movimentações e do preview do SCPI (issue #163):
             `font-mono`, cor neutra, `▲`/`▼` `aria-hidden` com o sinal `+`/`−`
-            (U+2212) em texto como portador da direção. `LinhaDivergenteSCPI`
-            não guarda unidade (o CSV do SCPI não a informa); sem `unidade` o
-            átomo degrada para casa significativa, que aqui é o número certo e
-            de quebra some o `,000` que o `{{ linha.delta }}` cru imprimia.
+            (U+2212) em texto como portador da direção. `mostrar_unidade=True`
+            porque esta coluna mistura materiais de unidades diferentes: sem o
+            símbolo, −120 metros e −140 unidades são o mesmo texto. No histórico
+            de movimentações, onde a coluna é de um material só, o átomo segue
+            sem imprimi-lo. Linha gravada antes do campo tem unidade vazia e
+            degrada para casa significativa, que já some com o `,000` do
+            `{{ linha.delta }}` cru.
           {% endcomment %}
           <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Delta</dt>
-          <dd class="mt-0.5">{% include "estoque/partials/_delta_movimentacao.html" with valor=linha.delta %}</dd>
+          <dd class="mt-0.5">{% include "estoque/partials/_delta_movimentacao.html" with valor=linha.delta unidade=linha.unidade mostrar_unidade=True %}</dd>
         </div>
       </dl>
     </article>

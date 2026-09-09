@@ -4958,6 +4958,11 @@ def test_historico_ordenacao_disponivel_no_mobile(
     html = client.get(reverse('requisicoes:historico')).content.decode()
     assert 'Mais antigas primeiro' in html
     assert 'Mais recentes primeiro' not in html
+    # A seta nomeia o estado corrente, ao contrário do texto: em `desc` a lista
+    # mostra as mais recentes primeiro, então ela aponta para baixo. Apontava
+    # para cima, contradizendo a tela e o `aria-label` ao mesmo tempo.
+    assert 'Mais antigas primeiro ↓' in html
+    assert 'Mais antigas primeiro ↑' not in html
     assert (
         html.count(
             'aria-label="Ordenar por mais antigas primeiro; '
@@ -5504,7 +5509,10 @@ def test_rascunho_campo_quantidade_vem_do_componente_com_alvo_de_44px(
     html = client.get(reverse('requisicoes:nova_requisicao')).content.decode()
     assert 'id="id_itens-0-quantidade_solicitada"' in html
     assert 'min-h-11' in html
-    assert 'inputmode="numeric"' in html
+    # `decimal`, não `numeric`: o catálogo inclui metro, quilograma e litro, e
+    # um teclado sem separador decimal impede digitar a quantidade que esses
+    # materiais admitem.
+    assert 'inputmode="decimal"' in html
 
 
 @pytest.mark.django_db
@@ -5540,18 +5548,23 @@ def test_atender_retirada_tem_barra_de_acao_fixa_no_mobile(
 
 @pytest.mark.django_db
 def test_linha_de_item_tira_min_e_step_do_widget_e_nao_do_template(client, solicitante):
-    """`min`/`step` são restrição de domínio: moram no Form, não no template.
+    """Sem material escolhido, `min`/`step` saem do Form e de mais lugar nenhum.
 
     Passá-los também como parâmetro do include criava duas fontes para a mesma
-    regra, com o template ganhando de quem valida.
+    regra, com o template ganhando de quem valida. O componente só estreita o
+    passo quando a unidade já é conhecida — aqui não é, e o widget manda.
+
+    Os valores deixaram de ser `1`/`1`: aquele par era a premissa de que toda
+    requisição se mede em unidades inteiras, num catálogo que inclui metro,
+    quilograma e litro.
     """
     _login(client, solicitante)
     html = client.get(reverse('requisicoes:nova_requisicao')).content.decode()
     campo = re.search(
         r'<input[^>]*id="id_itens-0-quantidade_solicitada"[^>]*>', html
     ).group()
-    assert 'min="1"' in campo
-    assert 'step="1"' in campo
+    assert 'min="0.001"' in campo
+    assert 'step="any"' in campo
     assert campo.count('min=') == 1
     assert campo.count('step=') == 1
 
@@ -6430,3 +6443,184 @@ class TestBuscaNasListasDeTrabalho:
         encontradas = list(resposta.context['requisicoes'])
         assert len(encontradas) == 1
         assert encontradas[0].quantidade_itens == 2
+
+
+# ---------------------------------------------------------------------------
+# #187 — quantidade de item respeita a unidade de medida do material
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def material_em_metros(db, estoque_principal):
+    """Material medido em metros — unidade fracionária de uma casa."""
+    from apps.estoque.models import Material, SaldoEstoque, UnidadeMedida
+
+    m = Material.objects.create(
+        codigo='MAT900',
+        nome='Cabo flexível 2,5mm',
+        unidade=UnidadeMedida.METRO,
+        ativo=True,
+    )
+    SaldoEstoque.objects.create(
+        estoque=estoque_principal,
+        material=m,
+        saldo_fisico=Decimal('100'),
+        saldo_reservado=Decimal('0'),
+    )
+    return m
+
+
+@pytest.mark.django_db
+def test_quantidade_de_item_aceita_fracao_em_material_medido_em_metros(
+    client, solicitante, material_em_metros
+):
+    """Pedir 2,5 m de cabo não é caso de borda: é o uso normal da unidade.
+
+    O campo era `IntegerField` com `step='1'`, então o único formulário por onde
+    uma requisição nasce recusava metade do catálogo — enquanto o model é
+    `DecimalField(12, 3)` e o service sempre recebeu `Decimal`.
+    """
+    _login(client, solicitante)
+    dados = _formset_post(material_em_metros.pk, quantidade='2.5')
+    resp = client.post(reverse('requisicoes:nova_requisicao'), dados)
+
+    assert resp.status_code == 302
+    req = Requisicao.objects.filter(criador=solicitante).first()
+    assert req is not None
+    assert req.itens.get().quantidade_solicitada == Decimal('2.5')
+
+
+@pytest.mark.django_db
+def test_reeditar_rascunho_preserva_a_fracao_da_quantidade(
+    client, solicitante, material_em_metros
+):
+    """Reabrir o rascunho não pode rebaixar 2,5 para 2.
+
+    A view montava o `initial` com `int(...)`: quem abrisse o rascunho para
+    corrigir outra linha e salvasse levava junto um truncamento que ninguém
+    pediu e nada anunciou.
+    """
+    _login(client, solicitante)
+    client.post(
+        reverse('requisicoes:nova_requisicao'),
+        _formset_post(material_em_metros.pk, quantidade='2.5'),
+    )
+    req = Requisicao.objects.filter(criador=solicitante).first()
+
+    html = client.get(
+        reverse('requisicoes:editar_rascunho', kwargs={'pk': req.pk})
+    ).content.decode()
+    campo = re.search(
+        r'<input[^>]*id="id_itens-0-quantidade_solicitada"[^>]*>', html
+    ).group()
+    assert 'value="2.5"' in campo
+
+
+@pytest.mark.django_db
+def test_linha_de_item_estreita_o_passo_quando_a_unidade_e_conhecida(
+    client, solicitante, material_em_metros
+):
+    """Com material já escolhido, o passo do campo é o da unidade dele.
+
+    Sem isto o rascunho voltaria com o passo genérico e o navegador recusaria a
+    própria quantidade que o banco guarda — o formulário rejeitando o seu
+    próprio conteúdo.
+    """
+    _login(client, solicitante)
+    client.post(
+        reverse('requisicoes:nova_requisicao'),
+        _formset_post(material_em_metros.pk, quantidade='2.5'),
+    )
+    req = Requisicao.objects.filter(criador=solicitante).first()
+
+    html = client.get(
+        reverse('requisicoes:editar_rascunho', kwargs={'pk': req.pk})
+    ).content.decode()
+    campo = re.search(
+        r'<input[^>]*id="id_itens-0-quantidade_solicitada"[^>]*>', html
+    ).group()
+    assert 'step="0.1"' in campo
+    assert campo.count('step=') == 1
+
+
+@pytest.mark.django_db
+def test_autocomplete_de_materiais_manda_o_passo_da_unidade(
+    client, solicitante, material_disponivel, material_em_metros
+):
+    """O passo vem do servidor porque a política de precisão mora lá.
+
+    Calculá-lo em JavaScript criaria uma segunda tabela de unidades, livre para
+    divergir de `apps.core.quantidades` sem que nada avisasse.
+    """
+    _login(client, solicitante)
+    dados = client.get(reverse('requisicoes:buscar_materiais'), {'q': 'MAT'}).json()
+    passos = {r['codigo']: r['step'] for r in dados['resultados']}
+    assert passos['MAT001'] == '1'
+    assert passos['MAT900'] == '0.1'
+
+
+def test_post_invalido_preserva_o_passo_da_unidade_do_material(
+    client, solicitante, material_disponivel
+):
+    """Depois de um erro de validação, a linha volta com o passo da unidade.
+
+    O POST inválido re-renderizava o formulário sem `saldo_info`, então
+    `unidade_efetiva` ficava vazia e o campo voltava com o `step` genérico. Num
+    material medido em unidade isso fazia o navegador aceitar `1,5` — o passo
+    fixo antigo protegia esse caso por acidente, e a correção da fração o
+    desprotegeu.
+    """
+    _login(client, solicitante)
+    # Quantidade zero derruba a validação e força o re-render.
+    dados = _formset_post(material_disponivel.pk, quantidade='0')
+    html = client.post(reverse('requisicoes:nova_requisicao'), dados).content.decode()
+    campo = re.search(
+        r'<input[^>]*id="id_itens-0-quantidade_solicitada"[^>]*>', html
+    ).group()
+    assert 'step="1"' in campo
+    assert 'step="any"' not in campo
+
+
+def test_servidor_recusa_fracao_em_material_medido_em_unidade(
+    client, solicitante, material_disponivel
+):
+    """O `step` é barreira de navegador, e barreira de navegador não valida.
+
+    `DecimalField(decimal_places=3)` aceita `1,5` para `un` tanto quanto para
+    `kg`: sem esta checagem, quem contornasse o campo numérico gravava meia
+    unidade de parafuso no ledger.
+    """
+    _login(client, solicitante)
+    dados = _formset_post(material_disponivel.pk, quantidade='1.5')
+    resp = client.post(reverse('requisicoes:nova_requisicao'), dados)
+
+    assert resp.status_code == 200
+    assert not Requisicao.objects.filter(criador=solicitante).exists()
+    assert 'não admite fração' in resp.content.decode()
+
+
+def test_servidor_aceita_a_fracao_que_a_unidade_admite(
+    client, solicitante, material_em_metros
+):
+    """A recusa é da casa a mais, não da fração — metro admite uma casa."""
+    _login(client, solicitante)
+    resp = client.post(
+        reverse('requisicoes:nova_requisicao'),
+        _formset_post(material_em_metros.pk, quantidade='2.5'),
+    )
+    assert resp.status_code == 302
+    assert Requisicao.objects.filter(criador=solicitante).exists()
+
+
+def test_servidor_recusa_casa_a_mais_do_que_a_unidade_admite(
+    client, solicitante, material_em_metros
+):
+    """Metro admite uma casa; `2,55` é precisão que a medida não sustenta."""
+    _login(client, solicitante)
+    resp = client.post(
+        reverse('requisicoes:nova_requisicao'),
+        _formset_post(material_em_metros.pk, quantidade='2.55'),
+    )
+    assert resp.status_code == 200
+    assert not Requisicao.objects.filter(criador=solicitante).exists()
+    assert 'no máximo 1 casa decimal' in resp.content.decode()

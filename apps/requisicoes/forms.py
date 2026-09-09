@@ -106,17 +106,28 @@ class ItemRequisicaoForm(forms.Form):
             }
         ),
     )
-    quantidade_solicitada = forms.IntegerField(
+    # `DecimalField`, não `IntegerField`. Era inteiro com `step='1'` fixo, num
+    # catálogo cujas unidades incluem metro, quilograma e litro: pedir 2,5 m de
+    # cabo era irrepresentável no único formulário por onde uma requisição
+    # nasce. O modelo sempre foi `DecimalField(12, 3)` e o service sempre
+    # recebeu `Decimal` — o inteiro estava só aqui, estreitando o domínio na
+    # porta de entrada. `step`/`min` reais saem da unidade do material, que só
+    # é conhecida depois da seleção: o template os aplica quando ela já existe
+    # e o `registrarMaterial` os reaplica a cada troca. `step='any'` é o
+    # default enquanto não há material, para não recusar o que o domínio aceita.
+    quantidade_solicitada = forms.DecimalField(
         label='Quantidade',
-        min_value=1,
+        min_value=Decimal('0.001'),
+        decimal_places=3,
+        max_digits=12,
         required=False,
         widget=forms.NumberInput(
             attrs={
                 'class': 'campo',
-                'inputmode': 'numeric',
+                'inputmode': 'decimal',
                 'autocomplete': 'off',
-                'step': '1',
-                'min': '1',
+                'step': 'any',
+                'min': '0.001',
             }
         ),
     )
@@ -146,6 +157,19 @@ class ItemRequisicaoForm(forms.Form):
             self.cleaned_data.get('material_id')
             and self.cleaned_data.get('quantidade_solicitada', 0) > 0
         )
+
+
+def _casas_decimais_usadas(valor: Decimal) -> int:
+    """Quantas casas decimais o número realmente usa.
+
+    `normalize()` primeiro, senão `1.500` — que é como o campo entrega um
+    `DecimalField(decimal_places=3)` — contaria três casas e seria recusado num
+    material medido em unidade, embora seja o inteiro 1.
+    """
+    expoente = valor.normalize().as_tuple().exponent
+    if not isinstance(expoente, int):  # pragma: no cover — NaN/Infinity
+        return 0
+    return max(0, -expoente)
 
 
 class BaseItemRequisicaoFormSet(BaseFormSet):
@@ -180,6 +204,60 @@ class BaseItemRequisicaoFormSet(BaseFormSet):
 
         if linhas_validas == 0:
             raise forms.ValidationError('A requisição precisa ter ao menos um item.')
+
+        self._validar_precisao_por_unidade()
+
+    def _validar_precisao_por_unidade(self) -> None:
+        """Recusa quantidade com mais casas do que a unidade do material admite.
+
+        O `step` do campo numérico é a barreira do navegador, e barreira de
+        navegador não é validação: no POST re-renderizado por erro o material já
+        está escolhido, nenhum evento de seleção dispara, e um `step` genérico
+        deixava `1,5` passar num material medido em unidade. O servidor não
+        checava nada — `DecimalField(decimal_places=3)` aceita `1,5` para `un`
+        tanto quanto para `kg`.
+
+        A precisão sai de `apps.core.quantidades`, a mesma fonte do `step` que o
+        cliente aplica: as duas pontas respondem à mesma tabela, e divergir
+        deixou de ser possível.
+        """
+        from apps.core.quantidades import casas_decimais
+        from apps.estoque.models import Material, UnidadeMedida
+
+        por_material: dict[int, tuple[str, Decimal]] = {}
+        for form in self.forms:
+            if self._form_deletado(form) or not form.cleaned_data:
+                continue
+            if not form.is_linha_valida():
+                continue
+            por_material[form.cleaned_data['material_id']] = (
+                form,
+                form.cleaned_data['quantidade_solicitada'],
+            )
+
+        if not por_material:
+            return
+
+        unidades = dict(
+            Material.objects.filter(pk__in=por_material).values_list('pk', 'unidade')
+        )
+        for material_id, (form, quantidade) in por_material.items():
+            unidade = unidades.get(material_id)
+            if unidade is None:
+                continue
+            permitidas = casas_decimais(unidade)
+            if _casas_decimais_usadas(quantidade) <= permitidas:
+                continue
+            rotulo = UnidadeMedida(unidade).label
+            if permitidas == 0:
+                texto = f'{rotulo} não admite fração. Informe um número inteiro.'
+            else:
+                texto = (
+                    f'{rotulo} admite no máximo {permitidas} casa'
+                    f'{"s" if permitidas > 1 else ""} decimal'
+                    f'{"is" if permitidas > 1 else ""}.'
+                )
+            form.add_error('quantidade_solicitada', texto)
 
     def _form_deletado(self, form) -> bool:
         """True se o form foi marcado para deleção (via campo DELETE do formset)."""

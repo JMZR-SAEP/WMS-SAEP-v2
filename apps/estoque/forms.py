@@ -5,15 +5,7 @@ from decimal import Decimal
 from django import forms
 from django.forms import BaseFormSet, formset_factory
 
-MOTIVO_SAIDA_OPCOES = [
-    ('avaria', 'Avaria / Deterioração'),
-    ('vencimento', 'Vencimento / Prazo expirado'),
-    ('obsolescencia', 'Descarte por obsolescência'),
-    ('extravio', 'Perda / Extravio'),
-    ('ajuste', 'Ajuste de inventário'),
-    ('doacao', 'Doação'),
-    ('outro', 'Outro'),
-]
+from apps.estoque.models import MotivoSaidaExcepcional
 
 
 class SaidaExcepcionalForm(forms.Form):
@@ -26,7 +18,7 @@ class SaidaExcepcionalForm(forms.Form):
     # válida não pergunta nada.
     motivo = forms.ChoiceField(
         label='Motivo',
-        choices=[('', 'Selecione o motivo…'), *MOTIVO_SAIDA_OPCOES],
+        choices=[('', 'Selecione o motivo…'), *MotivoSaidaExcepcional.choices],
         widget=forms.Select(
             attrs={
                 'class': 'campo',

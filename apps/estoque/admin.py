@@ -210,7 +210,7 @@ class LinhaDivergenteSCPIInline(admin.TabularInline):
 
     model = LinhaDivergenteSCPI
     extra = 0
-    fields = ('cadpro', 'denominacao', 'saldo_wms', 'saldo_scpi', 'delta')
+    fields = ('cadpro', 'denominacao', 'unidade', 'saldo_wms', 'saldo_scpi', 'delta')
     readonly_fields = fields
     can_delete = False
 

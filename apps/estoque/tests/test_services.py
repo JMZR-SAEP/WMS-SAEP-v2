@@ -2,7 +2,12 @@
 
 import pytest
 
-from apps.estoque.models import EstadoSaidaExcepcional, SaidaExcepcional, SaldoEstoque
+from apps.estoque.models import (
+    EstadoSaidaExcepcional,
+    SaidaExcepcional,
+    SaldoEstoque,
+    MotivoSaidaExcepcional,
+)
 
 
 class TestRegistrarSaidaExcepcional:
@@ -14,7 +19,7 @@ class TestRegistrarSaidaExcepcional:
         saida = registrar_saida_excepcional(
             ator_id=chefe_almoxarifado.pk,
             estoque_id=estoque_principal.pk,
-            motivo='Descarte por avaria',
+            motivo=MotivoSaidaExcepcional.AVARIA,
             observacao='Caixas molhadas',
             itens=[{'material_id': material_disponivel.pk, 'quantidade': '5'}],
         )
@@ -32,6 +37,40 @@ class TestRegistrarSaidaExcepcional:
         )
         assert saldo.saldo_fisico == 95  # 100 - 5
 
+    def test_motivo_fora_do_vocabulario_nao_grava_nada(
+        self, chefe_almoxarifado, estoque_principal, material_disponivel
+    ):
+        """`choices` no model não valida `objects.create()` — só `full_clean()`.
+
+        Enquanto a checagem existia apenas no `ChoiceField` do form, qualquer
+        outro chamador do service gravava texto livre no livro-razão, que é o
+        defeito que a #187 fechou na exibição e deixou aberto na escrita.
+
+        A recusa acontece antes da primeira escrita, então nem saída, nem item,
+        nem movimentação, nem baixa de saldo sobram.
+        """
+        from apps.core.exceptions import DadosInvalidos
+        from apps.estoque.models import ItemSaidaExcepcional, MovimentacaoEstoque
+        from apps.estoque.services import registrar_saida_excepcional
+
+        with pytest.raises(DadosInvalidos) as exc:
+            registrar_saida_excepcional(
+                ator_id=chefe_almoxarifado.pk,
+                estoque_id=estoque_principal.pk,
+                motivo='Descarte por avaria',
+                observacao='texto livre onde o vocabulário é fechado',
+                itens=[{'material_id': material_disponivel.pk, 'quantidade': '5'}],
+            )
+        assert exc.value.code == 'motivo_invalido'
+
+        assert not SaidaExcepcional.objects.exists()
+        assert not ItemSaidaExcepcional.objects.exists()
+        assert not MovimentacaoEstoque.objects.exists()
+        saldo = SaldoEstoque.objects.get(
+            estoque=estoque_principal, material=material_disponivel
+        )
+        assert saldo.saldo_fisico == 100
+
     def test_numero_publico_formato_sxp(
         self, chefe_almoxarifado, estoque_principal, material_disponivel
     ):
@@ -41,7 +80,7 @@ class TestRegistrarSaidaExcepcional:
         saida = registrar_saida_excepcional(
             ator_id=chefe_almoxarifado.pk,
             estoque_id=estoque_principal.pk,
-            motivo='Teste formato',
+            motivo=MotivoSaidaExcepcional.OUTRO,
             observacao='obs',
             itens=[{'material_id': material_disponivel.pk, 'quantidade': '1'}],
         )
@@ -69,14 +108,14 @@ class TestRegistrarSaidaExcepcional:
         saida1 = registrar_saida_excepcional(
             ator_id=chefe_almoxarifado.pk,
             estoque_id=estoque_principal.pk,
-            motivo='A',
+            motivo=MotivoSaidaExcepcional.OUTRO,
             observacao='',
             itens=[{'material_id': material_disponivel.pk, 'quantidade': '1'}],
         )
         saida2 = registrar_saida_excepcional(
             ator_id=chefe_almoxarifado.pk,
             estoque_id=estoque_principal.pk,
-            motivo='B',
+            motivo=MotivoSaidaExcepcional.OUTRO,
             observacao='',
             itens=[{'material_id': m2.pk, 'quantidade': '1'}],
         )
@@ -95,7 +134,7 @@ class TestRegistrarSaidaExcepcional:
             registrar_saida_excepcional(
                 ator_id=chefe_almoxarifado.pk,
                 estoque_id=estoque_principal.pk,
-                motivo='Teste',
+                motivo=MotivoSaidaExcepcional.OUTRO,
                 observacao='Teste válido',
                 itens=[],
             )
@@ -110,7 +149,7 @@ class TestRegistrarSaidaExcepcional:
             registrar_saida_excepcional(
                 ator_id=chefe_almoxarifado.pk,
                 estoque_id=estoque_principal.pk,
-                motivo='Duplicado',
+                motivo=MotivoSaidaExcepcional.OUTRO,
                 observacao='Teste válido',
                 itens=[
                     {'material_id': material_disponivel.pk, 'quantidade': '5'},
@@ -133,7 +172,7 @@ class TestRegistrarSaidaExcepcional:
             registrar_saida_excepcional(
                 ator_id=chefe_almoxarifado.pk,
                 estoque_id=estoque_principal.pk,
-                motivo='Sem saldo',
+                motivo=MotivoSaidaExcepcional.OUTRO,
                 observacao='Teste válido',
                 itens=[{'material_id': m.pk, 'quantidade': '1'}],
             )
@@ -148,7 +187,7 @@ class TestRegistrarSaidaExcepcional:
             registrar_saida_excepcional(
                 ator_id=chefe_almoxarifado.pk,
                 estoque_id=estoque_principal.pk,
-                motivo='Qtd zero',
+                motivo=MotivoSaidaExcepcional.OUTRO,
                 observacao='Teste válido',
                 itens=[{'material_id': material_disponivel.pk, 'quantidade': '0'}],
             )
@@ -164,7 +203,7 @@ class TestRegistrarSaidaExcepcional:
             registrar_saida_excepcional(
                 ator_id=chefe_almoxarifado.pk,
                 estoque_id=estoque_principal.pk,
-                motivo='Muito',
+                motivo=MotivoSaidaExcepcional.OUTRO,
                 observacao='Teste válido',
                 itens=[{'material_id': material_disponivel.pk, 'quantidade': '9999'}],
             )
@@ -185,7 +224,7 @@ class TestRegistrarSaidaExcepcionalAuth:
             registrar_saida_excepcional(
                 ator_id=aux_almoxarifado.pk,
                 estoque_id=estoque_principal.pk,
-                motivo='Avaria',
+                motivo=MotivoSaidaExcepcional.AVARIA,
                 observacao='Teste válido',
                 itens=[{'material_id': material_disponivel.pk, 'quantidade': '1'}],
             )
@@ -646,6 +685,31 @@ class TestConfirmarImportacaoScpiDivergenciasPersistidas:
         assert linha.saldo_wms == Decimal('100.000')
         assert linha.saldo_scpi == Decimal('130.000')
         assert linha.delta == Decimal('30.000')
+        assert linha.unidade == material_scpi.unidade
+
+    def test_grava_a_unidade_do_material_no_instantaneo(
+        self, db, superuser, estoque_principal, material_scpi_critico
+    ):
+        """Quantidade sem unidade não é informação.
+
+        O CSV do SCPI não informa unidade, mas o WMS conhece a do material — e
+        a pré-visualização já a exibia. A unidade era descartada na fronteira
+        entre o preview e a gravação, então o registro durável e exportável
+        ficava menos preciso que a tela efêmera que o originou.
+        """
+        from apps.estoque.models import LinhaDivergenteSCPI, UnidadeMedida
+        from apps.estoque.services import confirmar_importacao_scpi
+
+        csv_bytes = self._csv(material_scpi_critico.codigo, 'Tinta', '9.000')
+        importacao = confirmar_importacao_scpi(
+            ator_id=superuser.pk,
+            conteudo_bytes=csv_bytes,
+            arquivo_nome='div.csv',
+            estoque_id=estoque_principal.pk,
+        )
+
+        (linha,) = LinhaDivergenteSCPI.objects.filter(importacao=importacao)
+        assert linha.unidade == UnidadeMedida.LITRO
 
     def test_importacao_sem_divergencia_nao_grava_linha(
         self, db, superuser, estoque_principal, material_scpi
@@ -1775,7 +1839,7 @@ class TestSaidaExcepcionalDivergenciaTimeline:
         return registrar_saida_excepcional(
             ator_id=ator.pk,
             estoque_id=estoque.pk,
-            motivo='Descarte por avaria',
+            motivo=MotivoSaidaExcepcional.AVARIA,
             observacao='Material avariado em vistoria',
             itens=[{'material_id': material.pk, 'quantidade': quantidade}],
             _pos_saida_hook=hook,
@@ -1929,7 +1993,7 @@ class TestSaidaExcepcionalDivergenciaTimeline:
         saida = registrar_saida_excepcional(
             ator_id=chefe_almoxarifado.pk,
             estoque_id=estoque_principal.pk,
-            motivo='Descarte por avaria',
+            motivo=MotivoSaidaExcepcional.AVARIA,
             observacao='Lote inteiro avariado',
             itens=[{'material_id': m.pk, 'quantidade': '5'} for m in materiais],
             _pos_saida_hook=_hook_divergencia_saida,
@@ -2094,7 +2158,7 @@ class TestSaidaExcepcionalDivergenciaTimeline:
         saida = registrar_saida_excepcional(
             ator_id=chefe_almoxarifado.pk,
             estoque_id=estoque_principal.pk,
-            motivo='Descarte por avaria',
+            motivo=MotivoSaidaExcepcional.AVARIA,
             observacao='Material avariado em vistoria',
             itens=[{'material_id': material_disponivel.pk, 'quantidade': '98'}],
         )
@@ -2182,7 +2246,7 @@ def test_falha_ao_notificar_pos_commit_nao_reverte_a_saida(
             saida = registrar_saida_excepcional(
                 ator_id=chefe_almoxarifado.pk,
                 estoque_id=estoque_principal.pk,
-                motivo='Descarte por avaria',
+                motivo=MotivoSaidaExcepcional.AVARIA,
                 observacao='Material avariado em vistoria',
                 itens=[{'material_id': material_disponivel.pk, 'quantidade': '98'}],
                 _pos_saida_hook=registrar_timeline_divergencia_saida_excepcional,
@@ -2225,7 +2289,7 @@ def test_tr_015b_continua_bloqueando_separacao_apos_saida_excepcional(
     registrar_saida_excepcional(
         ator_id=chefe_almoxarifado.pk,
         estoque_id=estoque_principal.pk,
-        motivo='Descarte por avaria',
+        motivo=MotivoSaidaExcepcional.AVARIA,
         observacao='Material avariado em vistoria',
         itens=[{'material_id': material_disponivel.pk, 'quantidade': '98'}],
         _pos_saida_hook=registrar_timeline_divergencia_saida_excepcional,

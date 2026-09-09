@@ -70,6 +70,7 @@ class TestListarSaidasExcepcionaisView:
         """A lista só cresce: `listar_saidas_excepcionais` não tem recorte de
         período nem filtro, e a tela renderizava o queryset inteiro em cartões.
         """
+        from apps.estoque.models import MotivoSaidaExcepcional
         from apps.estoque.services import registrar_saida_excepcional
         from apps.estoque.views import PAGINA_SAIDAS_EXCEPCIONAIS_TAMANHO
 
@@ -78,7 +79,10 @@ class TestListarSaidasExcepcionaisView:
             registrar_saida_excepcional(
                 ator_id=chefe_almoxarifado.pk,
                 estoque_id=estoque_principal.pk,
-                motivo=f'Descarte {i}',
+                # O que distingue as saídas aqui é a paginação, não o motivo:
+                # ele era `f'Descarte {i}'`, texto livre que o vocabulário
+                # fechado agora recusa.
+                motivo=MotivoSaidaExcepcional.AVARIA,
                 observacao='',
                 itens=[{'material_id': material_disponivel.pk, 'quantidade': '1'}],
             )
@@ -1206,6 +1210,20 @@ class TestPreviewImportacaoScpiView:
         client.force_login(chefe_almoxarifado)
         resp = client.get(self.URL)
         assert resp.status_code == 200
+
+    def test_dropzone_nao_submete_programaticamente(self, client, chefe_almoxarifado):
+        """Soltar o arquivo seleciona; quem envia é o botão.
+
+        `form.submit()` não dispara o evento `submit`: o caminho por arraste
+        pulava a guarda de duplo envio, o rótulo de carregamento e a validação
+        de `required`, e ainda enviava sem a revisão que o caminho por clique
+        exige. A tela promete "Arraste o arquivo aqui ou clique para
+        selecionar" — o código prometia outra coisa.
+        """
+        client.force_login(chefe_almoxarifado)
+        html = client.get(self.URL).content.decode()
+        assert '.submit()' not in html
+        assert "dispatchEvent(new Event('change'" in html
 
     def test_post_csv_valido_retorna_200_com_preview(
         self, client, superuser, estoque_principal, material_scpi
@@ -2659,6 +2677,7 @@ class _BaseImportacaoComDivergencias:
             ImportacaoSCPI,
             LinhaDivergenteSCPI,
             StatusImportacaoSCPI,
+            UnidadeMedida,
         )
 
         importacao = ImportacaoSCPI.objects.create(
@@ -2680,6 +2699,8 @@ class _BaseImportacaoComDivergencias:
                 importacao=importacao,
                 cadpro=f'000.777.{i:03d}',
                 denominacao=f'Parafuso sextavado {i}',
+                # A unidade acompanha o instantâneo, como o service a grava.
+                unidade=UnidadeMedida.UNIDADE,
                 saldo_wms=10,
                 saldo_scpi=13,
                 delta=3,
@@ -2794,8 +2815,12 @@ class TestBaixarDivergenciasImportacaoScpiView(_BaseImportacaoComDivergencias):
         )
         texto = resp.content.decode('utf-8-sig')
         linhas = texto.splitlines()
-        assert linhas[0] == 'CADPRO;DENOMINACAO;SALDO_WMS;SALDO_SCPI;DELTA'
-        assert linhas[1] == '000.777.000;Parafuso sextavado 0;10.000;13.000;3.000'
+        # `UNIDADE` ao lado da denominação: gravar a unidade e não exportá-la
+        # deixava o defeito vivo no arquivo que sai da tela — `10` de um
+        # material medido em litros é indistinguível de `10` unidades na
+        # planilha em que a conciliação acontece.
+        assert linhas[0] == 'CADPRO;DENOMINACAO;UNIDADE;SALDO_WMS;SALDO_SCPI;DELTA'
+        assert linhas[1] == '000.777.000;Parafuso sextavado 0;un;10.000;13.000;3.000'
         assert len(linhas) == 3
 
     def test_bom_utf8_preserva_acento_na_planilha(
@@ -2815,7 +2840,7 @@ class TestBaixarDivergenciasImportacaoScpiView(_BaseImportacaoComDivergencias):
         resp = client.get(self._url(importacao.pk))
         assert resp.status_code == 200
         assert resp.content.decode('utf-8-sig').splitlines() == [
-            'CADPRO;DENOMINACAO;SALDO_WMS;SALDO_SCPI;DELTA'
+            'CADPRO;DENOMINACAO;UNIDADE;SALDO_WMS;SALDO_SCPI;DELTA'
         ]
 
 
@@ -4607,3 +4632,52 @@ class TestCerimoniaDaSaidaExcepcional:
         )
         assert response.status_code == 200
         assert 'data-unidade=""' in response.content.decode('utf-8')
+
+
+# ---------------------------------------------------------------------------
+# #187 — o livro-razão mostra o rótulo do motivo, não o slug
+# ---------------------------------------------------------------------------
+
+
+def test_detalhe_da_saida_mostra_o_rotulo_do_motivo(
+    client, chefe_almoxarifado, saida_registrada
+):
+    """Quem confirma lê "Avaria / Deterioração"; quem audita lia "avaria".
+
+    O campo era `TextField` sem `choices`, então `get_motivo_display` não
+    existia e o template não tinha como resolver o rótulo — o vocabulário vivia
+    numa lista literal do form, fora do alcance do model. O registro é durável e
+    o modal de confirmação já mostrava o rótulo: a divergência aparecia só
+    depois de gravar.
+    """
+    client.force_login(chefe_almoxarifado)
+    html = client.get(
+        reverse('estoque:detalhe_saida_excepcional', kwargs={'pk': saida_registrada.pk})
+    ).content.decode()
+    assert 'Avaria / Deterioração' in html
+    assert '>avaria<' not in html
+
+
+def test_lista_de_saidas_mostra_o_rotulo_do_motivo(
+    client, chefe_almoxarifado, saida_registrada
+):
+    """O mesmo defeito vivia na lista, fora do corpo da issue."""
+    client.force_login(chefe_almoxarifado)
+    html = client.get(reverse('estoque:listar_saidas_excepcionais')).content.decode()
+    assert 'Avaria / Deterioração' in html
+    assert '>avaria<' not in html
+
+
+def test_seletor_de_motivo_consome_o_vocabulario_do_model(db):
+    """Uma fonte só para o vocabulário: o form lê `MotivoSaidaExcepcional`.
+
+    Enquanto os choices eram lista literal do form, o valor gravado não tinha
+    como voltar a ser rótulo — e nada impedia as duas listas de divergirem.
+    """
+    from apps.estoque.forms import SaidaExcepcionalForm
+    from apps.estoque.models import MotivoSaidaExcepcional
+
+    choices = SaidaExcepcionalForm().fields['motivo'].choices
+    assert choices[0][0] == ''
+    assert [c[0] for c in choices[1:]] == [c[0] for c in MotivoSaidaExcepcional.choices]
+    assert 'doacao' not in [c[0] for c in choices]

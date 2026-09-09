@@ -144,6 +144,27 @@ class SaldoEstoque(models.Model):
         return f'{self.material} @ {self.estoque}'
 
 
+class MotivoSaidaExcepcional(models.TextChoices):
+    """Vocabulário fechado de motivos de baixa administrativa (SAE-09).
+
+    Vivia como lista literal em ``forms.py`` enquanto o campo era ``TextField``
+    livre. O efeito era que o slug gravado não tinha como voltar a ser rótulo:
+    ``get_motivo_display`` não existe num campo sem ``choices``, e o livro-razão
+    — registro que o produto trata como durável — exibia ``avaria`` a quem
+    auditava, depois de a pessoa ter confirmado "Avaria / Deterioração" no modal.
+
+    Doação e empréstimo não entram: ``PRODUCT.md`` e ``CONTEXT.md`` os declaram
+    fluxos de estoque próprios, fora do MVP de saída excepcional.
+    """
+
+    AVARIA = 'avaria', 'Avaria / Deterioração'
+    VENCIMENTO = 'vencimento', 'Vencimento / Prazo expirado'
+    OBSOLESCENCIA = 'obsolescencia', 'Descarte por obsolescência'
+    EXTRAVIO = 'extravio', 'Perda / Extravio'
+    AJUSTE = 'ajuste', 'Ajuste de inventário'
+    OUTRO = 'outro', 'Outro'
+
+
 class EstadoSaidaExcepcional(models.TextChoices):
     REGISTRADA = 'registrada', 'Registrada'
     ESTORNADA = 'estornada', 'Estornada'
@@ -164,7 +185,11 @@ class SaidaExcepcional(models.Model):
         blank=True,
     )
     criado_em = models.DateTimeField('criado em', auto_now_add=True)
-    motivo = models.TextField('motivo')
+    motivo = models.CharField(
+        'motivo',
+        max_length=20,
+        choices=MotivoSaidaExcepcional.choices,
+    )
     observacao = models.TextField('observação', blank=True)
     estado = models.CharField(
         'estado',
@@ -351,9 +376,17 @@ class LinhaDivergenteSCPI(models.Model):
 
     É um instantâneo de auditoria, não uma projeção: os valores são gravados
     como estavam no instante da confirmação e não acompanham renomeação de
-    material nem movimentação posterior de saldo. Por isso `denominacao` é texto
-    copiado e não FK — o registro tem de continuar legível mesmo que o catálogo
-    mude depois.
+    material nem movimentação posterior de saldo. Por isso `denominacao` e
+    `unidade` são texto copiado e não FK — o registro tem de continuar legível
+    mesmo que o catálogo mude depois.
+
+    `unidade` acompanha os três saldos pelo mesmo motivo que a denominação
+    acompanha o CADPRO: quantidade sem unidade não é informação. Sem ela, a tela
+    de confirmação imprimia `WMS 820 · SCPI 700` onde a pré-visualização, que é
+    efêmera, mostrava `820,0 m · 700,0 m` — o registro durável e exportável
+    ficava menos preciso que a tela descartável, e um delta de −120 metros era
+    indistinguível de −120 unidades na mesma coluna. Vazia só em linha gravada
+    antes deste campo existir.
 
     Só linhas divergentes entram aqui. Linha "ok" não é informação, e linha
     "novo" vira material com saldo no mesmo commit — o resultado dela já é
@@ -368,6 +401,13 @@ class LinhaDivergenteSCPI(models.Model):
     )
     cadpro = models.CharField('CADPRO', max_length=32)
     denominacao = models.CharField('denominação', max_length=255, blank=True)
+    unidade = models.CharField(
+        'unidade',
+        max_length=10,
+        choices=UnidadeMedida.choices,
+        blank=True,
+        help_text='unidade do material no WMS, copiada no instante da confirmação.',
+    )
     saldo_wms = models.DecimalField(
         'saldo no WMS',
         max_digits=12,

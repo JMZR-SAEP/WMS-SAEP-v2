@@ -49,6 +49,7 @@ from apps.requisicoes.presentation import cancelamento_copy, registro_requisicao
 from apps.core.quantidades import formatar as formatar_quantidade
 from apps.core.templatetags.core_tags import coletar_erros
 from apps.core.quantidades import normalizar
+from apps.core.quantidades import step as step_por_unidade
 from apps.estoque.models import SaldoEstoque
 from apps.estoque.selectors import entregue_liquida_por_requisicao
 from apps.requisicoes.forms import (
@@ -115,6 +116,30 @@ from apps.requisicoes.transitions import (
 
 def _voltar_url(request, default: str = '') -> str:
     return voltar_url_seguro(request, default=default or reverse('requisicoes:minhas'))
+
+
+def _saldo_info_do_formset(formset) -> dict[str, dict]:
+    """`saldo_info` reconstruído a partir dos materiais já vinculados no formset.
+
+    O GET monta esse mapa a partir dos itens gravados, mas o POST inválido
+    re-renderiza o formulário sem ele — e `components/item_form_row.html` lê dali
+    a unidade que estreita o `step` do campo de quantidade. Sem o mapa, a linha
+    voltava com o passo genérico depois de um erro de validação, e um material
+    medido em unidade passava a aceitar `1,5` no navegador.
+
+    Lê o valor cru do campo (`BoundField.value()`) porque no caminho inválido
+    `cleaned_data` pode não existir: o material continua escolhido na tela mesmo
+    quando outra linha derrubou a validação.
+    """
+    ids: list[int] = []
+    for form in formset.forms:
+        try:
+            ids.append(int(form['material_id'].value()))
+        except (TypeError, ValueError):
+            continue
+    if not ids:
+        return {}
+    return {str(k): v for k, v in saldos_por_materiais(ids).items()}
 
 
 def _pode_copiar_agora(papel: PapelEfetivo, requisicao: Requisicao) -> bool:
@@ -416,6 +441,7 @@ def nova_requisicao(request):
                 'formset': formset,
                 'modo': 'criar',
                 'escopo': escopo,
+                'saldo_info': _saldo_info_do_formset(formset),
             },
         )
 
@@ -494,6 +520,7 @@ def editar_rascunho_view(request, pk: int):
                 'formset': formset,
                 'modo': 'editar',
                 'requisicao': requisicao,
+                'saldo_info': _saldo_info_do_formset(formset),
             },
         )
 
@@ -507,7 +534,10 @@ def editar_rascunho_view(request, pk: int):
         {
             'material_id': item.material_id,
             'material_label': str(item.material),
-            'quantidade_solicitada': int(item.quantidade_solicitada)
+            # `normalizar`, não `int`: o `int()` truncava em silêncio a parte
+            # fracionária de um `DecimalField(12, 3)` já gravado — reabrir um
+            # rascunho de 2,5 m de cabo e salvar de novo o rebaixava para 2.
+            'quantidade_solicitada': normalizar(item.quantidade_solicitada)
             if item.quantidade_solicitada
             else '',
         }
@@ -608,6 +638,11 @@ def buscar_materiais(request):
             'codigo': m.codigo,
             'nome': m.nome,
             'unidade': m.unidade,
+            # O passo do campo numérico sai do servidor porque a política de
+            # precisão por unidade vive em `apps.core.quantidades` e não pode
+            # ter uma segunda cópia em JavaScript. O cliente aplica, não
+            # decide.
+            'step': step_por_unidade(m.unidade),
             'label': f'{m.codigo} — {m.nome}',
             'saldo_disponivel': formatar_quantidade(
                 saldo_por_material.get(m.pk, 0), m.unidade

@@ -27,6 +27,7 @@ from apps.core.listagem import contar_filtros_ativos, paginar, paginar_com_filtr
 from apps.core.modal import render_modal_erro
 from apps.core.presentation import traduz_erro_dominio
 from apps.core.querystring import caminho_canonico
+from apps.core.quantidades import step as step_por_unidade
 from apps.core.templatetags.core_tags import formatar_quantidade
 from apps.estoque.forms import ItemSaidaExcepcionalFormSet, SaidaExcepcionalForm
 from apps.estoque.presentation import (
@@ -426,6 +427,11 @@ def buscar_materiais_saida_excepcional_view(request):
             'codigo': m.codigo,
             'nome': m.nome,
             'unidade': m.unidade,
+            # O passo do campo numérico sai do servidor porque a política de
+            # precisão por unidade vive em `apps.core.quantidades` e não pode
+            # ter uma segunda cópia em JavaScript. O cliente aplica, não
+            # decide.
+            'step': step_por_unidade(m.unidade),
             'label': f'{m.codigo} — {m.nome}',
             'saldo_fisico': formatar_quantidade(
                 saldo_por_material.get(m.pk, 0), m.unidade
@@ -870,6 +876,11 @@ def detalhe_importacao_scpi_view(request, pk: int):
 CABECALHO_CSV_DIVERGENCIAS_SCPI = (
     'CADPRO',
     'DENOMINACAO',
+    # `UNIDADE` ao lado da denominação, antes dos números que ela qualifica.
+    # Sem a coluna, o artefato que existe para reconciliar no SCPI deixa
+    # `120` de um material medido em metros indistinguível de `120` unidades —
+    # o mesmo defeito que a tela tinha, sobrevivendo no arquivo que sai dela.
+    'UNIDADE',
     'SALDO_WMS',
     'SALDO_SCPI',
     'DELTA',
@@ -915,6 +926,7 @@ def baixar_divergencias_importacao_scpi_view(request, pk: int):
             [
                 linha.cadpro,
                 linha.denominacao,
+                linha.unidade,
                 linha.saldo_wms,
                 linha.saldo_scpi,
                 linha.delta,
