@@ -242,6 +242,12 @@ Hoje a exceção tem dois consumidores: a caixa de
 lados no sumário — caixa em `focus:`, âncora em `focus-visible:` — para que
 "consertar" o elemento errado quebre um teste em vez de passar despercebido.
 
+**Ordem de foco.** O anel resolve *onde* o foco está; *em que ordem* ele
+caminha é regra de layout — `DESIGN.md` §Layout, **A Regra da Pilha que Segue o
+DOM**. Em resumo: pilha de ações renderiza na ordem do DOM em toda largura, sem
+`flex-col-reverse`, porque abaixo de 640px inverter só o eixo vertical faz o
+Tab contradizer o que o olho lê (WCAG 2.4.3).
+
 ### Erro de formulário
 
 Uma superfície, uma porta: **`{% erros_do_formulario %}`** (`core_tags`). Todo
