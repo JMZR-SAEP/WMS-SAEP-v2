@@ -109,7 +109,6 @@ typography:
     fontWeight: "inherit"
     lineHeight: "inherit"
     letterSpacing: "normal"
-    note: "Exceção, não substitui a fonte do sistema. Só para dado que forma coluna ou precisa de largura fixa; costuma vir com tabular-nums."
 rounded:
   sm: "0.25rem"
   md: "0.375rem"
