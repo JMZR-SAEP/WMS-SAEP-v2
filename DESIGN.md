@@ -403,6 +403,27 @@ Consequência para quem escreve tela nova: nenhuma coluna de grade fixa em
 `grid-cols-2` num cartão de listagem, e nenhum cabeçalho de cartão em
 `flex-row` abaixo de `xl`. Um `col-span-2` de campo largo vira `sm:col-span-2`.
 
+**Emenda (2026-09-09, fatia b da #173): duas exceções conscientes ao
+`grid-cols-2` fixo, nomeadas.** A consequência acima proíbe coluna de grade fixa
+em `grid-cols-2` num cartão de listagem. Duas ocorrências ficam como estão de
+propósito, e ficam registradas:
+
+- **`estoque/historico_movimentacoes.html` — o par Δ Físico / Δ Reservado**
+  (`<div class="grid grid-cols-2 gap-3">` dentro do `<dl>` do cartão, #163). Não
+  são pares rótulo→valor: são duas grandezas numéricas curtas (`font-mono` +
+  `tabular-nums`, via `_delta_movimentacao.html`) que medem uma coluna ao lado
+  da outra — a leitura é a comparação dos dois deltas, e empilhar a mataria. O
+  dado é curto e assinado (`+1.000` / `−140`); medido cabendo a 375px (cartão de
+  ~295px, ~140px por coluna) sem quebra. Fica fixo.
+- **`requisicoes/detalhe.html:132` — Solicitada / Autorizada / Entregue por
+  item** (`<dl class="mt-2 grid grid-cols-2 …">`). Não é cartão de listagem — é
+  o corpo de um item na tela de detalhe —, mas é `grid-cols-2` sem breakpoint.
+  Cada célula é rótulo curto em caixa alta + quantidade (`components/quantidade.html`).
+  Fica como está, nomeada aqui.
+
+A regra segue valendo para o caso geral: `col-span-2` de campo largo ou par
+rótulo→valor de texto continua indo para `sm:col-span-2` / `sm:grid-cols-2`.
+
 **A Regra do Chrome Sem Parâmetro.** Os fragmentos de chrome de listagem não recebem parâmetro de classe. Se um chrome precisa de um parâmetro que descreve conteúdo de célula, a abstração está errada — a célula fica explícita na tela chamadora. Uma variante de estrutura pura (contagem de colunas: `#cards_abertura` vs. `#cards_abertura_denso`) é fragmento irmão de string fixa, não parâmetro, e não fere a regra.
 
 ## Elevation & Depth

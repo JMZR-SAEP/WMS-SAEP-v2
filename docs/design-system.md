@@ -43,8 +43,13 @@ saíram do ar em silêncio, sem quebrar teste nenhum.
 | **Reversão não é erro** | Devolução e reversão usam teal (`return`), jamais vermelho. Vermelho é negação, falha ou divergência; devolver material é o processo funcionando. | revisão |
 
 As demais regras nomeadas — Sinal Único, Cartão Único, Chrome Sem Parâmetro,
-Caixa Alta Estrutural, 14px, Empilhamento Fechado — estão em `DESIGN.md` com a
-prosa e a medição que as originaram.
+Caixa Alta Estrutural, 14px, Empilhamento Fechado, Identidade Que Não Quebra —
+estão em `DESIGN.md` com a prosa e a medição que as originaram. A Identidade Que
+Não Quebra (número público e valor de `<dl>` não partem em duas linhas no
+cartão) tem o lado do cabeçalho travado por
+`test_cabecalho_de_cartao_nao_vira_linha_antes_de_xl`; o lado do `grid-cols-2`
+fixo em cartão de listagem é revisão + lane Navegador (layout medido a 375px),
+com duas exceções conscientes nomeadas no `DESIGN.md`.
 
 ## Tokens
 
