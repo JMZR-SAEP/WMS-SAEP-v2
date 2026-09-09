@@ -319,6 +319,32 @@ def test_tokens_novos_documentados_existem_no_input_css():
     assert faltando == [], f'Tokens ausentes em input.css: {faltando}'
 
 
+# ─── Família de fonte mono: token declarado, não herança implícita ───────
+# `font-mono` é a única família fora de `ui-sans-serif` no produto (livro-razão:
+# delta de movimentação, CADPRO do SCPI, hash de importação — ver DESIGN.md
+# §Typography). Ela funcionava só pelo tema default embutido do Tailwind v4; a
+# fatia b da #173 declarou `--font-mono` no @theme de input.css para virar token
+# de primeira classe. Mesmo mecanismo dos tokens de cor acima: existe no
+# input.css e sobrevive ao build.
+FONTE_MONO_TOKEN = '--font-mono'
+
+
+def test_familia_mono_declarada_no_input_css():
+    conteudo = INPUT_CSS.read_text(encoding='utf-8')
+    assert FONTE_MONO_TOKEN in conteudo, (
+        f'{FONTE_MONO_TOKEN} precisa estar declarado no @theme de input.css — '
+        'era herança implícita do tema default do Tailwind (ver DESIGN.md '
+        '§Typography)'
+    )
+
+
+def test_familia_mono_presente_no_app_css_compilado():
+    app_css = APP_CSS.read_text(encoding='utf-8')
+    assert FONTE_MONO_TOKEN in app_css, (
+        f'{FONTE_MONO_TOKEN} sumiu do app.css compilado — rode `make css-build`'
+    )
+
+
 @pytest.mark.skipif(
     not TAILWIND_CLI.exists() and shutil.which('tailwindcss') is None,
     reason=(

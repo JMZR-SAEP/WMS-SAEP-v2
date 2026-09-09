@@ -103,6 +103,13 @@ typography:
     fontWeight: 600
     lineHeight: 1.33
     letterSpacing: "0.025em"
+  mono:
+    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
+    fontSize: "inherit"
+    fontWeight: "inherit"
+    lineHeight: "inherit"
+    letterSpacing: "normal"
+    note: "Exceção, não substitui a fonte do sistema. Só para dado que forma coluna ou precisa de largura fixa; costuma vir com tabular-nums."
 rounded:
   sm: "0.25rem"
   md: "0.375rem"
@@ -289,7 +296,17 @@ superfície: serve a ícone decorativo e a separador, nunca a texto.
 
 ## Typography
 
-**Display/Body/Label Font:** a fonte do sistema (`ui-sans-serif, system-ui, sans-serif`). Uma família só, zero webfont, zero CDN.
+**Display/Body/Label Font:** a fonte do sistema (`ui-sans-serif, system-ui, sans-serif`). Uma família só para texto, zero webfont, zero CDN.
+
+**Mono Font** (`--font-mono`: `ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace`): a única família fora da fonte do sistema. **Não a substitui** — é exceção pontual para dado que forma coluna ou precisa de largura fixa, onde o passo constante do dígito e do glifo carrega informação. Onde se usa hoje (11 pontos, todos em `apps/estoque/`):
+
+- delta assinado do livro-razão, com `tabular-nums` (`partials/_delta_movimentacao.html`);
+- código CADPRO do SCPI (`preview_importacao_scpi.html`, `partials/_cartoes_divergencias_scpi.html`) e os nomes de coluna do arquivo citados em prosa — `CADPRO`/`QUAN3` (`preview_importacao_scpi.html`);
+- hash do arquivo de importação (`historico_importacoes_scpi.html`, `detalhe_importacao_scpi.html`);
+- código do material na saída excepcional (`detalhe_saida_excepcional.html`);
+- nome do arquivo importado (`partials/_alert_sucesso_importacao_corpo.html`).
+
+> Nota factual: `--font-mono` foi consumida por meses via a classe `.font-mono`, que funcionava só pelo tema default embutido do Tailwind v4 — a chave nunca esteve no `@theme` do `input.css`. A fatia b da #173 declarou o token explicitamente, com o mesmo valor, para a família deixar de ser herança implícita e virar token de primeira classe. É o inverso da nota de `--color-info*` acima: lá o token está declarado sem consumidor; aqui havia consumidor sem token.
 
 **Character:** neutra e institucional por omissão deliberada — a personalidade do sistema está na estrutura e na sinalética, não no desenho da letra. A escala é curta e o peso faz quase todo o trabalho de hierarquia: 400 para conteúdo, 500 para controles e títulos de barra, 600 para títulos de tela e rótulos estruturais.
 
@@ -299,6 +316,7 @@ superfície: serve a ícone decorativo e a separador, nunca a texto.
 - **Title** (500, 1.125rem, lh 1.25, ls 0.0125em): título dentro da barra de aplicação e nome da marca; trunca com reticências em vez de quebrar linha.
 - **Body** (400, 0.875rem, lh 1.5): o tamanho dominante do sistema — célula de tabela, corpo de card, texto de botão, alerta, campo de formulário. Prosa longa limitada a 65–75ch.
 - **Label** (600, 0.75rem, ls 0.025em, caixa alta): cabeçalho de coluna, rótulo de campo, título de seção do menu. Também é o tamanho do badge — que usa 600 mas **sem** caixa alta, porque badge carrega conteúdo de domínio.
+- **Mono** (`font-mono`, exceção — não é degrau da escala): herda o tamanho e o peso do contexto (`text-sm`/`text-xs`, 400–600), em geral com `tabular-nums`. Só para dado tabular ou de largura fixa; nunca prosa nem rótulo. O corpo do sistema segue sendo a fonte de `ui-sans-serif`.
 
 ### Named Rules
 

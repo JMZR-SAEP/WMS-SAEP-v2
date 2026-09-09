@@ -105,7 +105,8 @@ de um aviso realmente neutro.
 
 ### Tipografia
 
-Fonte do sistema, sem CDN: `ui-sans-serif, system-ui, sans-serif`.
+Fonte do sistema, sem CDN: `ui-sans-serif, system-ui, sans-serif`. O corpo do
+sistema é essa família — mono é exceção pontual (última linha da tabela).
 
 | Papel | Tamanho | Peso | Onde |
 |---|---|---|---|
@@ -114,10 +115,17 @@ Fonte do sistema, sem CDN: `ui-sans-serif, system-ui, sans-serif`.
 | Title | 1rem → 1.125rem em `sm` | 500 | título e marca na barra de aplicação |
 | Body | **0.875rem** | 400 | o tamanho dominante do sistema |
 | Label | 0.75rem | 600 | rótulo de campo, cabeçalho de seção, badge (sem caixa alta) |
+| Mono | herda do contexto | herda | `--font-mono` / `.font-mono`, **exceção**: dado que forma coluna ou precisa de largura fixa — delta do livro-razão (com `tabular-nums`), código CADPRO do SCPI, hash de importação. Hoje 11 pontos, todos em `apps/estoque/`. Ver `DESIGN.md` §Typography |
 
 O corpo é 0.875rem e não 1rem — decisão de densidade operacional (Regra dos 14px,
 `DESIGN.md`). Se um texto precisa de mais presença, mude o peso ou o tom, não o
 tamanho.
+
+Mono não é degrau da escala: o corpo do sistema continua sendo `ui-sans-serif`,
+e mono só entra em dado tabular ou de largura fixa, nunca em prosa ou rótulo. O
+token `--font-mono` vive no `@theme` de `input.css` desde a fatia b da #173 —
+antes disso a classe `.font-mono` funcionava só pela herança do tema default do
+Tailwind.
 
 Controles (botão, item de menu, ação da barra, skip link) usam peso **500**.
 
