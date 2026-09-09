@@ -38,7 +38,7 @@ saíram do ar em silêncio, sem quebrar teste nenhum.
 | **Piso de 44px** | Todo controle acionável tem `min-h-11` — botão, campo, select, e a *label* que embrulha radio/checkbox. A mesma tela é operada com o dedo, em pé no galpão, e com teclado no escritório. **Exceção: a variante `link` de `button.html`**, que é texto inline no meio de prosa e teria a linha quebrada por uma caixa de 44px (WCAG 2.5.8 isenta link em sentença). `link` usado como ação isolada recebe `class="min-h-11"` explícito — ver `notificacoes/lista.html`. | `test_nenhum_controle_abaixo_do_piso_de_44px`, que varre `<a>` e `<button>` de `apps/**/*.html` e cobra **piso comprovável** de cada um: `min-h-11` literal fora de `{% if %}`, classe cujo bloco em `input.css` declara `--size-touch-target`, classe vinda de `{% classes_botao %}`, ou — para quem inclui `button.html` com `variant="link"` — `min-h-11` no `class`. Falha na **ausência** de piso, não só em número menor. Para o checkbox de filtro há um segundo guarda, `test_todo_checkbox_esta_dentro_da_label_que_carrega_o_piso`: contar `min-h-11` não prova que o piso está na label que **embrulha** o input, e é o aninhamento que faz a caixa de 44px inteira valer como alvo — medido no navegador com o CSS compilado, 120 sondas em 15 labels, todas resolvendo para a label (issue #160) |
 | **Campo tem uma definição só** | Campo de texto, número, busca, select e textarea usam `class="campo"` (definida em `input.css`). Não se escreve a string de campo à mão, nem em template nem em `forms.py`. | `test_nenhum_template_escreve_campo_na_mao` |
 | **Botão tem uma definição só** | Toda ação passa por `components/button.html`. Se uma variante não existe, ela nasce no componente — não numa tela. | revisão |
-| **Raio crescente** | Controle 0.375rem → campo 0.5rem → papel 0.75rem → modal 1rem → pill. Um raio intermediário inventado quebra a leitura de hierarquia por geometria. | revisão |
+| **Raio crescente** | Controle 0.375rem → campo 0.5rem → papel 0.75rem → modal 1rem → pill. Um raio intermediário inventado quebra a leitura de hierarquia por geometria. A pílula é marcador estático (badge, avatar, botão-ícone) ou ação circular icon-only; controle com rótulo textual (botão, chip de filtro, preset) usa raio de controle — ver §Gramática de silhueta no `DESIGN.md`. | revisão |
 | **Quatro degraus de elevação** | 0dp repouso, 1dp papel, 8dp menu, 24dp modal, mais o 4dp exclusivo da barra de aplicação. Nenhuma sombra nova para componente novo. | revisão |
 | **Reversão não é erro** | Devolução e reversão usam teal (`return`), jamais vermelho. Vermelho é negação, falha ou divergência; devolver material é o processo funcionando. | revisão |
 
@@ -49,7 +49,8 @@ Não Quebra (número público e valor de `<dl>` não partem em duas linhas no
 cartão) tem o lado do cabeçalho travado por
 `test_cabecalho_de_cartao_nao_vira_linha_antes_de_xl`; o lado do `grid-cols-2`
 fixo em cartão de listagem é revisão + lane Navegador (layout medido a 375px),
-com duas exceções conscientes nomeadas no `DESIGN.md`.
+com duas exceções conscientes nomeadas no `DESIGN.md`, ambas medidas a 375px
+(~295px de contêiner, ~140px por célula).
 
 ## Tokens
 

@@ -414,11 +414,19 @@ propósito, e ficam registradas:
   da outra — a leitura é a comparação dos dois deltas, e empilhar a mataria. O
   dado é curto e assinado (`+1.000` / `−140`); medido cabendo a 375px (cartão de
   ~295px, ~140px por coluna) sem quebra. Fica fixo.
-- **`requisicoes/detalhe.html:132` — Solicitada / Autorizada / Entregue por
-  item** (`<dl class="mt-2 grid grid-cols-2 …">`). Não é cartão de listagem — é
-  o corpo de um item na tela de detalhe —, mas é `grid-cols-2` sem breakpoint.
-  Cada célula é rótulo curto em caixa alta + quantidade (`components/quantidade.html`).
-  Fica como está, nomeada aqui.
+- **`requisicoes/detalhe.html:132` — as três quantidades Solicitada /
+  Autorizada / Entregue de um item** (`<dl class="mt-2 grid grid-cols-2 gap-x-4
+  …">`). Não é cartão de listagem — é o bloco de quantidades dentro da tela de
+  detalhe — mas é `grid-cols-2` sem breakpoint. Medido a 375px: o `p-6` do
+  `<main>` e o `p-4` da `<section>` deixam ~295px, e o `gap-x-4` divide em
+  ~140px por célula (a mesma conta do caso acima). Cada célula é um rótulo em
+  caixa alta (`SOLICITADA`, ~75px) mais o número da quantidade
+  (`whitespace-nowrap` em `components/quantidade.html`, ≤~100px nas grandezas
+  deste domínio) mais a unidade por extenso (`Metro quadrado`, o mais longo dos
+  nove rótulos de `UnidadeMedida`). A unidade e a `justificativa_entrega`
+  quebram em **altura**, sem estouro horizontal. E não há aqui nenhuma âncora
+  de identidade que possa se partir (o número público mora na barra de
+  aplicação), então crescer em altura é aceitável. Fica fixo.
 
 A regra segue valendo para o caso geral: `col-span-2` de campo largo ou par
 rótulo→valor de texto continua indo para `sm:col-span-2` / `sm:grid-cols-2`.
@@ -480,6 +488,13 @@ que é dívida. O `warning` já está fora dela, com o triângulo.
 0.375 / 0.5 / 0.75 / 1rem responde "que camada?"; falta a pergunta anterior,
 "marcador ou controle?". O critério para um elemento novo: *sou um marcador que
 só informa, ou um controle que o usuário aciona?* A forma segue da resposta.
+
+É regra de taxonomia, não de viewport — a evidência que a obriga não é uma
+medição em px e sim o precedente da §Paridade (abaixo) e uma colisão de classe
+verificável no repo: `filter_chips.html` no estado ativo e `badge.html
+variant="blue"` resolvem os dois para `rounded-full bg-primary-muted
+text-primary-text-strong`, a mesma silhueta e o mesmo preenchimento para um
+controle e um marcador estático.
 
 - `rounded-full` (pílula) = marcador estático **ou** ação circular icon-only:
   badge de estado, avatar, botão-ícone da barra de aplicação. Nestes o círculo é
