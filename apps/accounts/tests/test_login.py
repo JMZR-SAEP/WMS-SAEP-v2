@@ -1,5 +1,7 @@
 """Testes da fatia de autenticação por matrícula."""
 
+import re
+
 import pytest
 from django.core.exceptions import ValidationError
 from django.urls import reverse
@@ -52,8 +54,14 @@ def test_login_nao_marca_campo_obrigatorio_com_asterisco(client):
     conteudo = resposta.content.decode()
 
     assert 'ml-0.5 text-danger-text' not in conteudo
-    # obrigatoriedade continua anunciada pelo `required` nativo do HTML
-    assert 'required' in conteudo
+    # obrigatoriedade continua anunciada pelo `required` nativo do HTML —
+    # conferido em cada input, não por substring solta na página inteira
+    for campo_id in ('id_username', 'id_password'):
+        tag = re.search(rf'<input\b[^>]*\bid="{campo_id}"[^>]*>', conteudo)
+        assert tag, f'input {campo_id} não encontrado'
+        assert re.search(r'\brequired\b', tag.group(0)), (
+            f'{campo_id} perdeu o atributo `required`'
+        )
 
 
 def test_login_valido_por_matricula(client, usuario):
