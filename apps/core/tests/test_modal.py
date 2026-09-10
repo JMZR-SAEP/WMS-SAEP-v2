@@ -451,6 +451,25 @@ def test_rodape_respeita_a_area_segura_do_home_indicator():
     assert 'env(safe-area-inset-bottom)' in classe_rodape
 
 
+def test_rodape_segue_a_ordem_do_dom_sem_flex_col_reverse():
+    """O `<footer>` não pode reintroduzir `flex-col-reverse` (#190, #186).
+
+    `DESIGN.md` §Layout, "A Regra da Pilha que Segue o DOM": a ordem do DOM do
+    rodapé é `[Voltar, Confirmar]` — dispensa, então primária. Com
+    `flex-col-reverse`, abaixo de 640px o olho lia `[Confirmar, Voltar]`
+    enquanto o Tab visitava `[Voltar, Confirmar]`, falha de WCAG 2.4.3. A
+    geometria em si é guardada na lane navegador
+    (`test_modal_footer_a_ordem_visual_bate_com_a_de_foco_a_375`); aqui trava a
+    classe que a produz.
+    """
+    html = _render_modal(action_url='/confirmar/')
+    rodapes = [atributos for _, atributos, _ in elementos(html, 'footer')]
+    assert rodapes, 'modal renderizado sem <footer>'
+    classe_rodape = atributo(rodapes[0], 'class') or ''
+    assert 'flex-col' in classe_rodape
+    assert 'flex-col-reverse' not in classe_rodape
+
+
 def _botao_de_confirmacao(html):
     """Atributos do botão que carrega `data-modal-confirm`."""
     for atributos in _botoes(html):
