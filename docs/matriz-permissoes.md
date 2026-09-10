@@ -18,7 +18,7 @@ Referência rápida de papéis, escopos e ações permitidas para implementar `p
 |---|---|---|---|---|
 | Solicitante | `solicitante` | Próprio usuário como criador/beneficiário | Criar para si; ver próprias requisições; agir nos estados permitidos se for criador/beneficiário | Terceiros, estoque, autorização, relatórios gerais |
 | Auxiliar de setor | `auxiliar_setor` | Próprio setor | Criar em nome de funcionários do próprio setor; consultar histórico das requisições e movimentações que ele mesmo criou | Outros setores, autorização, operação de estoque, supervisão do setor |
-| Chefe de setor | `chefe_setor` | Setor sob responsabilidade | Criar para o próprio setor; ver/autorizar/recusar requisições do setor | Outros setores, estoque, rascunhos de terceiros |
+| Chefe de setor | `chefe_setor` | Setor sob responsabilidade | Criar para o próprio setor; ver/autorizar/retornar requisições do setor por decisão | Outros setores, estoque, rascunhos de terceiros |
 | Auxiliar de Almoxarifado | `auxiliar_almoxarifado` | Todos os setores na operação de Almoxarifado | Criar para qualquer funcionário; ver todos; atender; devolver; consultar saídas excepcionais | Autorizar; registrar saída excepcional; estornar saída excepcional |
 | Chefe de Almoxarifado | `chefe_almoxarifado` | Todos os setores para operação; setor Almoxarifado para autorização | Herda auxiliar; consultar/registrar saída excepcional; estornar; inativação permitida; importação SCPI (pré-visualizar, confirmar, histórico) | Autorizar outros setores; ajuste manual |
 | Superusuário | `superuser` | Superuser | Tudo | Nada |
@@ -53,14 +53,13 @@ Valores: **Sim**, **Não**, **Apenas próprio setor**, **Qualquer setor**, **Ape
 | Ver todos os setores | Não | Não | Não | Sim | Sim | Sim | Operação de Almoxarifado/suporte; rascunho de terceiro segue exclusivo do criador. |
 | Editar rascunho | Sim | Sim | Sim | Sim | Sim | Sim | Só criador. |
 | Enviar para autorização | Sim | Sim | Sim | Sim | Sim | Sim | Só criador. |
-| Retornar para rascunho | Sim | Sim | Sim | Sim | Sim | Sim | Criador, beneficiário **ou o chefe do setor do beneficiário**, enquanto ainda estiver em `aguardando_autorizacao`; depois do retorno, rascunho volta a ser exclusivo do criador. O chefe entrou na Etapa 8: sem ele, um saldo insuficiente descoberto na confirmação deixava só a recusa — encerrar em definitivo o pedido porque a quantidade não cabia. A condição é a mesma de recusar, então não abre alcance novo. |
+| Retornar para rascunho | Sim | Sim | Sim | Sim | Sim | Sim | Criador, beneficiário **ou o chefe do setor do beneficiário**, enquanto ainda estiver em `aguardando_autorizacao`; depois do retorno, rascunho volta a ser exclusivo do criador. Absorve a antiga "Recusar" (issue #170, decisão de domínio 2026-09-10): quando quem decide não é o criador nem o beneficiário — na prática, o chefe do setor do beneficiário —, a operação registra o evento de timeline `recusa`, exige motivo, e notifica os envolvidos com a copy "devolvida para ajustes"; deixou de ser um encerramento definitivo. Quando é o dono ajustando o próprio pedido, o motivo é opcional e não há notificação. |
 | Cancelar aguardando autorização | Sim | Sim | Sim | Sim | Sim | Sim | Só criador ou beneficiário. |
 | Cancelar autorizada/pronta para retirada | Sim | Sim | Sim | Sim | Sim | Sim | Criador/beneficiário/Almoxarifado; justificativa; libera reserva e não baixa físico. |
-| Copiar atendida ou recusada | Sim | Sim | Sim | Sim | Sim | Sim | Precisa ver origem e poder criar para beneficiário resultante; não copia autorizado/entregue. |
+| Copiar atendida | Sim | Sim | Sim | Sim | Sim | Sim | Precisa ver origem e poder criar para beneficiário resultante; não copia autorizado/entregue. Desde a issue #170 não existe mais estado `recusada` para copiar — a antiga recusa volta a `rascunho`. |
 | Ver fila de autorizações | Não | Não | Apenas próprio setor | Não | Apenas setor Almoxarifado | Sim |  |
 | Autorizar | Não | Não | Apenas próprio setor | Não | Apenas setor Almoxarifado | Sim | Setor do beneficiário define autorizador. |
-| Autorizar parcialmente | Não | Não | Não | Não | Não | Não | Não permitido; chefe autoriza integralmente ou recusa a requisição inteira. |
-| Recusar | Não | Não | Apenas próprio setor | Não | Apenas setor Almoxarifado | Sim | Recusa inteira; motivo obrigatório. |
+| Autorizar parcialmente | Não | Não | Não | Não | Não | Não | Não permitido; chefe autoriza integralmente ou retorna a requisição inteira para rascunho. |
 | Autorizar outro setor | Não | Não | Não | Não | Não | Sim | Superusuário tem permissão total; Almoxarifado não autoriza outros setores. |
 | Ver fila de atendimento | Não | Não | Não | Sim | Sim | Sim | Requisições nos estados `autorizada` e `pronta_para_retirada`. |
 | Separar para retirada | Não | Não | Não | Sim | Sim | Sim | Transiciona de `autorizada` para `pronta_para_retirada`; mantém reserva e não baixa físico. |
@@ -88,7 +87,7 @@ Valores: **Sim**, **Não**, **Apenas próprio setor**, **Qualquer setor**, **Ape
 | Consultar histórico de importações | Não | Não | Não | Não | Sim | Sim | Chefe consulta; superusuário completo. |
 | Consultar divergências críticas | Não | Não | Não | Sim | Sim | Sim | Gestão do Almoxarifado/suporte. |
 | Receber notificações das próprias requisições | Sim | Sim | Sim | Sim | Sim | Sim | Criador e beneficiário. |
-| Receber autorização pendente | Não | Não | Apenas próprio setor | Não | Apenas setor Almoxarifado | Sim | Quem pode autorizar/recusar. |
+| Receber autorização pendente | Não | Não | Apenas próprio setor | Não | Apenas setor Almoxarifado | Sim | Quem pode autorizar/retornar por decisão. |
 | Receber notificação de atendimento | Sim | Sim | Sim | Sim | Sim | Sim | Criador e beneficiário. |
 | Acessar relatórios gerais | Não | Não | Não | Sim | Sim | Sim | Solicitante não acessa. |
 | Acessar relatórios do próprio setor | Não | Não | Apenas próprio setor | Sim | Sim | Sim | Chefe de setor: consumo/requisições do setor. |
