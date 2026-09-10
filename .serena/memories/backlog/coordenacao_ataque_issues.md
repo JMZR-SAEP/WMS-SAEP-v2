@@ -2,7 +2,9 @@
 
 **Documento vivo.** Ponto de partida para quem entra no backlog e ferramenta de acompanhamento para quem já está nele. Visão macro: o detalhe técnico vive na issue, aqui vive a **ordem, a dependência e o estado**.
 
-Última atualização: **2026-09-10** (a #186 — fatia (c) da #173 — **mergeou e fechou** via PR `JMZR-SAEP#191`, `a47184a`, CI verde, auto-close (3ª vez seguida no `origin`). Restam da onda 6 só a fatia (a): **#184** — implementação **disparada** nesta passada (branch `feat/184-copy-vocabulario`, 1 agente, sequencial). Fechar a #184 fecha a #173. Independente: **#190** (spin-off da #186, `ready-for-agent`).)
+Última atualização: **2026-09-10, segunda passada** (a #184 — fatia (a) da #173 — **mergeou e fechou** via PR `JMZR-SAEP#192`, `08972ac`, auto-close (4ª vez seguida no `origin`). **Onda 6 completa**: #184/#185/#186/#187 fechadas, **#173 (guarda-chuva) fechada**. Único item acionável por agente restante: **#190** (spin-off da #186) — **análise disparada** nesta passada (1 `Explore` read-only). Todo o resto aberto é `ready-for-human` (#172, #174) ou `needs-info` (#169–#171, #179, #180).)
+
+Última atualização anterior: **2026-09-10** (a #186 — fatia (c) da #173 — **mergeou e fechou** via PR `JMZR-SAEP#191`, `a47184a`, CI verde, auto-close (3ª vez seguida no `origin`). Restam da onda 6 só a fatia (a): **#184** — implementação **disparada** nesta passada (branch `feat/184-copy-vocabulario`, 1 agente, sequencial). Fechar a #184 fecha a #173. Independente: **#190** (spin-off da #186, `ready-for-agent`).)
 
 Última atualização anterior: **2026-09-09, terceira passada** (#186 e #184 analisadas — 2 `Explore` read-only. #186: item "drawer corta Sair" rebaixado (clip já corrigido em `df20393f`), gêmeo do bug de ordem de foco virou **#190** (spin-off, footer de todo modal), 3 itens saem por serem produto. #184: 4 itens procedem; normalização da denominação SCPI decidida **na escrita** (helper `apps/core/texto.py::sentence_case` novo). Ordem de implementação: **#186 → #184**, sequencial. Ver "A #186 na prática" e "A #184 na prática".)
 
@@ -62,9 +64,15 @@ Snapshots em `.impeccable/critique/` (diretório local, gitignored). O plano de 
 
 **Em andamento**
 
-| # | Branch | O que entrega |
+| # | Estágio | O que entrega |
 |---|---|---|
-| 184 | `feat/184-copy-vocabulario` | Fatia (a) da #173. **PR #192 aberto** (2026-09-10). 4 itens: rótulo de rota × tela (regra #160), grafia `WMS-SAEP`, denominação SCPI normalizada **na escrita** (helper novo `apps/core/texto.py::capitalizar_frase` em `services.py`), asterisco de obrigatório suprimido no login (exceção registrada no DESIGN.md). Revisado: `revisor-camadas` (1 BAIXA, renomeou `sentence_case`→`capitalizar_frase`), `cavecrew-reviewer` (2 🟡 descartados), + feedback P2 (exceção do asterisco no contrato). Ver "A #184 na prática". |
+| 190 | **análise disparada 2026-09-10** (1 `Explore` read-only) | Spin-off da #186. Footer global `_modal_body.html:198`, `flex-col-reverse` inverte ordem de foco vs visual a `<640px` (WCAG 2.4.3). Gate `make test-navegador` (arrasta ~11 telas da varredura #166). Pode ter de registrar regra nomeada de ordem de foco no `DESIGN.md` se a #186 não o fez. |
+
+**Onda 6 — fatia (a) fechada em 2026-09-10 → #173 fechada**
+
+| # | PR | Merge | O que entregou |
+|---|---|---|---|
+| 184 | `JMZR-SAEP#192` | `08972ac` | Fatia (a) da #173. 4 itens: rótulo de rota × tela (regra #160, nav segue a página), grafia `WMS-SAEP` (`login.html` era o único outlier), denominação SCPI normalizada **na escrita** (helper novo `apps/core/texto.py::capitalizar_frase` chamado em `services.py`), asterisco de obrigatório suprimido no login (exceção registrada no DESIGN.md). Revisado: `revisor-camadas` (1 BAIXA — renomeou `sentence_case`→`capitalizar_frase`), `cavecrew-reviewer` (2 🟡 descartados), feedback P2. **Auto-close funcionou (4ª vez seguida)** — fechou #184 e, por tabela, a #173 (guarda-chuva). |
 
 **A #186 na prática — implementada e fechada via PR `JMZR-SAEP#191` (`a47184a`, 2026-09-10). 1 item rebaixado, 1 gêmeo virou #190, 3 itens saem por serem produto (análise 2026-09-09).**
 
@@ -209,9 +217,9 @@ Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/account
 | ~~187~~ | 6 | **fechada** (`JMZR-SAEP#188`, merge `d2db3b3`) — fatia (d) da #173 | — |
 | ~~185~~ | 6 | **fechada** (`JMZR-SAEP#189`, merge `11a6d65`) — fatia (b) da #173 | — |
 | ~~186~~ | 6 | **fechada** (`JMZR-SAEP#191`, merge `a47184a`) — fatia (c) da #173 | — |
-| 184 | 6 | `ready-for-agent` — fatia (a) da #173. **Implementação disparada 2026-09-10** (branch `feat/184-copy-vocabulario`) | — |
-| 190 | — | `ready-for-agent` — spin-off de #186. Footer de TODO modal, ordem de foco (WCAG 2.4.3). Arrasta as 11 telas da varredura #166 | — |
-| 173 | 6 | guarda-chuva, aberta até #184 fechar | #184 |
+| ~~184~~ | 6 | **fechada** (`JMZR-SAEP#192`, merge `08972ac`) — fatia (a) da #173 | — |
+| 190 | — | `ready-for-agent` — spin-off de #186. Footer de TODO modal, ordem de foco (WCAG 2.4.3). Arrasta as 11 telas da varredura #166. **Análise disparada 2026-09-10** | — |
+| ~~173~~ | 6 | **fechada** (auto-close via #192) — guarda-chuva, onda 6 completa | — |
 | 172 | 7 | `ready-for-human` (decisão de vocabulário visual) | **destravada** — #185 documentou a gramática de formas |
 | 170 | 8 | `needs-info` | resposta do chefe de almoxarifado |
 | 171 | 9 | `needs-info` | export real do SCPI |
