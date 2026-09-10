@@ -498,6 +498,29 @@ class TestConfirmarImportacaoScpi:
         assert saldo.saldo_fisico == Decimal('42')
         assert saldo.saldo_reservado == Decimal('0')
 
+    def test_denominacao_scpi_em_caixa_alta_e_normalizada_na_escrita(
+        self, db, superuser, estoque_principal
+    ):
+        """A Regra da Caixa Alta Estrutural (DESIGN.md) proíbe nome de material
+        em maiúsculas; o SCPI entrega a denominação em CAIXA ALTA. A importação
+        grava `Material.nome` já em sentence case — normaliza na escrita, sem
+        tocar no registro fiel do CSV.
+        """
+        from apps.estoque.models import Material
+        from apps.estoque.services import confirmar_importacao_scpi
+
+        csv_bytes = self._csv(
+            '000.999.210', 'SILICONE ACETICO TRANSPARENTE 280G', '5.000'
+        )
+        confirmar_importacao_scpi(
+            ator_id=superuser.pk,
+            conteudo_bytes=csv_bytes,
+            arquivo_nome='caixa-alta.csv',
+            estoque_id=estoque_principal.pk,
+        )
+        material = Material.objects.get(codigo='000.999.210')
+        assert material.nome == 'Silicone acetico transparente 280g'
+
     def test_preview_anuncia_a_unidade_que_a_confirmacao_vai_gravar(
         self, db, superuser, estoque_principal
     ):

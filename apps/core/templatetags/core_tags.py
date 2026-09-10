@@ -728,7 +728,7 @@ NAVEGACAO: list[dict[str, Any]] = [
             },
             {
                 'url_name': 'requisicoes:autorizacoes',
-                'rotulo': 'Fila de autorizações',
+                'rotulo': 'Fila de autorização',
                 'icone': 'autorizacao',
                 'flag': 'pode_ver_fila_autorizacao',
             },
@@ -746,7 +746,7 @@ NAVEGACAO: list[dict[str, Any]] = [
         'itens': [
             {
                 'url_name': 'requisicoes:atendimentos',
-                'rotulo': 'Atendimento',
+                'rotulo': 'Fila de atendimento',
                 'icone': 'atendimento',
                 'flag': 'pode_ver_fila_atendimento',
             },
