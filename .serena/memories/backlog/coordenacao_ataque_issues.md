@@ -2,7 +2,9 @@
 
 **Documento vivo.** Ponto de partida para quem entra no backlog e ferramenta de acompanhamento para quem já está nele. Visão macro: o detalhe técnico vive na issue, aqui vive a **ordem, a dependência e o estado**.
 
-Última atualização: **2026-09-10, terceira passada** (a #190 — spin-off da #186 — **mergeou e fechou** via PR `JMZR-SAEP#193`, `50e1d36`, auto-close (5ª vez seguida no `origin`). Gates verdes: 2770 pytest, 79 navegador, ruff/mypy. **A fila de agente está vazia.** Onda 6 (#173) completa + spin-off #190 completo. Todo o aberto (7 issues) é humano-bloqueado: `ready-for-human` (#172, #174) ou `needs-info` (#169–#171, #179, #180). Próximo movimento do coordenador: (a) disparar os pedidos de decisão humana da seção "Disparar cedo" (#170, #171, #179, #180) e (b) a próxima rodada de critique está **liberada** — onda 6 fechada, a regra que a bloqueava não vale mais.)
+Última atualização: **2026-09-10, quarta passada** (backlog commitado `52a1c2b`. **Critique `/impeccable` rodada 3 rodada** — dual-agent, slug `apps`, like-for-like. Nota: 21 → 27 → **32/40** ("Good"). P0: 1 → 2 → **0**. Detector determinístico limpo (0 findings). Snapshot `.impeccable/critique/2026-09-10T13-45-33Z__apps.md`. Achado central: o sistema visual está maduro, o débito agora é de **fluxo e cópia** — heurística 7 (flexibilidade, nota 2) é o teto, nenhuma onda tocou vazão de fila. **5 issues abertas (onda 7): #194–#198**, todas `ready-for-agent`. Ordem: **#194 → #195 → #196/#197/#198**. Ressalva: os 2 agentes da critique colidiram no browser/banco de dev — teste interativo de B não-confiável, banco sujo (sem `make setup`, decisão do usuário). Ainda pendente: os pedidos de decisão humana da "Disparar cedo" (#170, #171, #179, #180) **não** foram disparados nesta passada.)
+
+Última atualização anterior: **2026-09-10, terceira passada** (a #190 — spin-off da #186 — **mergeou e fechou** via PR `JMZR-SAEP#193`, `50e1d36`, auto-close (5ª vez seguida no `origin`). Gates verdes: 2770 pytest, 79 navegador, ruff/mypy. **A fila de agente está vazia.** Onda 6 (#173) completa + spin-off #190 completo. Todo o aberto (7 issues) é humano-bloqueado: `ready-for-human` (#172, #174) ou `needs-info` (#169–#171, #179, #180). Próximo movimento do coordenador: (a) disparar os pedidos de decisão humana da seção "Disparar cedo" (#170, #171, #179, #180) e (b) a próxima rodada de critique está **liberada** — onda 6 fechada, a regra que a bloqueava não vale mais.)
 
 Última atualização anterior: **2026-09-10, segunda passada** (a #184 — fatia (a) da #173 — **mergeou e fechou** via PR `JMZR-SAEP#192`, `08972ac`, auto-close (4ª vez seguida no `origin`). **Onda 6 completa**: #184/#185/#186/#187 fechadas, **#173 (guarda-chuva) fechada**. Único item acionável por agente restante: **#190** (spin-off da #186) — **análise disparada** nesta passada (1 `Explore` read-only). Todo o resto aberto é `ready-for-human` (#172, #174) ou `needs-info` (#169–#171, #179, #180).)
 
@@ -24,7 +26,8 @@ Tudo aqui nasceu da **Etapa 8** (auditoria de frontend do produto inteiro) e da 
 | Rodada | Data | Nota | P0 | P1 |
 |---|---|---|---|---|
 | Etapa 8, Fase 2 | 2026-09-01 | 21/40 | 1 | 3 |
-| Remedição (#165) | 2026-09-03 | **27/40** | 2 | 2 |
+| Remedição (#165) | 2026-09-03 | 27/40 | 2 | 2 |
+| Rodada 3 (pós-onda 6) | 2026-09-10 | **32/40** | 0 | 2 |
 
 Snapshots em `.impeccable/critique/` (diretório local, gitignored). O plano de origem é `docs/plans/audit-frontend-restante.md`, seção "Depois do plano".
 
@@ -66,7 +69,21 @@ Snapshots em `.impeccable/critique/` (diretório local, gitignored). O plano de 
 
 **Em andamento**
 
-_(vazio — nenhum item acionável por agente na fila)_
+_(vazio — nenhum agente disparado ainda na onda 7)_
+
+**Onda 7 — critique `/impeccable` rodada 3 (aberta 2026-09-10)**
+
+Nota `apps` 21 → 27 → **32/40**. Todas `ready-for-agent`. Ordem: **#194 → #195 → #196/#197/#198** (as três últimas independentes entre si, sequenciais só pelo banco compartilhado).
+
+| # | O quê | Sev | Nota |
+|---|---|---|---|
+| 194 | Filas de trabalho não são feitas para vazão — triagem, ordenação, teclado no cartão de fila | P1 | Prioridade 1 (decisão do usuário). Começa com `/impeccable shape` ou Plan — várias peças, "autorizar inline no cartão" é sub-item de UX própria. Inclui o placeholder de busca truncado a 375px. Trava a heurística 7 (nota 2). |
+| 195 | Modal de autorizar não carrega o déficit de saldo ("autorizar-e-quicar") | P1 | Só UI/cópia + `acoes_disponiveis` considerar saldo (decisão do usuário: **sem** pergunta de autorização parcial). Inclui foco na rejeição (volta como flash, não pelo `error_summary`). |
+| 196 | Detalhe: painel de ação destrutiva precede a ação primária | P2 | `layout` + `quieter`. Aplicar ao caso inline a ordem que o banner não-inline já usa. |
+| 197 | Notificações: cópia no passado, sopa de 3 badges, "marcar como lida" com afordância fraca | P2 | `clarify` + `quieter`. |
+| 198 | Fatia de cópia miúda — vocabulário do login, `descricao` duplicada no modal, "Remover" em linha única, caixa do `<title>` "Nova Requisição" | P3 | Estilo #184, agrupada num PR. |
+
+Fora do slate (registro, sem issue): marcadores de timeline uniformes (`slate-300`, sem distinção entre criação/autorização/recusa/estorno) e trigger azul da saída excepcional. Candidatos a próxima rodada.
 
 **Onda 6 — spin-off #190 fechado em 2026-09-10**
 
@@ -226,11 +243,16 @@ Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/account
 | ~~184~~ | 6 | **fechada** (`JMZR-SAEP#192`, merge `08972ac`) — fatia (a) da #173 | — |
 | ~~190~~ | — | **fechada** (`JMZR-SAEP#193`, merge `50e1d36`) — spin-off de #186, footer de todo modal, WCAG 2.4.3 | — |
 | ~~173~~ | 6 | **fechada** (auto-close via #192) — guarda-chuva, onda 6 completa | — |
-| 172 | 7 | `ready-for-human` (decisão de vocabulário visual) | **destravada** — #185 documentou a gramática de formas |
-| 170 | 8 | `needs-info` | resposta do chefe de almoxarifado |
-| 171 | 9 | `needs-info` | export real do SCPI |
-| 169 | 10 | `needs-info` | medição da rede do piloto |
-| 174 | 11 | `ready-for-human` (decisão de contrato, maior item) | — |
+| 194 | 7 | `ready-for-agent` | — (prioridade 1 da onda 7; começa com shape/Plan) |
+| 195 | 7 | `ready-for-agent` | — (depois da #194) |
+| 196 | 7 | `ready-for-agent` | — |
+| 197 | 7 | `ready-for-agent` | — |
+| 198 | 7 | `ready-for-agent` | — |
+| 172 | 8 | `ready-for-human` (decisão de vocabulário visual) | **destravada** — #185 documentou a gramática de formas |
+| 170 | 9 | `needs-info` | resposta do chefe de almoxarifado |
+| 171 | 10 | `needs-info` | export real do SCPI |
+| 169 | 11 | `needs-info` | medição da rede do piloto |
+| 174 | 12 | `ready-for-human` (decisão de contrato, maior item) | — |
 | 179 | — | `needs-info` | decisão de domínio: entra no MVP? |
 | 180 | — | `needs-info` | decisão de domínio: UI de produto ou recuar matriz? |
 
@@ -245,13 +267,14 @@ Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/account
 5. ~~**#178, #181, #182**~~ **Feitas e fechadas — PRs `joaozuneda6#72`, `#73`, `#70`.** Não houve conflito de hunk entre #178 e #182, apesar de editarem o mesmo `selectors.py`: as regiões eram disjuntas (20-27 vs 304-338; testes 9-78 vs 467-549). A #178 gerou a #183.
 5b. ~~**#183**~~ **Feita e fechada — PR `joaozuneda6#75`** (merge `46ee10c`).
 6. ~~**#173, fatiada em 3**~~ **Fatiada em 4: #184 (a), #185 (b), #186 (c), #187 (d).** A quarta fatia existe porque cinco dos candidatos anexados não eram achado estético e sim **defeito de comportamento** — diluí-los em (a)/(b)/(c) enterraria bug sob revisão de copy. **~~#187~~ fechada (PR #188). ~~#185~~ fechada (PR #189). ~~#186~~ fechada (PR #191, `a47184a`).** **~~#184~~ fechada (PR #192, `08972ac`) → #173 fechada. ~~#190~~ fechada (PR #193, `50e1d36`).** **A onda 6 e todos os seus spin-offs estão fechados. A fila de agente está vazia.**
-7. **#172** — destravada (a #185 documentou a gramática de formas). `ready-for-human`.
-8. ~~**#176, metade de permissão** — quem é o dono da importação SCPI.~~ **Feito e fechada — PR #63.** Domínio decidiu: chefe de almoxarifado. Gerou #178, #179, #180.
-9. **#170** — quando o chefe de almoxarifado responder.
-10. **#171** — quando o export real chegar. Cada quebra vira issue própria.
-11. **#169** — medir a rede do piloto e decidir. `wontfix` consciente é o desfecho provável.
-12. **#174** — a maior. Primeira a cortar do escopo se o piloto apertar.
-13. **#179, #180** — `needs-info`, esperando decisão de domínio (ver "Disparar cedo"). Sem código antes da resposta.
+7. **Onda 7 (critique rodada 3): #194 → #195 → #196/#197/#198.** `ready-for-agent`. #194 é a prioridade (decisão do usuário) e o maior item — vazão de fila, começa com shape/Plan. #195 é cirúrgico (só UI + `acoes_disponiveis`). #196/#197/#198 independentes entre si, sequenciais só pelo banco. Implementação sempre sequencial (banco PostgreSQL único).
+8. **#172** — destravada (a #185 documentou a gramática de formas). `ready-for-human`.
+9. ~~**#176, metade de permissão** — quem é o dono da importação SCPI.~~ **Feito e fechada — PR #63.** Domínio decidiu: chefe de almoxarifado. Gerou #178, #179, #180.
+10. **#170** — quando o chefe de almoxarifado responder.
+11. **#171** — quando o export real chegar. Cada quebra vira issue própria.
+12. **#169** — medir a rede do piloto e decidir. `wontfix` consciente é o desfecho provável.
+13. **#174** — a maior. Primeira a cortar do escopo se o piloto apertar.
+14. **#179, #180** — `needs-info`, esperando decisão de domínio (ver "Disparar cedo"). Sem código antes da resposta.
 
 ## Dependências
 
@@ -304,8 +327,8 @@ Itens 8 e 9 têm lead time humano e **zero trabalho de código antes da resposta
 
 ## Regras de coordenação
 
-- **Não rode a próxima critique antes de fechar a onda 4.** Rodar no meio mistura o efeito dos P0 com o do eixo do componente — o erro de atribuição que a #165 existia justamente para não repetir.
-- **Comparação de nota só é válida like-for-like**: mesmo alvo, mesmo slug (`apps`), sem alvo específico, e sem mostrar a pontuação anterior aos agentes. Calibração diferente entre rodadas vira falso progresso ou falsa regressão.
+- ~~**Não rode a próxima critique antes de fechar a onda 4.**~~ **Cumprida e vencida.** Rodada 3 rodou em 2026-09-10, depois da onda 6 fechada: 21 → 27 → **32/40**. A próxima só depois de a onda 7 (#194–#198) fechar, pela mesma razão de atribuição.
+- **Comparação de nota só é válida like-for-like**: mesmo alvo, mesmo slug (`apps`), sem alvo específico, e sem mostrar a pontuação anterior aos agentes. Calibração diferente entre rodadas vira falso progresso ou falsa regressão. **Armadilha da rodada 3:** os dois agentes de assessment subiram o app na mesma porta e no mesmo banco de dev e colidiram — aba de browser e schema navegados concorrentemente. Um dos subagentes ainda rodou o fluxo `/critique` inteiro por conta própria e gravou um snapshot duplicado (removido). Próxima vez: um agente roda o app, o outro é só-fonte; e instruir explicitamente "não persista, não rode o fluxo".
 - ~~**#173 é guarda-chuva, não issue.**~~ **Fatiada em #184/#185/#186/#187.** #185, #186 e #187 fechadas; fica aberta como capa até a **#184** fechar.
 - ~~**Merge não fecha issue de outro remote.**~~ **Revogada em 2026-09-08**, quando os PRs passaram a nascer no `origin`. Com PR e issue no mesmo repo, `Closes #N` fecha a issue no merge — sem passo manual. O incidente das quatro issues abertas por quatro dias fica como histórico na seção "Ondas 4 e 5", não como regra ativa. **Vale só se algum PR voltar a nascer no fork:** aí o auto-close não cruza e o fechamento manual volta a ser obrigatório.
 - **O gate de review mudou de dono.** O CodeRabbit responde no `origin` (validado na #188, 3 achados), mas o plano dá **1 review por hora** — e o check `CodeRabbit` pode aparecer `pass` com "Review skipped" sem ter revisado nada. Não confundir check verde com review feita; conferir se há comentários antes de tratar o gate como cumprido.
