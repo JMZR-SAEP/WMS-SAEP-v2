@@ -2,9 +2,9 @@
 
 **Documento vivo.** Ponto de partida para quem entra no backlog e ferramenta de acompanhamento para quem já está nele. Visão macro: o detalhe técnico vive na issue, aqui vive a **ordem, a dependência e o estado**.
 
-Última atualização: **2026-09-09, terceira passada** (#186 e #184 analisadas — 2 `Explore` read-only. #186: item "drawer corta Sair" rebaixado (clip já corrigido em `df20393f`), gêmeo do bug de ordem de foco virou **#190** (spin-off, footer de todo modal), 3 itens saem por serem produto. #184: 4 itens procedem; normalização da denominação SCPI decidida **na escrita** (helper `apps/core/texto.py::sentence_case` novo). Ordem de implementação: **#186 → #184**, sequencial. Ver "A #186 na prática" e "A #184 na prática".)
+Última atualização: **2026-09-10** (a #186 — fatia (c) da #173 — **mergeou e fechou** via PR `JMZR-SAEP#191`, `a47184a`, CI verde, auto-close (3ª vez seguida no `origin`). Restam da onda 6 só a fatia (a): **#184** — implementação **disparada** nesta passada (branch `feat/184-copy-vocabulario`, 1 agente, sequencial). Fechar a #184 fecha a #173. Independente: **#190** (spin-off da #186, `ready-for-agent`).)
 
-Última atualização anterior: **2026-09-09, segunda passada** (a #185 — fatia (b) da #173 — **mergeou e fechou** via PR `JMZR-SAEP#189`, `11a6d65`. Auto-close funcionou de novo (2ª vez seguida no `origin`). O job `navegador` da CI ficou vermelho no commit de merge por **flake de infra** — `apt` Hash Sum mismatch em `dl.google.com/linux/chrome-stable` (mirror do Google), não código. Rerun 17:57 falhou igual — é o mirror, resolve em horas. Não bloqueia nada (a #185 já mergeou; nenhum PR aberto depende da lane). Re-rodar quando o mirror estabilizar. A #172 está **destravada** (a #185 documentou a gramática de formas), mas segue `ready-for-human`. Antes: a #187 (fatia d) mergeou via `JMZR-SAEP#188`, `d2db3b3` — primeiro auto-close no fluxo `origin`).
+Última atualização anterior: **2026-09-09, terceira passada** (#186 e #184 analisadas — 2 `Explore` read-only. #186: item "drawer corta Sair" rebaixado (clip já corrigido em `df20393f`), gêmeo do bug de ordem de foco virou **#190** (spin-off, footer de todo modal), 3 itens saem por serem produto. #184: 4 itens procedem; normalização da denominação SCPI decidida **na escrita** (helper `apps/core/texto.py::sentence_case` novo). Ordem de implementação: **#186 → #184**, sequencial. Ver "A #186 na prática" e "A #184 na prática".)
 
 ## Como usar
 
@@ -58,14 +58,15 @@ Snapshots em `.impeccable/critique/` (diretório local, gitignored). O plano de 
 |---|---|---|---|
 | 187 | `JMZR-SAEP#188` (6 commits) | `d2db3b3` | As seis peças da fatia (d). Suíte 2729 ✅, Navegador 71 ✅, ruff/mypy ✅. Ver "A #187 na prática" abaixo. **Auto-close funcionou** — o merge fechou a issue sozinho, sem passo manual, validando a topologia nova. |
 | 185 | `JMZR-SAEP#189` (8 commits) | `11a6d65` | As 5 entregas da fatia (b). Revisado por `cavecrew-reviewer` (1 nit 🔵) + `revisor-camadas` + 2 achados 🟡 do `joaorighetto` + 2 achados 🟡 do CodeRabbit (disparo manual) — todos corrigidos, threads resolvidos (ver "Achados de review da #189" e "Achados do CodeRabbit na #189" abaixo). **Auto-close funcionou** (2ª vez seguida). Job `navegador` vermelho no merge por flake de infra (`apt` Hash Sum mismatch no repo do Chrome), não código — rerun disparado. Escopo travado — ver "A #185 na prática". |
+| 186 | `JMZR-SAEP#191` | `a47184a` | Fatia (c): navegação, ordem de foco (`flex-col-reverse` em `detalhe.html`/`copiar_confirmacao.html`), `focus-visible` na nav e na marca, heading da região de resultados do preview SCPI. CI verde (ruff/mypy/css build/migrations ✅). **Auto-close funcionou** (3ª vez seguida). O ponto global (`_modal_body.html`) ficou de fora — é a **#190**. Ver "A #186 na prática". |
 
 **Em andamento**
 
 | # | Branch | O que entrega |
 |---|---|---|
-| — | — | Nada em PR. #186 e #184 analisadas (2 `Explore` read-only, 2026-09-09) — ver "A #186 na prática" e "A #184 na prática". Aguardam dispatch de implementação: **#186 → #184**, sequencial. |
+| 184 | `feat/184-copy-vocabulario` | Fatia (a) da #173. Implementação **disparada em 2026-09-10** (1 agente, sequencial). 4 itens: rótulo de rota × tela (regra #160), grafia `WMS-SAEP`, denominação SCPI normalizada **na escrita** (helper novo `apps/core/texto.py::sentence_case` em `services.py:746`), asterisco de obrigatório suprimido no login. Gate: suíte padrão + `revisor-camadas`. Ver "A #184 na prática". |
 
-**A #186 na prática — 1 item rebaixado, 1 gêmeo virou #190, 3 itens saem por serem produto (2026-09-09).**
+**A #186 na prática — implementada e fechada via PR `JMZR-SAEP#191` (`a47184a`, 2026-09-10). 1 item rebaixado, 1 gêmeo virou #190, 3 itens saem por serem produto (análise 2026-09-09).**
 
 | Item da issue | Veredito da análise | Decisão |
 |---|---|---|
@@ -207,10 +208,10 @@ Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/account
 |---|---|---|---|
 | ~~187~~ | 6 | **fechada** (`JMZR-SAEP#188`, merge `d2db3b3`) — fatia (d) da #173 | — |
 | ~~185~~ | 6 | **fechada** (`JMZR-SAEP#189`, merge `11a6d65`) — fatia (b) da #173 | — |
-| 186 | 6 | `ready-for-agent` — fatia (c) da #173. **Próximo alvo** (peso de comportamento). Analisada — ver "A #186 na prática" | — |
-| 184 | 6 | `ready-for-agent` — fatia (a) da #173. Alvo seguinte. Analisada; normalização SCPI decidida (na escrita) | — |
+| ~~186~~ | 6 | **fechada** (`JMZR-SAEP#191`, merge `a47184a`) — fatia (c) da #173 | — |
+| 184 | 6 | `ready-for-agent` — fatia (a) da #173. **Implementação disparada 2026-09-10** (branch `feat/184-copy-vocabulario`) | — |
 | 190 | — | `ready-for-agent` — spin-off de #186. Footer de TODO modal, ordem de foco (WCAG 2.4.3). Arrasta as 11 telas da varredura #166 | — |
-| 173 | 6 | guarda-chuva, aberta até #184 e #186 fecharem | #184, #186 |
+| 173 | 6 | guarda-chuva, aberta até #184 fechar | #184 |
 | 172 | 7 | `ready-for-human` (decisão de vocabulário visual) | **destravada** — #185 documentou a gramática de formas |
 | 170 | 8 | `needs-info` | resposta do chefe de almoxarifado |
 | 171 | 9 | `needs-info` | export real do SCPI |
@@ -229,7 +230,7 @@ Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/account
 4. ~~**#167**~~ **Feita e fechada — PR `joaozuneda6#71`** (merge `43b6dee`). Fechada por remoção da legenda. O bullet das pílulas do #173 **não** entrou: a premissa dele estava errada (ver "Candidatos"), e a colisão real precisa de mudança no componente global.
 5. ~~**#178, #181, #182**~~ **Feitas e fechadas — PRs `joaozuneda6#72`, `#73`, `#70`.** Não houve conflito de hunk entre #178 e #182, apesar de editarem o mesmo `selectors.py`: as regiões eram disjuntas (20-27 vs 304-338; testes 9-78 vs 467-549). A #178 gerou a #183.
 5b. ~~**#183**~~ **Feita e fechada — PR `joaozuneda6#75`** (merge `46ee10c`).
-6. ~~**#173, fatiada em 3**~~ **Fatiada em 4: #184 (a), #185 (b), #186 (c), #187 (d).** A quarta fatia existe porque cinco dos candidatos anexados não eram achado estético e sim **defeito de comportamento** — diluí-los em (a)/(b)/(c) enterraria bug sob revisão de copy. **~~#187~~ fechada (PR #188). ~~#185~~ fechada (PR #189).** Ordem restante: **#186** (peso de comportamento: drawer corta "Sair", ordem de foco WCAG 2.4.3, focus-visible ausente), depois **#184** (copy; ponto de decisão: normalização da denominação SCPI na escrita × na exibição). Sem dependência de código entre as duas — análise em paralelo, implementação sequencial.
+6. ~~**#173, fatiada em 3**~~ **Fatiada em 4: #184 (a), #185 (b), #186 (c), #187 (d).** A quarta fatia existe porque cinco dos candidatos anexados não eram achado estético e sim **defeito de comportamento** — diluí-los em (a)/(b)/(c) enterraria bug sob revisão de copy. **~~#187~~ fechada (PR #188). ~~#185~~ fechada (PR #189). ~~#186~~ fechada (PR #191, `a47184a`).** Resta **#184** (copy; decisão travada: normalização da denominação SCPI **na escrita**, helper `apps/core/texto.py::sentence_case`) — implementação disparada 2026-09-10 na branch `feat/184-copy-vocabulario`. Fechar a #184 fecha a #173. Fora da onda mas `ready-for-agent`: **#190** (gêmeo global do foco invertido, footer de todo modal).
 7. **#172** — destravada (a #185 documentou a gramática de formas). `ready-for-human`.
 8. ~~**#176, metade de permissão** — quem é o dono da importação SCPI.~~ **Feito e fechada — PR #63.** Domínio decidiu: chefe de almoxarifado. Gerou #178, #179, #180.
 9. **#170** — quando o chefe de almoxarifado responder.
@@ -291,7 +292,7 @@ Itens 8 e 9 têm lead time humano e **zero trabalho de código antes da resposta
 
 - **Não rode a próxima critique antes de fechar a onda 4.** Rodar no meio mistura o efeito dos P0 com o do eixo do componente — o erro de atribuição que a #165 existia justamente para não repetir.
 - **Comparação de nota só é válida like-for-like**: mesmo alvo, mesmo slug (`apps`), sem alvo específico, e sem mostrar a pontuação anterior aos agentes. Calibração diferente entre rodadas vira falso progresso ou falsa regressão.
-- ~~**#173 é guarda-chuva, não issue.**~~ **Fatiada em #184/#185/#186/#187.** Fica aberta como capa até as quatro fecharem.
+- ~~**#173 é guarda-chuva, não issue.**~~ **Fatiada em #184/#185/#186/#187.** #185, #186 e #187 fechadas; fica aberta como capa até a **#184** fechar.
 - ~~**Merge não fecha issue de outro remote.**~~ **Revogada em 2026-09-08**, quando os PRs passaram a nascer no `origin`. Com PR e issue no mesmo repo, `Closes #N` fecha a issue no merge — sem passo manual. O incidente das quatro issues abertas por quatro dias fica como histórico na seção "Ondas 4 e 5", não como regra ativa. **Vale só se algum PR voltar a nascer no fork:** aí o auto-close não cruza e o fechamento manual volta a ser obrigatório.
 - **O gate de review mudou de dono.** O CodeRabbit responde no `origin` (validado na #188, 3 achados), mas o plano dá **1 review por hora** — e o check `CodeRabbit` pode aparecer `pass` com "Review skipped" sem ter revisado nada. Não confundir check verde com review feita; conferir se há comentários antes de tratar o gate como cumprido.
 - **#169, #170 e #171 não são tarefas de código** — são uma medição, uma pergunta e um pedido. Não devem ocupar slot de implementação.
