@@ -51,13 +51,13 @@ TRANSICOES: dict[Operacao, TransicaoRequisicao] = {
         operacao=Operacao.RETORNAR_PARA_RASCUNHO,
         estados_origem=frozenset({EstadoRequisicao.AGUARDANDO_AUTORIZACAO}),
         estado_destino=EstadoRequisicao.RASCUNHO,
-        eventos_timeline=frozenset({EventoTimeline.RETORNO_RASCUNHO}),
-    ),
-    Operacao.RECUSAR: TransicaoRequisicao(
-        operacao=Operacao.RECUSAR,
-        estados_origem=frozenset({EstadoRequisicao.AGUARDANDO_AUTORIZACAO}),
-        estado_destino=EstadoRequisicao.RECUSADA,
-        eventos_timeline=frozenset({EventoTimeline.RECUSA}),
+        # Dois eventos possíveis — mesmo padrão de REGISTRAR_ATENDIMENTO
+        # (ver abaixo). RECUSA é a variante em que quem decide não é o dono
+        # do pedido (issue #170); RETORNO_RASCUNHO é o dono ajustando o
+        # próprio pedido. O service escolhe qual gravar.
+        eventos_timeline=frozenset(
+            {EventoTimeline.RETORNO_RASCUNHO, EventoTimeline.RECUSA}
+        ),
     ),
     Operacao.AUTORIZAR: TransicaoRequisicao(
         operacao=Operacao.AUTORIZAR,

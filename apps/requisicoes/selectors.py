@@ -34,7 +34,6 @@ _POLICY_POR_OPERACAO: dict[Operacao, Callable[['PapelEfetivo', Requisicao], bool
     Operacao.EDITAR_RASCUNHO: policies.pode_editar_rascunho,
     Operacao.ENVIAR_PARA_AUTORIZACAO: policies.pode_enviar_rascunho,
     Operacao.RETORNAR_PARA_RASCUNHO: policies.pode_retornar_para_rascunho,
-    Operacao.RECUSAR: policies.pode_recusar_requisicao,
     Operacao.AUTORIZAR: policies.pode_autorizar_requisicao,
     Operacao.CANCELAR: policies.pode_cancelar_requisicao,
     Operacao.SEPARAR_PARA_RETIRADA: policies.pode_separar_para_retirada,

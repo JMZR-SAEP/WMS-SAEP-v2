@@ -568,7 +568,6 @@ def test_acoes_disponiveis_cancelar_ausente_em_estados_finais():
     papel = _papel(ator_id=ATOR_ID)
 
     for estado in (
-        EstadoRequisicao.RECUSADA,
         EstadoRequisicao.ATENDIDA,
         EstadoRequisicao.ESTORNADA,
     ):
@@ -619,11 +618,11 @@ def test_acoes_disponiveis_retorna_frozenset():
             # RETORNAR_PARA_RASCUNHO entrou na Etapa 8: sem ela, um saldo
             # insuficiente descoberto na confirmação deixava o chefe só com
             # recusar — encerrar em definitivo o pedido de alguém porque a
-            # quantidade não cabia. A condição é a mesma de recusar, então quem
-            # já podia encerrar passa a poder devolver.
+            # quantidade não cabia. A issue #170 absorveu essa recusa como
+            # variante de RETORNAR_PARA_RASCUNHO (não há mais Operacao.RECUSAR
+            # separada): quem já podia encerrar passa a poder devolver.
             frozenset(
                 {
-                    Operacao.RECUSAR,
                     Operacao.AUTORIZAR,
                     Operacao.RETORNAR_PARA_RASCUNHO,
                 }
@@ -663,7 +662,7 @@ def test_acoes_disponiveis_retorna_frozenset():
         pytest.param(
             _papel(ator_id=ATOR_ID),
             _req(
-                EstadoRequisicao.RECUSADA, criador_id=ATOR_ID, beneficiario_id=ATOR_ID
+                EstadoRequisicao.CANCELADA, criador_id=ATOR_ID, beneficiario_id=ATOR_ID
             ),
             frozenset(),
             id='estado_final_sem_acoes',

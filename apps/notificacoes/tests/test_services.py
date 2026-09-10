@@ -131,18 +131,26 @@ def test_autorizar_requisicao_gera_notificacoes(
 
 
 @pytest.mark.django_db(transaction=True)
-def test_recusar_requisicao_gera_notificacoes(
-    chefe_obras, outro_solicitante, material_disponivel
+def test_retornar_para_rascunho_chefe_gera_notificacoes(
+    chefe_obras, superuser, outro_solicitante, material_disponivel
 ):
-    """recusar_requisicao dispara notificações para criador e beneficiário."""
+    """Issue #170: a variante de retornar_para_rascunho em que o ator não é o
+    dono do pedido (aqui, o chefe do setor) dispara notificações — mesmo
+    evento/tipo que a antiga recusar_requisicao (TipoNotificacao.RECUSA).
+
+    Criador (`superuser`, único papel deste conftest que pode criar para
+    outro setor/usuário) e beneficiário (`outro_solicitante`) são pessoas
+    distintas do chefe que decide, para provar que os dois — não o chefe —
+    são notificados.
+    """
     from apps.requisicoes.services import (
         criar_requisicao,
         enviar_para_autorizacao,
-        recusar_requisicao,
+        retornar_para_rascunho,
     )
 
     req = criar_requisicao(
-        ator_id=chefe_obras.pk,
+        ator_id=superuser.pk,
         beneficiario_id=outro_solicitante.pk,
         itens=[
             {
@@ -151,11 +159,11 @@ def test_recusar_requisicao_gera_notificacoes(
             }
         ],
     )
-    enviar_para_autorizacao(ator_id=chefe_obras.pk, requisicao_id=req.pk)
-    recusar_requisicao(
+    enviar_para_autorizacao(ator_id=superuser.pk, requisicao_id=req.pk)
+    retornar_para_rascunho(
         ator_id=chefe_obras.pk,
         requisicao_id=req.pk,
-        motivo='Sem orçamento',
+        observacao='Sem orçamento',
     )
 
     notifs = Notificacao.objects.filter(
@@ -164,7 +172,45 @@ def test_recusar_requisicao_gera_notificacoes(
     )
     assert notifs.count() == 2
     destinatarios = set(notifs.values_list('destinatario_id', flat=True))
-    assert destinatarios == {chefe_obras.pk, outro_solicitante.pk}
+    assert destinatarios == {superuser.pk, outro_solicitante.pk}
+
+
+@pytest.mark.django_db(transaction=True)
+def test_retornar_para_rascunho_dono_nao_gera_notificacao_de_recusa(
+    chefe_obras, solicitante, material_disponivel
+):
+    """O dono ajustando o próprio pedido não dispara TipoNotificacao.RECUSA —
+    só a variante decidida por terceiro (issue #170) notifica.
+
+    `chefe_obras` não decide nada aqui — só precisa existir para o setor ter
+    chefe ativo, exigido por `enviar_para_autorizacao`.
+    """
+    from apps.requisicoes.services import (
+        criar_requisicao,
+        enviar_para_autorizacao,
+        retornar_para_rascunho,
+    )
+
+    req = criar_requisicao(
+        ator_id=solicitante.pk,
+        beneficiario_id=solicitante.pk,
+        itens=[
+            {
+                'material_id': material_disponivel.pk,
+                'quantidade_solicitada': Decimal('1'),
+            }
+        ],
+    )
+    enviar_para_autorizacao(ator_id=solicitante.pk, requisicao_id=req.pk)
+    retornar_para_rascunho(
+        ator_id=solicitante.pk,
+        requisicao_id=req.pk,
+    )
+
+    assert not Notificacao.objects.filter(
+        requisicao_id=req.pk,
+        tipo=TipoNotificacao.RECUSA,
+    ).exists()
 
 
 @pytest.mark.django_db(transaction=True)
