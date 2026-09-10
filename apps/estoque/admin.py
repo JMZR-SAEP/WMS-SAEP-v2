@@ -21,10 +21,18 @@ class MaterialAdmin(admin.ModelAdmin):
     ordering = ('nome',)
 
     def _pode_gerir(self, request):
-        from apps.accounts.papeis import papel_efetivo
-        from apps.estoque.policies import pode_gerir_catalogo
+        """Gate próprio, superusuário apenas — não delega a `pode_gerir_catalogo`.
 
-        return pode_gerir_catalogo(papel_efetivo(request.user))
+        Desde a #180 essa policy também aceita chefe de almoxarifado, mas o
+        admin do Django edita todos os campos do material (código, nome,
+        unidade), não só `ativo`/`inativo`: é superfície técnica mais ampla do
+        que a policy de domínio autoriza. O chefe gere o catálogo pela UI de
+        produto (`estoque:lista_materiais`), que chama a policy diretamente.
+        """
+        from apps.accounts.papeis import papel_efetivo
+
+        papel = papel_efetivo(request.user)
+        return papel.ativo and papel.eh_superusuario
 
     def has_add_permission(self, request):
         return self._pode_gerir(request)

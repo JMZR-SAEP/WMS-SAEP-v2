@@ -103,6 +103,8 @@ REGISTRO_CONTRATO_MODAL: dict[str, str] = {
     'requisicoes:retornar_rascunho': 'requisicoes',
     'requisicoes:separar_retirada': 'requisicoes',
     'estoque:estornar_saida_excepcional': 'estoque',
+    'estoque:inativar_material': 'estoque',
+    'estoque:reativar_material': 'estoque',
 }
 
 # `{% url 'app:nome' ... as variavel %}` — a única forma como uma `action_url`

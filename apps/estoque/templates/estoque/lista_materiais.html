@@ -138,6 +138,41 @@
             class="mt-2 inline-flex min-h-11 items-center gap-1 rounded-md text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1"
             aria-label="Ver movimentações de {{ saldo.material.codigo }} — {{ saldo.material.nome }}"
           >Ver movimentações <span aria-hidden="true">&rarr;</span></a>
+
+          {% comment %}
+            Inativar/reativar material (#180, matriz L74/§3). Um modal por
+            cartão dentro do loop, mesmo padrão de "Registrar devolução" em
+            `requisicoes/detalhe.html`: sem tela de detalhe própria de
+            material, a ação e a confirmação vivem no cartão que a lista.
+            `pode_gerir_catalogo` só controla a renderização (ADR-0011); o
+            gate de verdade é `exigir_pode_gerir_catalogo` na view de escrita.
+            `modal_gerir_id` e `registro_material` chegam prontos do contexto
+            da view — não montados aqui — pela mesma razão que
+            `item.modal_devolver_id` chega pronto em `requisicoes/detalhe.html`:
+            concatenar string com PK inteiro no filtro `add` do Django não
+            funciona (`add` só soma número com número, ou concatena string
+            com string).
+          {% endcomment %}
+          {% if pode_gerir_catalogo %}
+            {% if saldo.material.ativo %}
+              {% url 'estoque:inativar_material' saldo.material.pk as inativar_material_url %}
+              <div class="mt-2" x-data="modalController({ id: '{{ saldo.modal_gerir_id }}' })">
+                {% include "components/button.html" with variant="warning-outline" size="sm" label="Inativar material" aria_label="Inativar "|add:saldo.material.nome data_modal_trigger=saldo.modal_gerir_id aria_haspopup="dialog" %}
+                {# Sem confirm_variant: não existe variante sólida "warning" — âmbar #}
+                {# não alcança 3:1 de contraste sobre branco (ver core_tags.py). O #}
+                {# precedente do próprio design system (`atender_retirada.html`, #}
+                {# icon_variant="warning") também deixa o confirm no default #}
+                {# "primary"; o ícone do modal já carrega a severidade. #}
+                {% include "components/modal.html" with id=saldo.modal_gerir_id titulo=inativar_material_copy.titulo descricao=inativar_material_copy.descricao registro=saldo.registro_material action_url=inativar_material_url confirm_label=inativar_material_copy.confirm_label icon_variant=inativar_material_copy.icon_variant role="alertdialog" loading_label="Inativando…" %}
+              </div>
+            {% else %}
+              {% url 'estoque:reativar_material' saldo.material.pk as reativar_material_url %}
+              <div class="mt-2" x-data="modalController({ id: '{{ saldo.modal_gerir_id }}' })">
+                {% include "components/button.html" with variant="return-outline" size="sm" label="Reativar material" aria_label="Reativar "|add:saldo.material.nome data_modal_trigger=saldo.modal_gerir_id aria_haspopup="dialog" %}
+                {% include "components/modal.html" with id=saldo.modal_gerir_id titulo=reativar_material_copy.titulo descricao=reativar_material_copy.descricao registro=saldo.registro_material action_url=reativar_material_url confirm_label=reativar_material_copy.confirm_label confirm_variant="return" icon_variant=reativar_material_copy.icon_variant role="alertdialog" loading_label="Reativando…" %}
+              </div>
+            {% endif %}
+          {% endif %}
         </article>
       {% endfor %}
     </div>

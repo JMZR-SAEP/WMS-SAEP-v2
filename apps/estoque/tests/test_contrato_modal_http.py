@@ -55,8 +55,70 @@ def _cenario_estornar_saida(request) -> CenarioModal:
     )
 
 
+def _cenario_inativar_material(request) -> CenarioModal:
+    """Saldo não zerado: o service recusa, nada muda (#180).
+
+    Sem `url_render_inicial`: a rota não tem GET que reabra o mesmo modal —
+    inativar/reativar não têm tela própria de "detalhe de material", vivem
+    só no cartão do catálogo, e o 204 desta rota nunca reabre modal.
+    """
+    from apps.estoque.models import Material, SaldoEstoque
+
+    estoque = request.getfixturevalue('estoque_principal')
+    chefe = request.getfixturevalue('chefe_almoxarifado')
+    material = Material.objects.create(
+        codigo='MAT-MODAL-INAT',
+        nome='Material contrato modal',
+        unidade='un',
+        ativo=True,
+    )
+    SaldoEstoque.objects.create(estoque=estoque, material=material, saldo_fisico=5)
+
+    def ler_estado():
+        return snapshot(Material.objects, material.pk, 'ativo')
+
+    return CenarioModal(
+        url=reverse('estoque:inativar_material', args=[material.pk]),
+        payload={},
+        destino_esperado=reverse('estoque:lista_materiais'),
+        ler_estado=ler_estado,
+        ator=chefe,
+        modal_id=f'gerir-material-{material.pk}',
+        muta=False,
+    )
+
+
+def _cenario_reativar_material(request) -> CenarioModal:
+    """Caminho feliz: reativar não tem ramo de erro alcançável pela view — sem
+    checagem de saldo, e a permissão já barra antes do service (#180)."""
+    from apps.estoque.models import Material
+
+    chefe = request.getfixturevalue('chefe_almoxarifado')
+    material = Material.objects.create(
+        codigo='MAT-MODAL-REAT',
+        nome='Material contrato modal',
+        unidade='un',
+        ativo=False,
+    )
+
+    def ler_estado():
+        return snapshot(Material.objects, material.pk, 'ativo')
+
+    return CenarioModal(
+        url=reverse('estoque:reativar_material', args=[material.pk]),
+        payload={},
+        destino_esperado=reverse('estoque:lista_materiais'),
+        ler_estado=ler_estado,
+        ator=chefe,
+        modal_id=f'gerir-material-{material.pk}',
+        muta=True,
+    )
+
+
 CONSTRUTORAS = {
     'estoque:estornar_saida_excepcional': _cenario_estornar_saida,
+    'estoque:inativar_material': _cenario_inativar_material,
+    'estoque:reativar_material': _cenario_reativar_material,
 }
 
 

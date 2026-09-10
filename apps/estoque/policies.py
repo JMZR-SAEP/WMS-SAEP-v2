@@ -147,14 +147,27 @@ def pode_consultar_divergencias_criticas(papel: 'PapelEfetivo') -> bool:
 
 
 def pode_gerir_catalogo(papel: 'PapelEfetivo') -> bool:
-    """Superusuário pode gerir (ativar/desativar) materiais do catálogo."""
-    return papel.ativo and papel.eh_superusuario
+    """Chefe de almoxarifado e superusuário podem gerir (in/reativar) materiais do
+    catálogo (matriz L74/§3, #180). Auxiliar de almoxarifado não — a matriz só
+    concede ao chefe.
+
+    Só decide o *domínio* (service `desativar_material`/`reativar_material`).
+    O admin do Django tem gate próprio (`MaterialAdmin._pode_gerir`), superusuário
+    apenas: a superfície do admin edita todos os campos do material, não só
+    `ativo`, e permanece deliberadamente fora do que esta policy concede.
+    """
+    if not papel.ativo:
+        return False
+    if papel.eh_superusuario:
+        return True
+    return papel.eh_chefe_de_almoxarifado
 
 
 def exigir_pode_gerir_catalogo(papel: 'PapelEfetivo') -> None:
     if not pode_gerir_catalogo(papel):
         raise PermissaoNegada(
-            'Apenas superusuários podem gerir o catálogo de materiais.'
+            'Apenas chefes de almoxarifado e superusuários podem gerir o '
+            'catálogo de materiais.'
         )
 
 

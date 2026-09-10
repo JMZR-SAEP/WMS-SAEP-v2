@@ -11,6 +11,16 @@ urlpatterns = [
         name='lista_materiais',
     ),
     path(
+        'materiais/<int:pk>/inativar/',
+        views.inativar_material_view,
+        name='inativar_material',
+    ),
+    path(
+        'materiais/<int:pk>/reativar/',
+        views.reativar_material_view,
+        name='reativar_material',
+    ),
+    path(
         'movimentacoes/',
         views.historico_movimentacoes_view,
         name='historico_movimentacoes',
