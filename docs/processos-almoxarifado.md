@@ -35,7 +35,7 @@ A requisição deve possuir um ciclo de vida claro, com estados explícitos. A v
    - O número público da requisição é gerado apenas no primeiro envio para autorização.
    - Não é permitido salvar rascunho sem itens.
    - Pode ser editada somente por quem a criou enquanto permanecer nesse estado.
-   - Requisição aguardando autorização pode retornar para rascunho (issue #170): pelo próprio criador ou beneficiário, ajustando o pedido (motivo opcional), ou pelo chefe do setor do beneficiário, devolvendo por decisão — a antiga "recusa" (motivo obrigatório). Nenhuma das duas encerra a requisição; as duas preservam o número público e voltam ao mesmo estado de rascunho, editável e reenviável só pelo criador.
+   - Requisição aguardando autorização pode retornar para rascunho (issue #170): o criador ou o beneficiário pode realizar o retorno com observação opcional; somente o criador ajusta e reenvia o rascunho; o chefe do setor do beneficiário devolve por decisão — a antiga "recusa" — com motivo obrigatório. Nenhuma das duas encerra a requisição; ambas preservam o número público.
 
 2. **Aguardando autorização**
    - Requisição enviada para análise do chefe do setor do beneficiário.
