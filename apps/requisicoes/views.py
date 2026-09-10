@@ -1123,6 +1123,13 @@ def retornar_rascunho_view(request, pk: int):
         messages.warning(request, str(exc))
         return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
 
+    if request.user.pk == requisicao.criador_id:
+        destino = _voltar_url(
+            request, default=reverse('requisicoes:detalhe', args=[requisicao.pk])
+        )
+    else:
+        destino = reverse('requisicoes:minhas')
+
     if _eh_decisao_de_terceiro(request.user.pk, requisicao):
         messages.success(request, f'Requisição {requisicao.numero_publico} recusada.')
     else:
@@ -1130,12 +1137,7 @@ def retornar_rascunho_view(request, pk: int):
             request,
             f'Requisição {requisicao.numero_publico} retornada para rascunho.',
         )
-    return htmx_redirect(
-        request,
-        _voltar_url(
-            request, default=reverse('requisicoes:detalhe', args=[requisicao.pk])
-        ),
-    )
+    return htmx_redirect(request, destino)
 
 
 @login_required

@@ -1399,6 +1399,8 @@ def test_retornar_rascunho_post_respeita_next_seguro(
 def test_retornar_rascunho_beneficiario_redireciona_e_muda_estado(
     client, outro_usuario_obras, req_enviada_beneficiario
 ):
+    """Beneficiário perde acesso ao detalhe após o retorno (rascunho fica
+    exclusivo do criador); o destino tem que ser uma rota que ele ainda vê."""
     _login(client, outro_usuario_obras)
     response = client.post(
         reverse(
@@ -1408,9 +1410,7 @@ def test_retornar_rascunho_beneficiario_redireciona_e_muda_estado(
     )
 
     assert response.status_code == 302
-    assert response.url == reverse(
-        'requisicoes:detalhe', kwargs={'pk': req_enviada_beneficiario.pk}
-    )
+    assert response.url == reverse('requisicoes:minhas')
     req_enviada_beneficiario.refresh_from_db()
     assert req_enviada_beneficiario.estado == EstadoRequisicao.RASCUNHO
 
@@ -1438,9 +1438,8 @@ def test_retornar_rascunho_chefe_do_setor_pode_devolver(
     # o status é sempre 302. Aceitar 204 deixava uma regressão trocar o PRG
     # nativo por uma resposta sem `Location` sem ficar vermelha.
     assert response.status_code == 302
-    assert response.url == reverse(
-        'requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk}
-    )
+    # Chefe não é criador: o detalhe fica inacessível após o retorno.
+    assert response.url == reverse('requisicoes:minhas')
     req_enviada_solicitante.refresh_from_db()
     assert req_enviada_solicitante.estado == EstadoRequisicao.RASCUNHO
 
@@ -1477,9 +1476,8 @@ def test_retornar_rascunho_post_superuser_redireciona_e_muda_estado(
     )
 
     assert response.status_code == 302
-    assert response.url == reverse(
-        'requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk}
-    )
+    # Superusuário não é criador: o detalhe fica inacessível após o retorno.
+    assert response.url == reverse('requisicoes:minhas')
     req_enviada_solicitante.refresh_from_db()
     assert req_enviada_solicitante.estado == EstadoRequisicao.RASCUNHO
 
@@ -1499,9 +1497,8 @@ def test_retornar_rascunho_post_chefe_redireciona_e_muda_estado(
     )
 
     assert response.status_code == 302
-    assert response.url == reverse(
-        'requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk}
-    )
+    # Chefe não é criador: o detalhe fica inacessível após o retorno.
+    assert response.url == reverse('requisicoes:minhas')
     req_enviada_solicitante.refresh_from_db()
     assert req_enviada_solicitante.estado == EstadoRequisicao.RASCUNHO
     evento = req_enviada_solicitante.eventos.filter(evento=EventoTimeline.RECUSA).get()
@@ -1509,9 +1506,12 @@ def test_retornar_rascunho_post_chefe_redireciona_e_muda_estado(
 
 
 @pytest.mark.django_db
-def test_retornar_rascunho_chefe_post_respeita_next_seguro(
+def test_retornar_rascunho_chefe_post_ignora_next_redireciona_para_minhas(
     client, chefe_obras, req_enviada_solicitante
 ):
+    """Chefe não é criador nem beneficiário: `next` é ignorado e o destino é
+    sempre uma rota que ele continua vendo, mesmo quando `next` aponta para
+    uma página acessível a ele (issue #170, revisão pós-CodeRabbit)."""
     _login(client, chefe_obras)
     response = client.post(
         reverse(
@@ -1524,7 +1524,7 @@ def test_retornar_rascunho_chefe_post_respeita_next_seguro(
     )
 
     assert response.status_code == 302
-    assert response.url == reverse('requisicoes:autorizacoes')
+    assert response.url == reverse('requisicoes:minhas')
     req_enviada_solicitante.refresh_from_db()
     assert req_enviada_solicitante.estado == EstadoRequisicao.RASCUNHO
 
@@ -1543,9 +1543,7 @@ def test_retornar_rascunho_post_superuser_agindo_por_terceiro_muda_estado(
     )
 
     assert response.status_code == 302
-    assert response.url == reverse(
-        'requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk}
-    )
+    assert response.url == reverse('requisicoes:minhas')
     req_enviada_solicitante.refresh_from_db()
     assert req_enviada_solicitante.estado == EstadoRequisicao.RASCUNHO
 
@@ -2101,9 +2099,7 @@ def test_retornar_rascunho_chefe_htmx_retorna_hx_redirect(
         HTTP_HX_REQUEST='true',
     )
     assert response.status_code == 204
-    assert response['HX-Redirect'] == reverse(
-        'requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk}
-    )
+    assert response['HX-Redirect'] == reverse('requisicoes:minhas')
 
 
 @pytest.mark.django_db
@@ -2119,9 +2115,7 @@ def test_retornar_rascunho_htmx_superuser_retorna_hx_redirect(
         HTTP_HX_REQUEST='true',
     )
     assert response.status_code == 204
-    assert response['HX-Redirect'] == reverse(
-        'requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk}
-    )
+    assert response['HX-Redirect'] == reverse('requisicoes:minhas')
 
 
 # ---------------------------------------------------------------------------
