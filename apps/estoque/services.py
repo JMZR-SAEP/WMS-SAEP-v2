@@ -15,6 +15,7 @@ from django.utils import timezone
 from apps.accounts.models import User
 from apps.accounts.papeis import papel_efetivo
 from apps.core.exceptions import ConflitoDominio, DadosInvalidos
+from apps.core.texto import sentence_case
 from apps.estoque.types import (
     ItemAtendimentoSaldo,
     ItemLiberacaoReserva,
@@ -743,7 +744,11 @@ def confirmar_importacao_scpi(
                 continue
             material = Material.objects.create(
                 codigo=linha.cadpro,
-                nome=linha.denominacao_scpi or linha.cadpro,
+                # Normaliza na escrita: a denominação do SCPI vem em CAIXA ALTA e
+                # a Regra da Caixa Alta Estrutural (DESIGN.md) proíbe nome de
+                # material em maiúsculas. O CSV segue fiel no registro da
+                # importação; só o catálogo é normalizado.
+                nome=sentence_case(linha.denominacao_scpi or linha.cadpro),
                 unidade=UNIDADE_PADRAO_MATERIAL_SCPI,
                 ativo=True,
             )
