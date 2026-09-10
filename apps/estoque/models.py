@@ -459,6 +459,7 @@ class TipoMovimentacaoEstoque(models.TextChoices):
     ESTORNO_SAIDA = 'estorno_saida', 'Estorno de saída'
     DEVOLUCAO = 'devolucao', 'Devolução'
     ESTORNO_REQUISICAO = 'estorno_requisicao', 'Estorno de requisição'
+    ESTORNO_DEVOLUCAO = 'estorno_devolucao', 'Estorno de devolução'
 
 
 _TIPOS_ORIGEM_REQUISICAO = [
@@ -467,6 +468,7 @@ _TIPOS_ORIGEM_REQUISICAO = [
     TipoMovimentacaoEstoque.CONSUMO,
     TipoMovimentacaoEstoque.DEVOLUCAO,
     TipoMovimentacaoEstoque.ESTORNO_REQUISICAO,
+    TipoMovimentacaoEstoque.ESTORNO_DEVOLUCAO,
 ]
 
 _TIPOS_ORIGEM_SAIDA = [

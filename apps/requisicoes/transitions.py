@@ -108,6 +108,12 @@ TRANSICOES: dict[Operacao, TransicaoRequisicao] = {
         estado_destino=EstadoRequisicao.ESTORNADA,
         eventos_timeline=frozenset({EventoTimeline.ESTORNO}),
     ),
+    Operacao.ESTORNAR_DEVOLUCAO: TransicaoRequisicao(
+        operacao=Operacao.ESTORNAR_DEVOLUCAO,
+        estados_origem=frozenset({EstadoRequisicao.ATENDIDA}),
+        estado_destino=EstadoRequisicao.ATENDIDA,
+        eventos_timeline=frozenset({EventoTimeline.ESTORNO_DEVOLUCAO}),
+    ),
 }
 
 

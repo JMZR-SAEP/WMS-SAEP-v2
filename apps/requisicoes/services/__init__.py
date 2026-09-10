@@ -10,6 +10,7 @@
 """
 
 from apps.requisicoes.services.atendimento import (
+    estornar_devolucao,
     registrar_atendimento,
     registrar_devolucao,
     separar_para_retirada,
@@ -37,6 +38,7 @@ __all__ = [
     'retornar_para_rascunho',
     'autorizar_requisicao',
     'estornar_requisicao',
+    'estornar_devolucao',
     'cancelar_requisicao',
     'separar_para_retirada',
     'registrar_atendimento',

@@ -196,7 +196,7 @@ class ItemRequisicao(models.Model):
 
 
 class EventoTimeline(models.TextChoices):
-    """Os 13 eventos canônicos da timeline da requisição."""
+    """Os 14 eventos canônicos da timeline da requisição."""
 
     CRIACAO = 'criacao', 'Criação'
     ENVIO_AUTORIZACAO = 'envio_autorizacao', 'Envio para autorização'
@@ -210,6 +210,7 @@ class EventoTimeline(models.TextChoices):
     LIBERACAO_RESERVA = 'liberacao_reserva', 'Liberação de reserva'
     DEVOLUCAO_REGISTRADA = 'devolucao_registrada', 'Devolução registrada'
     ESTORNO = 'estorno', 'Estorno'
+    ESTORNO_DEVOLUCAO = 'estorno_devolucao', 'Estorno de devolução'
     ATUALIZACAO_ESTOQUE_RELEVANTE = (
         'atualizacao_estoque_relevante',
         'Atualização de estoque relevante',
@@ -238,6 +239,7 @@ class Operacao(models.TextChoices):
     REGISTRAR_ATENDIMENTO = 'registrar_atendimento', 'Registrar atendimento'
     REGISTRAR_DEVOLUCAO = 'registrar_devolucao', 'Registrar devolução'
     ESTORNAR = 'estornar', 'Estornar'
+    ESTORNAR_DEVOLUCAO = 'estornar_devolucao', 'Estornar devolução'
 
 
 class CancelamentoVariant(models.TextChoices):

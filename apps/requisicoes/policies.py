@@ -464,6 +464,32 @@ def exigir_pode_estornar_requisicao(
         )
 
 
+def pode_estornar_devolucao(papel: 'PapelEfetivo', requisicao: Requisicao) -> bool:
+    """True se ator ativo, requisição atendida e chefe de almoxarifado (ou superusuário).
+
+    Mesmo padrão de `pode_estornar_requisicao`, não de `pode_registrar_devolucao`
+    (issue #179): auxiliar de almoxarifado registra devolução, mas não estorna
+    uma devolução já registrada — `docs/matriz-permissoes.md` L83.
+    """
+    if not papel.ativo:
+        return False
+    if requisicao.estado != EstadoRequisicao.ATENDIDA:
+        return False
+    if papel.eh_superusuario:
+        return True
+    return papel.eh_chefe_de_almoxarifado
+
+
+def exigir_pode_estornar_devolucao(
+    papel: 'PapelEfetivo', requisicao: Requisicao
+) -> None:
+    if not pode_estornar_devolucao(papel, requisicao):
+        raise PermissaoNegada(
+            'Apenas chefe de almoxarifado pode estornar uma devolução.',
+            code='estornar_devolucao_negada',
+        )
+
+
 def pode_consultar_historico_requisicoes(papel: 'PapelEfetivo') -> bool:
     """Pode navegar o histórico system-wide de requisições.
 

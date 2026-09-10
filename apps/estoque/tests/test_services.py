@@ -1702,6 +1702,299 @@ class TestRegistrarDevolucaoEstoque:
         assert exc.value.code == 'saldo_nao_encontrado'
 
 
+class TestEstornarDevolucaoEstoque:
+    """Contrato de estornar_devolucao_estoque (issue #179)."""
+
+    def _setup_consumo(self, req, material, estoque, ator, quantidade):
+        from django.db.models import F
+
+        from apps.estoque.models import (
+            MovimentacaoEstoque,
+            SaldoEstoque,
+            TipoMovimentacaoEstoque,
+        )
+
+        MovimentacaoEstoque.objects.create(
+            tipo=TipoMovimentacaoEstoque.CONSUMO,
+            material=material,
+            estoque=estoque,
+            delta_fisico=-quantidade,
+            delta_reservado=-quantidade,
+            requisicao=req,
+            ator=ator,
+        )
+        SaldoEstoque.objects.filter(material=material, estoque=estoque).update(
+            saldo_fisico=F('saldo_fisico') - quantidade,
+            saldo_reservado=F('saldo_reservado') - quantidade,
+        )
+
+    @pytest.mark.django_db
+    def test_happy_path_decrementa_saldo_e_emite_ledger(
+        self,
+        chefe_almoxarifado,
+        estoque_principal,
+        material_disponivel,
+        requisicao_autorizada,
+    ):
+        from decimal import Decimal
+
+        from apps.estoque.models import (
+            MovimentacaoEstoque,
+            SaldoEstoque,
+            TipoMovimentacaoEstoque,
+        )
+        from apps.estoque.services import (
+            estornar_devolucao_estoque,
+            registrar_devolucao_estoque,
+        )
+
+        req, item = requisicao_autorizada
+        self._setup_consumo(
+            req,
+            material_disponivel,
+            estoque_principal,
+            chefe_almoxarifado,
+            Decimal('3'),
+        )
+        registrar_devolucao_estoque(
+            requisicao_id=req.pk,
+            material_id=material_disponivel.pk,
+            quantidade=Decimal('2'),
+            ator_id=chefe_almoxarifado.pk,
+        )
+
+        saldo = SaldoEstoque.objects.get(material=material_disponivel)
+        saldo_fisico_antes = saldo.saldo_fisico
+
+        estornar_devolucao_estoque(
+            requisicao_id=req.pk,
+            material_id=material_disponivel.pk,
+            quantidade=Decimal('1'),
+            ator_id=chefe_almoxarifado.pk,
+        )
+
+        saldo.refresh_from_db()
+        assert saldo.saldo_fisico == saldo_fisico_antes - Decimal('1')
+
+        mov = MovimentacaoEstoque.objects.get(
+            requisicao=req,
+            material=material_disponivel,
+            tipo=TipoMovimentacaoEstoque.ESTORNO_DEVOLUCAO,
+        )
+        assert mov.delta_fisico == Decimal('-1')
+        assert mov.delta_reservado == Decimal('0')
+        assert mov.ator_id == chefe_almoxarifado.pk
+
+    @pytest.mark.django_db
+    def test_quantidade_excede_devolvida_liquida_lanca_conflito(
+        self,
+        chefe_almoxarifado,
+        estoque_principal,
+        material_disponivel,
+        requisicao_autorizada,
+    ):
+        from decimal import Decimal
+
+        from apps.core.exceptions import ConflitoDominio
+        from apps.estoque.services import (
+            estornar_devolucao_estoque,
+            registrar_devolucao_estoque,
+        )
+
+        req, item = requisicao_autorizada
+        self._setup_consumo(
+            req,
+            material_disponivel,
+            estoque_principal,
+            chefe_almoxarifado,
+            Decimal('3'),
+        )
+        registrar_devolucao_estoque(
+            requisicao_id=req.pk,
+            material_id=material_disponivel.pk,
+            quantidade=Decimal('1'),
+            ator_id=chefe_almoxarifado.pk,
+        )
+
+        with pytest.raises(ConflitoDominio) as exc:
+            estornar_devolucao_estoque(
+                requisicao_id=req.pk,
+                material_id=material_disponivel.pk,
+                quantidade=Decimal('2'),
+                ator_id=chefe_almoxarifado.pk,
+            )
+        assert exc.value.code == 'quantidade_excede_devolvida_liquida'
+
+    @pytest.mark.django_db
+    def test_saldo_disponivel_insuficiente_lanca_conflito(
+        self,
+        chefe_almoxarifado,
+        estoque_principal,
+        material_disponivel,
+        requisicao_autorizada,
+    ):
+        from decimal import Decimal
+
+        from apps.core.exceptions import ConflitoDominio
+        from apps.estoque.models import SaldoEstoque
+        from apps.estoque.services import (
+            estornar_devolucao_estoque,
+            registrar_devolucao_estoque,
+        )
+
+        req, item = requisicao_autorizada
+        self._setup_consumo(
+            req,
+            material_disponivel,
+            estoque_principal,
+            chefe_almoxarifado,
+            Decimal('3'),
+        )
+        registrar_devolucao_estoque(
+            requisicao_id=req.pk,
+            material_id=material_disponivel.pk,
+            quantidade=Decimal('2'),
+            ator_id=chefe_almoxarifado.pk,
+        )
+
+        saldo = SaldoEstoque.objects.get(material=material_disponivel)
+        saldo.saldo_reservado = saldo.saldo_fisico
+        saldo.save(update_fields=['saldo_reservado'])
+
+        with pytest.raises(ConflitoDominio) as exc:
+            estornar_devolucao_estoque(
+                requisicao_id=req.pk,
+                material_id=material_disponivel.pk,
+                quantidade=Decimal('1'),
+                ator_id=chefe_almoxarifado.pk,
+            )
+        assert exc.value.code == 'saldo_disponivel_insuficiente'
+
+    @pytest.mark.django_db
+    def test_material_inativo_lanca_conflito(
+        self,
+        chefe_almoxarifado,
+        estoque_principal,
+        material_disponivel,
+        requisicao_autorizada,
+    ):
+        from decimal import Decimal
+
+        from apps.core.exceptions import ConflitoDominio
+        from apps.estoque.services import (
+            estornar_devolucao_estoque,
+            registrar_devolucao_estoque,
+        )
+
+        req, item = requisicao_autorizada
+        self._setup_consumo(
+            req,
+            material_disponivel,
+            estoque_principal,
+            chefe_almoxarifado,
+            Decimal('2'),
+        )
+        registrar_devolucao_estoque(
+            requisicao_id=req.pk,
+            material_id=material_disponivel.pk,
+            quantidade=Decimal('1'),
+            ator_id=chefe_almoxarifado.pk,
+        )
+        material_disponivel.ativo = False
+        material_disponivel.save(update_fields=['ativo'])
+
+        with pytest.raises(ConflitoDominio) as exc:
+            estornar_devolucao_estoque(
+                requisicao_id=req.pk,
+                material_id=material_disponivel.pk,
+                quantidade=Decimal('1'),
+                ator_id=chefe_almoxarifado.pk,
+            )
+        assert exc.value.code == 'material_inativo'
+
+    @pytest.mark.django_db
+    def test_sem_saldo_lanca_conflito(
+        self,
+        chefe_almoxarifado,
+        estoque_principal,
+        material_disponivel,
+        requisicao_autorizada,
+    ):
+        from decimal import Decimal
+
+        from apps.core.exceptions import ConflitoDominio
+        from apps.estoque.models import SaldoEstoque
+        from apps.estoque.services import (
+            estornar_devolucao_estoque,
+            registrar_devolucao_estoque,
+        )
+
+        req, item = requisicao_autorizada
+        self._setup_consumo(
+            req,
+            material_disponivel,
+            estoque_principal,
+            chefe_almoxarifado,
+            Decimal('2'),
+        )
+        registrar_devolucao_estoque(
+            requisicao_id=req.pk,
+            material_id=material_disponivel.pk,
+            quantidade=Decimal('1'),
+            ator_id=chefe_almoxarifado.pk,
+        )
+        SaldoEstoque.objects.filter(material=material_disponivel).delete()
+
+        with pytest.raises(ConflitoDominio) as exc:
+            estornar_devolucao_estoque(
+                requisicao_id=req.pk,
+                material_id=material_disponivel.pk,
+                quantidade=Decimal('1'),
+                ator_id=chefe_almoxarifado.pk,
+            )
+        assert exc.value.code == 'saldo_nao_encontrado'
+
+    @pytest.mark.django_db
+    def test_ator_invalido_lanca_dados_invalidos(
+        self,
+        chefe_almoxarifado,
+        estoque_principal,
+        material_disponivel,
+        requisicao_autorizada,
+    ):
+        from decimal import Decimal
+
+        from apps.core.exceptions import DadosInvalidos
+        from apps.estoque.services import (
+            estornar_devolucao_estoque,
+            registrar_devolucao_estoque,
+        )
+
+        req, item = requisicao_autorizada
+        self._setup_consumo(
+            req,
+            material_disponivel,
+            estoque_principal,
+            chefe_almoxarifado,
+            Decimal('2'),
+        )
+        registrar_devolucao_estoque(
+            requisicao_id=req.pk,
+            material_id=material_disponivel.pk,
+            quantidade=Decimal('1'),
+            ator_id=chefe_almoxarifado.pk,
+        )
+
+        with pytest.raises(DadosInvalidos) as exc:
+            estornar_devolucao_estoque(
+                requisicao_id=req.pk,
+                material_id=material_disponivel.pk,
+                quantidade=Decimal('1'),
+                ator_id=999_999,
+            )
+        assert exc.value.code == 'ator_nao_encontrado'
+
+
 class TestEstornarRequisicaoEstoque:
     """Contrato de estornar_requisicao_estoque."""
 

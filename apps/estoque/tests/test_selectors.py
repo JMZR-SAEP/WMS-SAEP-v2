@@ -410,6 +410,97 @@ class TestEntregaLiquidaPorMaterial:
         assert resultado == Decimal('3')
 
 
+class TestDevolvidaLiquidaPorMaterial:
+    """Testes de devolvida_liquida_por_material (issue #179)."""
+
+    @pytest.mark.django_db
+    def test_sem_devolucao_retorna_zero(
+        self,
+        chefe_almoxarifado,
+        estoque_principal,
+        material_disponivel,
+        requisicao_autorizada,
+    ):
+        from decimal import Decimal
+
+        from apps.estoque.selectors import devolvida_liquida_por_material
+
+        req, item = requisicao_autorizada
+        resultado = devolvida_liquida_por_material(
+            requisicao_id=req.pk, material_id=item.material_id
+        )
+        assert resultado == Decimal('0')
+
+    @pytest.mark.django_db
+    def test_com_devolucao_retorna_devolvido(
+        self,
+        chefe_almoxarifado,
+        estoque_principal,
+        material_disponivel,
+        requisicao_autorizada,
+    ):
+        from decimal import Decimal
+
+        from apps.estoque.models import MovimentacaoEstoque, TipoMovimentacaoEstoque
+        from apps.estoque.selectors import devolvida_liquida_por_material
+
+        req, item = requisicao_autorizada
+
+        MovimentacaoEstoque.objects.create(
+            tipo=TipoMovimentacaoEstoque.DEVOLUCAO,
+            material=material_disponivel,
+            estoque=estoque_principal,
+            delta_fisico=Decimal('4'),
+            delta_reservado=Decimal('0'),
+            requisicao=req,
+            ator=chefe_almoxarifado,
+        )
+
+        resultado = devolvida_liquida_por_material(
+            requisicao_id=req.pk, material_id=item.material_id
+        )
+        assert resultado == Decimal('4')
+
+    @pytest.mark.django_db
+    def test_estorno_de_devolucao_reduz_o_total(
+        self,
+        chefe_almoxarifado,
+        estoque_principal,
+        material_disponivel,
+        requisicao_autorizada,
+    ):
+        from decimal import Decimal
+
+        from apps.estoque.models import MovimentacaoEstoque, TipoMovimentacaoEstoque
+        from apps.estoque.selectors import devolvida_liquida_por_material
+
+        req, item = requisicao_autorizada
+
+        MovimentacaoEstoque.objects.create(
+            tipo=TipoMovimentacaoEstoque.DEVOLUCAO,
+            material=material_disponivel,
+            estoque=estoque_principal,
+            delta_fisico=Decimal('5'),
+            delta_reservado=Decimal('0'),
+            requisicao=req,
+            ator=chefe_almoxarifado,
+        )
+        MovimentacaoEstoque.objects.create(
+            tipo=TipoMovimentacaoEstoque.ESTORNO_DEVOLUCAO,
+            material=material_disponivel,
+            estoque=estoque_principal,
+            delta_fisico=Decimal('-2'),
+            delta_reservado=Decimal('0'),
+            requisicao=req,
+            ator=chefe_almoxarifado,
+        )
+
+        resultado = devolvida_liquida_por_material(
+            requisicao_id=req.pk, material_id=item.material_id
+        )
+        assert resultado == Decimal('3')
+
+
 class TestListarHistoricoImportacoesScpi:
     def test_retorna_queryset_vazio_quando_sem_registros(self, db):
         from apps.estoque.selectors import listar_historico_importacoes_scpi

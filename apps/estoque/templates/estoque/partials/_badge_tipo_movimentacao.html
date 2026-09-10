@@ -33,6 +33,8 @@ role, que a spec ARIA não garante que seja anunciado.
   {% include "components/badge.html" with variant="teal" label=rotulo prefixo_sr="Tipo de movimentação: " %}
 {% elif tipo == 'estorno_requisicao' %}
   {% include "components/badge.html" with variant="reversal" label=rotulo prefixo_sr="Tipo de movimentação: " %}
+{% elif tipo == 'estorno_devolucao' %}
+  {% include "components/badge.html" with variant="reversal" label=rotulo prefixo_sr="Tipo de movimentação: " %}
 {% else %}
   {% include "components/badge.html" with variant="desconhecida:"|add:tipo label=rotulo prefixo_sr="Tipo de movimentação: " %}
 {% endif %}

@@ -83,6 +83,7 @@ def _registrar_movimentacao(
         TipoMovimentacaoEstoque.CONSUMO,
         TipoMovimentacaoEstoque.DEVOLUCAO,
         TipoMovimentacaoEstoque.ESTORNO_REQUISICAO,
+        TipoMovimentacaoEstoque.ESTORNO_DEVOLUCAO,
     }
     _TIPOS_SAIDA = {
         TipoMovimentacaoEstoque.SAIDA_EXCEPCIONAL,
@@ -979,6 +980,115 @@ def registrar_devolucao_estoque(
         material_id=material_id,
         estoque_id=saldo.estoque_id,
         delta_fisico=quantidade,
+        delta_reservado=Decimal('0'),
+        origem=OrigemMovimentacaoEstoque(requisicao_id=requisicao_id),
+        ator_id=ator_id,
+    )
+
+
+@transaction.atomic
+def estornar_devolucao_estoque(
+    *,
+    requisicao_id: int,
+    material_id: int,
+    quantidade: Decimal,
+    ator_id: int,
+) -> None:
+    """Estorna devolução de material previamente registrada para uma requisição.
+
+    Decrementa saldo_fisico e emite ledger ESTORNO_DEVOLUCAO. O caller deve
+    garantir que a Requisicao está travada antes de chamar (ADR-0005), o que
+    impede inserções concorrentes de MovimentacaoEstoque para o mesmo par
+    (requisicao_id, material_id).
+
+    Duas barreiras, nesta ordem: (1) a quantidade não pode exceder a devolvida
+    líquida ainda de pé — não dá pra estornar mais do que foi devolvido; (2) a
+    matriz de permissões (L83) exige saldo disponível suficiente — se parte do
+    saldo que voltou pela devolução já foi reservado ou consumido por outra
+    operação, o estorno não pode empurrar saldo_fisico abaixo de
+    saldo_reservado.
+    """
+    try:
+        User.objects.only('pk').get(pk=ator_id)
+    except User.DoesNotExist:
+        raise DadosInvalidos(
+            'Ator não encontrado.', code='ator_nao_encontrado'
+        ) from None
+
+    if not quantidade.is_finite():
+        raise DadosInvalidos(
+            'Quantidade deve ser um número finito.', code='quantidade_invalida'
+        )
+    if quantidade <= 0:
+        raise DadosInvalidos(
+            'Quantidade deve ser maior que zero.',
+            code='quantidade_invalida',
+        )
+
+    consumo_entry = (
+        MovimentacaoEstoque.objects.filter(
+            requisicao_id=requisicao_id,
+            material_id=material_id,
+            tipo=TipoMovimentacaoEstoque.CONSUMO,
+        )
+        .values('estoque_id')
+        .first()
+    )
+    saldo_filter: dict = {'material_id': material_id}
+    if consumo_entry:
+        saldo_filter['estoque_id'] = consumo_entry['estoque_id']
+
+    saldos = list(
+        SaldoEstoque.objects.select_for_update()
+        .select_related('material')
+        .filter(**saldo_filter)
+        .order_by('estoque_id', 'material_id', 'id')
+    )
+
+    if not saldos:
+        raise ConflitoDominio(
+            'Saldo de estoque não encontrado para o material.',
+            code='saldo_nao_encontrado',
+        )
+    if len(saldos) > 1:
+        raise ConflitoDominio(
+            f"Mais de um saldo encontrado para o material '{saldos[0].material.nome}'.",
+            code='saldo_ambiguo',
+        )
+
+    saldo = saldos[0]
+    if not saldo.material.ativo:
+        raise ConflitoDominio(
+            f"Material '{saldo.material.nome}' está inativo.",
+            code='material_inativo',
+        )
+
+    from apps.estoque.selectors import devolvida_liquida_por_material
+
+    devolvida = devolvida_liquida_por_material(
+        requisicao_id=requisicao_id, material_id=material_id
+    )
+    if quantidade > devolvida:
+        raise ConflitoDominio(
+            'Quantidade de estorno excede a devolução líquida da requisição.',
+            code='quantidade_excede_devolvida_liquida',
+        )
+
+    saldo_disponivel = saldo.saldo_fisico - saldo.saldo_reservado
+    if quantidade > saldo_disponivel:
+        raise ConflitoDominio(
+            'Saldo disponível insuficiente para estornar a devolução.',
+            code='saldo_disponivel_insuficiente',
+        )
+
+    saldo.saldo_fisico = saldo.saldo_fisico - quantidade
+    saldo.save(update_fields=['saldo_fisico'])
+
+    _registrar_movimentacao(
+        tipo=TipoMovimentacaoEstoque.ESTORNO_DEVOLUCAO,
+        material_id=material_id,
+        estoque_id=saldo.estoque_id,
+        delta_fisico=-quantidade,
         delta_reservado=Decimal('0'),
         origem=OrigemMovimentacaoEstoque(requisicao_id=requisicao_id),
         ator_id=ator_id,

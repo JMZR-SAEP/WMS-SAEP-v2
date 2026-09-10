@@ -23,6 +23,7 @@ TIPOS_CANONICOS = {
     'estorno_saida': 'amber',
     'devolucao': 'teal',
     'estorno_requisicao': 'reversal',
+    'estorno_devolucao': 'reversal',
 }
 
 
