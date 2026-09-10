@@ -55,8 +55,71 @@ def _cenario_estornar_saida(request) -> CenarioModal:
     )
 
 
+def _cenario_inativar_material(request) -> CenarioModal:
+    """Saldo não zerado: o service recusa, o modal reabre com o erro (#180).
+
+    `url_render_inicial` é a própria lista: o modal vive no cartão do
+    catálogo, não numa tela de detalhe própria de material.
+    """
+    from apps.estoque.models import Material, SaldoEstoque
+
+    estoque = request.getfixturevalue('estoque_principal')
+    chefe = request.getfixturevalue('chefe_almoxarifado')
+    material = Material.objects.create(
+        codigo='MAT-MODAL-INAT',
+        nome='Material contrato modal',
+        unidade='un',
+        ativo=True,
+    )
+    SaldoEstoque.objects.create(estoque=estoque, material=material, saldo_fisico=5)
+
+    def ler_estado():
+        return snapshot(Material.objects, material.pk, 'ativo')
+
+    return CenarioModal(
+        url=reverse('estoque:inativar_material', args=[material.pk]),
+        payload={},
+        destino_esperado=None,
+        ler_estado=ler_estado,
+        ator=chefe,
+        modal_id=f'gerir-material-{material.pk}',
+        muta=False,
+        url_render_inicial=reverse('estoque:lista_materiais'),
+    )
+
+
+def _cenario_reativar_material(request) -> CenarioModal:
+    """Caminho feliz: reativar não tem ramo de erro alcançável pela view — sem
+    checagem de saldo, e a permissão já barra antes do service (#180)."""
+    from apps.estoque.models import Material
+
+    chefe = request.getfixturevalue('chefe_almoxarifado')
+    material = Material.objects.create(
+        codigo='MAT-MODAL-REAT',
+        nome='Material contrato modal',
+        unidade='un',
+        ativo=False,
+    )
+
+    def ler_estado():
+        return snapshot(Material.objects, material.pk, 'ativo')
+
+    return CenarioModal(
+        url=reverse('estoque:reativar_material', args=[material.pk]),
+        payload={},
+        destino_esperado=reverse('estoque:lista_materiais'),
+        ler_estado=ler_estado,
+        ator=chefe,
+        modal_id=f'gerir-material-{material.pk}',
+        muta=True,
+        estado_esperado=(True,),
+    )
+
+
 CONSTRUTORAS = {
     'estoque:estornar_saida_excepcional': _cenario_estornar_saida,
+    'estoque:inativar_material': _cenario_inativar_material,
+    'estoque:reativar_material': _cenario_reativar_material,
 }
 
 
@@ -89,7 +152,17 @@ def test_resposta_htmx_cabe_na_caixa_do_modal(db, request, client, rota):
             html_inicial=inicial.content.decode('utf-8'),
             modal_id=cenario.modal_id,
         )
-    if not cenario.muta:
+    if resposta.status_code == 204 and cenario.muta:
+        # Sem isto, uma view que virasse no-op ainda responderia 204 e
+        # passaria — `destino_esperado` prova o cabeçalho, não a gravação.
+        assert cenario.estado_esperado is not None, (
+            f'{rota}: cenário mutável sem `estado_esperado` declarado — nada '
+            'prova que a mutação aconteceu.'
+        )
+        assert cenario.ler_estado() == cenario.estado_esperado, (
+            f'{rota}: estado pós-mutação não bate com `estado_esperado`.'
+        )
+    elif not cenario.muta:
         # Sem isto, um cenário de erro e um de caminho feliz asseveram a mesma
         # resposta e nada distingue os dois.
         assert cenario.ler_estado() == antes, (

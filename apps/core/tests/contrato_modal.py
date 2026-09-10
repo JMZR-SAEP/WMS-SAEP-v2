@@ -66,6 +66,13 @@ class CenarioModal(NamedTuple):
     mesma coisa — 204 para o detalhe —, e o de erro continuaria verde se a view
     regredisse e passasse a executar a transição que devia recusar.
 
+    `estado_esperado` é a outra metade do que `muta=True` promete: só
+    declarar "isto muta" não prova que a mutação certa aconteceu — uma view
+    que virasse no-op ainda responderia 204 e passaria. Obrigatório quando
+    `muta=True` (comparado por `==` contra `ler_estado()` depois do 204);
+    ignorado quando `muta=False`, onde o teste já compara contra o estado
+    anterior ao POST.
+
     `modal_id` é o `id` do modal que abriu a ação. O 422 tem de devolver o
     corpo **daquele** modal: `[data-modal-body]` sem id passaria por um
     fragment que o `outerHTML` colocaria no lugar errado.
@@ -78,6 +85,7 @@ class CenarioModal(NamedTuple):
     ator: Any
     modal_id: str
     muta: bool = False
+    estado_esperado: Any = None
     # GET que mostra o mesmo modal em render inicial — usado por
     # `assert_copy_nao_diverge` (#135) para comparar título/descrição contra o
     # 422. `None` pula a checagem: nem todo cenário tem um GET barato que
@@ -103,6 +111,8 @@ REGISTRO_CONTRATO_MODAL: dict[str, str] = {
     'requisicoes:retornar_rascunho': 'requisicoes',
     'requisicoes:separar_retirada': 'requisicoes',
     'estoque:estornar_saida_excepcional': 'estoque',
+    'estoque:inativar_material': 'estoque',
+    'estoque:reativar_material': 'estoque',
 }
 
 # `{% url 'app:nome' ... as variavel %}` — a única forma como uma `action_url`

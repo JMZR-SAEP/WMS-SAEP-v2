@@ -33,6 +33,7 @@ from apps.estoque.forms import ItemSaidaExcepcionalFormSet, SaidaExcepcionalForm
 from apps.estoque.presentation import (
     MODAL_COPY,
     registro_arquivo_scpi,
+    registro_material,
     registro_novo_saida_excepcional,
     registro_saida_excepcional,
 )
@@ -1024,6 +1025,7 @@ def lista_materiais_view(request):
     from apps.estoque.policies import (
         exigir_pode_consultar_catalogo_estoque,
         pode_consultar_divergencias_criticas,
+        pode_gerir_catalogo,
     )
     from apps.estoque.selectors import listar_materiais_com_saldo
 
@@ -1036,6 +1038,14 @@ def lista_materiais_view(request):
     busca = request.GET.get('busca', '').strip()
     saldos = listar_materiais_com_saldo(papel=papel, busca=busca)
     page_obj = paginar(request, saldos, per_page=PAGINA_MATERIAIS_TAMANHO)
+
+    # Anexados aqui, não montados no template (#180): concatenar string com PK
+    # inteiro no filtro `add` do Django não funciona — mesma razão pela qual
+    # `item.modal_devolver_id` chega pronto em `requisicoes/detalhe.html`.
+    for saldo in page_obj.object_list:
+        saldo.modal_gerir_id = f'gerir-material-{saldo.material.pk}'
+        saldo.registro_material = registro_material(saldo.material)
+
     return render(
         request,
         'estoque/lista_materiais.html',
@@ -1053,5 +1063,103 @@ def lista_materiais_view(request):
             # ADR-0011 autoriza view/template a chamar `pode_*` para controle
             # de renderização.
             'pode_ver_divergencias': pode_consultar_divergencias_criticas(papel),
+            # Idem (#180): controla só a renderização do botão inativar/reativar
+            # por cartão. O gate de verdade é `exigir_pode_gerir_catalogo` nas
+            # views de escrita.
+            'pode_gerir_catalogo': pode_gerir_catalogo(papel),
+            'inativar_material_copy': MODAL_COPY['inativar_material'],
+            'reativar_material_copy': MODAL_COPY['reativar_material'],
         },
     )
+
+
+def _render_modal_erro_gerir_catalogo(request, *, material, copy: dict[str, str], exc):
+    """Reabre o modal de inativar/reativar com o erro (#180).
+
+    Fechar o diálogo com um redirect+mensagem no erro é indistinguível do
+    sucesso enquanto o HTMX troca a página inteira — a pessoa só percebe se
+    reparar na faixa de mensagem no topo. `render_modal_erro` mantém a
+    pergunta na tela (`apps/core/modal.py`), e aqui o erro mais comum (saldo
+    não zerado) é o caminho esperado na primeira tentativa, não um caso raro
+    de corrida — vale reabrir.
+    """
+    return render_modal_erro(
+        request,
+        modal_id=f'gerir-material-{material.pk}',
+        titulo=copy['titulo'],
+        descricao=copy['descricao'],
+        registro=registro_material(material),
+        erro=str(exc),
+        confirm_label=copy['confirm_label'],
+        icon_variant=copy['icon_variant'],
+        acao_erro='gerir o material',
+        loading_label=f'{copy["confirm_label"]}…',
+    )
+
+
+@login_required
+@require_http_methods(['POST'])
+def inativar_material_view(request, pk: int):
+    from django.shortcuts import get_object_or_404
+
+    from apps.estoque.models import Material
+    from apps.estoque.policies import exigir_pode_gerir_catalogo
+    from apps.estoque.services import desativar_material
+
+    material = get_object_or_404(Material, pk=pk)
+    papel = papel_efetivo(request.user)
+    try:
+        exigir_pode_gerir_catalogo(papel)
+    except PermissaoNegada as exc:
+        raise PermissionDenied(str(exc))
+
+    try:
+        desativar_material(ator_id=request.user.pk, material_id=pk)
+    except ErroDominio as exc:
+        if request.htmx:
+            return _render_modal_erro_gerir_catalogo(
+                request,
+                material=material,
+                copy=MODAL_COPY['inativar_material'],
+                exc=exc,
+            )
+        pres = traduz_erro_dominio(exc)
+        getattr(messages, pres.severity)(request, str(exc))
+        return htmx_redirect(request, reverse('estoque:lista_materiais'))
+
+    messages.success(request, f"Material '{material.codigo}' inativado com sucesso.")
+    return htmx_redirect(request, reverse('estoque:lista_materiais'))
+
+
+@login_required
+@require_http_methods(['POST'])
+def reativar_material_view(request, pk: int):
+    from django.shortcuts import get_object_or_404
+
+    from apps.estoque.models import Material
+    from apps.estoque.policies import exigir_pode_gerir_catalogo
+    from apps.estoque.services import reativar_material
+
+    material = get_object_or_404(Material, pk=pk)
+    papel = papel_efetivo(request.user)
+    try:
+        exigir_pode_gerir_catalogo(papel)
+    except PermissaoNegada as exc:
+        raise PermissionDenied(str(exc))
+
+    try:
+        reativar_material(ator_id=request.user.pk, material_id=pk)
+    except ErroDominio as exc:
+        if request.htmx:
+            return _render_modal_erro_gerir_catalogo(
+                request,
+                material=material,
+                copy=MODAL_COPY['reativar_material'],
+                exc=exc,
+            )
+        pres = traduz_erro_dominio(exc)
+        getattr(messages, pres.severity)(request, str(exc))
+        return htmx_redirect(request, reverse('estoque:lista_materiais'))
+
+    messages.success(request, f"Material '{material.codigo}' reativado com sucesso.")
+    return htmx_redirect(request, reverse('estoque:lista_materiais'))

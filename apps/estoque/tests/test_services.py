@@ -1475,6 +1475,61 @@ class TestDesativarMaterial:
         assert m.ativo is False
 
 
+class TestReativarMaterial:
+    def _cria_material_inativo(self):
+        from apps.estoque.models import Material, UnidadeMedida
+
+        return Material.objects.create(
+            codigo='REATMAT001',
+            nome='Material Reativável',
+            unidade=UnidadeMedida.UNIDADE,
+            ativo=False,
+        )
+
+    def test_reativa_material_inativo(self, superuser):
+        from apps.estoque.services import reativar_material
+
+        m = self._cria_material_inativo()
+        reativar_material(ator_id=superuser.pk, material_id=m.pk)
+        m.refresh_from_db()
+        assert m.ativo is True
+
+    def test_ja_ativo_e_idempotente(self, superuser):
+        from apps.estoque.services import reativar_material
+
+        m = self._cria_material_inativo()
+        m.ativo = True
+        m.save(update_fields=['ativo'])
+        reativar_material(ator_id=superuser.pk, material_id=m.pk)
+        m.refresh_from_db()
+        assert m.ativo is True
+
+    def test_chefe_almoxarifado_pode_reativar(self, chefe_almoxarifado):
+        """#180: a policy passou a aceitar chefe de almoxarifado."""
+        from apps.estoque.services import reativar_material
+
+        m = self._cria_material_inativo()
+        reativar_material(ator_id=chefe_almoxarifado.pk, material_id=m.pk)
+        m.refresh_from_db()
+        assert m.ativo is True
+
+    def test_auxiliar_almoxarifado_nao_pode_reativar(self, aux_almoxarifado):
+        from apps.core.exceptions import PermissaoNegada
+        from apps.estoque.services import reativar_material
+
+        m = self._cria_material_inativo()
+        with pytest.raises(PermissaoNegada):
+            reativar_material(ator_id=aux_almoxarifado.pk, material_id=m.pk)
+
+    def test_ator_invalido_lanca_dados_invalidos(self, db):
+        from apps.core.exceptions import DadosInvalidos
+        from apps.estoque.services import reativar_material
+
+        m = self._cria_material_inativo()
+        with pytest.raises(DadosInvalidos):
+            reativar_material(ator_id=999_999, material_id=m.pk)
+
+
 class TestRegistrarDevolucaoEstoque:
     """Contrato de registrar_devolucao_estoque."""
 

@@ -21,10 +21,18 @@ class MaterialAdmin(admin.ModelAdmin):
     ordering = ('nome',)
 
     def _pode_gerir(self, request):
-        from apps.accounts.papeis import papel_efetivo
-        from apps.estoque.policies import pode_gerir_catalogo
+        """Gate próprio, superusuário apenas — não delega a `pode_gerir_catalogo`.
 
-        return pode_gerir_catalogo(papel_efetivo(request.user))
+        Desde a #180 essa policy também aceita chefe de almoxarifado, mas o
+        admin do Django edita todos os campos do material (código, nome,
+        unidade), não só `ativo`/`inativo`: é superfície técnica mais ampla do
+        que a policy de domínio autoriza. O chefe gere o catálogo pela UI de
+        produto (`estoque:lista_materiais`), que chama a policy diretamente.
+        """
+        from apps.accounts.papeis import papel_efetivo
+
+        papel = papel_efetivo(request.user)
+        return papel.ativo and papel.eh_superusuario
 
     def has_add_permission(self, request):
         return self._pode_gerir(request)
@@ -69,7 +77,35 @@ class MaterialAdmin(admin.ModelAdmin):
             from apps.estoque.services import desativar_material
 
             desativar_material(ator_id=request.user.pk, material_id=obj.pk)
+
+        # Resolvido *antes* de gravar (#180, achado de review): um material
+        # sem `SaldoEstoque` fica invisível em `listar_materiais_com_saldo`, e
+        # a UI de gerir catálogo (inativar/reativar) nunca aparece para ele. A
+        # importação SCPI cria os dois juntos (`services.py`); o admin é o
+        # único outro caminho de criação de `Material`, e recusar a criação
+        # aqui é melhor que persistir o material órfão — não há "saldo
+        # inicial" pra corrigir depois sem um estoque pra gravar nele.
+        estoque = self._exigir_estoque_ativo() if not change else None
+
         super().save_model(request, obj, form, change)
+
+        if estoque is not None:
+            from apps.estoque.models import SaldoEstoque
+
+            SaldoEstoque.objects.get_or_create(estoque=estoque, material=obj)
+
+    def _exigir_estoque_ativo(self):
+        from apps.core.exceptions import ConflitoDominio
+        from apps.estoque.models import Estoque
+
+        estoque = Estoque.objects.filter(ativo=True).first()
+        if estoque is None:
+            raise ConflitoDominio(
+                'Nenhum estoque ativo cadastrado. Crie um estoque antes de '
+                'adicionar materiais.',
+                code='estoque_ativo_ausente',
+            )
+        return estoque
 
     def delete_model(self, request, obj):
         from django.core.exceptions import PermissionDenied

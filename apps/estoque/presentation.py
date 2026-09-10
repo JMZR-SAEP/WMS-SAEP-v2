@@ -39,6 +39,27 @@ MODAL_COPY: dict[str, dict[str, str]] = {
         # depois.
         'icon_variant': 'danger',
     },
+    'inativar_material': {
+        'titulo': 'Inativar material?',
+        'descricao': (
+            'O material deixa de poder ser usado em novas requisições e '
+            'saídas excepcionais. Exige saldo físico e reservado zerados.'
+        ),
+        'confirm_label': 'Confirmar inativação',
+        # 'warning', não 'danger': a condição de bloqueio (saldo não zerado) é
+        # estado compreensível do domínio, não erro do usuário — mesmo
+        # mapeamento de `docs/CONVENTIONS.md` que `admin.py.changeform_view`
+        # já usa para `ConflitoDominio`/`EstadoInvalido`.
+        'icon_variant': 'warning',
+    },
+    'reativar_material': {
+        'titulo': 'Reativar material?',
+        'descricao': 'O material volta a poder ser usado em novas requisições e saídas excepcionais.',
+        'confirm_label': 'Confirmar reativação',
+        # 'return': reativar é reversão operacional, não correção de erro —
+        # Regra da Reversão Não é Erro (mesma razão do 'estornar_saida').
+        'icon_variant': 'return',
+    },
 }
 
 
@@ -76,6 +97,15 @@ def registro_arquivo_scpi(nome_arquivo: str) -> dict[str, str]:
         'rotulo': 'Arquivo',
         'identificador': nome_arquivo,
         'contexto': '',
+    }
+
+
+def registro_material(material) -> dict[str, str]:
+    """Linha de identidade do material no modal de inativar/reativar (#180)."""
+    return {
+        'rotulo': 'Material',
+        'identificador': material.codigo,
+        'contexto': material.nome,
     }
 
 

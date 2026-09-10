@@ -3169,6 +3169,160 @@ class TestListaMateriaisView:
         assert 'aria-label="Material com divergência crítica"' not in conteudo
         assert conteudo.count('Divergente') == 1
 
+    def test_chefe_ve_botao_inativar_material_ativo(
+        self, client, chefe_almoxarifado, material_disponivel
+    ):
+        client.force_login(chefe_almoxarifado)
+        html = client.get(URL_MATERIAIS).content.decode('utf-8')
+        assert 'Inativar material' in html
+        assert 'Reativar material' not in html
+
+    def test_chefe_ve_botao_reativar_material_inativo(
+        self, client, chefe_almoxarifado, estoque_principal
+    ):
+        from apps.estoque.models import Material, SaldoEstoque
+
+        material = Material.objects.create(
+            codigo='MAT-777', nome='Material inativo', unidade='un', ativo=False
+        )
+        SaldoEstoque.objects.create(material=material, estoque=estoque_principal)
+
+        client.force_login(chefe_almoxarifado)
+        html = client.get(URL_MATERIAIS).content.decode('utf-8')
+        assert 'Reativar material' in html
+        assert 'Inativar material' not in html
+
+    def test_aux_almox_nao_ve_botao_de_gerir(
+        self, client, aux_almoxarifado, material_disponivel
+    ):
+        client.force_login(aux_almoxarifado)
+        html = client.get(URL_MATERIAIS).content.decode('utf-8')
+        assert 'Inativar material' not in html
+
+    def test_solicitante_nao_ve_botao_de_gerir(
+        self, client, solicitante, material_disponivel
+    ):
+        client.force_login(solicitante)
+        html = client.get(URL_MATERIAIS).content.decode('utf-8')
+        assert 'Inativar material' not in html
+
+
+class TestInativarMaterialView:
+    def _url(self, pk):
+        return reverse('estoque:inativar_material', args=[pk])
+
+    def _material_sem_saldo(self):
+        from apps.estoque.models import Material
+
+        return Material.objects.create(
+            codigo='MAT-INAT', nome='Material sem saldo', unidade='un', ativo=True
+        )
+
+    def test_chefe_inativa_e_redireciona(self, client, chefe_almoxarifado):
+        material = self._material_sem_saldo()
+        client.force_login(chefe_almoxarifado)
+        response = client.post(self._url(material.pk))
+        assert response.status_code == 302
+        material.refresh_from_db()
+        assert material.ativo is False
+
+    def test_superuser_inativa(self, client, superuser):
+        material = self._material_sem_saldo()
+        client.force_login(superuser)
+        response = client.post(self._url(material.pk))
+        assert response.status_code == 302
+        material.refresh_from_db()
+        assert material.ativo is False
+
+    def test_aux_recebe_403(self, client, aux_almoxarifado, material_disponivel):
+        client.force_login(aux_almoxarifado)
+        response = client.post(self._url(material_disponivel.pk))
+        assert response.status_code == 403
+
+    def test_solicitante_recebe_403(self, client, solicitante, material_disponivel):
+        client.force_login(solicitante)
+        response = client.post(self._url(material_disponivel.pk))
+        assert response.status_code == 403
+
+    def test_anonimo_redirecionado_para_login(self, client, material_disponivel):
+        response = client.post(self._url(material_disponivel.pk))
+        assert response.status_code == 302
+        assert 'login' in response['Location']
+
+    def test_pk_inexistente_retorna_404(self, client, chefe_almoxarifado):
+        client.force_login(chefe_almoxarifado)
+        response = client.post(self._url(999999))
+        assert response.status_code == 404
+
+    def test_get_retorna_405(self, client, chefe_almoxarifado, material_disponivel):
+        client.force_login(chefe_almoxarifado)
+        response = client.get(self._url(material_disponivel.pk))
+        assert response.status_code == 405
+
+    def test_saldo_nao_zerado_redireciona_com_mensagem_warning(
+        self, client, chefe_almoxarifado, material_disponivel
+    ):
+        # `material_disponivel` já nasce com saldo físico/reservado não-zero.
+        client.force_login(chefe_almoxarifado)
+        response = client.post(self._url(material_disponivel.pk))
+        assert response.status_code == 302
+        assert reverse('estoque:lista_materiais') in response['Location']
+        messages_list = list(response.wsgi_request._messages)
+        assert any(m.tags == 'warning' for m in messages_list)
+        material_disponivel.refresh_from_db()
+        assert material_disponivel.ativo is True
+
+
+class TestReativarMaterialView:
+    def _url(self, pk):
+        return reverse('estoque:reativar_material', args=[pk])
+
+    def _material_inativo(self):
+        from apps.estoque.models import Material
+
+        return Material.objects.create(
+            codigo='MAT-REAT', nome='Material inativo', unidade='un', ativo=False
+        )
+
+    def test_chefe_reativa_e_redireciona(self, client, chefe_almoxarifado):
+        material = self._material_inativo()
+        client.force_login(chefe_almoxarifado)
+        response = client.post(self._url(material.pk))
+        assert response.status_code == 302
+        material.refresh_from_db()
+        assert material.ativo is True
+
+    def test_superuser_reativa(self, client, superuser):
+        material = self._material_inativo()
+        client.force_login(superuser)
+        response = client.post(self._url(material.pk))
+        assert response.status_code == 302
+        material.refresh_from_db()
+        assert material.ativo is True
+
+    def test_aux_recebe_403(self, client, aux_almoxarifado):
+        material = self._material_inativo()
+        client.force_login(aux_almoxarifado)
+        response = client.post(self._url(material.pk))
+        assert response.status_code == 403
+
+    def test_anonimo_redirecionado_para_login(self, client, db):
+        material = self._material_inativo()
+        response = client.post(self._url(material.pk))
+        assert response.status_code == 302
+        assert 'login' in response['Location']
+
+    def test_pk_inexistente_retorna_404(self, client, chefe_almoxarifado):
+        client.force_login(chefe_almoxarifado)
+        response = client.post(self._url(999999))
+        assert response.status_code == 404
+
+    def test_get_retorna_405(self, client, chefe_almoxarifado):
+        material = self._material_inativo()
+        client.force_login(chefe_almoxarifado)
+        response = client.get(self._url(material.pk))
+        assert response.status_code == 405
+
 
 URL_MOVIMENTACOES = reverse('estoque:historico_movimentacoes')
 

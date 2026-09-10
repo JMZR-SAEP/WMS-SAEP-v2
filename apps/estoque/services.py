@@ -864,6 +864,32 @@ def desativar_material(*, ator_id: int, material_id: int) -> None:
 
 
 @transaction.atomic
+def reativar_material(*, ator_id: int, material_id: int) -> None:
+    """Reativa material do catálogo (#180). Sem checagem de saldo: reativar não
+    tem o mesmo risco de domínio que desativar — o material volta a poder
+    entrar em requisição nova e saída excepcional, mas nenhum saldo muda."""
+    from apps.estoque.models import Material
+    from apps.estoque.policies import exigir_pode_gerir_catalogo
+
+    try:
+        ator = User.objects.get(pk=ator_id)
+        material = Material.objects.select_for_update().get(pk=material_id)
+    except ObjectDoesNotExist as exc:
+        raise DadosInvalidos(
+            'Ator ou material inválido.', code='referencia_invalida'
+        ) from exc
+
+    papel = papel_efetivo(ator)
+    exigir_pode_gerir_catalogo(papel)
+
+    if material.ativo:
+        return
+
+    material.ativo = True
+    material.save(update_fields=['ativo'])
+
+
+@transaction.atomic
 def registrar_devolucao_estoque(
     *,
     requisicao_id: int,

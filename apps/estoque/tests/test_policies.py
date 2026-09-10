@@ -377,8 +377,13 @@ class TestPodeGerirCatalogo:
     def test_superuser_pode(self):
         assert pode_gerir_catalogo(SUPERUSER) is True
 
-    def test_chefe_almox_nao_pode(self):
-        assert pode_gerir_catalogo(CHEFE_ALMOX) is False
+    def test_chefe_almox_pode(self):
+        """#180: chefe de almoxarifado passa a gerir o catálogo (matriz L74/§3)."""
+        assert pode_gerir_catalogo(CHEFE_ALMOX) is True
+
+    def test_aux_almox_nao_pode(self):
+        """Auxiliar de almoxarifado não é chefe — matriz L74/§3 não o inclui."""
+        assert pode_gerir_catalogo(AUX_ALMOX) is False
 
     def test_inativo_nao_pode(self):
         assert pode_gerir_catalogo(INATIVO) is False
@@ -388,9 +393,12 @@ class TestExigirPodeGerirCatalogo:
     def test_superuser_nao_lanca(self):
         exigir_pode_gerir_catalogo(SUPERUSER)
 
-    def test_chefe_almox_lanca(self):
+    def test_chefe_almox_nao_lanca(self):
+        exigir_pode_gerir_catalogo(CHEFE_ALMOX)
+
+    def test_aux_almox_lanca(self):
         with pytest.raises(PermissaoNegada):
-            exigir_pode_gerir_catalogo(CHEFE_ALMOX)
+            exigir_pode_gerir_catalogo(AUX_ALMOX)
 
 
 # ---------------------------------------------------------------------------
