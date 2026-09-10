@@ -2,7 +2,9 @@
 
 **Documento vivo.** Ponto de partida para quem entra no backlog e ferramenta de acompanhamento para quem já está nele. Visão macro: o detalhe técnico vive na issue, aqui vive a **ordem, a dependência e o estado**.
 
-Última atualização: **2026-09-10, segunda passada** (a #184 — fatia (a) da #173 — **mergeou e fechou** via PR `JMZR-SAEP#192`, `08972ac`, auto-close (4ª vez seguida no `origin`). **Onda 6 completa**: #184/#185/#186/#187 fechadas, **#173 (guarda-chuva) fechada**. Único item acionável por agente restante: **#190** (spin-off da #186) — **análise disparada** nesta passada (1 `Explore` read-only). Todo o resto aberto é `ready-for-human` (#172, #174) ou `needs-info` (#169–#171, #179, #180).)
+Última atualização: **2026-09-10, terceira passada** (a #190 — spin-off da #186 — **mergeou e fechou** via PR `JMZR-SAEP#193`, `50e1d36`, auto-close (5ª vez seguida no `origin`). Gates verdes: 2770 pytest, 79 navegador, ruff/mypy. **A fila de agente está vazia.** Onda 6 (#173) completa + spin-off #190 completo. Todo o aberto (7 issues) é humano-bloqueado: `ready-for-human` (#172, #174) ou `needs-info` (#169–#171, #179, #180). Próximo movimento do coordenador: (a) disparar os pedidos de decisão humana da seção "Disparar cedo" (#170, #171, #179, #180) e (b) a próxima rodada de critique está **liberada** — onda 6 fechada, a regra que a bloqueava não vale mais.)
+
+Última atualização anterior: **2026-09-10, segunda passada** (a #184 — fatia (a) da #173 — **mergeou e fechou** via PR `JMZR-SAEP#192`, `08972ac`, auto-close (4ª vez seguida no `origin`). **Onda 6 completa**: #184/#185/#186/#187 fechadas, **#173 (guarda-chuva) fechada**. Único item acionável por agente restante: **#190** (spin-off da #186) — **análise disparada** nesta passada (1 `Explore` read-only). Todo o resto aberto é `ready-for-human` (#172, #174) ou `needs-info` (#169–#171, #179, #180).)
 
 Última atualização anterior: **2026-09-10** (a #186 — fatia (c) da #173 — **mergeou e fechou** via PR `JMZR-SAEP#191`, `a47184a`, CI verde, auto-close (3ª vez seguida no `origin`). Restam da onda 6 só a fatia (a): **#184** — implementação **disparada** nesta passada (branch `feat/184-copy-vocabulario`, 1 agente, sequencial). Fechar a #184 fecha a #173. Independente: **#190** (spin-off da #186, `ready-for-agent`).)
 
@@ -64,9 +66,13 @@ Snapshots em `.impeccable/critique/` (diretório local, gitignored). O plano de 
 
 **Em andamento**
 
-| # | Estágio | O que entrega |
-|---|---|---|
-| 190 | **análise disparada 2026-09-10** (1 `Explore` read-only) | Spin-off da #186. Footer global `_modal_body.html:198`, `flex-col-reverse` inverte ordem de foco vs visual a `<640px` (WCAG 2.4.3). Gate `make test-navegador` (arrasta ~11 telas da varredura #166). Pode ter de registrar regra nomeada de ordem de foco no `DESIGN.md` se a #186 não o fez. |
+_(vazio — nenhum item acionável por agente na fila)_
+
+**Onda 6 — spin-off #190 fechado em 2026-09-10**
+
+| # | PR | Merge | O que entregou |
+|---|---|---|---|
+| 190 | `JMZR-SAEP#193` | `50e1d36` | Footer global `_modal_body.html`: `flex-col-reverse`→`flex-col` sem mexer no DOM (ordem do DOM = leitura = foco), WCAG 2.4.3. Proibição de `flex-col-reverse`/`order-*` de eixo vertical abaixo de `sm` virou **absoluta** no `DESIGN.md` §Layout (nota de Fechamento 2026-09-10, #190) — a exceção temporária rastreada que a #186 deixou para o `<footer>` foi removida. Caso novo na lane navegador (`test_navegador_ordem_foco.py`: mede `top` dos botões do footer a 375px vs ordem de Tab) + guarda por string em `test_modal.py`. Gates: 2770 pytest ✅, 79 navegador ✅, ruff/mypy ✅. **Auto-close funcionou (5ª vez seguida).** |
 
 **Onda 6 — fatia (a) fechada em 2026-09-10 → #173 fechada**
 
@@ -205,7 +211,7 @@ Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/account
 
 | # | O quê | Label | Bloqueio |
 |---|---|---|---|
-| 190 | footer de TODO modal (`_modal_body.html:198`): `flex-col-reverse` faz a ordem de foco contradizer a visual a `<640px`. Gêmeo global do item 2 da #186; isolado porque arrasta as 11 telas da varredura #166. | `ready-for-agent` | — |
+| ~~190~~ | footer de TODO modal (`_modal_body.html`): `flex-col-reverse` fazia a ordem de foco contradizer a visual a `<640px`. **Fechada** — PR `JMZR-SAEP#193`, merge `50e1d36`. | ~~`ready-for-agent`~~ | — |
 | — | `home()` do chefe de almoxarifado cai na fila de atendimento. Decisão de produto (destino desejado). | (a abrir) | resposta do chefe |
 | — | `/login/` sem rota de recuperação de senha. Depende de canal de recuperação definido. | (a abrir) | decisão de produto |
 | — | catálogo mistura `001.001.001` (SCPI) e `MAT-001` (WMS) sem badge de origem. Feature de catálogo. | (a abrir) | — |
@@ -218,7 +224,7 @@ Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/account
 | ~~185~~ | 6 | **fechada** (`JMZR-SAEP#189`, merge `11a6d65`) — fatia (b) da #173 | — |
 | ~~186~~ | 6 | **fechada** (`JMZR-SAEP#191`, merge `a47184a`) — fatia (c) da #173 | — |
 | ~~184~~ | 6 | **fechada** (`JMZR-SAEP#192`, merge `08972ac`) — fatia (a) da #173 | — |
-| 190 | — | `ready-for-agent` — spin-off de #186. Footer de TODO modal, ordem de foco (WCAG 2.4.3). Arrasta as 11 telas da varredura #166. **Análise disparada 2026-09-10** | — |
+| ~~190~~ | — | **fechada** (`JMZR-SAEP#193`, merge `50e1d36`) — spin-off de #186, footer de todo modal, WCAG 2.4.3 | — |
 | ~~173~~ | 6 | **fechada** (auto-close via #192) — guarda-chuva, onda 6 completa | — |
 | 172 | 7 | `ready-for-human` (decisão de vocabulário visual) | **destravada** — #185 documentou a gramática de formas |
 | 170 | 8 | `needs-info` | resposta do chefe de almoxarifado |
@@ -238,7 +244,7 @@ Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/account
 4. ~~**#167**~~ **Feita e fechada — PR `joaozuneda6#71`** (merge `43b6dee`). Fechada por remoção da legenda. O bullet das pílulas do #173 **não** entrou: a premissa dele estava errada (ver "Candidatos"), e a colisão real precisa de mudança no componente global.
 5. ~~**#178, #181, #182**~~ **Feitas e fechadas — PRs `joaozuneda6#72`, `#73`, `#70`.** Não houve conflito de hunk entre #178 e #182, apesar de editarem o mesmo `selectors.py`: as regiões eram disjuntas (20-27 vs 304-338; testes 9-78 vs 467-549). A #178 gerou a #183.
 5b. ~~**#183**~~ **Feita e fechada — PR `joaozuneda6#75`** (merge `46ee10c`).
-6. ~~**#173, fatiada em 3**~~ **Fatiada em 4: #184 (a), #185 (b), #186 (c), #187 (d).** A quarta fatia existe porque cinco dos candidatos anexados não eram achado estético e sim **defeito de comportamento** — diluí-los em (a)/(b)/(c) enterraria bug sob revisão de copy. **~~#187~~ fechada (PR #188). ~~#185~~ fechada (PR #189). ~~#186~~ fechada (PR #191, `a47184a`).** Resta **#184** (copy; decisão travada: normalização da denominação SCPI **na escrita**, helper `apps/core/texto.py::capitalizar_frase`) — PR #192 aberto 2026-09-10, branch `feat/184-copy-vocabulario`. Fechar a #184 fecha a #173. Fora da onda mas `ready-for-agent`: **#190** (gêmeo global do foco invertido, footer de todo modal).
+6. ~~**#173, fatiada em 3**~~ **Fatiada em 4: #184 (a), #185 (b), #186 (c), #187 (d).** A quarta fatia existe porque cinco dos candidatos anexados não eram achado estético e sim **defeito de comportamento** — diluí-los em (a)/(b)/(c) enterraria bug sob revisão de copy. **~~#187~~ fechada (PR #188). ~~#185~~ fechada (PR #189). ~~#186~~ fechada (PR #191, `a47184a`).** **~~#184~~ fechada (PR #192, `08972ac`) → #173 fechada. ~~#190~~ fechada (PR #193, `50e1d36`).** **A onda 6 e todos os seus spin-offs estão fechados. A fila de agente está vazia.**
 7. **#172** — destravada (a #185 documentou a gramática de formas). `ready-for-human`.
 8. ~~**#176, metade de permissão** — quem é o dono da importação SCPI.~~ **Feito e fechada — PR #63.** Domínio decidiu: chefe de almoxarifado. Gerou #178, #179, #180.
 9. **#170** — quando o chefe de almoxarifado responder.
