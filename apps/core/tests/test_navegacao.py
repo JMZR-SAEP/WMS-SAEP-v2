@@ -151,7 +151,7 @@ def test_todo_url_name_e_url_names_ativos_sao_resolviveis():
                 assert _url_name_existe(nome_ativo), nome_ativo
 
 
-def test_topbar_usa_capitalizacao_sentence_case_para_fila_de_autorizacao():
+def test_topbar_usa_capitalizacao_de_frase_para_fila_de_autorizacao():
     html = _topbar_nav(pode_ver_fila_autorizacao=True)
     assert 'Fila de autorização' in html
     assert 'Fila de Autorização' not in html
