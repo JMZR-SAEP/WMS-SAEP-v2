@@ -1,4 +1,4 @@
-"""Normalização de texto para apresentação — infraestrutura pura (ADR-0011).
+"""Normalização de texto para apresentação — infraestrutura pura.
 
 Sem domínio, sem Django: transforma string em string.
 """
@@ -6,7 +6,7 @@ Sem domínio, sem Django: transforma string em string.
 from __future__ import annotations
 
 
-def sentence_case(texto: str | None) -> str:
+def capitalizar_frase(texto: str | None) -> str:
     """Devolve ``texto`` com a primeira letra maiúscula e o restante minúsculo.
 
     Uso na fonte: a denominação do SCPI chega em CAIXA ALTA

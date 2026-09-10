@@ -1,8 +1,8 @@
-"""Normalização de texto para apresentação — `sentence_case`."""
+"""Normalização de texto para apresentação — `capitalizar_frase`."""
 
 import pytest
 
-from apps.core.texto import sentence_case
+from apps.core.texto import capitalizar_frase
 
 
 @pytest.mark.parametrize(
@@ -25,10 +25,10 @@ from apps.core.texto import sentence_case
         (None, ''),
     ],
 )
-def test_sentence_case(entrada, esperado):
-    assert sentence_case(entrada) == esperado
+def test_capitalizar_frase(entrada, esperado):
+    assert capitalizar_frase(entrada) == esperado
 
 
-def test_sentence_case_e_idempotente():
-    uma_vez = sentence_case('SILICONE ACETICO 280G')
-    assert sentence_case(uma_vez) == uma_vez
+def test_capitalizar_frase_e_idempotente():
+    uma_vez = capitalizar_frase('SILICONE ACETICO 280G')
+    assert capitalizar_frase(uma_vez) == uma_vez

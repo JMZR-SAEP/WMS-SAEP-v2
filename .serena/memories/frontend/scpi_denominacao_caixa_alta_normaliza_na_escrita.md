@@ -3,7 +3,7 @@
 **Decisão (PR #192):** a importação SCPI grava `Material.nome` já em sentence
 case. Não normaliza na exibição.
 
-- Helper: `apps/core/texto.sentence_case(texto)` — apresentação pura (ADR-0011).
+- Helper: `apps/core/texto.capitalizar_frase(texto)` — apresentação pura, sem ADR.
   Baixa a string toda e sobe a 1ª letra alfabética. NÃO usa `str.title()`/`|title`
   (quebram `3/4"`, `280G`) nem `capfirst` sozinho (não baixa ALL-CAPS no meio).
   Trata vazio/None → `''`.
