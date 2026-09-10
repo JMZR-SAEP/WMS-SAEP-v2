@@ -2,9 +2,9 @@
 
 **Documento vivo.** Ponto de partida para quem entra no backlog e ferramenta de acompanhamento para quem já está nele. Visão macro: o detalhe técnico vive na issue, aqui vive a **ordem, a dependência e o estado**.
 
-Última atualização: **2026-09-09, segunda passada** (a #185 — fatia (b) da #173 — **mergeou e fechou** via PR `JMZR-SAEP#189`, `11a6d65`. Auto-close funcionou de novo (2ª vez seguida no `origin`). O job `navegador` da CI ficou vermelho no commit de merge por **flake de infra** — `apt` Hash Sum mismatch baixando o repo do Google Chrome, não código; rerun disparado. A #172 está **destravada** (a #185 documentou a gramática de formas), mas segue `ready-for-human`. Próximos alvos: **#186** (fatia c, tem peso de comportamento) depois **#184** (fatia a, quase toda copy). Análise das duas disparada em paralelo — 2 `Explore` read-only).
+Última atualização: **2026-09-09, terceira passada** (#186 e #184 analisadas — 2 `Explore` read-only. #186: item "drawer corta Sair" rebaixado (clip já corrigido em `df20393f`), gêmeo do bug de ordem de foco virou **#190** (spin-off, footer de todo modal), 3 itens saem por serem produto. #184: 4 itens procedem; normalização da denominação SCPI decidida **na escrita** (helper `apps/core/texto.py::sentence_case` novo). Ordem de implementação: **#186 → #184**, sequencial. Ver "A #186 na prática" e "A #184 na prática".)
 
-Última atualização anterior: **2026-09-09** (a #187 — fatia (d) da #173 — **mergeou e fechou** via PR `JMZR-SAEP#188`, `d2db3b3`. O auto-close funcionou: `closingIssuesReferences` ligou a #187 à #188 e o merge fechou a issue sozinho, primeira vez que isso acontece no novo fluxo `origin`).
+Última atualização anterior: **2026-09-09, segunda passada** (a #185 — fatia (b) da #173 — **mergeou e fechou** via PR `JMZR-SAEP#189`, `11a6d65`. Auto-close funcionou de novo (2ª vez seguida no `origin`). O job `navegador` da CI ficou vermelho no commit de merge por **flake de infra** — `apt` Hash Sum mismatch em `dl.google.com/linux/chrome-stable` (mirror do Google), não código. Rerun 17:57 falhou igual — é o mirror, resolve em horas. Não bloqueia nada (a #185 já mergeou; nenhum PR aberto depende da lane). Re-rodar quando o mirror estabilizar. A #172 está **destravada** (a #185 documentou a gramática de formas), mas segue `ready-for-human`. Antes: a #187 (fatia d) mergeou via `JMZR-SAEP#188`, `d2db3b3` — primeiro auto-close no fluxo `origin`).
 
 ## Como usar
 
@@ -63,7 +63,31 @@ Snapshots em `.impeccable/critique/` (diretório local, gitignored). O plano de 
 
 | # | Branch | O que entrega |
 |---|---|---|
-| — | — | Nada em PR. Análise de #186 e #184 em curso (2 `Explore` read-only, paralelos). |
+| — | — | Nada em PR. #186 e #184 analisadas (2 `Explore` read-only, 2026-09-09) — ver "A #186 na prática" e "A #184 na prática". Aguardam dispatch de implementação: **#186 → #184**, sequencial. |
+
+**A #186 na prática — 1 item rebaixado, 1 gêmeo virou #190, 3 itens saem por serem produto (2026-09-09).**
+
+| Item da issue | Veredito da análise | Decisão |
+|---|---|---|
+| drawer corta "Sair" | **mal enquadrado.** O clip já foi corrigido em `df20393f` (2026-08-12, na `main`): `input.css:667` tem `max-height: calc(100dvh - …)` + `overflow-y:auto` + `overscroll-behavior:contain`. Não há `overflow:hidden` nem colapso de `flex-basis`. Sobra só falta de affordance de scroll (sem fade/sombra; o padrão existe em `input.css:802` mas só horizontal p/ tabelas). | Rebaixado a cosmético. Fade de scroll no `.app-bar__menu` ⇒ `input.css` ⇒ `make css-build`. Item menor da fatia. |
+| ordem de foco `flex-col-reverse` | **procede — item mais sério.** `requisicoes/detalhe.html:270` (`flex-col-reverse` sem `sm:`), WCAG 2.4.3. Comentário `:263-268` documenta o anti-padrão como se fosse certo. A ≥640px (`sm:flex-row`) visual e foco coincidem. **Gêmeo não-citado:** `components/_modal_body.html:198` (footer de TODO modal) + `requisicoes/copiar_confirmacao.html:62`. | #186 corrige os 2 pontos locais (`detalhe.html`, `copiar_confirmacao.html`). O ponto global (`_modal_body.html`) virou **#190** — mexer nele arrasta as 11 telas da varredura #166. |
+| focus-visible ausente na nav | **procede.** 11 links (`core/partials/_side_nav.html:16-25`, só `rounded-md hover:…`, zero `focus-visible:`) + a marca (`.app-bar__brand`, `input.css:454` sem `:focus-visible`). Viola `design-system.md:220-223` + `DESIGN.md:534/580`. Drawer mobile (`.app-bar__menu-item`) **tem** anel (`input.css:717`). As 4 classes canônicas já estão no `app.css` — links não precisam de `make css-build`; a marca precisa se feita via `input.css`. | Adicionar o anel canônico aos links e à marca. Cosmético/consistência (issue mesma diz "não é falha WCAG"). Item 3 verificável por string em `test_components.py`, sem Chromium. |
+| heading da região SCPI (anexo #167) | **procede — maior que a issue diz.** `preview_importacao_scpi.html:163-462` (ramo de resultados) sem `<h2>` de região **nem** de cartão — cada `<article>` de linha usa `<code>` como título (`:347`), divergindo do padrão de cartão (`design-system.md:1119`, testado em `test_views.py:2854/3282` com `<h2>`). O `<h2 sr-only>` removido na #167 nomeava a legenda, não os resultados. | `<h2 class="sr-only">` de região + `<h2>` por cartão. `sr-only` já no `app.css`. Caso novo na lane `navegador` (`get_by_role("heading")`). |
+| CTA "Ver as N divergências" rolando ~40px | fora do escopo de a11y/markup; já há branch `upstream/fix/estoque-recorte-ancora-preview-scpi`. | Não entra nesta fatia. |
+| `home()` do chefe cai na fila de atendimento | decisão de produto (issue mesma marca "não é markup"). | **Sai da fatia.** Candidato a issue própria se o chefe confirmar o destino desejado. |
+| `/login/` sem rota de recuperação de senha | depende de haver canal de recuperação definido — produto. | **Sai da fatia.** Bloqueado por decisão de produto. |
+| duas gramáticas de identificador sem badge de origem (`001.001.001`×`MAT-001`) | feature, não defeito de markup. | **Sai da fatia.** Candidato a issue própria (feature de catálogo). |
+
+Todos os 4 itens acionáveis exigem **teste novo** — nenhum tem cobertura na lane `navegador` hoje. `make test-navegador` é gate obrigatório declarado no corpo.
+
+**A #184 na prática — 4 itens procedem, decisão da normalização SCPI travada (2026-09-09).**
+
+| Item da issue | Veredito da análise | Decisão |
+|---|---|---|
+| rótulo de rota × tela | **procede.** nav `'Fila de autorizações'`/`'Atendimento'` (`core_tags.py:731/749`) × página `Fila de autorização`/`Fila de atendimento` (`fila_*.html:4,7`). Regra #160 (`CONVENTIONS.md:295`) = nav segue destino; testada só p/ histórico SCPI (`test_views.py:2281`). **`test_views.py:2109` (`'Fila de atendimento' in html`) quebra** se o H1 virar "Atendimento". | nav segue a página (regra #160): nav → "Fila de atendimento" e "Fila de autorização". Ajustar `NAVEGACAO` + o teste que blinda. Estender a cobertura de `test_h1_e_title_repetem_o_rotulo_da_navegacao` às duas filas. |
+| grafia "WMS SAEP" × "WMS-SAEP" | **procede.** `login.html:16` é o **único** outlier do repo (~27 usos com hífen, incl. `login.html:4`). **`test_login.py:32` (`assert 'WMS SAEP' in conteudo`) trava a grafia errada** — muda junto. | Padronizar em `WMS-SAEP`. Corrigir template + teste. |
+| CAIXA ALTA do SCPI | **procede (mecanismo).** `services.py:746` grava `nome=linha.denominacao_scpi or linha.cadpro`; parse (`selectors.py:181`) só `.strip()`. Zero normalização em qualquer camada. Único `Material.objects.create` do código é a importação; seed nasce sentence case (`seed_dev.py:86`). Detalhe do `<ul>` no corpo está errado (é grid de `<article>`, `lista_materiais.html:53`). Regra da Caixa Alta (`DESIGN.md:322`) é redigida como regra **tipográfica** — estender a "dado que chega maiúsculo" é leitura esticada mas razoável. 13 pontos de exibição de denominação, nenhum com `\|capfirst`/`\|title`. | **Normalizar NA ESCRITA** (decisão do usuário, 2026-09-09). Helper novo `apps/core/texto.py::sentence_case` (não existe hoje) chamado em `services.py:746`. Ambiente efêmero (ADR-0009) → sem data migration, `make setup` materializa. `ordering=('nome',)` → considerar `Lower('nome')`. Evitar `\|title` do Django (quebra `3/4"`, `280G`) e `capfirst` sozinho (não resolve ALL-CAPS no meio). Razão no PR. |
+| asterisco de obrigatório no login não discrimina | **procede.** `login.html:40-41` inclui `form_field.html` sem `required_marker`; os 2 campos herdam `required` de `AuthenticationForm`. `DESIGN.md:554`: o asterisco é o único indicador de obrigatoriedade — com 100% obrigatório, vira ruído. Sem teste guardando. | Suprimir o asterisco quando todos os campos do form são obrigatórios (ou marcar os opcionais, invertendo a convenção só nessa tela). Definir na implementação. |
 
 **A #185 na prática — a análise re-triou 2 dos ~5 itens (2026-09-09).**
 
@@ -168,14 +192,24 @@ Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/account
 |---|---|---|---|
 | 183 | contagem do sino em `except Exception` com fallback zero, em toda página autenticada — zero é indistinguível de "nada pendente". Mesma classe de defeito que a #175 consertou. | `ready-for-agent` | — |
 
+**Spinoffs da #186 — abertos/identificados 2026-09-09 na análise**
+
+| # | O quê | Label | Bloqueio |
+|---|---|---|---|
+| 190 | footer de TODO modal (`_modal_body.html:198`): `flex-col-reverse` faz a ordem de foco contradizer a visual a `<640px`. Gêmeo global do item 2 da #186; isolado porque arrasta as 11 telas da varredura #166. | `ready-for-agent` | — |
+| — | `home()` do chefe de almoxarifado cai na fila de atendimento. Decisão de produto (destino desejado). | (a abrir) | resposta do chefe |
+| — | `/login/` sem rota de recuperação de senha. Depende de canal de recuperação definido. | (a abrir) | decisão de produto |
+| — | catálogo mistura `001.001.001` (SCPI) e `MAT-001` (WMS) sem badge de origem. Feature de catálogo. | (a abrir) | — |
+
 **Aberto — todas triadas (nenhuma `needs-triage` restante). A onda 6 é a #173 fatiada em quatro**
 
 | # | Onda | Label | Bloqueio |
 |---|---|---|---|
 | ~~187~~ | 6 | **fechada** (`JMZR-SAEP#188`, merge `d2db3b3`) — fatia (d) da #173 | — |
 | ~~185~~ | 6 | **fechada** (`JMZR-SAEP#189`, merge `11a6d65`) — fatia (b) da #173 | — |
-| 186 | 6 | `ready-for-agent` — fatia (c) da #173. **Próximo alvo** (peso de comportamento). Análise disparada | — |
-| 184 | 6 | `ready-for-agent` — fatia (a) da #173. Alvo seguinte. Análise disparada; tem ponto de decisão (normalização SCPI) | — |
+| 186 | 6 | `ready-for-agent` — fatia (c) da #173. **Próximo alvo** (peso de comportamento). Analisada — ver "A #186 na prática" | — |
+| 184 | 6 | `ready-for-agent` — fatia (a) da #173. Alvo seguinte. Analisada; normalização SCPI decidida (na escrita) | — |
+| 190 | — | `ready-for-agent` — spin-off de #186. Footer de TODO modal, ordem de foco (WCAG 2.4.3). Arrasta as 11 telas da varredura #166 | — |
 | 173 | 6 | guarda-chuva, aberta até #184 e #186 fecharem | #184, #186 |
 | 172 | 7 | `ready-for-human` (decisão de vocabulário visual) | **destravada** — #185 documentou a gramática de formas |
 | 170 | 8 | `needs-info` | resposta do chefe de almoxarifado |
