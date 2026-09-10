@@ -513,12 +513,15 @@ def retornar_para_rascunho(
     )
 
     if eh_decisao_de_terceiro:
+        # Só o criador: rascunho não é visível a um beneficiário que não seja
+        # também o criador (`requisicoes_visiveis_para`), e só o criador pode
+        # editar/reenviar o rascunho (`pode_editar_rascunho`). Notificar o
+        # beneficiário aqui prometeria um "Ver detalhes" que devolve 404.
         _criador_id = requisicao.criador_id
-        _beneficiario_id = requisicao.beneficiario_id
         _req_id = requisicao.pk
         transaction.on_commit(
             lambda: _notificar_pos_commit(
-                _criador_id, _beneficiario_id, _req_id, TipoNotificacao.RECUSA
+                _criador_id, _criador_id, _req_id, TipoNotificacao.RECUSA
             )
         )
 

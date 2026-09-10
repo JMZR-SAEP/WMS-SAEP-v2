@@ -131,17 +131,20 @@ def test_autorizar_requisicao_gera_notificacoes(
 
 
 @pytest.mark.django_db(transaction=True)
-def test_retornar_para_rascunho_chefe_gera_notificacoes(
+def test_retornar_para_rascunho_chefe_gera_notificacao_so_para_criador(
     chefe_obras, superuser, outro_solicitante, material_disponivel
 ):
     """Issue #170: a variante de retornar_para_rascunho em que o ator não é o
-    dono do pedido (aqui, o chefe do setor) dispara notificações — mesmo
-    evento/tipo que a antiga recusar_requisicao (TipoNotificacao.RECUSA).
+    dono do pedido (aqui, o chefe do setor) dispara notificação — mesmo
+    evento/tipo que a antiga recusar_requisicao (TipoNotificacao.RECUSA) —,
+    mas só para o **criador**.
 
     Criador (`superuser`, único papel deste conftest que pode criar para
     outro setor/usuário) e beneficiário (`outro_solicitante`) são pessoas
-    distintas do chefe que decide, para provar que os dois — não o chefe —
-    são notificados.
+    distintas do chefe que decide. O beneficiário fica de fora: rascunho não
+    é visível a quem não é o criador (`requisicoes_visiveis_para`) e só o
+    criador pode editar/reenviar (`pode_editar_rascunho`) — notificar o
+    beneficiário prometeria um "Ver detalhes" que devolve 404.
     """
     from apps.requisicoes.services import (
         criar_requisicao,
@@ -170,9 +173,8 @@ def test_retornar_para_rascunho_chefe_gera_notificacoes(
         requisicao_id=req.pk,
         tipo=TipoNotificacao.RECUSA,
     )
-    assert notifs.count() == 2
-    destinatarios = set(notifs.values_list('destinatario_id', flat=True))
-    assert destinatarios == {superuser.pk, outro_solicitante.pk}
+    assert notifs.count() == 1
+    assert notifs.get().destinatario_id == superuser.pk
 
 
 @pytest.mark.django_db(transaction=True)
