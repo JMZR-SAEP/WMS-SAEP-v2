@@ -581,6 +581,7 @@ da #173.
 - **Focus:** borda blue-500 + `ring-2` blue-500, sem outline.
 - **Erro:** borda `danger-border-input` (red-400), `aria-invalid="true"` e mensagem em `role="alert"` abaixo do campo, vinculada por `aria-describedby`. Texto de erro vem sempre do Form, nunca hardcoded no componente.
 - **Rótulo:** acima do campo, 12px semibold caixa alta em cinza de metadado, com asterisco `danger-text` quando obrigatório — `danger-accent` reprova o 4,5:1 em toda superfície (ver A Regra do Cinza Medido) e o asterisco é o único indicador visual de obrigatoriedade. Texto de ajuda fica entre o rótulo e o campo.
+- **Exceção — formulário 100% obrigatório:** o asterisco é marca **diferencial**: separa o campo obrigatório do opcional. Num formulário onde todo campo é obrigatório ele não separa nada — repete-se em cada rótulo e vira ruído sem informação. Quando não há um único campo opcional, suprime-se o asterisco (`required_marker=False` no include de `form_field.html`); o `required` nativo do HTML permanece no widget. Hoje só o login (`AuthenticationForm`, dois campos obrigatórios) usa a exceção. Um formulário misto nunca a usa — ali o asterisco carrega o contraste que o justifica.
 - **Readonly:** fundo papel frio, borda neutra, cursor padrão — nunca `disabled`, que impediria o envio.
 
 ### Navigation

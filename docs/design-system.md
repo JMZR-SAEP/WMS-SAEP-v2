@@ -351,7 +351,7 @@ esta tabela diz o que existe e para quê, não como se chama cada parâmetro.
 
 | Componente | Para quê |
 |---|---|
-| `form_field.html` | Campo com label vinculada, ajuda, erro e fiação ARIA completa |
+| `form_field.html` | Campo com label vinculada, ajuda, erro e fiação ARIA completa. `required_marker=False` suprime o asterisco — só para formulário 100% obrigatório, onde a marca diferencial não diferencia nada (ver DESIGN.md §Inputs / Fields) |
 | `field_error.html` | Erro inline de um campo em `role="alert"`, com todos os erros do campo numa frase só. O texto vem do Form, nunca daqui |
 | `error_summary.html` | Sumário de erros no topo do formulário (padrão GOV.UK, foco no mount). Montado só por `{% erros_do_formulario %}` — nunca incluído direto |
 | `item_form_row.html` | Linha de formset de item, compartilhada entre requisição e saída excepcional |
