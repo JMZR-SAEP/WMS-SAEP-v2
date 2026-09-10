@@ -56,11 +56,10 @@ def _cenario_estornar_saida(request) -> CenarioModal:
 
 
 def _cenario_inativar_material(request) -> CenarioModal:
-    """Saldo não zerado: o service recusa, nada muda (#180).
+    """Saldo não zerado: o service recusa, o modal reabre com o erro (#180).
 
-    Sem `url_render_inicial`: a rota não tem GET que reabra o mesmo modal —
-    inativar/reativar não têm tela própria de "detalhe de material", vivem
-    só no cartão do catálogo, e o 204 desta rota nunca reabre modal.
+    `url_render_inicial` é a própria lista: o modal vive no cartão do
+    catálogo, não numa tela de detalhe própria de material.
     """
     from apps.estoque.models import Material, SaldoEstoque
 
@@ -80,11 +79,12 @@ def _cenario_inativar_material(request) -> CenarioModal:
     return CenarioModal(
         url=reverse('estoque:inativar_material', args=[material.pk]),
         payload={},
-        destino_esperado=reverse('estoque:lista_materiais'),
+        destino_esperado=None,
         ler_estado=ler_estado,
         ator=chefe,
         modal_id=f'gerir-material-{material.pk}',
         muta=False,
+        url_render_inicial=reverse('estoque:lista_materiais'),
     )
 
 

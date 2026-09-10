@@ -111,6 +111,36 @@ def test_material_add_responde_para_superusuario(client, superuser):
     assert resposta.status_code == 200
 
 
+def test_material_criado_pelo_admin_ganha_saldo_zerado(
+    client, superuser, estoque_principal
+):
+    """Sem isto, um material criado pelo admin (único caminho fora da
+    importação SCPI) fica sem nenhum `SaldoEstoque` — e `listar_materiais_com_saldo`
+    lista a partir de `SaldoEstoque`, não de `Material`. O material ficaria
+    invisível no catálogo, e a UI de gerir catálogo da #180 nunca apareceria
+    para ele. A importação SCPI já cria os dois juntos; o admin precisa manter
+    o mesmo par."""
+    from apps.estoque.models import Material, SaldoEstoque
+
+    client.force_login(superuser)
+    resposta = client.post(
+        reverse('admin:estoque_material_add'),
+        {
+            'codigo': 'MAT-ADMIN-001',
+            'nome': 'Criado pelo admin',
+            'unidade': 'un',
+            'observacao_interna': '',
+            'ativo': 'on',
+        },
+    )
+
+    assert resposta.status_code == 302
+    material = Material.objects.get(codigo='MAT-ADMIN-001')
+    saldo = SaldoEstoque.objects.get(material=material, estoque=estoque_principal)
+    assert saldo.saldo_fisico == 0
+    assert saldo.saldo_reservado == 0
+
+
 def test_pode_gerir_autoriza_superusuario(material_admin, request_de, superuser):
     assert material_admin._pode_gerir(request_de(superuser)) is True
 

@@ -1073,6 +1073,30 @@ def lista_materiais_view(request):
     )
 
 
+def _render_modal_erro_gerir_catalogo(request, *, material, copy: dict[str, str], exc):
+    """Reabre o modal de inativar/reativar com o erro (#180).
+
+    Fechar o diálogo com um redirect+mensagem no erro é indistinguível do
+    sucesso enquanto o HTMX troca a página inteira — a pessoa só percebe se
+    reparar na faixa de mensagem no topo. `render_modal_erro` mantém a
+    pergunta na tela (`apps/core/modal.py`), e aqui o erro mais comum (saldo
+    não zerado) é o caminho esperado na primeira tentativa, não um caso raro
+    de corrida — vale reabrir.
+    """
+    return render_modal_erro(
+        request,
+        modal_id=f'gerir-material-{material.pk}',
+        titulo=copy['titulo'],
+        descricao=copy['descricao'],
+        registro=registro_material(material),
+        erro=str(exc),
+        confirm_label=copy['confirm_label'],
+        icon_variant=copy['icon_variant'],
+        acao_erro='gerir o material',
+        loading_label=f'{copy["confirm_label"]}…',
+    )
+
+
 @login_required
 @require_http_methods(['POST'])
 def inativar_material_view(request, pk: int):
@@ -1092,6 +1116,13 @@ def inativar_material_view(request, pk: int):
     try:
         desativar_material(ator_id=request.user.pk, material_id=pk)
     except ErroDominio as exc:
+        if request.htmx:
+            return _render_modal_erro_gerir_catalogo(
+                request,
+                material=material,
+                copy=MODAL_COPY['inativar_material'],
+                exc=exc,
+            )
         pres = traduz_erro_dominio(exc)
         getattr(messages, pres.severity)(request, str(exc))
         return htmx_redirect(request, reverse('estoque:lista_materiais'))
@@ -1119,6 +1150,13 @@ def reativar_material_view(request, pk: int):
     try:
         reativar_material(ator_id=request.user.pk, material_id=pk)
     except ErroDominio as exc:
+        if request.htmx:
+            return _render_modal_erro_gerir_catalogo(
+                request,
+                material=material,
+                copy=MODAL_COPY['reativar_material'],
+                exc=exc,
+            )
         pres = traduz_erro_dominio(exc)
         getattr(messages, pres.severity)(request, str(exc))
         return htmx_redirect(request, reverse('estoque:lista_materiais'))

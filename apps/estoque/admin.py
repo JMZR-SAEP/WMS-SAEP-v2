@@ -78,6 +78,24 @@ class MaterialAdmin(admin.ModelAdmin):
 
             desativar_material(ator_id=request.user.pk, material_id=obj.pk)
         super().save_model(request, obj, form, change)
+        if not change:
+            self._criar_saldo_inicial(obj)
+
+    def _criar_saldo_inicial(self, material):
+        """Garante que todo `Material` tenha ao menos um `SaldoEstoque` (#180).
+
+        `listar_materiais_com_saldo` lista a partir de `SaldoEstoque`, não de
+        `Material` — um material sem nenhuma linha de saldo fica invisível no
+        catálogo, e a UI de gerir catálogo (inativar/reativar) nunca aparece
+        para ele. A importação SCPI já cria os dois juntos
+        (`services.py::confirmar_importacao_scpi`); o admin é o único outro
+        caminho de criação de `Material` e precisa manter o mesmo par.
+        """
+        from apps.estoque.models import Estoque, SaldoEstoque
+
+        estoque = Estoque.objects.first()
+        if estoque is not None:
+            SaldoEstoque.objects.get_or_create(estoque=estoque, material=material)
 
     def delete_model(self, request, obj):
         from django.core.exceptions import PermissionDenied
