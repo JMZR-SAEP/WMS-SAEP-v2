@@ -2,7 +2,39 @@
 
 **Documento vivo.** Ponto de partida para quem entra no backlog e ferramenta de acompanhamento para quem já está nele. Visão macro: o detalhe técnico vive na issue, aqui vive a **ordem, a dependência e o estado**.
 
-Última atualização: **2026-09-10, quarta passada** (backlog commitado `52a1c2b`. **Critique `/impeccable` rodada 3 rodada** — dual-agent, slug `apps`, like-for-like. Nota: 21 → 27 → **32/40** ("Good"). P0: 1 → 2 → **0**. Detector determinístico limpo (0 findings). Snapshot `.impeccable/critique/2026-09-10T13-45-33Z__apps.md`. Achado central: o sistema visual está maduro, o débito agora é de **fluxo e cópia** — heurística 7 (flexibilidade, nota 2) é o teto, nenhuma onda tocou vazão de fila. **5 issues abertas (onda 7): #194–#198**, todas `ready-for-agent`. Ordem: **#194 → #195 → #196/#197/#198**. Ressalva: os 2 agentes da critique colidiram no browser/banco de dev — teste interativo de B não-confiável, banco sujo (sem `make setup`, decisão do usuário). Ainda pendente: os pedidos de decisão humana da "Disparar cedo" (#170, #171, #179, #180) **não** foram disparados nesta passada.)
+Última atualização: **2026-09-10, sexta passada, PR #199 em review + shapes #179/#180** (PR `#199` (#170) com CI 100% verde — ruff format, ruff check, mypy, css build, migrations, pytest, navegador. `CodeRabbit` ainda `PENDING`, sem veredito. Enquanto a review corre, 2 agentes `Plan` read-only em paralelo (sem banco, sem app):
+
+**#180 — shape completo, liberada para implementação.** `desativar_material` (`apps/estoque/services.py:822-863`) é o molde exato pra `reativar_material` (idempotente, sem checagem de saldo — reativar não tem o mesmo risco que desativar). Policy `pode_gerir_catalogo` passa a aceitar `eh_chefe_de_almoxarifado` além de superusuário. UI entra em `lista_materiais.html`, botão+modal por card (padrão de `requisicoes/detalhe.html:229-234`, não tela de detalhe nova — ela não existe pra material). 3 decisões de detalhe **não-bloqueantes** com default proposto no shape (cor do botão via Regra da Reversão Não é Erro, texto do modal avisando saldo zerado, simetria do caminho reativar em `admin.py`). 12 passos, arquivos: `policies.py`, `services.py`, `views.py`, `presentation.py`, `lista_materiais.html`, `urls.py`, `admin.py` + testes.
+
+**#179 — shape completo, mas com 1 decisão humana bloqueante.** Devolução hoje não tem model próprio — é timeline+ledger agregado (`entregue_liquida_por_material`, confirmado por `test_registrar_devolucao_double_count_respeita_liquida`). Decisão em aberto: **(A)** estornar por quantidade contra o agregado do ledger, sem model novo, mesmo padrão de `registrar_devolucao` — **recomendação do shape**, menor mudança — vs **(B)** model `Devolucao` com identidade/estado próprios (espelha `SaidaExcepcional`), schema maior, sem pedido explícito no corpo da issue. Achado técnico válido pras duas opções: `Operacao.ESTORNAR_DEVOLUCAO` **precisa** entrada em `_POLICY_POR_OPERACAO` (`apps/requisicoes/selectors.py:34`) assim que entrar em `TRANSICOES`, senão `acoes_disponiveis()` quebra com `KeyError` pra toda requisição `ATENDIDA`. Policy segue o padrão de `pode_estornar_requisicao` (chefe apenas, exclui auxiliar de almoxarifado), não o de `pode_registrar_devolucao` (que aceita auxiliar). 13 passos, arquivos: `requisicoes/services/atendimento.py`, `estoque/services.py`, `requisicoes/policies.py`, `requisicoes/transitions.py`, `estoque/selectors.py`, `requisicoes/selectors.py`, `requisicoes/models.py`, `estoque/models.py` + testes.
+
+**Próximo passo do coordenador:** aguardar review/CI de verdade da #199 (checar comentário do CodeRabbit, não só o check — ver `project_coderabbit_inactive_and_stacked_merge`). Escalar decisão A/B da #179 ao usuário. #180 pronta pra virar ticket de implementação assim que a fila de banco único liberar (depois de #170 mergear — implementação é sempre sequencial, Postgres único).)
+
+Última atualização anterior: **2026-09-10, quinta passada** (as 4 decisões humanas da "Disparar cedo" **chegaram** nos comentários das issues, respondidas por `joaorighetto` 2026-09-10. Todas destravadas, saem de `needs-info`:
+- **#170** — "Recusar" ≠ "Cancelar". "Recusar" **mescla com *retornar para rascunho*** (chefe devolve requisição sem sentido p/ ajuste; transição de estado p/ rascunho, **não** encerra). "Cancelar requisição" = anular/deletar; dono = criador (desistência) **ou** chefe de almoxarifado (restrição que impede completar); **proibido depois da entrega**. Não é `layout` nem `clarify` puro — muda a máquina de estados. Precisa de **shape**.
+- **#171** — export real anexado: `todos_itens_cadastrados_de_marco_ate_setembro.csv` (catálogo mar–set). Próximo: medir o arquivo real (linhas, encoding, denominação mais longa, continuação, % divergência); cada quebra vira issue própria.
+- **#179** — **"Entra"** no MVP. Vira issue de implementação: op de domínio `estornar_devolucao` com checagem de saldo disponível (L83), par de policy (`pode_`/`exigir_pode_`), service com `ator_id` + transição + exceção de domínio, testes de policy e de service.
+- **#180** — **"UI de produto"**. Server-rendered seguindo o design system, consome `desativar_material` + `reativar_material` (a criar); `pode_gerir_catalogo` passa a aceitar `eh_chefe_de_almoxarifado`, testes acompanham. A matriz L74/§3 **não** recua.
+
+Fila de agente ainda **vazia** (nenhum agente disparado nesta passada). Onda 7 (#194–#198) + estes 4 aguardam disparo. Ordem sugerida da onda de análise read-only paralela: `Plan` #194, `impeccable shape`/`Plan` #170, `Plan` #179, `Plan` #180, `Explore` #171 (sem subir app — banco sujo). Implementação sempre sequencial (banco PostgreSQL único).)
+
+Última atualização: **2026-09-10, quinta passada, shape #194 + #170** (2 agentes `Plan` read-only em paralelo, sem subir app, sem banco.
+
+**#170 — shape completo, pronto pra implementação.** Achado: "cancelar" já é exatamente o que a decisão humana pediu (`transitions.py:68-80`, guarda pós-entrega já existe, nada a mudar). Só "recusar" muda: deixa de ser transição-para-estado-terminal (`EstadoRequisicao.RECUSADA` é removido) e vira variante de `retornar_para_rascunho` (TR-006) — o service escolhe o evento de timeline (`RECUSA` vs `RETORNO_RASCUNHO`) pelo papel do ator (chefe decidindo por terceiro vs criador/beneficiário agindo por si), replicando o padrão que `REGISTRAR_ATENDIMENTO` já usa (uma operação, múltiplos eventos possíveis). Sem policy nova, sem service novo — funde `recusar_requisicao` em `retornar_para_rascunho`. 13 passos sequenciais com migração incluída (remove `RECUSADA` do enum), cascata em `copia.py` (`ESTADOS_COPIAVEIS` perde `RECUSADA`), `views.py` (chip "Exceções" do histórico), `presentation.py` (copy da notificação), `docs/estado-transicoes-requisicao.md` (TR-011 vira nota de variante de TR-006). Sem decisão humana pendente — **liberada para implementação**. Arquivos: `transitions.py`, `models.py`, `services/ciclo_vida.py`, `policies.py`, `views.py`, `detalhe.html`, `docs/estado-transicoes-requisicao.md`.
+
+**#194 — shape completo, mas com 6 decisões humanas pendentes antes de codar.** 3 premissas do corpo da issue verificadas como erradas/parciais: (1) as filas **não têm** toggle de ordenação hoje (`ordenacao_data.html:71-83` documenta a decisão consciente de FIFO sem inversão — a issue descreve um estado que o código já não tem); (2) o placeholder truncado provavelmente **não** afeta o catálogo — `lista_materiais.html` usa string mais curta e diferente da das 3 filas/minhas-requisições; (3) "ordenar por setor" só faz sentido em `fila_atendimento` (multi-setor) — em `fila_autorizacao` (escopada a um setor só) é no-op.
+
+Sub-itens do shape: sinal de idade no cartão (precisa limiar de negócio), sinal de saldo no cartão (precisa selector novo vetorizado, reusar `saldos_por_materiais`), quantidade no cartão (ambíguo: linhas de item já existe vs total de unidades não existe), ordenação por saldo/setor (precisa decisão de escopo + mecânica HTMX, filas nunca tiveram swap parcial), travessia por teclado j/k (precisa decisão de acessibilidade — WCAG 2.1.4 exige atalho de tecla única ser desligável/remapeável), placeholder truncado (trivial, mas confirmar escopo do catálogo por medição antes). Achado à parte: "multi-seleção/ação em lote" e "continuidade PRG" aparecem no "Problema" da issue mas **não** entram na seção "Escopo" nem em "Fora de escopo" — risco de ficar esquecido, precisa decisão explícita (virar spin-off nomeado ou descartar).
+
+Ordem de ataque sugerida (depois das decisões): placeholder → selector de saldo vetorizado → sinal no cartão → ordenação → teclado (por último, depende do cartão final estar estável). Arquivos: `selectors.py`, `views.py`, `fila_autorizacao.html`, `fila_atendimento.html`, `ordenacao_data.html`, `cartao-alvo.js`, `DESIGN.md`.
+
+**Próximo passo do coordenador:** disparar implementação de #170 (liberada). #194 aguarda respostas às 6 perguntas antes de virar ticket de implementação — escalado ao usuário.)
+
+Última atualização: **2026-09-10, quinta passada, #170 implementada e em PR** (implementação disparada, gates locais verdes 2762 pytest + 79 navegador + ruff/mypy — achado no caminho: `test_navegador_modal_foco.py` sobrou da varredura do agente, ainda mirava `confirmar-recusar`/`modal-recusar-motivo` (id velho), corrigido para `confirmar-retornar`/`modal-retornar-observacao`. `docs/design-system.md` também tinha 7 referências desatualizadas (modal-id, `danger`→`warning`, linha própria de "recusar" na tabela de glifo, painel de decisão) — resolvidas num segundo commit docs-only, disparado como follow-up separado. **PR aberta:** `JMZR-SAEP#199`. Decisões #194 postadas como comentário na issue: https://github.com/JMZR-SAEP/WMS-SAEP-v2/issues/194#issuecomment-5620772786.
+
+**Próximo passo do coordenador:** aguardar review/CI da PR #199 (CodeRabbit responde no origin, mas checar comentários de verdade, não só o check verde — ver `project_coderabbit_inactive_and_stacked_merge`). Depois do merge, #194 está desbloqueada para virar ticket de implementação (shape + decisões já registrados nesta memória e no comentário da issue) — única pendência é a sequência de banco único (#170 primeiro, já em voo).)
+
+Última atualização anterior: **2026-09-10, quarta passada** (backlog commitado `52a1c2b`. **Critique `/impeccable` rodada 3 rodada** — dual-agent, slug `apps`, like-for-like. Nota: 21 → 27 → **32/40** ("Good"). P0: 1 → 2 → **0**. Detector determinístico limpo (0 findings). Snapshot `.impeccable/critique/2026-09-10T13-45-33Z__apps.md`. Achado central: o sistema visual está maduro, o débito agora é de **fluxo e cópia** — heurística 7 (flexibilidade, nota 2) é o teto, nenhuma onda tocou vazão de fila. **5 issues abertas (onda 7): #194–#198**, todas `ready-for-agent`. Ordem: **#194 → #195 → #196/#197/#198**. Ressalva: os 2 agentes da critique colidiram no browser/banco de dev — teste interativo de B não-confiável, banco sujo (sem `make setup`, decisão do usuário). Ainda pendente: os pedidos de decisão humana da "Disparar cedo" (#170, #171, #179, #180) **não** foram disparados nesta passada.)
 
 Última atualização anterior: **2026-09-10, terceira passada** (a #190 — spin-off da #186 — **mergeou e fechou** via PR `JMZR-SAEP#193`, `50e1d36`, auto-close (5ª vez seguida no `origin`). Gates verdes: 2770 pytest, 79 navegador, ruff/mypy. **A fila de agente está vazia.** Onda 6 (#173) completa + spin-off #190 completo. Todo o aberto (7 issues) é humano-bloqueado: `ready-for-human` (#172, #174) ou `needs-info` (#169–#171, #179, #180). Próximo movimento do coordenador: (a) disparar os pedidos de decisão humana da seção "Disparar cedo" (#170, #171, #179, #180) e (b) a próxima rodada de critique está **liberada** — onda 6 fechada, a regra que a bloqueava não vale mais.)
 
@@ -208,8 +240,8 @@ Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/account
 | # | O quê | Label | Bloqueio |
 |---|---|---|---|
 | 178 | `divergente_calculado` expõe o marcador EST-07 a solicitante/aux. setor/chefe setor (matriz L89) | `ready-for-agent` | — |
-| 179 | `pode_estornar_devolucao` + service — linha de matriz (L83) sem implementação | `needs-info` | decisão de domínio: entra no MVP ou fica pra depois do piloto? |
-| 180 | inativar material só existe pelo admin do Django; decidir UI de produto ou recuar a matriz | `needs-info` | decisão de domínio: UI de produto ou recuar a matriz L74/§3? |
+| 179 | `pode_estornar_devolucao` + service — linha de matriz (L83) sem implementação | `ready-for-agent` | **shape completo 2026-09-10** — 1 decisão bloqueante: estorno por quantidade-contra-agregado (A, recomendada) vs model `Devolucao` próprio (B). |
+| 180 | inativar material só existe pelo admin do Django; decidir UI de produto ou recuar a matriz | `ready-for-agent` | **shape completo 2026-09-10 — liberada para implementação.** `pode_gerir_catalogo` aceita `eh_chefe_de_almoxarifado`, cria `reativar_material`, matriz L74/§3 mantida. |
 
 **Spinoffs da #166 — triados, onda 5.** Achados pela auditoria de papéis que escolheu o usuário de cada tela do parametrize. Nenhum é vazamento de autorização hoje; os dois são defeito de contrato.
 
@@ -249,12 +281,12 @@ Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/account
 | 197 | 7 | `ready-for-agent` | — |
 | 198 | 7 | `ready-for-agent` | — |
 | 172 | 8 | `ready-for-human` (decisão de vocabulário visual) | **destravada** — #185 documentou a gramática de formas |
-| 170 | 9 | `needs-info` | resposta do chefe de almoxarifado |
-| 171 | 10 | `needs-info` | export real do SCPI |
+| 170 | 9 | `ready-for-agent` | **destravada** (2026-09-10) — decisão: recusar⇒rascunho, cancelar⇒anular, proibido pós-entrega. Precisa shape. |
+| 171 | 10 | `ready-for-agent` | **destravada** (2026-09-10) — CSV real anexado. Próximo: medir o arquivo. |
 | 169 | 11 | `needs-info` | medição da rede do piloto |
 | 174 | 12 | `ready-for-human` (decisão de contrato, maior item) | — |
-| 179 | — | `needs-info` | decisão de domínio: entra no MVP? |
-| 180 | — | `needs-info` | decisão de domínio: UI de produto ou recuar matriz? |
+| 179 | — | `ready-for-agent` | **shape completo** (2026-09-10) — falta decisão A/B (quantidade-contra-agregado vs model `Devolucao` próprio), escalada ao usuário. |
+| 180 | — | `ready-for-agent` | **shape completo, liberada** (2026-09-10) — pronta pra virar branch, aguarda vaga na fila de banco único. |
 
 ## Ordem de ataque
 
@@ -270,11 +302,12 @@ Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/account
 7. **Onda 7 (critique rodada 3): #194 → #195 → #196/#197/#198.** `ready-for-agent`. #194 é a prioridade (decisão do usuário) e o maior item — vazão de fila, começa com shape/Plan. #195 é cirúrgico (só UI + `acoes_disponiveis`). #196/#197/#198 independentes entre si, sequenciais só pelo banco. Implementação sempre sequencial (banco PostgreSQL único).
 8. **#172** — destravada (a #185 documentou a gramática de formas). `ready-for-human`.
 9. ~~**#176, metade de permissão** — quem é o dono da importação SCPI.~~ **Feito e fechada — PR #63.** Domínio decidiu: chefe de almoxarifado. Gerou #178, #179, #180.
-10. **#170** — quando o chefe de almoxarifado responder.
-11. **#171** — quando o export real chegar. Cada quebra vira issue própria.
-12. **#169** — medir a rede do piloto e decidir. `wontfix` consciente é o desfecho provável.
-13. **#174** — a maior. Primeira a cortar do escopo se o piloto apertar.
-14. **#179, #180** — `needs-info`, esperando decisão de domínio (ver "Disparar cedo"). Sem código antes da resposta.
+10. **#170** — destravada 2026-09-10. Shape: recusar⇒rascunho, cancelar⇒anular (criador/chefe), gate de entrega. Roda fora da fila da onda 7.
+11. **#171** — destravada 2026-09-10, CSV real anexado. Medir o arquivo; cada quebra vira issue própria. Não ocupa slot de implementação.
+12. **#179** — shape completo 2026-09-10. Falta decisão A/B (quantidade-contra-agregado vs model `Devolucao`) antes de abrir branch.
+13. **#180** — shape completo 2026-09-10, liberada. Op de domínio completa: policy + service (`reativar_material`) + UI em `lista_materiais.html` + testes.
+14. **#169** — medir a rede do piloto e decidir. `wontfix` consciente é o desfecho provável.
+15. **#174** — a maior. Primeira a cortar do escopo se o piloto apertar.
 
 ## Dependências
 
@@ -320,10 +353,10 @@ Todos os candidatos da remedição foram para uma fatia. Nada ficou sem dono:
 Itens 8 e 9 têm lead time humano e **zero trabalho de código antes da resposta**. Mande os pedidos assim que a fila começar, e siga pelos itens 1 a 6 enquanto chegam:
 
 - ~~**#176 metade 2** — quem é o dono da importação SCPI?~~ **Respondido: chefe de almoxarifado.** PR #63, issue fechada.
-- **#170** — "recusa" e "cancelamento" diferem no vocabulário de auditoria do almoxarifado?
-- **#171** — alguém com acesso ao SCPI produzir um export real.
-- **#179** — estorno de devolução entra no MVP ou fica pra depois do piloto?
-- **#180** — inativar material ganha UI de produto, ou a matriz L74/§3 recua pra só-superusuário (admin do Django)?
+- ~~**#170** — "recusa" e "cancelamento" diferem?~~ **Respondido 2026-09-10:** sim, operações distintas. Recusar mescla com retornar-para-rascunho; cancelar é anular (criador ou chefe), proibido pós-entrega.
+- ~~**#171** — export real do SCPI.~~ **Recebido 2026-09-10:** `todos_itens_cadastrados_de_marco_ate_setembro.csv` anexado na issue.
+- ~~**#179** — estorno de devolução entra no MVP?~~ **Respondido 2026-09-10: Entra.**
+- ~~**#180** — inativar material: UI de produto ou recuar matriz?~~ **Respondido 2026-09-10: UI de produto.**
 
 ## Regras de coordenação
 
@@ -332,7 +365,7 @@ Itens 8 e 9 têm lead time humano e **zero trabalho de código antes da resposta
 - ~~**#173 é guarda-chuva, não issue.**~~ **Fatiada em #184/#185/#186/#187.** #185, #186 e #187 fechadas; fica aberta como capa até a **#184** fechar.
 - ~~**Merge não fecha issue de outro remote.**~~ **Revogada em 2026-09-08**, quando os PRs passaram a nascer no `origin`. Com PR e issue no mesmo repo, `Closes #N` fecha a issue no merge — sem passo manual. O incidente das quatro issues abertas por quatro dias fica como histórico na seção "Ondas 4 e 5", não como regra ativa. **Vale só se algum PR voltar a nascer no fork:** aí o auto-close não cruza e o fechamento manual volta a ser obrigatório.
 - **O gate de review mudou de dono.** O CodeRabbit responde no `origin` (validado na #188, 3 achados), mas o plano dá **1 review por hora** — e o check `CodeRabbit` pode aparecer `pass` com "Review skipped" sem ter revisado nada. Não confundir check verde com review feita; conferir se há comentários antes de tratar o gate como cumprido.
-- **#169, #170 e #171 não são tarefas de código** — são uma medição, uma pergunta e um pedido. Não devem ocupar slot de implementação.
+- **#169 e #171 não são tarefas de código** — uma medição da rede e a medição do CSV real. Não devem ocupar slot de implementação. (#170 **passou a ser** tarefa de código depois da decisão de 2026-09-10.)
 - **#174 é dívida declarada com produção correta.** Primeira a sair do escopo sob pressão de prazo. A #168 fica só porque é barata.
 - Uma branch por issue, nunca commit direto na `main`; vocabulário de triagem em `docs/agents/triage-labels.md`.
 
