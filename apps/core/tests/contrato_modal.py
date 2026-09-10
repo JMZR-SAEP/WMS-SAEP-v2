@@ -99,7 +99,6 @@ REGISTRO_CONTRATO_MODAL: dict[str, str] = {
     'requisicoes:confirmar_importacao_scpi': 'requisicoes',
     'requisicoes:enviar_rascunho': 'requisicoes',
     'requisicoes:estornar': 'requisicoes',
-    'requisicoes:recusar': 'requisicoes',
     'requisicoes:registrar_devolucao': 'requisicoes',
     'requisicoes:retornar_rascunho': 'requisicoes',
     'requisicoes:separar_retirada': 'requisicoes',

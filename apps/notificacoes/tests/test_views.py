@@ -245,7 +245,7 @@ def test_contagem_do_sino_bate_com_a_fila_de_autorizacao(
             EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
             EstadoRequisicao.ATENDIDA,
             EstadoRequisicao.CANCELADA,
-            EstadoRequisicao.RECUSADA,
+            EstadoRequisicao.ESTORNADA,
         ]
     ):
         requisicao = Requisicao.objects.create(
@@ -521,7 +521,7 @@ class TestCartaoReconsultaOEstado:
         não uma caixa de entrada — a chamada à ação já tem duas telas dedicadas.
         """
         requisicao = self._requisicao(
-            EstadoRequisicao.RECUSADA, solicitante, setor_obras, 'REQ-2026-000304'
+            EstadoRequisicao.CANCELADA, solicitante, setor_obras, 'REQ-2026-000304'
         )
         Notificacao.objects.create(
             destinatario=chefe_obras,

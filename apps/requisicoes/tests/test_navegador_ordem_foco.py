@@ -98,11 +98,14 @@ def rascunho_do_solicitante(db, solicitante, setor_obras, material_disponivel):
 
 
 @pytest.fixture
-def recusada_do_solicitante(db, solicitante, setor_obras, material_disponivel):
-    """Requisição recusada do próprio criador — habilita a tela de cópia, cuja
-    pilha de ações é Cancelar (secundária) + Criar rascunho (primária)."""
+def atendida_do_solicitante(db, solicitante, setor_obras, material_disponivel):
+    """Requisição atendida do próprio criador — habilita a tela de cópia, cuja
+    pilha de ações é Cancelar (secundária) + Criar rascunho (primária).
+
+    Desde a issue #170, ATENDIDA é a única origem copiável (a antiga
+    "recusada" virou rascunho, não estado terminal)."""
     req = Requisicao.objects.create(
-        estado=EstadoRequisicao.RECUSADA,
+        estado=EstadoRequisicao.ATENDIDA,
         numero_publico='REQ-2026-0001',
         criador=solicitante,
         beneficiario=solicitante,
@@ -213,11 +216,11 @@ def test_modal_footer_a_ordem_visual_bate_com_a_de_foco_a_375(
 
 
 def test_copiar_confirmacao_a_ordem_visual_bate_com_a_de_foco_a_375(
-    abrir_pagina, solicitante, recusada_do_solicitante
+    abrir_pagina, solicitante, atendida_do_solicitante
 ):
     """Mesmo defeito, `requisicoes/copiar_confirmacao.html`."""
     page = abrir_pagina(
-        solicitante, f'/requisicoes/{recusada_do_solicitante.pk}/copiar/'
+        solicitante, f'/requisicoes/{atendida_do_solicitante.pk}/copiar/'
     )
     container = 'form[action*="/copiar/"] > div'
     page.wait_for_selector(container)

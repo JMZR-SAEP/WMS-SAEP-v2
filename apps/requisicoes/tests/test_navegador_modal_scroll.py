@@ -22,7 +22,7 @@ diálogo modal é o top layer, que é estado do navegador e não do documento.
 
 A marcação fica na lane de baixo: o atributo `open` no HTML é cobrado por
 `apps/core/tests/test_modal.py` (componente) e por
-`test_recusar_sem_motivo_sem_htmx_devolve_o_dialogo_ja_aberto` em
+`test_retornar_chefe_sem_motivo_sem_htmx_devolve_o_dialogo_ja_aberto` em
 `test_views.py` (a resposta real da view, que é onde a regressão apareceria).
 """
 
@@ -48,8 +48,9 @@ def req_para_decisao(db, solicitante, setor_obras, material_disponivel):
     """Requisição aguardando autorização — a tela do chefe do setor.
 
     Dá os dois modais de que esta lane precisa na mesma página:
-    `confirmar-autorizar`, que abre por trigger, e `confirmar-recusar`, que é o
-    único do sistema que a view devolve aberto pelo servidor.
+    `confirmar-autorizar`, que abre por trigger, e `confirmar-retornar`
+    (variante "recusar", chefe é terceiro — issue #170), que é o único do
+    sistema que a view devolve aberto pelo servidor.
     """
     req = Requisicao.objects.create(
         estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
@@ -87,14 +88,14 @@ def pagina_de_decisao(live_server, context, page, chefe_obras, req_para_decisao)
 # que importa para o teste é o que o servidor devolve e o que o navegador faz
 # com a resposta, e as duas coisas são reais.
 _POSTAR_SEM_HTMX = """
-  ({ acao, motivo }) => {
+  ({ acao, observacao }) => {
     const origem = document.querySelector(`form[action="${acao}"]`);
     const form = document.createElement('form');
     form.method = 'post';
     form.action = acao;
     for (const [nome, valor] of [
       ['csrfmiddlewaretoken', origem.elements.csrfmiddlewaretoken.value],
-      ['motivo', motivo],
+      ['observacao', observacao],
     ]) {
       const campo = document.createElement('input');
       campo.type = 'hidden';
@@ -154,19 +155,20 @@ def test_dialogo_entregue_aberto_pelo_servidor_vira_modal_com_o_erro_a_vista(
     ou seja, `display: none`, com a tela parecendo que nada aconteceu.
     """
     pagina = pagina_de_decisao
-    acao = reverse('requisicoes:recusar', kwargs={'pk': req_para_decisao.pk})
+    acao = reverse('requisicoes:retornar_rascunho', kwargs={'pk': req_para_decisao.pk})
 
-    pagina.evaluate(_POSTAR_SEM_HTMX, {'acao': acao, 'motivo': ' '})
+    # Chefe é terceiro (não dono): motivo obrigatório (issue #170).
+    pagina.evaluate(_POSTAR_SEM_HTMX, {'acao': acao, 'observacao': ' '})
     pagina.wait_for_url(f'{live_server.url}{acao}')
 
-    dialogo = pagina.locator('dialog#confirmar-recusar')
+    dialogo = pagina.locator('dialog#confirmar-retornar')
     assert dialogo.locator('[data-modal-erro]').is_visible(), (
         'A caixa de erro voltou dentro de um diálogo fechado: a recusa foi '
         'rejeitada e a tela não diz nada.'
     )
 
     pagina.wait_for_function(
-        "document.getElementById('confirmar-recusar').matches(':modal')"
+        "document.getElementById('confirmar-retornar').matches(':modal')"
     )
     pagina.wait_for_function(f"{_OVERFLOW} === 'hidden'")
 
@@ -181,7 +183,7 @@ def test_dialogo_entregue_aberto_pelo_servidor_vira_modal_com_o_erro_a_vista(
     # normal. Um diálogo que ficasse com o atributo `open` do servidor além do
     # `showModal()` continuaria na tela depois do `close()`.
     pagina.keyboard.press('Escape')
-    pagina.wait_for_function("!document.getElementById('confirmar-recusar').open")
+    pagina.wait_for_function("!document.getElementById('confirmar-retornar').open")
     pagina.wait_for_function(f"{_OVERFLOW} !== 'hidden'")
 
 
@@ -194,11 +196,11 @@ def test_o_corpo_do_modal_contem_a_propria_rolagem(pagina_de_decisao):
     qual dos dois elementos rola.
     """
     pagina = pagina_de_decisao
-    _abrir_por_trigger(pagina, 'confirmar-recusar')
+    _abrir_por_trigger(pagina, 'confirmar-retornar')
 
     rolagem = pagina.evaluate("""
       () => {
-        const dialogo = document.getElementById('confirmar-recusar');
+        const dialogo = document.getElementById('confirmar-retornar');
         const corpo = dialogo.querySelector('.overflow-y-auto');
         return {
           dialogoRola: dialogo.scrollHeight > dialogo.clientHeight,

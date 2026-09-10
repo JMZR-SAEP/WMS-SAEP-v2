@@ -6,11 +6,17 @@ registrada falha em `core/tests/test_contrato_modal.py`. Juntas, as duas pontas
 fazem com que um modal novo não consiga nascer fora do contrato.
 
 A carga de cada cenário busca o **ramo de erro** da rota — é onde as violações
-desta issue viviam —, e todas as nove chegam lá. Quatro terminam em 422; as
-outras cinco em 204 para o detalhe, com a transição recusada e mensagem. Como
-essas cinco respondem o mesmo que o caminho feliz responderia, `muta=False` no
+desta issue viviam —, e todas as oito chegam lá. Quatro terminam em 422; as
+outras quatro em 204 para o detalhe, com a transição recusada e mensagem. Como
+essas quatro respondem o mesmo que o caminho feliz responderia, `muta=False` no
 cenário faz o eixo HTMX conferir que nada foi gravado: sem isso elas seriam
 tautológicas.
+
+`retornar_rascunho` absorveu a antiga rota `recusar` como variante de evento
+(issue #170): o cenário deste app cobre o ramo `DadosInvalidos` (motivo
+obrigatório quando quem decide não é o dono do pedido), que é o que exercita o
+corpo do modal — o ramo `EstadoInvalido` (requisição que já está em rascunho)
+é assunto de `test_services.py`, não do contrato HTTP do modal.
 
 Nenhum cenário usa `RASCUNHO` para `autorizar`/`separar_retirada`, e não é
 descuido: rascunho de terceiro não é visível ao selector desses atores, então a
@@ -130,10 +136,10 @@ def _cenario_estado_recusado(
 def _cenario_autorizar(request) -> CenarioModal:
     """Requisição já atendida: a transição é recusada, nada muda.
 
-    A policy de autorizar (`policies.py`, via `pode_recusar_requisicao`) só olha
-    `setor_chefiado_ativo_id` e não lê o estado, então o estado errado chega ao
-    service e vira erro de transição — não 403. Só `RASCUNHO` daria 404, por
-    não ser visível ao chefe.
+    A policy de autorizar (`policies.py`, via `_eh_chefe_do_setor_beneficiario`)
+    só olha `setor_chefiado_ativo_id` e não lê o estado, então o estado errado
+    chega ao service e vira erro de transição — não 403. Só `RASCUNHO` daria
+    404, por não ser visível ao chefe.
     """
     return _cenario_estado_recusado(
         request,
@@ -145,15 +151,23 @@ def _cenario_autorizar(request) -> CenarioModal:
 
 
 def _cenario_retornar_rascunho(request) -> CenarioModal:
-    # Rascunho já é rascunho: a transição é recusada. O ator é o criador porque
-    # a policy exige criador ou beneficiário — com outro ator a resposta seria
-    # 403, que não diz nada sobre o contrato do corpo do modal.
-    return _cenario_estado_recusado(
-        request,
-        'requisicoes:retornar_rascunho',
-        EstadoRequisicao.RASCUNHO,
-        'solicitante',
+    """Motivo vazio numa requisição decidida pelo chefe (issue #170): `DadosInvalidos` → 422.
+
+    `retornar_rascunho` absorveu a antiga rota `recusar` como variante — o
+    ator não é dono do pedido (aqui, o chefe do setor do beneficiário), então
+    o service exige motivo. O dono ajustando o próprio pedido (motivo
+    opcional) não produz erro de validação e por isso não serve de cenário
+    para este contrato.
+    """
+    requisicao = _requisicao(request, EstadoRequisicao.AGUARDANDO_AUTORIZACAO)
+    return CenarioModal(
+        url=reverse('requisicoes:retornar_rascunho', args=[requisicao.pk]),
+        payload={'observacao': ''},
+        destino_esperado=None,
+        ler_estado=lambda: _le_requisicao(requisicao.pk),
+        ator=request.getfixturevalue('chefe_obras'),
         modal_id='confirmar-retornar',
+        url_render_inicial=_detalhe(requisicao.pk),
     )
 
 
@@ -194,20 +208,6 @@ def _cenario_cancelar(request) -> CenarioModal:
         'solicitante',
         modal_id='confirmar-cancelar',
         payload={'justificativa': 'Motivo.'},
-    )
-
-
-def _cenario_recusar(request) -> CenarioModal:
-    """Motivo vazio numa requisição recusável: `DadosInvalidos` → 422."""
-    requisicao = _requisicao(request, EstadoRequisicao.AGUARDANDO_AUTORIZACAO)
-    return CenarioModal(
-        url=reverse('requisicoes:recusar', args=[requisicao.pk]),
-        payload={'motivo': ''},
-        destino_esperado=None,
-        ler_estado=lambda: _le_requisicao(requisicao.pk),
-        ator=request.getfixturevalue('chefe_obras'),
-        modal_id='confirmar-recusar',
-        url_render_inicial=_detalhe(requisicao.pk),
     )
 
 
@@ -277,7 +277,6 @@ CONSTRUTORAS = {
     'requisicoes:confirmar_importacao_scpi': _cenario_confirmar_importacao_scpi,
     'requisicoes:enviar_rascunho': _cenario_enviar_rascunho,
     'requisicoes:estornar': _cenario_estornar,
-    'requisicoes:recusar': _cenario_recusar,
     'requisicoes:registrar_devolucao': _cenario_registrar_devolucao,
     'requisicoes:retornar_rascunho': _cenario_retornar_rascunho,
     'requisicoes:separar_retirada': _cenario_separar_retirada,
@@ -314,9 +313,9 @@ def test_resposta_htmx_cabe_na_caixa_do_modal(db, request, client, rota):
             modal_id=cenario.modal_id,
         )
     if not cenario.muta:
-        # `cancelar` em ATENDIDA, `retornar_rascunho` em RASCUNHO e
+        # `autorizar`/`separar_retirada`/`cancelar` em ATENDIDA e
         # `enviar_rascunho` sem item respondem 204 para o detalhe — igual ao
-        # caminho feliz. Sem esta linha, os três seguiriam verdes se a
+        # caminho feliz. Sem esta linha, os quatro seguiriam verdes se a
         # transição que deviam recusar passasse a acontecer.
         assert cenario.ler_estado() == antes, (
             f'{rota}: cenário declarado como sem mutação, mas o estado mudou.'

@@ -30,7 +30,6 @@ urlpatterns = [
         views.retornar_rascunho_view,
         name='retornar_rascunho',
     ),
-    path('<int:pk>/recusar/', views.recusar_requisicao_view, name='recusar'),
     path('<int:pk>/copiar/', views.copiar_requisicao_view, name='copiar'),
     path('<int:pk>/estornar/', views.estornar_requisicao_view, name='estornar'),
     path(

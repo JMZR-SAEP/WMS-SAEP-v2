@@ -45,7 +45,7 @@ def req_para_decisao(db, solicitante, setor_obras, material_disponivel):
     """Requisição aguardando autorização — a tela do chefe do setor.
 
     Dá os dois modais de que esta lane precisa na mesma página:
-    `confirmar-autorizar` não tem campo nenhum, e `confirmar-recusar` abre com
+    `confirmar-autorizar` não tem campo nenhum, e `confirmar-retornar` abre com
     uma textarea obrigatória, que é onde há texto a perder.
     """
     req = Requisicao.objects.create(
@@ -106,19 +106,21 @@ def test_modal_nao_fecha_com_o_post_em_voo_e_o_422_e_visto(
     `role="alert"` seria anunciado num nó que não está renderizado.
     """
     page = pagina_de_decisao
-    url_recusar = reverse('requisicoes:recusar', kwargs={'pk': req_para_decisao.pk})
+    url_retornar = reverse(
+        'requisicoes:retornar_rascunho', kwargs={'pk': req_para_decisao.pk}
+    )
 
     # Segura a rota em vez de dormir: a resposta só sai quando o teste mandar,
     # então a janela de "em voo" é determinística e não depende da velocidade do
     # CI. Uma soneca fixa passaria num runner lento mesmo com a regressão de
     # volta.
     presas = []
-    page.route(f'**{url_recusar}', lambda rota: presas.append(rota))
+    page.route(f'**{url_retornar}', lambda rota: presas.append(rota))
 
-    dialogo = _abrir(page, 'confirmar-recusar')
+    dialogo = _abrir(page, 'confirmar-retornar')
     dialogo.locator('[data-modal-confirm]').click()
     page.wait_for_function(
-        "() => document.querySelector('dialog#confirmar-recusar form')"
+        "() => document.querySelector('dialog#confirmar-retornar form')"
         ".dataset.submitting === '1'"
     )
 
@@ -148,12 +150,12 @@ def test_modal_nao_fecha_com_o_post_em_voo_e_o_422_e_visto(
     # Motivo vazio: a view responde 422 e o corpo do modal volta com a caixa de
     # erro. É o desfecho que as duas tentativas de fechamento teriam escondido.
     presas[0].continue_()
-    page.wait_for_selector('dialog#confirmar-recusar [data-modal-erro]')
+    page.wait_for_selector('dialog#confirmar-retornar [data-modal-erro]')
     assert dialogo.evaluate('(d) => d.open')
 
     # E, terminada a requisição, o modal volta a fechar normalmente.
     page.keyboard.press('Escape')
-    page.wait_for_function("() => !document.getElementById('confirmar-recusar').open")
+    page.wait_for_function("() => !document.getElementById('confirmar-retornar').open")
 
 
 def test_erro_de_servidor_dentro_do_modal_vira_mensagem_visivel(
@@ -204,8 +206,8 @@ def test_arrasto_de_selecao_que_termina_no_backdrop_nao_fecha_o_modal(
     `<dialog>`: sem a ancoragem no `mousedown`, ele é lido como "clicou fora".
     """
     page = pagina_de_decisao
-    dialogo = _abrir(page, 'confirmar-recusar')
-    motivo = dialogo.locator('#modal-recusar-motivo')
+    dialogo = _abrir(page, 'confirmar-retornar')
+    motivo = dialogo.locator('#modal-retornar-observacao')
     motivo.fill('Material já atendido por outra requisição do mesmo setor.')
 
     caixa_do_campo = motivo.bounding_box()
@@ -250,8 +252,8 @@ def test_backdrop_fica_inerte_com_texto_digitado_mas_esc_e_voltar_continuam(
     do `mouse.down/up` cru.
     """
     page = pagina_de_decisao
-    dialogo = _abrir(page, 'confirmar-recusar')
-    dialogo.locator('#modal-recusar-motivo').fill('Duplicidade com REQ-2026-9001.')
+    dialogo = _abrir(page, 'confirmar-retornar')
+    dialogo.locator('#modal-retornar-observacao').fill('Duplicidade com REQ-2026-9001.')
 
     _clicar_no_backdrop(page, dialogo)
     assert dialogo.evaluate('(d) => d.open'), (
@@ -265,7 +267,7 @@ def test_backdrop_fica_inerte_com_texto_digitado_mas_esc_e_voltar_continuam(
     ), 'O backdrop recusou o fechamento sem dizer por onde sair.'
 
     dialogo.locator('[data-modal-dismiss]').click()
-    page.wait_for_function("() => !document.getElementById('confirmar-recusar').open")
+    page.wait_for_function("() => !document.getElementById('confirmar-retornar').open")
 
 
 def test_backdrop_continua_fechando_o_modal_sem_texto_digitado(pagina_de_decisao):
