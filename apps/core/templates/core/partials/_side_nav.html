@@ -15,7 +15,7 @@ Itens/ícones vêm de core_tags.secoes_navegacao — fonte única com _topbar_na
     <li>
       <a
         href="{% url item.url_name %}"
-        class="flex min-h-11 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium {% if current in item.url_names_ativos %}bg-bg-subtle text-text-primary{% else %}text-text-secondary hover:bg-bg-page{% endif %}"
+        class="flex min-h-11 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1 {% if current in item.url_names_ativos %}bg-bg-subtle text-text-primary{% else %}text-text-secondary hover:bg-bg-page{% endif %}"
         {% if current in item.url_names_ativos %}aria-current="page"{% endif %}
       >
         <svg class="h-5 w-5 shrink-0 text-text-disabled" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">

@@ -330,6 +330,14 @@
       {# Wrapper estável do swap HTMX: alvo persistente. O fragmento `resultados` entrega só o conteúdo interno. #}
       <div id="resultados-preview-scpi">
       {% partialdef resultados %}
+      {% comment %}
+        Heading de região: dá a leitor de tela um alvo de salto para o conteúdo
+        real da tela — as linhas do arquivo. Vive DENTRO do partial porque o
+        swap HTMX troca o innerHTML de #resultados-preview-scpi; fora dele, o
+        heading sumiria no primeiro recorte por chip. O `<h2 sr-only>` que saiu
+        na #167 nomeava a legenda, não os resultados (issue #186, anexo #167).
+      {% endcomment %}
+      <h2 class="sr-only">Linhas do arquivo SCPI</h2>
       {% if not linhas %}
         {% url 'estoque:preview_importacao_scpi' as url_preview_sem_recorte %}
         {% include 'components/empty_state.html' with icone='components/icons/_funil.html' titulo='Nenhuma linha neste recorte' descricao='O arquivo não tem linhas com o status selecionado.' cta_url=url_preview_sem_recorte cta_label='Ver todas as linhas' cta_secundario=True %}
@@ -344,7 +352,17 @@
               {% else %}border-border bg-surface{% endif %}"
           >
             <div class="flex flex-wrap items-start justify-between gap-3">
-              <code class="font-mono text-sm font-semibold text-text-primary">{{ linha.cadpro }}</code>
+              {% comment %}
+                O CADPRO é o título do cartão — heading de verdade, não só um
+                `<code>` estilizado, para leitor de tela navegar linha a linha
+                (padrão de cartão em docs/design-system.md; mesmo que
+                `lista_materiais.html` e `historico_movimentacoes.html`). O
+                `<code>` fica por dentro: é um identificador, e a grafia
+                monoespaçada é dele.
+              {% endcomment %}
+              <h2 class="min-w-0">
+                <code class="font-mono text-sm font-semibold text-text-primary">{{ linha.cadpro }}</code>
+              </h2>
               <span class="shrink-0">
                 {% if linha.status == 'ok' %}
                   {% include "components/badge.html" with variant="green" label="OK" %}

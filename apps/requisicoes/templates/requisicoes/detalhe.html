@@ -261,13 +261,17 @@
           </p>
         </div>
         {% comment %}
-          Ordem do DOM: destrutiva, secundária, primária. No desktop lê-se da
-          esquerda para a direita e a primária fica na ponta; no mobile o
-          `flex-col-reverse` inverte e a primária sobe para o topo da pilha,
-          com a destrutiva no fim. `whitespace-nowrap` porque o cabeçalho divide
-          a linha com o texto e sem ele os labels quebram em duas linhas.
+          Ordem do DOM = ordem de leitura = ordem de foco, em toda largura
+          (DESIGN.md §Layout, A Regra da Pilha que Segue o DOM): destrutiva,
+          secundária, primária. No mobile a pilha em `flex-col` desce nessa
+          mesma ordem — a primária no pé, ao alcance do polegar; no desktop
+          `sm:flex-row` alinha na horizontal, primária na ponta direita. Sem
+          `flex-col-reverse`: ele fazia o olho ler `[Enviar, Editar, Descartar]`
+          enquanto o Tab visitava `[Descartar, Editar, Enviar]` a <640px (falha
+          WCAG 2.4.3). `whitespace-nowrap` porque o cabeçalho divide a linha com
+          o texto e sem ele os labels quebram em duas linhas.
         {% endcomment %}
-        <div class="flex shrink-0 flex-col-reverse gap-2 sm:flex-row sm:items-center">
+        <div class="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center">
           {% if pode_cancelar and cancelamento_inline %}
             {% cancelamento_copy cancelamento_info requisicao.estado as cancelamento_copy_texto %}
             <div x-data="modalController({ id: 'confirmar-cancelar', focoFallbackSeletor: '.app-bar__title' })">

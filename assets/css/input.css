@@ -460,6 +460,18 @@
     color: inherit;
   }
 
+  /*
+    A marca é um link (para a tela inicial) e caía no anel default do navegador,
+    enquanto todo irmão da barra — nav-icon, nav-toggle, action, action-icon —
+    já declara o seu. Mesma gramática de foco desses irmãos: anel branco por
+    `outline`, não o anel azul de `border-focus`, porque a barra tem fundo
+    próprio (DESIGN.md §Navigation).
+  */
+  .app-bar__brand:focus-visible {
+    outline: 2px solid var(--app-bar-focus-ring);
+    outline-offset: 2px;
+  }
+
   .app-bar__logo {
     width: 1.75rem;
     height: 1.75rem;
@@ -668,6 +680,25 @@
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
+    /*
+      Pista de que o painel rola. A `max-height` + `overflow-y` vêm da df20393f;
+      faltava o sinal visual quando o conteúdo excede a altura (a navegação
+      completa a 375px empurra o bloco Conta e "Sair" para fora da dobra).
+      Mesmo mecanismo do `.scroll-shadow-x` das tabelas: as camadas de cobertura
+      (`background-attachment: local`) acompanham o conteúdo e escondem a sombra
+      na ponta; as camadas de sombra (`scroll`) ficam presas à caixa. Resultado:
+      sombra no topo só quando há conteúdo acima, sombra na base só quando há
+      conteúdo abaixo.
+    */
+    background-image:
+      linear-gradient(var(--color-surface) 30%, rgb(255 255 255 / 0)),
+      linear-gradient(rgb(255 255 255 / 0), var(--color-surface) 70%),
+      radial-gradient(farthest-side at 50% 0, rgb(0 0 0 / 0.12), rgb(0 0 0 / 0)),
+      radial-gradient(farthest-side at 50% 100%, rgb(0 0 0 / 0.12), rgb(0 0 0 / 0));
+    background-position: top center, bottom center, top center, bottom center;
+    background-size: 100% 1.5rem, 100% 1.5rem, 100% 0.5rem, 100% 0.5rem;
+    background-repeat: no-repeat;
+    background-attachment: local, local, scroll, scroll;
   }
 
   /* Variant: drawer ancorado pela esquerda (quando hamburger está à esquerda) */

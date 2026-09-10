@@ -3744,3 +3744,69 @@ def test_cabecalho_de_cartao_nao_vira_linha_antes_de_xl():
         'cabeçalho de cartão em linha antes de `xl` — o carimbo de estado muda '
         f'de posição entre cartões vizinhos. Ver DESIGN.md: {infratores}'
     )
+
+
+class TestFocoVisivelNaNavegacao:
+    """Anel de foco autoral na navegação primária (fatia c da #173, issue #186).
+
+    O contrato de foco do sistema (`docs/design-system.md` §Foco, `DESIGN.md`
+    §Do's) manda **todo** controle declarar o seu `focus-visible` — remover o
+    `outline` nativo só se admite porque o anel o substitui. Os 11 links da
+    sidebar de desktop (`core/partials/_side_nav.html`) e a marca da barra de
+    aplicação (`.app-bar__brand`) eram a lacuna: caíam no anel default do
+    navegador, enquanto todo botão e todo irmão da barra já traziam o próprio.
+    Não era falha WCAG (não há reset global de `outline`), era inconsistência.
+    """
+
+    RAIZ = Path(__file__).resolve().parents[3]
+    ANEL_CANONICO = (
+        'focus-visible:outline-none',
+        'focus-visible:ring-2',
+        'focus-visible:ring-border-focus',
+        'focus-visible:ring-offset-1',
+    )
+
+    def test_todo_link_da_sidebar_declara_o_anel_canonico(self):
+        texto = (
+            self.RAIZ / 'apps/core/templates/core/partials/_side_nav.html'
+        ).read_text()
+        links = list(elementos(texto, 'a'))
+        assert links, 'nenhum <a> em _side_nav.html — a varredura ficou cega'
+        for _, atributos, numero in links:
+            classe = classes(atributos)
+            faltando = [c for c in self.ANEL_CANONICO if c not in classe]
+            assert not faltando, (
+                f'_side_nav.html:{numero} — link de navegação sem {faltando}'
+            )
+
+    def test_marca_da_barra_declara_foco_visivel_no_css_fonte(self):
+        """A marca é link e vive na barra: gramática de foco dos irmãos dela.
+
+        Anel branco por `outline` (`--app-bar-focus-ring`), não o anel azul de
+        `border-focus` — a barra tem fundo próprio (DESIGN.md §Navigation), e
+        `.app-bar__nav-icon` / `__action` / `__action-icon` já resolvem assim.
+        """
+        css = (self.RAIZ / 'assets/css/input.css').read_text()
+        assert '.app-bar__brand:focus-visible {' in css, (
+            '.app-bar__brand não declara :focus-visible em input.css'
+        )
+        posicao = css.index('.app-bar__brand:focus-visible {')
+        bloco = css[posicao : css.index('}', posicao)]
+        assert 'outline:' in bloco and '--app-bar-focus-ring' in bloco, (
+            f'anel da marca fora da gramática da barra: {bloco}'
+        )
+
+    def test_marca_da_barra_esta_compilada_no_app_css(self):
+        """O passo `make css-build` que o AGENTS.md não menciona.
+
+        Mesmo mecanismo de `TestEmptyStateMedidaDaProsa`: procurar o seletor no
+        bundle, não só o nome. Sem a guarda, esquecer o build deixa a marca sem
+        anel em produção com a suíte verde.
+        """
+        css = (self.RAIZ / 'apps/core/static/core/css/app.css').read_text()
+        posicao = css.find('.app-bar__brand:focus-visible{')
+        assert posicao != -1, (
+            '.app-bar__brand:focus-visible não está em app.css — rode `make css-build`'
+        )
+        bloco = css[posicao : css.index('}', posicao)]
+        assert 'outline:' in bloco, f'seletor compilado sem `outline`: {bloco}'
