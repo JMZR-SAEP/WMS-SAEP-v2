@@ -44,8 +44,9 @@ def req_para_decisao(db, solicitante, setor_obras, material_disponivel):
     """Requisição aguardando autorização — a tela do chefe do setor.
 
     Dá acesso, numa página só, aos dois lados da regra: `confirmar-autorizar`
-    não tem campo nenhum, `confirmar-recusar` abre com textarea obrigatória e
-    responde 422 quando o motivo vem vazio.
+    não tem campo nenhum, `confirmar-retornar` (decidido pelo chefe, issue
+    #170) abre com textarea obrigatória e responde 422 quando o motivo vem
+    vazio.
     """
     req = Requisicao.objects.create(
         estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
@@ -189,9 +190,9 @@ def test_modal_com_campo_abre_o_foco_no_primeiro_campo(
         chefe_obras, reverse('requisicoes:detalhe', kwargs={'pk': req_para_decisao.pk})
     )
 
-    foco = _abrir_modal(page, 'confirmar-recusar')
+    foco = _abrir_modal(page, 'confirmar-retornar')
 
-    assert foco['id'] == 'modal-recusar-motivo', (
+    assert foco['id'] == 'modal-retornar-observacao', (
         f'Foco esperado na textarea de motivo, veio em {foco}.'
     )
 
@@ -207,17 +208,17 @@ def test_re_render_422_leva_o_foco_ao_campo_invalido(
     page = abrir_pagina(
         chefe_obras, reverse('requisicoes:detalhe', kwargs={'pk': req_para_decisao.pk})
     )
-    _abrir_modal(page, 'confirmar-recusar')
+    _abrir_modal(page, 'confirmar-retornar')
 
-    dialogo = page.locator('dialog#confirmar-recusar')
+    dialogo = page.locator('dialog#confirmar-retornar')
     dialogo.locator('[data-modal-confirm]').click()
-    page.wait_for_selector('dialog#confirmar-recusar [data-modal-erro]')
+    page.wait_for_selector('dialog#confirmar-retornar [data-modal-erro]')
     page.wait_for_function(
         "() => document.activeElement.getAttribute('aria-invalid') === 'true'"
     )
 
     foco = page.evaluate(_DESCRICAO_DO_FOCO)
-    assert foco['invalido'] and foco['id'] == 'modal-recusar-motivo', (
+    assert foco['invalido'] and foco['id'] == 'modal-retornar-observacao', (
         f'Depois do 422 o foco tem que voltar ao campo em erro, veio em {foco}.'
     )
     assert dialogo.evaluate('(d) => d.open'), 'O 422 não pode fechar o diálogo.'
@@ -286,23 +287,23 @@ def test_abrir_sem_trigger_sem_alvo_no_dom_devolve_foco_ao_fallback_declarado(
         chefe_obras, reverse('requisicoes:detalhe', kwargs={'pk': req_para_decisao.pk})
     )
     page.evaluate(
-        '() => document.querySelector(\'[data-modal-trigger="confirmar-recusar"]\').remove()'
+        '() => document.querySelector(\'[data-modal-trigger="confirmar-retornar"]\').remove()'
     )
 
     page.evaluate(
-        "() => Alpine.$data(document.getElementById('confirmar-recusar')"
+        "() => Alpine.$data(document.getElementById('confirmar-retornar')"
         ".closest('[x-data]')).abrirSemTrigger()"
     )
-    page.wait_for_function("document.getElementById('confirmar-recusar').open")
+    page.wait_for_function("document.getElementById('confirmar-retornar').open")
     # Espera o `$nextTick` de `focarPrimeiroCampo` assentar antes de fechar —
     # senão o fechamento corre com ele e o foco pousado depois vence.
-    page.wait_for_function(_FOCO_ASSENTOU, arg='confirmar-recusar')
+    page.wait_for_function(_FOCO_ASSENTOU, arg='confirmar-retornar')
 
     # `Esc` é a via real do achado ("quem navega por teclado volta ao topo do
     # documento") — é no fechamento que `devolverFoco()` roda e o defeito
     # aparece.
     page.keyboard.press('Escape')
-    page.wait_for_function("!document.getElementById('confirmar-recusar').open")
+    page.wait_for_function("!document.getElementById('confirmar-retornar').open")
 
     # O foco final é aguardado, não lido uma vez só: `close()` do `<dialog>`
     # tem um passo nativo de restauração de foco que corre depois do evento
@@ -334,14 +335,14 @@ def test_trigger_removido_com_modal_ja_aberto_tambem_devolve_ao_fallback(
     page = abrir_pagina(
         chefe_obras, reverse('requisicoes:detalhe', kwargs={'pk': req_para_decisao.pk})
     )
-    _abrir_modal(page, 'confirmar-recusar')
+    _abrir_modal(page, 'confirmar-retornar')
 
     page.evaluate(
-        '() => document.querySelector(\'[data-modal-trigger="confirmar-recusar"]\').remove()'
+        '() => document.querySelector(\'[data-modal-trigger="confirmar-retornar"]\').remove()'
     )
 
-    page.locator('dialog#confirmar-recusar [data-modal-dismiss]').click()
-    page.wait_for_function("!document.getElementById('confirmar-recusar').open")
+    page.locator('dialog#confirmar-retornar [data-modal-dismiss]').click()
+    page.wait_for_function("!document.getElementById('confirmar-retornar').open")
     page.wait_for_function(
         "() => document.activeElement.classList.contains('app-bar__title')"
     )

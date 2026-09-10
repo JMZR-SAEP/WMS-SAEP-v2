@@ -23,7 +23,6 @@ from apps.requisicoes.policies import (
     pode_editar_rascunho,
     pode_enviar_rascunho,
     pode_estornar_requisicao,
-    pode_recusar_requisicao,
     pode_registrar_devolucao,
     pode_retornar_para_rascunho,
     pode_separar_para_retirada,
@@ -373,6 +372,27 @@ def test_terceiro_nao_pode_retornar_para_rascunho():
     assert pode_retornar_para_rascunho(OUTRO, req) is False
 
 
+def test_chefe_setor_pode_retornar_requisicao_do_setor():
+    """Issue #170: a condição do chefe é a mesma de autorizar — não abre alcance novo."""
+    req = _req(
+        EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+        criador_id=OUTRO_ID,
+        beneficiario_id=OUTRO_ID,
+        setor_beneficiario_id=SETOR_ID,
+    )
+    assert pode_retornar_para_rascunho(CHEFE_OBRAS, req) is True
+
+
+def test_chefe_almox_nao_pode_retornar_requisicao_de_outro_setor():
+    req = _req(
+        EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+        criador_id=OUTRO_ID,
+        beneficiario_id=OUTRO_ID,
+        setor_beneficiario_id=SETOR_ID,
+    )
+    assert pode_retornar_para_rascunho(CHEFE_ALMOX, req) is False
+
+
 # ---------------------------------------------------------------------------
 # pode_cancelar_requisicao
 # ---------------------------------------------------------------------------
@@ -431,7 +451,6 @@ def test_almox_pode_cancelar_pronta_para_retirada():
     [
         EstadoRequisicao.ATENDIDA,
         EstadoRequisicao.CANCELADA,
-        EstadoRequisicao.RECUSADA,
         EstadoRequisicao.ESTORNADA,
     ],
 )
@@ -453,13 +472,8 @@ def test_chefe_setor_nao_pode_cancelar_autorizada_de_outro_setor():
 
 
 # ---------------------------------------------------------------------------
-# pode_recusar_requisicao / pode_autorizar_requisicao
+# pode_autorizar_requisicao
 # ---------------------------------------------------------------------------
-
-
-def test_chefe_setor_pode_recusar_requisicao_do_setor():
-    req = _req(EstadoRequisicao.AGUARDANDO_AUTORIZACAO, setor_beneficiario_id=SETOR_ID)
-    assert pode_recusar_requisicao(CHEFE_OBRAS, req) is True
 
 
 def test_chefe_setor_pode_autorizar_requisicao_do_setor():
@@ -478,11 +492,6 @@ def test_chefe_almox_nao_pode_autorizar_requisicao_de_outro_setor():
     """Chefe de almox não é chefe de setor de obras → não pode autorizar."""
     req = _req(EstadoRequisicao.AGUARDANDO_AUTORIZACAO, setor_beneficiario_id=SETOR_ID)
     assert pode_autorizar_requisicao(CHEFE_ALMOX, req) is False
-
-
-def test_chefe_almox_nao_recusa_requisicao_de_outro_setor():
-    req = _req(EstadoRequisicao.AGUARDANDO_AUTORIZACAO, setor_beneficiario_id=SETOR_ID)
-    assert pode_recusar_requisicao(CHEFE_ALMOX, req) is False
 
 
 def test_superuser_pode_autorizar_qualquer_requisicao():
@@ -620,7 +629,7 @@ def test_aux_almox_nao_pode_atender_fora_de_pronta_para_retirada(estado):
 def test_solicitante_pode_copiar_propria_req():
     beneficiario = _user(pk=ATOR_ID, setor_id=SETOR_ID)
     req = _req(
-        EstadoRequisicao.RECUSADA,
+        EstadoRequisicao.ATENDIDA,
         criador_id=ATOR_ID,
         beneficiario_id=ATOR_ID,
         beneficiario=beneficiario,
@@ -631,7 +640,7 @@ def test_solicitante_pode_copiar_propria_req():
 def test_usuario_outro_setor_nao_pode_copiar():
     beneficiario = _user(pk=ATOR_ID, setor_id=SETOR_ID)
     req = _req(
-        EstadoRequisicao.RECUSADA,
+        EstadoRequisicao.ATENDIDA,
         criador_id=ATOR_ID,
         beneficiario_id=ATOR_ID,
         beneficiario=beneficiario,
@@ -643,7 +652,7 @@ def test_usuario_outro_setor_nao_pode_copiar():
 def test_superuser_pode_copiar():
     beneficiario = _user(pk=ATOR_ID, setor_id=SETOR_ID)
     req = _req(
-        EstadoRequisicao.RECUSADA,
+        EstadoRequisicao.ATENDIDA,
         criador_id=ATOR_ID,
         beneficiario_id=ATOR_ID,
         beneficiario=beneficiario,
@@ -654,7 +663,7 @@ def test_superuser_pode_copiar():
 def test_inativo_nao_pode_copiar():
     beneficiario = _user(pk=ATOR_ID, setor_id=SETOR_ID)
     req = _req(
-        EstadoRequisicao.RECUSADA,
+        EstadoRequisicao.ATENDIDA,
         criador_id=ATOR_ID,
         beneficiario_id=ATOR_ID,
         beneficiario=beneficiario,

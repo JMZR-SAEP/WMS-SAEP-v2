@@ -29,7 +29,11 @@ logger = logging.getLogger(__name__)
 
 #: Estados a partir dos quais a cópia é permitida. Fonte única — a view de
 #: confirmação consome esta constante em vez de repetir o conjunto.
-ESTADOS_COPIAVEIS = frozenset({EstadoRequisicao.ATENDIDA, EstadoRequisicao.RECUSADA})
+#:
+#: Só ATENDIDA desde a issue #170: RECUSADA deixou de existir como estado
+#: terminal (recusar virou variante de retornar para rascunho), então não há
+#: mais requisição "recusada" fora do rascunho para copiar.
+ESTADOS_COPIAVEIS = frozenset({EstadoRequisicao.ATENDIDA})
 
 
 @transaction.atomic
@@ -38,7 +42,7 @@ def copiar_requisicao(
     ator_id: int,
     requisicao_id: int,
 ) -> Requisicao:
-    """Cria rascunho copiando todos os itens de requisição atendida ou recusada.
+    """Cria rascunho copiando todos os itens de requisição atendida.
 
     REQ-09: não copia quantidade_autorizada nem quantidade_entregue.
     Itens inelegíveis são incluídos — elegibilidade é validada no envio (TR-005).
@@ -61,7 +65,7 @@ def copiar_requisicao(
 
     if origem.estado not in ESTADOS_COPIAVEIS:
         raise EstadoInvalido(
-            'Só é possível copiar requisições atendidas ou recusadas.',
+            'Só é possível copiar requisições atendidas.',
             code='estado_invalido',
         )
 

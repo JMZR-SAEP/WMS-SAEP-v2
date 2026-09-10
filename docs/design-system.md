@@ -258,7 +258,7 @@ formulário aparece.
 ```django
 {% erros_do_formulario form formset ancora_geral="sec-materiais" %}
 {% erros_do_formulario cabecalho formset acao="registrar o atendimento" ancora_geral="sec-itens" %}
-{% erros_do_formulario erro acao="recusar" id="confirmar-recusar-erro" focar=False %}
+{% erros_do_formulario erro acao="retornar" id="confirmar-retornar-erro" focar=False %}
 ```
 
 Fontes são Forms, FormSets e strings (a falha que a view já traduziu de uma
@@ -480,7 +480,7 @@ parâmetro, e três dos oito consumidores reais não passavam nada.
 |---|---|---|---|
 | `info` | círculo (`informacao.svg`), miolo "i" | azul | ação neutra, sem consequência a destacar |
 | `warning` | triângulo arredondado (`atencao.svg`) | âmbar | pede cuidado redobrado antes de confirmar |
-| `danger` | círculo (`alerta.svg`), miolo "!" | vermelho | recusar/cancelar: encerram a requisição, mas a trilha é append-only |
+| `danger` | círculo (`alerta.svg`), miolo "!" | vermelho | cancelar: encerra a requisição, mas a trilha é append-only |
 | `descarte` | lixeira | vermelho | reservada à única operação que remove um registro sem rastro (descarte de rascunho sem número público) |
 | `return` | seta de devolução | teal | devolução **e estorno** — reversão operacional, Regra da Reversão Não é Erro |
 
@@ -506,11 +506,10 @@ Mapa por consumidor (os 8 reais, não o componente isolado):
 |---|---|---|
 | descartar rascunho | `descarte` | única remoção sem rastro do sistema |
 | cancelar rascunho/requisição | `danger` | encerra, preserva o número público |
-| recusar requisição | `danger` | encerra, não reserva nem baixa estoque |
 | estornar requisição / estornar saída excepcional | `return` | reversão operacional; grava movimentação reversora, nunca vermelho |
 | registrar devolução | `return` | reversão operacional, nunca vermelho |
 | enviar / separar para retirada / autorizar | `info` | fluxo neutro, sem consequência a destacar |
-| retornar para rascunho | `warning` | pede ajuste, atenção redobrada |
+| retornar para rascunho (inclui a variante de recusa do chefe, issue #170) | `warning` | pede ajuste, atenção redobrada — nenhuma das duas variantes encerra a requisição |
 | confirmar registro de retirada | `warning` | baixa estoque físico, "não pode ser desfeita" |
 | confirmar importação SCPI | `danger` | única escrita irreversível declarada do sistema, sem aprovação humana depois |
 
@@ -883,7 +882,7 @@ documento"; o corpo responde "quanto isto move":
 
 | Modal | Identidade | Corpo |
 |---|---|---|
-| `confirmar-autorizar`, `confirmar-recusar`, `confirmar-retornar`, `confirmar-cancelar`, `confirmar-enviar`, `confirmar-separar` | número público (ou "Rascunho") · beneficiário · setor | campo da ação, quando há |
+| `confirmar-autorizar`, `confirmar-retornar`, `confirmar-cancelar`, `confirmar-enviar`, `confirmar-separar` | número público (ou "Rascunho") · beneficiário · setor | campo da ação, quando há |
 | `estornar-modal` | idem | material e entregue líquida de cada item que volta ao saldo físico |
 | `devolver-<item>` | idem | material e entregue líquida disponível (já existia) |
 | `confirmar-atender-retirada` | idem | material, quantidade autorizada e a **entregue digitada agora** |
@@ -945,15 +944,18 @@ situação que esta seção existe para consertar.
 ### Painel de decisão de workflow
 
 `requisicoes/partials/_painel_decisao.html` é a superfície compartilhada das
-decisões de fluxo da requisição — autorizar, recusar, retornar, cancelar,
-estornar: título, descrição e o botão que abre o modal de confirmação. Dois
-layouts — `card`, dentro do grid de decisão, e `banner`, seção de largura total.
+decisões de fluxo da requisição — autorizar, retornar para rascunho (a
+variante de recusa do chefe incluída, issue #170), cancelar, estornar: título,
+descrição e o botão que abre o modal de confirmação. Dois layouts — `card`,
+dentro do grid de decisão, e `banner`, seção de largura total.
 
 O painel **não** implica um ator. Quem pode cada operação sai das policies e de
 `docs/matriz-permissoes.md`, e varia por ator efetivo, setor, beneficiário e
-estado atual — autorizar e recusar são do chefe do Setor do Beneficiário,
-enquanto estornar é do chefe de Almoxarifado. A tela só renderiza o painel que
-o `pode_*` correspondente liberou.
+estado atual — autorizar é do chefe do Setor do Beneficiário; retornar é do
+criador ou do beneficiário (ajuste do próprio pedido, motivo opcional) **ou**
+do chefe do Setor do Beneficiário (recusa por decisão, motivo obrigatório);
+estornar é do chefe de Almoxarifado. A tela só renderiza o painel que o
+`pode_*` correspondente liberou.
 
 Ele já foi montado em cima do `alert.html`, de onde herdava só a lavagem de cor
 por variante. A separação é da #127, e o que ela fixou vale para qualquer

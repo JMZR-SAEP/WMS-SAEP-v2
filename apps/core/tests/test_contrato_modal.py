@@ -50,7 +50,7 @@ def test_varredura_encontra_alguma_coisa():
     Um glob que deixa de casar devolve conjunto vazio, e o teste de cima passaria
     comparando nada com nada — o guarda viraria decoração silenciosa.
     """
-    assert len(rotas_de_modal()) >= 10
+    assert len(rotas_de_modal()) >= 9
 
 
 def test_action_url_literal_e_recusada():

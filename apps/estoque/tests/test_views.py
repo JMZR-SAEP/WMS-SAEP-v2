@@ -1157,7 +1157,7 @@ class TestEstornarSaidaExcepcionalView:
     ):
         """O 422 devolve a caixa aberta com o texto digitado, não em branco.
 
-        É o que `recusar_requisicao_view` já faz com `motivo_recusa`. Sem isso a
+        É o que `retornar_rascunho_view` já faz com `motivo_recusa`. Sem isso a
         pessoa reescreve a justificativa a cada erro.
         """
         client.force_login(chefe_almoxarifado)

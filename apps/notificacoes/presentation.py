@@ -23,7 +23,10 @@ from apps.notificacoes.models import TipoNotificacao
 #: coisas estão agora é a metade seguinte do título.
 EVENTO_POR_TIPO: dict[str, str] = {
     TipoNotificacao.AUTORIZACAO: 'Sua requisição foi autorizada',
-    TipoNotificacao.RECUSA: 'Sua requisição foi recusada',
+    # "devolvida para ajustes", não "recusada": desde a issue #170 a recusa é
+    # uma variante de retornar para rascunho, não mais um encerramento
+    # definitivo — o texto não pode continuar prometendo o que não acontece.
+    TipoNotificacao.RECUSA: 'Sua requisição foi devolvida para ajustes',
     TipoNotificacao.ATENDIMENTO: 'Sua requisição foi atendida',
     TipoNotificacao.SEPARACAO_RETIRADA: 'Sua requisição foi separada para retirada',
     TipoNotificacao.ENVIO_AUTORIZACAO: 'Aguardava sua autorização',

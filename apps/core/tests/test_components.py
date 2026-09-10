@@ -3179,7 +3179,6 @@ class TestFilterCheckboxGroupAgrupado:
     ESTADOS = [
         ('rascunho', 'Rascunho'),
         ('aguardando_autorizacao', 'Aguardando autorização'),
-        ('recusada', 'Recusada'),
         ('autorizada', 'Autorizada'),
         ('pronta_para_retirada', 'Pronta para retirada'),
         ('atendida', 'Atendida'),
@@ -3187,7 +3186,7 @@ class TestFilterCheckboxGroupAgrupado:
         ('estornada', 'Estornada'),
     ]
     EM_ANDAMENTO = 'rascunho aguardando_autorizacao autorizada pronta_para_retirada'
-    ENCERRADAS = 'recusada atendida cancelada estornada'
+    ENCERRADAS = 'atendida cancelada estornada'
 
     def _grupos(self):
         from apps.core.templatetags.core_tags import agrupar_opcoes
@@ -3251,15 +3250,15 @@ class TestFilterCheckboxGroupAgrupado:
         assert '>Em andamento<' in html
         assert '>Encerradas<' in html
 
-    def test_uso_agrupado_mantem_as_8_caixas_e_os_8_valores(self):
+    def test_uso_agrupado_mantem_as_7_caixas_e_os_7_valores(self):
         html = self._render_agrupado()
         for valor, _ in self.ESTADOS:
             assert f'value="{valor}"' in html
-        assert html.count('type="checkbox"') == 8
-        assert html.count('name="estados"') == 8
+        assert html.count('type="checkbox"') == 7
+        assert html.count('name="estados"') == 7
 
     def test_uso_agrupado_preserva_alvo_de_toque(self):
-        assert self._render_agrupado().count('min-h-11') == 8
+        assert self._render_agrupado().count('min-h-11') == 7
 
     @pytest.mark.parametrize('modo', ['plano', 'agrupado'])
     def test_todo_checkbox_esta_dentro_da_label_que_carrega_o_piso(self, modo):
@@ -3333,7 +3332,7 @@ class TestFilterCheckboxGroupAgrupado:
             agrupar_opcoes(self.ESTADOS, 'Em andamento')
 
     def test_grupos_do_historico_batem_com_estadorequisicao(self):
-        """A partição escrita no template cobre exatamente os 8 estados
+        """A partição escrita no template cobre exatamente os 7 estados
         canônicos — muda `EstadoRequisicao`, o `agrupar_opcoes` erra alto."""
         from apps.requisicoes.models import EstadoRequisicao
         from apps.core.templatetags.core_tags import agrupar_opcoes
@@ -3345,7 +3344,7 @@ class TestFilterCheckboxGroupAgrupado:
             'Encerradas',
             self.ENCERRADAS,
         )
-        assert [len(pares) for _, pares in grupos] == [4, 4]
+        assert [len(pares) for _, pares in grupos] == [4, 3]
 
 
 def test_nenhum_badge_de_dado_estatico_declara_live_region():

@@ -100,7 +100,6 @@ from apps.requisicoes.services import (
     cancelar_requisicao,
     editar_rascunho,
     enviar_para_autorizacao,
-    recusar_requisicao,
     registrar_atendimento,
     estornar_requisicao,
     registrar_devolucao,
@@ -140,6 +139,17 @@ def _saldo_info_do_formset(formset) -> dict[str, dict]:
     if not ids:
         return {}
     return {str(k): v for k, v in saldos_por_materiais(ids).items()}
+
+
+def _eh_decisao_de_terceiro(ator_id: int, requisicao: Requisicao) -> bool:
+    """True quando quem decide não é o dono do pedido (issue #170).
+
+    Mesma checagem de identidade que `retornar_para_rascunho` usa para
+    escolher entre os eventos RETORNO_RASCUNHO e RECUSA — repetida aqui só
+    para copy (rótulo do card, obrigatoriedade visual do motivo). Não é
+    enforcement: quem decide o efeito real é o service.
+    """
+    return ator_id not in (requisicao.criador_id, requisicao.beneficiario_id)
 
 
 def _pode_copiar_agora(papel: PapelEfetivo, requisicao: Requisicao) -> bool:
@@ -286,8 +296,10 @@ def _detalhe_context(
         'pode_enviar': Operacao.ENVIAR_PARA_AUTORIZACAO in acoes,
         'pode_editar': Operacao.EDITAR_RASCUNHO in acoes,
         'pode_retornar': Operacao.RETORNAR_PARA_RASCUNHO in acoes,
+        # Um card só para TR-006/TR-011 (issue #170): o rótulo e a
+        # obrigatoriedade do motivo mudam com quem decide, não a ação.
+        'retorno_como_chefe': _eh_decisao_de_terceiro(request.user.pk, requisicao),
         'pode_autorizar': Operacao.AUTORIZAR in acoes,
-        'pode_recusar': Operacao.RECUSAR in acoes,
         'pode_separar_retirada': Operacao.SEPARAR_PARA_RETIRADA in acoes,
         'pode_atender_retirada': Operacao.REGISTRAR_ATENDIMENTO in acoes,
         'pode_cancelar': cancelavel,
@@ -306,7 +318,6 @@ def _detalhe_context(
         'recusa_erro': recusa_erro,
         'motivo_recusa': motivo_recusa,
         'cancelamento_hidden_inputs': {'next': _voltar_url(request)},
-        'recusar_hidden_inputs': {'next': _voltar_url(request)},
         'retornar_hidden_inputs': {'next': _voltar_url(request)},
         'autorizar_hidden_inputs': {'next': _voltar_url(request)},
         'enviar_hidden_inputs': {'next': _voltar_url(request)},
@@ -1055,39 +1066,78 @@ def enviar_rascunho_view(request, pk: int):
 
 
 # ---------------------------------------------------------------------------
-# Retornar para rascunho / recusar — TR-006 / TR-011
+# Retornar para rascunho — TR-006, absorve TR-011 (issue #170)
 # ---------------------------------------------------------------------------
 
 
 @login_required
 @require_http_methods(['POST'])
 def retornar_rascunho_view(request, pk: int):
-    """Retorna requisição aguardando autorização para rascunho."""
+    """Retorna requisição para rascunho — TR-006/TR-011 unificadas (issue #170).
+
+    Um endpoint só para os dois papéis: o dono (criador ou beneficiário)
+    ajusta o próprio pedido com observação opcional; qualquer outro decisor
+    — na prática, o chefe do setor do beneficiário — devolve por decisão e
+    precisa justificar. Quem escolhe o evento de timeline e exige o motivo é
+    o service (`retornar_para_rascunho`), pela identidade do ator; aqui só se
+    traduz o erro e se escolhe a mensagem de sucesso.
+    """
+    observacao = request.POST.get('observacao', '')
     try:
         requisicao = retornar_para_rascunho(
             ator_id=request.user.pk,
             requisicao_id=pk,
-            observacao=request.POST.get('observacao', ''),
+            observacao=observacao,
         )
     except PermissaoNegada as exc:
         raise PermissionDenied(str(exc))
+    except DadosInvalidos as exc:
+        requisicao = get_object_or_404(
+            requisicoes_visiveis_para(request.user.pk),
+            pk=pk,
+        )
+        if request.htmx:
+            copy = MODAL_COPY['recusar']
+            return render_modal_erro(
+                request,
+                modal_id='confirmar-retornar',
+                titulo=copy['titulo'],
+                descricao=copy['descricao'],
+                registro=registro_requisicao(requisicao),
+                erro=str(exc),
+                form_body_template='requisicoes/partials/_modal_form_retornar.html',
+                confirm_label=copy['confirm_label'],
+                confirm_variant='neutral',
+                icon_variant=copy['icon_variant'],
+                loading_label='Retornando…',
+                corpo_com_campo_focavel=True,
+                contexto_form={'motivo_recusa': observacao, 'retorno_como_chefe': True},
+            )
+        return _render_detalhe(
+            request,
+            requisicao,
+            recusa_erro=str(exc),
+            motivo_recusa=observacao,
+        )
     except EstadoInvalido as exc:
         messages.warning(request, str(exc))
         return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
-    except DadosInvalidos as exc:
-        messages.error(request, str(exc))
-        return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
 
-    messages.success(
-        request,
-        f'Requisição {requisicao.numero_publico} retornada para rascunho.',
-    )
-    return htmx_redirect(
-        request,
-        _voltar_url(
+    if request.user.pk == requisicao.criador_id:
+        destino = _voltar_url(
             request, default=reverse('requisicoes:detalhe', args=[requisicao.pk])
-        ),
-    )
+        )
+    else:
+        destino = reverse('requisicoes:minhas')
+
+    if _eh_decisao_de_terceiro(request.user.pk, requisicao):
+        messages.success(request, f'Requisição {requisicao.numero_publico} recusada.')
+    else:
+        messages.success(
+            request,
+            f'Requisição {requisicao.numero_publico} retornada para rascunho.',
+        )
+    return htmx_redirect(request, destino)
 
 
 @login_required
@@ -1174,63 +1224,9 @@ def cancelar_requisicao_view(request, pk: int):
 
 
 @login_required
-@require_http_methods(['POST'])
-def recusar_requisicao_view(request, pk: int):
-    """Recusa requisição aguardando autorização com motivo obrigatório."""
-    motivo = request.POST.get('motivo', '')
-    try:
-        requisicao = recusar_requisicao(
-            ator_id=request.user.pk,
-            requisicao_id=pk,
-            motivo=motivo,
-        )
-    except PermissaoNegada as exc:
-        raise PermissionDenied(str(exc))
-    except DadosInvalidos as exc:
-        requisicao = get_object_or_404(
-            requisicoes_visiveis_para(request.user.pk),
-            pk=pk,
-        )
-        if request.htmx:
-            copy = MODAL_COPY['recusar']
-            return render_modal_erro(
-                request,
-                modal_id='confirmar-recusar',
-                titulo=copy['titulo'],
-                descricao=copy['descricao'],
-                registro=registro_requisicao(requisicao),
-                erro=str(exc),
-                form_body_template='requisicoes/partials/_modal_form_recusar.html',
-                confirm_label=copy['confirm_label'],
-                confirm_variant='danger',
-                icon_variant=copy['icon_variant'],
-                loading_label='Recusando…',
-                corpo_com_campo_focavel=True,
-                contexto_form={'motivo_recusa': motivo},
-            )
-        return _render_detalhe(
-            request,
-            requisicao,
-            recusa_erro=str(exc),
-            motivo_recusa=motivo,
-        )
-    except EstadoInvalido as exc:
-        messages.warning(request, str(exc))
-        return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
-
-    messages.success(request, f'Requisição {requisicao.numero_publico} recusada.')
-    return htmx_redirect(
-        request,
-        _voltar_url(
-            request, default=reverse('requisicoes:detalhe', args=[requisicao.pk])
-        ),
-    )
-
-
-@login_required
 @require_http_methods(['GET', 'POST'])
 def copiar_requisicao_view(request, pk: int):
-    """Copia requisição atendida ou recusada para novo rascunho (REQ-09).
+    """Copia requisição atendida para novo rascunho (REQ-09).
 
     GET mostra confirmação; POST executa a cópia e redireciona para editar.
     """
@@ -1245,7 +1241,7 @@ def copiar_requisicao_view(request, pk: int):
         if not _pode_copiar_agora(papel_efetivo(request.user), requisicao):
             messages.warning(
                 request,
-                'Só é possível copiar requisições atendidas ou recusadas '
+                'Só é possível copiar requisições atendidas '
                 'para as quais você pode criar rascunho.',
             )
             return redirect('requisicoes:detalhe', pk=requisicao.pk)
@@ -1646,7 +1642,6 @@ def historico_requisicoes_view(request):
                 chave='estados',
                 valores=[
                     EstadoRequisicao.ESTORNADA.value,
-                    EstadoRequisicao.RECUSADA.value,
                 ],
                 ordem_chaves=ORDEM_QUERYSTRING_HISTORICO_REQUISICOES,
                 chaves_multivalor=('estados',),

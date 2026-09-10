@@ -43,7 +43,6 @@ from apps.requisicoes.policies import (
     exigir_pode_editar_rascunho,
     exigir_pode_enviar_rascunho,
     exigir_pode_estornar_requisicao,
-    exigir_pode_recusar_requisicao,
     exigir_pode_retornar_para_rascunho,
 )
 from apps.requisicoes.selectors import (
@@ -448,7 +447,22 @@ def retornar_para_rascunho(
     requisicao_id: int,
     observacao: str = '',
 ) -> Requisicao:
-    """Retorna requisição aguardando autorização para rascunho (TR-006)."""
+    """Retorna requisição aguardando autorização para rascunho (TR-006).
+
+    Absorve TR-011 (issue #170, decisão de domínio 2026-09-10): "recusar"
+    deixou de ser um encerramento definitivo e virou uma variante desta
+    operação. Quando quem decide não é o dono do pedido — nem o criador nem
+    o beneficiário, ou seja, é o chefe do setor agindo por decisão —, a
+    operação grava o evento ``RECUSA`` e exige motivo não vazio (mesmo código
+    de erro que a antiga ``recusar_requisicao`` usava). Quando é o próprio
+    dono ajustando o pedido, grava ``RETORNO_RASCUNHO`` com motivo opcional e
+    sem notificação — ele já sabe por que está retornando.
+
+    A policy (`pode_retornar_para_rascunho`) já garante que só criador,
+    beneficiário ou o chefe do setor do beneficiário chegam aqui; um
+    superusuário que não seja nenhum dos dois é tratado como decisão de
+    terceiro, mesma trilha do chefe.
+    """
     try:
         ator = User.objects.get(pk=ator_id)
     except User.DoesNotExist:
@@ -471,76 +485,45 @@ def retornar_para_rascunho(
         )
     verificar_transicao_valida(Operacao.RETORNAR_PARA_RASCUNHO, requisicao)
 
+    eh_decisao_de_terceiro = ator.pk not in (
+        requisicao.criador_id,
+        requisicao.beneficiario_id,
+    )
+    observacao_limpa = (observacao or '').strip()
+    if eh_decisao_de_terceiro and not observacao_limpa:
+        raise DadosInvalidos(
+            'Informe o motivo da recusa.',
+            code='motivo_recusa_obrigatorio',
+        )
+    evento = (
+        EventoTimeline.RECUSA
+        if eh_decisao_de_terceiro
+        else EventoTimeline.RETORNO_RASCUNHO
+    )
+
     requisicao.estado = EstadoRequisicao.RASCUNHO
     requisicao.save(update_fields=['estado', 'atualizado_em'])
 
     TimelineRequisicao.objects.create(
         requisicao=requisicao,
-        evento=EventoTimeline.RETORNO_RASCUNHO,
+        evento=evento,
         ator=ator,
         estado_resultante=EstadoRequisicao.RASCUNHO,
-        justificativa=(observacao or '').strip(),
+        justificativa=observacao_limpa,
     )
 
-    return requisicao
-
-
-# ---------------------------------------------------------------------------
-# TR-011: recusar requisição
-# ---------------------------------------------------------------------------
-
-
-@transaction.atomic
-def recusar_requisicao(
-    *,
-    ator_id: int,
-    requisicao_id: int,
-    motivo: str,
-) -> Requisicao:
-    """Recusa integralmente uma requisição aguardando autorização (TR-011)."""
-    try:
-        ator = User.objects.get(pk=ator_id)
-    except User.DoesNotExist:
-        raise DadosInvalidos(
-            'Ator não encontrado.', code='ator_nao_encontrado'
-        ) from None
-    try:
-        requisicao = Requisicao.objects.select_for_update().get(pk=requisicao_id)
-    except Requisicao.DoesNotExist:
-        raise DadosInvalidos(
-            'Requisição não encontrada.', code='requisicao_nao_encontrada'
-        ) from None
-
-    papel = papel_efetivo(ator)
-    exigir_pode_recusar_requisicao(papel, requisicao)
-    verificar_transicao_valida(Operacao.RECUSAR, requisicao)
-
-    motivo_limpo = (motivo or '').strip()
-    if not motivo_limpo:
-        raise DadosInvalidos(
-            'Informe o motivo da recusa.',
-            code='motivo_recusa_obrigatorio',
+    if eh_decisao_de_terceiro:
+        # Só o criador: rascunho não é visível a um beneficiário que não seja
+        # também o criador (`requisicoes_visiveis_para`), e só o criador pode
+        # editar/reenviar o rascunho (`pode_editar_rascunho`). Notificar o
+        # beneficiário aqui prometeria um "Ver detalhes" que devolve 404.
+        _criador_id = requisicao.criador_id
+        _req_id = requisicao.pk
+        transaction.on_commit(
+            lambda: _notificar_pos_commit(
+                _criador_id, _criador_id, _req_id, TipoNotificacao.RECUSA
+            )
         )
-
-    requisicao.estado = EstadoRequisicao.RECUSADA
-    requisicao.save(update_fields=['estado', 'atualizado_em'])
-
-    TimelineRequisicao.objects.create(
-        requisicao=requisicao,
-        evento=EventoTimeline.RECUSA,
-        ator=ator,
-        estado_resultante=EstadoRequisicao.RECUSADA,
-        justificativa=motivo_limpo,
-    )
-
-    _criador_id = requisicao.criador_id
-    _beneficiario_id = requisicao.beneficiario_id
-    _req_id = requisicao.pk
-    transaction.on_commit(
-        lambda: _notificar_pos_commit(
-            _criador_id, _beneficiario_id, _req_id, TipoNotificacao.RECUSA
-        )
-    )
 
     return requisicao
 

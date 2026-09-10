@@ -11,11 +11,16 @@ from django.db import models
 
 
 class EstadoRequisicao(models.TextChoices):
-    """Os 8 estados canônicos do ciclo de vida da requisição."""
+    """Os 7 estados canônicos do ciclo de vida da requisição.
+
+    ``RECUSADA`` foi absorvida por ``RASCUNHO`` (issue #170): recusar é uma
+    variante de retornar para rascunho — o chefe devolve por decisão, e não
+    mais um encerramento definitivo. O evento de timeline continua existindo
+    (``EventoTimeline.RECUSA``) para distinguir a variante na auditoria.
+    """
 
     RASCUNHO = 'rascunho', 'Rascunho'
     AGUARDANDO_AUTORIZACAO = 'aguardando_autorizacao', 'Aguardando autorização'
-    RECUSADA = 'recusada', 'Recusada'
     AUTORIZADA = 'autorizada', 'Autorizada'
     PRONTA_PARA_RETIRADA = 'pronta_para_retirada', 'Pronta para retirada'
     ATENDIDA = 'atendida', 'Atendida'
@@ -218,12 +223,15 @@ class Operacao(models.TextChoices):
     ``apps.requisicoes.transitions.TRANSICOES`` (ADR-0011, emenda
     2026-06-26). Não inclui TR-001 (criação, sem estado de origem) nem
     TR-003 (descarte de rascunho não enviado, é DELETE, não transição).
+
+    ``RECUSAR`` foi absorvida por ``RETORNAR_PARA_RASCUNHO`` (issue #170):
+    o serviço escolhe entre os eventos ``RETORNO_RASCUNHO`` e ``RECUSA``
+    conforme quem decide, mesmo padrão de ``REGISTRAR_ATENDIMENTO``.
     """
 
     EDITAR_RASCUNHO = 'editar_rascunho', 'Editar rascunho'
     ENVIAR_PARA_AUTORIZACAO = 'enviar_para_autorizacao', 'Enviar para autorização'
     RETORNAR_PARA_RASCUNHO = 'retornar_para_rascunho', 'Retornar para rascunho'
-    RECUSAR = 'recusar', 'Recusar'
     AUTORIZAR = 'autorizar', 'Autorizar'
     CANCELAR = 'cancelar', 'Cancelar'
     SEPARAR_PARA_RETIRADA = 'separar_para_retirada', 'Separar para retirada'

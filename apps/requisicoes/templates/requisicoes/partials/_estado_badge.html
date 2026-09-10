@@ -21,8 +21,6 @@ componente global gritar em vez de ser anulado por uma cor plausível
     {% include "components/badge.html" with variant="blue-strong" label=label prefixo_sr="Estado: " %}
   {% elif estado == 'atendida' %}
     {% include "components/badge.html" with variant="green" label=label prefixo_sr="Estado: " %}
-  {% elif estado == 'recusada' %}
-    {% include "components/badge.html" with variant="red-strong" label=label prefixo_sr="Estado: " %}
   {% elif estado == 'cancelada' %}
     {% include "components/badge.html" with variant="cancel" label=label prefixo_sr="Estado: " %}
   {% elif estado == 'estornada' %}

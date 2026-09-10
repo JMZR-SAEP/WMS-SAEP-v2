@@ -57,7 +57,6 @@ def test_cancelar_aceita_multiplos_estados_origem(estado_origem):
 @pytest.mark.parametrize(
     'estado_origem',
     [
-        EstadoRequisicao.RECUSADA,
         EstadoRequisicao.ATENDIDA,
         EstadoRequisicao.ESTORNADA,
     ],
@@ -97,6 +96,23 @@ def test_registrar_atendimento_declara_os_tres_eventos_possiveis():
             EventoTimeline.LIBERACAO_RESERVA,
         }
     )
+
+
+def test_retornar_para_rascunho_declara_os_dois_eventos_possiveis():
+    """TR-006 absorveu TR-011 (issue #170): mesmo padrão de REGISTRAR_ATENDIMENTO —
+    um `Operacao`, dois eventos de timeline possíveis, escolhidos pelo service."""
+    assert TRANSICOES[Operacao.RETORNAR_PARA_RASCUNHO].eventos_timeline == frozenset(
+        {
+            EventoTimeline.RETORNO_RASCUNHO,
+            EventoTimeline.RECUSA,
+        }
+    )
+
+
+def test_operacao_recusar_nao_existe_mais():
+    """Issue #170: "recusar" deixou de ser uma Operacao/estado separados."""
+    assert not hasattr(Operacao, 'RECUSAR')
+    assert not hasattr(EstadoRequisicao, 'RECUSADA')
 
 
 # ---------------------------------------------------------------------------
@@ -158,7 +174,6 @@ def test_cancelamento_info_pos_autorizacao_exige_justificativa_e_libera_reserva(
 @pytest.mark.parametrize(
     'estado_origem',
     [
-        EstadoRequisicao.RECUSADA,
         EstadoRequisicao.ATENDIDA,
         EstadoRequisicao.ESTORNADA,
     ],

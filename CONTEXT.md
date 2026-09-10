@@ -120,10 +120,13 @@ foram criados, quantas linhas divergiram e quantos alertas foram gerados.
 
 **Operação (de requisição)**:
 Ação de domínio que transiciona uma Requisição entre estados (enviar,
-autorizar, recusar, retornar, separar, atender, devolver, estornar, cancelar).
+autorizar, retornar, separar, atender, devolver, estornar, cancelar).
 Cada Operação declara, numa fonte única, seus estados de origem válidos, o
 estado de destino e o evento de timeline. Não se confunde com o botão da
-interface: o botão é apresentação, a Operação é domínio.
+interface: o botão é apresentação, a Operação é domínio. "Recusar" não é mais
+uma Operação própria (issue #170): é a variante de `retornar_para_rascunho`
+em que quem decide não é o dono do pedido — o evento de timeline `recusa`
+continua existindo para distinguir a variante na auditoria.
 
 **Ações disponíveis**:
 Conjunto de Operações que um ator, com seu **Papel efetivo**, pode executar

@@ -16,8 +16,8 @@
   <div class="rounded-xl border border-border bg-surface p-6 shadow-sm">
     {% comment %}
       `{{ requisicao }}` não entra aqui: o __str__ do model expõe a chave do
-      banco. A view só serve esta tela para requisição atendida ou recusada e
-      com permissão de cópia, então o número público sempre existe.
+      banco. A view só serve esta tela para requisição atendida e com
+      permissão de cópia, então o número público sempre existe.
     {% endcomment %}
     <h2 class="text-lg font-semibold text-text-primary mb-1">
       Criar rascunho a partir de {{ requisicao.numero_publico }}

@@ -1399,6 +1399,8 @@ def test_retornar_rascunho_post_respeita_next_seguro(
 def test_retornar_rascunho_beneficiario_redireciona_e_muda_estado(
     client, outro_usuario_obras, req_enviada_beneficiario
 ):
+    """Beneficiário perde acesso ao detalhe após o retorno (rascunho fica
+    exclusivo do criador); o destino tem que ser uma rota que ele ainda vê."""
     _login(client, outro_usuario_obras)
     response = client.post(
         reverse(
@@ -1408,9 +1410,7 @@ def test_retornar_rascunho_beneficiario_redireciona_e_muda_estado(
     )
 
     assert response.status_code == 302
-    assert response.url == reverse(
-        'requisicoes:detalhe', kwargs={'pk': req_enviada_beneficiario.pk}
-    )
+    assert response.url == reverse('requisicoes:minhas')
     req_enviada_beneficiario.refresh_from_db()
     assert req_enviada_beneficiario.estado == EstadoRequisicao.RASCUNHO
 
@@ -1430,15 +1430,16 @@ def test_retornar_rascunho_chefe_do_setor_pode_devolver(
     response = client.post(
         reverse(
             'requisicoes:retornar_rascunho', kwargs={'pk': req_enviada_solicitante.pk}
-        )
+        ),
+        # Chefe é terceiro (não dono): motivo obrigatório (issue #170).
+        {'observacao': 'Corrigir quantidade antes de reenviar.'},
     )
     # O POST não manda `HX-Request`, então `htmx_redirect` faz `redirect(url)` e
     # o status é sempre 302. Aceitar 204 deixava uma regressão trocar o PRG
     # nativo por uma resposta sem `Location` sem ficar vermelha.
     assert response.status_code == 302
-    assert response.url == reverse(
-        'requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk}
-    )
+    # Chefe não é criador: o detalhe fica inacessível após o retorno.
+    assert response.url == reverse('requisicoes:minhas')
     req_enviada_solicitante.refresh_from_db()
     assert req_enviada_solicitante.estado == EstadoRequisicao.RASCUNHO
 
@@ -1475,89 +1476,101 @@ def test_retornar_rascunho_post_superuser_redireciona_e_muda_estado(
     )
 
     assert response.status_code == 302
-    assert response.url == reverse(
-        'requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk}
-    )
+    # Superusuário não é criador: o detalhe fica inacessível após o retorno.
+    assert response.url == reverse('requisicoes:minhas')
     req_enviada_solicitante.refresh_from_db()
     assert req_enviada_solicitante.estado == EstadoRequisicao.RASCUNHO
 
 
 @pytest.mark.django_db
-def test_recusar_requisicao_post_chefe_redireciona_e_muda_estado(
+def test_retornar_rascunho_post_chefe_redireciona_e_muda_estado(
     client, chefe_obras, req_enviada_solicitante
 ):
+    """Issue #170: o chefe (terceiro) usa o mesmo endpoint de retornar; o
+    motivo obrigatório e o evento RECUSA são decididos pelo service."""
     _login(client, chefe_obras)
     response = client.post(
-        reverse('requisicoes:recusar', kwargs={'pk': req_enviada_solicitante.pk}),
-        {'motivo': 'Necessário revisar quantidades.'},
+        reverse(
+            'requisicoes:retornar_rascunho', kwargs={'pk': req_enviada_solicitante.pk}
+        ),
+        {'observacao': 'Necessário revisar quantidades.'},
     )
 
     assert response.status_code == 302
-    assert response.url == reverse(
-        'requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk}
-    )
+    # Chefe não é criador: o detalhe fica inacessível após o retorno.
+    assert response.url == reverse('requisicoes:minhas')
     req_enviada_solicitante.refresh_from_db()
-    assert req_enviada_solicitante.estado == EstadoRequisicao.RECUSADA
+    assert req_enviada_solicitante.estado == EstadoRequisicao.RASCUNHO
+    evento = req_enviada_solicitante.eventos.filter(evento=EventoTimeline.RECUSA).get()
+    assert evento.ator_id == chefe_obras.pk
 
 
 @pytest.mark.django_db
-def test_recusar_requisicao_post_respeita_next_seguro(
+def test_retornar_rascunho_chefe_post_ignora_next_redireciona_para_minhas(
     client, chefe_obras, req_enviada_solicitante
 ):
+    """Chefe não é criador nem beneficiário: `next` é ignorado e o destino é
+    sempre uma rota que ele continua vendo, mesmo quando `next` aponta para
+    uma página acessível a ele (issue #170, revisão pós-CodeRabbit)."""
     _login(client, chefe_obras)
     response = client.post(
-        reverse('requisicoes:recusar', kwargs={'pk': req_enviada_solicitante.pk}),
+        reverse(
+            'requisicoes:retornar_rascunho', kwargs={'pk': req_enviada_solicitante.pk}
+        ),
         {
-            'motivo': 'Necessário revisar quantidades.',
+            'observacao': 'Necessário revisar quantidades.',
             'next': reverse('requisicoes:autorizacoes'),
         },
     )
 
     assert response.status_code == 302
-    assert response.url == reverse('requisicoes:autorizacoes')
+    assert response.url == reverse('requisicoes:minhas')
     req_enviada_solicitante.refresh_from_db()
-    assert req_enviada_solicitante.estado == EstadoRequisicao.RECUSADA
+    assert req_enviada_solicitante.estado == EstadoRequisicao.RASCUNHO
 
 
 @pytest.mark.django_db
-def test_recusar_requisicao_post_superuser_redireciona_e_muda_estado(
+def test_retornar_rascunho_post_superuser_agindo_por_terceiro_muda_estado(
     client, superuser, req_enviada_solicitante
 ):
+    """Superusuário não é criador nem beneficiário: mesma trilha do chefe."""
     _login(client, superuser)
     response = client.post(
-        reverse('requisicoes:recusar', kwargs={'pk': req_enviada_solicitante.pk}),
-        {'motivo': 'Necessário revisar quantidades.'},
+        reverse(
+            'requisicoes:retornar_rascunho', kwargs={'pk': req_enviada_solicitante.pk}
+        ),
+        {'observacao': 'Necessário revisar quantidades.'},
     )
 
     assert response.status_code == 302
-    assert response.url == reverse(
-        'requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk}
-    )
+    assert response.url == reverse('requisicoes:minhas')
     req_enviada_solicitante.refresh_from_db()
-    assert req_enviada_solicitante.estado == EstadoRequisicao.RECUSADA
+    assert req_enviada_solicitante.estado == EstadoRequisicao.RASCUNHO
 
 
 @pytest.mark.django_db
-def test_recusar_requisicao_sem_motivo_retorna_erro_inline(
+def test_retornar_rascunho_chefe_sem_motivo_retorna_erro_inline(
     client, chefe_obras, req_enviada_solicitante
 ):
     _login(client, chefe_obras)
     response = client.post(
-        reverse('requisicoes:recusar', kwargs={'pk': req_enviada_solicitante.pk}),
-        {'motivo': ' '},
+        reverse(
+            'requisicoes:retornar_rascunho', kwargs={'pk': req_enviada_solicitante.pk}
+        ),
+        {'observacao': ' '},
     )
 
     assert response.status_code == 200
     req_enviada_solicitante.refresh_from_db()
     assert req_enviada_solicitante.estado == EstadoRequisicao.AGUARDANDO_AUTORIZACAO
     html = response.content.decode('utf-8')
-    assert 'modal-recusar-motivo' in html
+    assert 'modal-retornar-observacao' in html
     assert 'aria-invalid="true"' in html
     assert 'Informe o motivo da recusa.' in html
 
 
 @pytest.mark.django_db
-def test_recusar_sem_motivo_sem_htmx_devolve_o_dialogo_ja_aberto(
+def test_retornar_chefe_sem_motivo_sem_htmx_devolve_o_dialogo_ja_aberto(
     client, chefe_obras, req_enviada_solicitante
 ):
     """Sem htmx a resposta é a página inteira, e o modal tem que vir com `open`.
@@ -1572,16 +1585,18 @@ def test_recusar_sem_motivo_sem_htmx_devolve_o_dialogo_ja_aberto(
     """
     _login(client, chefe_obras)
     response = client.post(
-        reverse('requisicoes:recusar', kwargs={'pk': req_enviada_solicitante.pk}),
-        {'motivo': ' '},
+        reverse(
+            'requisicoes:retornar_rascunho', kwargs={'pk': req_enviada_solicitante.pk}
+        ),
+        {'observacao': ' '},
     )
 
     abertura = _dialogos_abertos(response.content.decode('utf-8'))
-    assert abertura.get('confirmar-recusar') is True, (
+    assert abertura.get('confirmar-retornar') is True, (
         'O modal que falhou voltou fechado — a recusa some da tela sem aviso.'
     )
     assert [modal for modal, aberto in abertura.items() if aberto] == [
-        'confirmar-recusar'
+        'confirmar-retornar'
     ]
 
 
@@ -1601,63 +1616,70 @@ def test_detalhe_sem_erro_nao_abre_nenhum_dialogo(
 
 
 @pytest.mark.django_db
-def test_recusar_requisicao_sem_motivo_via_htmx_retorna_422_fragment(
+def test_retornar_rascunho_chefe_sem_motivo_via_htmx_retorna_422_fragment(
     client, chefe_obras, req_enviada_solicitante
 ):
     """HTMX request com motivo vazio retorna 422 + fragment do modal."""
     _login(client, chefe_obras)
     response = client.post(
-        reverse('requisicoes:recusar', kwargs={'pk': req_enviada_solicitante.pk}),
-        {'motivo': ' '},
+        reverse(
+            'requisicoes:retornar_rascunho', kwargs={'pk': req_enviada_solicitante.pk}
+        ),
+        {'observacao': ' '},
         HTTP_HX_REQUEST='true',
     )
 
     assert response.status_code == 422
     html = response.content.decode('utf-8')
-    assert 'data-modal-body="confirmar-recusar"' in html
+    assert 'data-modal-body="confirmar-retornar"' in html
     assert 'data-modal-erro' in html
     assert 'Informe o motivo da recusa.' in html
-    assert 'modal-recusar-motivo' in html
+    assert 'modal-retornar-observacao' in html
     assert '<!DOCTYPE html>' not in html
     req_enviada_solicitante.refresh_from_db()
     assert req_enviada_solicitante.estado == EstadoRequisicao.AGUARDANDO_AUTORIZACAO
 
 
 @pytest.mark.django_db
-def test_recusar_requisicao_sucesso_via_htmx_retorna_hx_redirect(
+def test_retornar_rascunho_chefe_sucesso_via_htmx_retorna_hx_redirect(
     client, chefe_obras, req_enviada_solicitante
 ):
     """HTMX request com motivo válido retorna 204 + HX-Redirect."""
     _login(client, chefe_obras)
     response = client.post(
-        reverse('requisicoes:recusar', kwargs={'pk': req_enviada_solicitante.pk}),
-        {'motivo': 'Sem orçamento aprovado.'},
+        reverse(
+            'requisicoes:retornar_rascunho', kwargs={'pk': req_enviada_solicitante.pk}
+        ),
+        {'observacao': 'Sem orçamento aprovado.'},
         HTTP_HX_REQUEST='true',
     )
 
     assert response.status_code == 204
     assert 'HX-Redirect' in response.headers
     req_enviada_solicitante.refresh_from_db()
-    assert req_enviada_solicitante.estado == EstadoRequisicao.RECUSADA
+    assert req_enviada_solicitante.estado == EstadoRequisicao.RASCUNHO
 
 
 @pytest.mark.django_db
-def test_recusar_requisicao_outro_setor_retorna_403(
+def test_retornar_rascunho_chefe_outro_setor_retorna_403(
     client, chefe_almoxarifado, req_enviada_solicitante
 ):
     _login(client, chefe_almoxarifado)
     response = client.post(
-        reverse('requisicoes:recusar', kwargs={'pk': req_enviada_solicitante.pk}),
-        {'motivo': 'Não aprovado.'},
+        reverse(
+            'requisicoes:retornar_rascunho', kwargs={'pk': req_enviada_solicitante.pk}
+        ),
+        {'observacao': 'Não aprovado.'},
     )
     assert response.status_code == 403
 
 
 @pytest.mark.django_db
-def test_detalhe_exibe_recusa_e_retorno_para_chefe(
+def test_detalhe_exibe_card_unico_de_recusa_para_chefe(
     client, chefe_obras, req_enviada_solicitante
 ):
-    """O painel de decisão do chefe passa a ter a saída não-terminal."""
+    """O painel de decisão do chefe tem um card só — TR-006/TR-011 unificadas
+    (issue #170) — resolvido para a variante "recusar" (motivo obrigatório)."""
     _login(client, chefe_obras)
     response = client.get(
         reverse('requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk})
@@ -1665,11 +1687,11 @@ def test_detalhe_exibe_recusa_e_retorno_para_chefe(
     html = response.content.decode('utf-8')
 
     assert response.status_code == 200
-    assert response.context['pode_recusar'] is True
     assert response.context['pode_retornar'] is True
+    assert response.context['retorno_como_chefe'] is True
     assert 'Confirmar recusa' in html
-    assert 'Confirmar retorno' in html
-    assert 'data-modal-trigger="confirmar-recusar"' in html
+    assert 'Confirmar retorno' not in html
+    assert 'data-modal-trigger="confirmar-retornar"' in html
     assert 'window.confirm' not in html
     assert html.count('id="decisao-autorizacao-titulo"') == 1
 
@@ -1688,7 +1710,7 @@ def test_detalhe_com_painel_de_decisao_nao_repete_nenhum_id(
     html = response.content.decode('utf-8')
 
     assert_sem_id_duplicado(html)
-    assert 'confirmar-recusar-painel-titulo' in ids_do_documento(html)
+    assert 'confirmar-retornar-painel-titulo' in ids_do_documento(html)
 
 
 @pytest.mark.django_db
@@ -1851,7 +1873,7 @@ def test_detalhe_exibe_retorno_para_criador_e_nao_exibe_recusa(
 
     assert response.status_code == 200
     assert response.context['pode_retornar'] is True
-    assert response.context['pode_recusar'] is False
+    assert response.context['retorno_como_chefe'] is False
     assert 'Confirmar retorno' in html
     assert 'Confirmar recusa' not in html
 
@@ -2065,35 +2087,35 @@ def test_cancelar_requisicao_post_autorizada_redireciona_e_muda_estado(
 
 
 @pytest.mark.django_db
-def test_recusar_requisicao_htmx_retorna_hx_redirect(
+def test_retornar_rascunho_chefe_htmx_retorna_hx_redirect(
     client, chefe_obras, req_enviada_solicitante
 ):
     _login(client, chefe_obras)
     response = client.post(
-        reverse('requisicoes:recusar', kwargs={'pk': req_enviada_solicitante.pk}),
-        {'motivo': 'Não aprovado.'},
+        reverse(
+            'requisicoes:retornar_rascunho', kwargs={'pk': req_enviada_solicitante.pk}
+        ),
+        {'observacao': 'Não aprovado.'},
         HTTP_HX_REQUEST='true',
     )
     assert response.status_code == 204
-    assert response['HX-Redirect'] == reverse(
-        'requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk}
-    )
+    assert response['HX-Redirect'] == reverse('requisicoes:minhas')
 
 
 @pytest.mark.django_db
-def test_recusar_requisicao_htmx_superuser_retorna_hx_redirect(
+def test_retornar_rascunho_htmx_superuser_retorna_hx_redirect(
     client, superuser, req_enviada_solicitante
 ):
     _login(client, superuser)
     response = client.post(
-        reverse('requisicoes:recusar', kwargs={'pk': req_enviada_solicitante.pk}),
-        {'motivo': 'Não aprovado.'},
+        reverse(
+            'requisicoes:retornar_rascunho', kwargs={'pk': req_enviada_solicitante.pk}
+        ),
+        {'observacao': 'Não aprovado.'},
         HTTP_HX_REQUEST='true',
     )
     assert response.status_code == 204
-    assert response['HX-Redirect'] == reverse(
-        'requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk}
-    )
+    assert response['HX-Redirect'] == reverse('requisicoes:minhas')
 
 
 # ---------------------------------------------------------------------------
@@ -3057,8 +3079,22 @@ def test_messages_html_declara_live_region_uma_vez_por_mensagem():
 
 
 @pytest.fixture
-def req_recusada_view(solicitante, material_disponivel, chefe_obras):
-    from apps.requisicoes.services import enviar_para_autorizacao, recusar_requisicao
+def req_atendida_para_copiar(
+    solicitante, material_disponivel, chefe_obras, aux_almoxarifado
+):
+    """Requisição atendida — única origem copiável desde a issue #170.
+
+    Antes desta issue havia também `requisicao_recusada`: a recusa foi
+    absorvida por retornar para rascunho, então "recusada" deixou de existir
+    como estado terminal copiável — ATENDIDA é a única origem que sobrou.
+    """
+    from apps.requisicoes.services import (
+        autorizar_requisicao,
+        enviar_para_autorizacao,
+        registrar_atendimento,
+        separar_para_retirada,
+    )
+    from apps.requisicoes.types import LinhaAtendimento
 
     req = criar_requisicao(
         ator_id=solicitante.pk,
@@ -3071,29 +3107,39 @@ def req_recusada_view(solicitante, material_disponivel, chefe_obras):
         ],
     )
     req = enviar_para_autorizacao(ator_id=solicitante.pk, requisicao_id=req.pk)
-    return recusar_requisicao(
-        ator_id=chefe_obras.pk,
+    req = autorizar_requisicao(ator_id=chefe_obras.pk, requisicao_id=req.pk)
+    req = separar_para_retirada(ator_id=aux_almoxarifado.pk, requisicao_id=req.pk)
+    item = req.itens.get()
+    return registrar_atendimento(
+        ator_id=aux_almoxarifado.pk,
         requisicao_id=req.pk,
-        motivo='Sem orçamento.',
+        itens=[
+            LinhaAtendimento(
+                item_id=item.pk,
+                quantidade_entregue=item.quantidade_autorizada,
+                justificativa='',
+            )
+        ],
+        retirante_nome='Carlos',
     )
 
 
 @pytest.mark.django_db
 def test_copiar_requisicao_view_get_retorna_confirmacao(
-    client, solicitante, req_recusada_view
+    client, solicitante, req_atendida_para_copiar
 ):
     _login(client, solicitante)
-    url = reverse('requisicoes:copiar', kwargs={'pk': req_recusada_view.pk})
+    url = reverse('requisicoes:copiar', kwargs={'pk': req_atendida_para_copiar.pk})
     response = client.get(url)
     assert response.status_code == 200
 
 
 @pytest.mark.django_db
 def test_copiar_requisicao_view_nota_usa_components_alert_sem_role_note(
-    client, solicitante, req_recusada_view
+    client, solicitante, req_atendida_para_copiar
 ):
     _login(client, solicitante)
-    url = reverse('requisicoes:copiar', kwargs={'pk': req_recusada_view.pk})
+    url = reverse('requisicoes:copiar', kwargs={'pk': req_atendida_para_copiar.pk})
     response = client.get(url)
     conteudo = response.content.decode()
 
@@ -3105,12 +3151,12 @@ def test_copiar_requisicao_view_nota_usa_components_alert_sem_role_note(
 
 @pytest.mark.django_db
 def test_copiar_requisicao_view_post_cria_rascunho_e_redireciona(
-    client, solicitante, req_recusada_view
+    client, solicitante, req_atendida_para_copiar
 ):
     from django.urls import resolve
 
     _login(client, solicitante)
-    url = reverse('requisicoes:copiar', kwargs={'pk': req_recusada_view.pk})
+    url = reverse('requisicoes:copiar', kwargs={'pk': req_atendida_para_copiar.pk})
     response = client.post(url, follow=True)
 
     assert response.redirect_chain
@@ -3118,14 +3164,16 @@ def test_copiar_requisicao_view_post_cria_rascunho_e_redireciona(
     novo_pk = resolve(redirect_url).kwargs['pk']
     novo = Requisicao.objects.get(pk=novo_pk)
     assert novo.estado == EstadoRequisicao.RASCUNHO
-    assert novo.itens.count() == req_recusada_view.itens.count()
+    assert novo.itens.count() == req_atendida_para_copiar.itens.count()
     mensagens = [str(m) for m in response.context['messages']]
     assert any('Rascunho criado' in m for m in mensagens)
 
 
 @pytest.mark.django_db
-def test_copiar_requisicao_view_post_sem_login_redireciona(client, req_recusada_view):
-    url = reverse('requisicoes:copiar', kwargs={'pk': req_recusada_view.pk})
+def test_copiar_requisicao_view_post_sem_login_redireciona(
+    client, req_atendida_para_copiar
+):
+    url = reverse('requisicoes:copiar', kwargs={'pk': req_atendida_para_copiar.pk})
     response = client.post(url)
     assert response.status_code == 302
     assert '/login/' in response['Location'] or 'next=' in response['Location']
@@ -3150,7 +3198,7 @@ def test_copiar_requisicao_view_post_estado_invalido_exibe_erro(
     response = client.post(url)
     assert response.status_code == 200
     mensagens = [str(m) for m in response.context['messages']]
-    assert any('atendidas ou recusadas' in m for m in mensagens)
+    assert any('atendidas' in m for m in mensagens)
 
 
 # drift 3a: PermissaoNegada em copiar deve virar 403, não messages.error
@@ -3973,7 +4021,6 @@ class TestHistoricoRequisicoesChipsPorPapel:
         assert 'Aguardando minha autorização' not in rotulos
         chip = next(c for c in chips if c.rotulo == 'Exceções')
         assert 'estados=estornada' in chip.url
-        assert 'estados=recusada' in chip.url
 
     def test_superuser_ve_excecoes(self, client, superuser):
         _login(client, superuser)
@@ -3986,7 +4033,7 @@ class TestHistoricoRequisicoesChipsPorPapel:
         _login(client, chefe_almoxarifado)
         response = client.get(
             URL_HISTORICO_REQUISICOES,
-            {'estados': ['estornada', 'recusada', 'atendida']},
+            {'estados': ['estornada', 'cancelada', 'atendida']},
             follow=True,
         )
         chip = next(
@@ -3994,8 +4041,8 @@ class TestHistoricoRequisicoesChipsPorPapel:
         )
         assert chip.ativo is True
         assert 'estados=atendida' in chip.url
+        assert 'estados=cancelada' in chip.url
         assert 'estados=estornada' not in chip.url
-        assert 'estados=recusada' not in chip.url
 
     def test_chip_reemitido_via_oob_no_swap_htmx(self, client, superuser):
         _login(client, superuser)
@@ -4517,23 +4564,6 @@ def test_badge_cancelada_usa_cor_laranja(client, solicitante, setor_obras):
     response = client.get(reverse('requisicoes:detalhe', kwargs={'pk': req.pk}))
     assert response.status_code == 200
     assert 'bg-cancel-muted'.encode() in response.content
-
-
-@pytest.mark.django_db
-def test_badge_recusada_usa_cor_vermelha(
-    client, solicitante, req_enviada_solicitante, chefe_obras
-):
-    from apps.requisicoes.services import recusar_requisicao
-
-    req = recusar_requisicao(
-        ator_id=chefe_obras.pk,
-        requisicao_id=req_enviada_solicitante.pk,
-        motivo='Sem orçamento.',
-    )
-    _login(client, solicitante)
-    response = client.get(reverse('requisicoes:detalhe', kwargs={'pk': req.pk}))
-    assert response.status_code == 200
-    assert 'bg-danger-muted-strong'.encode() in response.content
 
 
 @pytest.mark.django_db
@@ -5272,24 +5302,24 @@ def test_copiar_confirmacao_recusa_estado_nao_copiavel(
         'requisicoes:detalhe', kwargs={'pk': req_rascunho_solicitante.pk}
     )
     mensagens = [str(m) for m in get_messages(response.wsgi_request)]
-    assert any('atendidas ou recusadas' in m for m in mensagens)
+    assert any('atendidas' in m for m in mensagens)
 
 
 @pytest.mark.django_db
 def test_copiar_confirmacao_nao_expoe_pk_e_lista_itens(
-    client, solicitante, req_recusada_view
+    client, solicitante, req_atendida_para_copiar
 ):
     """Na tela servida, o título usa o número público (nunca o __str__, que
     devolve a PK) e os itens a copiar ficam visíveis antes da confirmação.
     """
     _login(client, solicitante)
     response = client.get(
-        reverse('requisicoes:copiar', kwargs={'pk': req_recusada_view.pk})
+        reverse('requisicoes:copiar', kwargs={'pk': req_atendida_para_copiar.pk})
     )
     assert response.status_code == 200
     html = response.content.decode()
-    assert req_recusada_view.numero_publico in html
-    assert f'#{req_recusada_view.pk}' not in html
+    assert req_atendida_para_copiar.numero_publico in html
+    assert f'#{req_atendida_para_copiar.pk}' not in html
     assert 'Itens que serão copiados' in html
 
 

@@ -24,7 +24,6 @@ from apps.requisicoes.services import (
     criar_requisicao,
     cancelar_requisicao,
     editar_rascunho,
-    recusar_requisicao,
     registrar_atendimento,
     retornar_para_rascunho,
     separar_para_retirada,
@@ -1041,63 +1040,84 @@ def test_retornar_para_rascunho_terceiro_sem_permissao(
 
 
 @pytest.mark.django_db
-def test_recusar_requisicao_aplica_estado_e_registra_timeline(
+def test_retornar_para_rascunho_chefe_registra_evento_recusa(
     requisicao_aguardando, chefe_obras
 ):
-    req = recusar_requisicao(
+    """Issue #170: chefe (terceiro, não dono) aciona a variante RECUSA — não
+    é mais um estado separado, a requisição volta para RASCUNHO."""
+    req = retornar_para_rascunho(
         ator_id=chefe_obras.pk,
         requisicao_id=requisicao_aguardando.pk,
-        motivo='Material solicitado precisa de revisão.',
+        observacao='Material solicitado precisa de revisão.',
     )
 
-    assert req.estado == EstadoRequisicao.RECUSADA
+    assert req.estado == EstadoRequisicao.RASCUNHO
     evento = req.eventos.filter(evento=EventoTimeline.RECUSA).get()
     assert evento.ator_id == chefe_obras.pk
-    assert evento.estado_resultante == EstadoRequisicao.RECUSADA
+    assert evento.estado_resultante == EstadoRequisicao.RASCUNHO
     assert evento.justificativa == 'Material solicitado precisa de revisão.'
 
 
 @pytest.mark.django_db
-def test_recusar_requisicao_exige_motivo(requisicao_aguardando, chefe_obras):
+def test_retornar_para_rascunho_chefe_exige_motivo(requisicao_aguardando, chefe_obras):
     with pytest.raises(DadosInvalidos, match='motivo'):
-        recusar_requisicao(
+        retornar_para_rascunho(
             ator_id=chefe_obras.pk,
             requisicao_id=requisicao_aguardando.pk,
-            motivo='  ',
+            observacao='  ',
         )
     requisicao_aguardando.refresh_from_db()
     assert requisicao_aguardando.estado == EstadoRequisicao.AGUARDANDO_AUTORIZACAO
 
 
 @pytest.mark.django_db
-def test_recusar_requisicao_estado_invalido(requisicao_aguardando, chefe_obras):
+def test_retornar_para_rascunho_dono_nao_exige_motivo(
+    requisicao_aguardando, solicitante
+):
+    """O dono (criador/beneficiário) ajustando o próprio pedido não precisa
+    justificar — só o terceiro que decide por ele (chefe)."""
+    req = retornar_para_rascunho(
+        ator_id=solicitante.pk,
+        requisicao_id=requisicao_aguardando.pk,
+        observacao='',
+    )
+
+    assert req.estado == EstadoRequisicao.RASCUNHO
+    evento = req.eventos.filter(evento=EventoTimeline.RETORNO_RASCUNHO).get()
+    assert evento.justificativa == ''
+
+
+@pytest.mark.django_db
+def test_retornar_para_rascunho_chefe_estado_invalido(
+    requisicao_aguardando, chefe_obras
+):
     retornar_para_rascunho(
         ator_id=requisicao_aguardando.criador_id,
         requisicao_id=requisicao_aguardando.pk,
     )
 
     with pytest.raises(EstadoInvalido):
-        recusar_requisicao(
+        retornar_para_rascunho(
             ator_id=chefe_obras.pk,
             requisicao_id=requisicao_aguardando.pk,
-            motivo='Não aprovado.',
+            observacao='Não aprovado.',
         )
 
 
 @pytest.mark.django_db
-def test_recusar_requisicao_outro_setor_sem_permissao(
+def test_retornar_para_rascunho_chefe_outro_setor_sem_permissao(
     requisicao_aguardando, chefe_almoxarifado
 ):
     with pytest.raises(PermissaoNegada):
-        recusar_requisicao(
+        retornar_para_rascunho(
             ator_id=chefe_almoxarifado.pk,
             requisicao_id=requisicao_aguardando.pk,
-            motivo='Não aprovado.',
+            observacao='Não aprovado.',
         )
 
 
 @pytest.mark.django_db
-def test_recusar_requisicao_nao_altera_estoque(
+def test_retornar_para_rascunho_chefe_nao_altera_estoque(
     requisicao_aguardando, chefe_obras, material_disponivel
 ):
     from apps.estoque.models import SaldoEstoque
@@ -1106,10 +1126,10 @@ def test_recusar_requisicao_nao_altera_estoque(
     reservado_antes = saldo_antes.saldo_reservado
     fisico_antes = saldo_antes.saldo_fisico
 
-    recusar_requisicao(
+    retornar_para_rascunho(
         ator_id=chefe_obras.pk,
         requisicao_id=requisicao_aguardando.pk,
-        motivo='Não aprovado.',
+        observacao='Não aprovado.',
     )
 
     saldo_depois = SaldoEstoque.objects.get(material=material_disponivel)
@@ -2112,15 +2132,6 @@ def test_registrar_atendimento_requisicao_inexistente(aux_almoxarifado):
 
 
 @pytest.fixture
-def requisicao_recusada(requisicao_aguardando, chefe_obras):
-    return recusar_requisicao(
-        ator_id=chefe_obras.pk,
-        requisicao_id=requisicao_aguardando.pk,
-        motivo='Orçamento insuficiente.',
-    )
-
-
-@pytest.fixture
 def requisicao_atendida(requisicao_pronta_retirada, aux_almoxarifado):
     item = requisicao_pronta_retirada.itens.first()
     return registrar_atendimento(
@@ -2138,20 +2149,6 @@ def requisicao_atendida(requisicao_pronta_retirada, aux_almoxarifado):
 
 
 @pytest.mark.django_db
-def test_copiar_requisicao_recusada_cria_rascunho(requisicao_recusada, solicitante):
-    from apps.requisicoes.services import copiar_requisicao
-
-    novo = copiar_requisicao(
-        ator_id=solicitante.pk,
-        requisicao_id=requisicao_recusada.pk,
-    )
-
-    assert novo.pk is not None
-    assert novo.estado == EstadoRequisicao.RASCUNHO
-    assert novo.numero_publico is None
-
-
-@pytest.mark.django_db
 def test_copiar_requisicao_atendida_cria_rascunho(requisicao_atendida, solicitante):
     from apps.requisicoes.services import copiar_requisicao
 
@@ -2160,20 +2157,22 @@ def test_copiar_requisicao_atendida_cria_rascunho(requisicao_atendida, solicitan
         requisicao_id=requisicao_atendida.pk,
     )
 
+    assert novo.pk is not None
     assert novo.estado == EstadoRequisicao.RASCUNHO
+    assert novo.numero_publico is None
 
 
 @pytest.mark.django_db
-def test_copiar_requisicao_preserva_itens_solicitados(requisicao_recusada, solicitante):
+def test_copiar_requisicao_preserva_itens_solicitados(requisicao_atendida, solicitante):
     from apps.requisicoes.services import copiar_requisicao
 
     novo = copiar_requisicao(
         ator_id=solicitante.pk,
-        requisicao_id=requisicao_recusada.pk,
+        requisicao_id=requisicao_atendida.pk,
     )
 
     itens_origem = list(
-        requisicao_recusada.itens.values_list('material_id', 'quantidade_solicitada')
+        requisicao_atendida.itens.values_list('material_id', 'quantidade_solicitada')
     )
     itens_novo = list(novo.itens.values_list('material_id', 'quantidade_solicitada'))
     assert itens_novo == itens_origem
@@ -2196,12 +2195,12 @@ def test_copiar_requisicao_nao_copia_autorizada_entregue(
 
 
 @pytest.mark.django_db
-def test_copiar_requisicao_registra_timeline_criacao(requisicao_recusada, solicitante):
+def test_copiar_requisicao_registra_timeline_criacao(requisicao_atendida, solicitante):
     from apps.requisicoes.services import copiar_requisicao
 
     novo = copiar_requisicao(
         ator_id=solicitante.pk,
-        requisicao_id=requisicao_recusada.pk,
+        requisicao_id=requisicao_atendida.pk,
     )
 
     assert novo.eventos.filter(evento=EventoTimeline.CRIACAO).exists()
@@ -2209,20 +2208,20 @@ def test_copiar_requisicao_registra_timeline_criacao(requisicao_recusada, solici
 
 @pytest.mark.django_db
 def test_copiar_requisicao_preserva_beneficiario_setor_e_observacao(
-    requisicao_recusada, solicitante, setor_obras
+    requisicao_atendida, solicitante, setor_obras
 ):
     from apps.requisicoes.services import copiar_requisicao
 
-    requisicao_recusada.observacao_geral = 'Urgente'
-    requisicao_recusada.save(update_fields=['observacao_geral'])
+    requisicao_atendida.observacao_geral = 'Urgente'
+    requisicao_atendida.save(update_fields=['observacao_geral'])
 
     novo = copiar_requisicao(
         ator_id=solicitante.pk,
-        requisicao_id=requisicao_recusada.pk,
+        requisicao_id=requisicao_atendida.pk,
     )
 
-    assert novo.beneficiario_id == requisicao_recusada.beneficiario_id
-    assert novo.setor_beneficiario_id == requisicao_recusada.setor_beneficiario_id
+    assert novo.beneficiario_id == requisicao_atendida.beneficiario_id
+    assert novo.setor_beneficiario_id == requisicao_atendida.setor_beneficiario_id
     assert novo.criador_id == solicitante.pk
     assert novo.observacao_geral == 'Urgente'
 
@@ -2244,7 +2243,7 @@ def test_copiar_requisicao_estado_invalido_lanca_estado_invalido(
 
 @pytest.mark.django_db
 def test_copiar_requisicao_ator_sem_permissao_lanca_permissao_negada(
-    requisicao_recusada, usuario_ti
+    requisicao_atendida, usuario_ti
 ):
     from apps.core.exceptions import PermissaoNegada
     from apps.requisicoes.services import copiar_requisicao
@@ -2252,34 +2251,28 @@ def test_copiar_requisicao_ator_sem_permissao_lanca_permissao_negada(
     with pytest.raises(PermissaoNegada):
         copiar_requisicao(
             ator_id=usuario_ti.pk,
-            requisicao_id=requisicao_recusada.pk,
+            requisicao_id=requisicao_atendida.pk,
         )
 
 
 @pytest.mark.django_db
 def test_copiar_requisicao_inclui_item_inelegivel_sem_erro(
-    solicitante, requisicao_aguardando, chefe_obras, material_sem_saldo
+    solicitante, requisicao_atendida
 ):
     """Itens inelegíveis no momento da cópia são incluídos no rascunho."""
+    from apps.estoque.models import SaldoEstoque
     from apps.requisicoes.services import copiar_requisicao
 
-    recusada = recusar_requisicao(
-        ator_id=chefe_obras.pk,
-        requisicao_id=requisicao_aguardando.pk,
-        motivo='Sem estoque.',
-    )
-    from apps.estoque.models import SaldoEstoque
-
-    SaldoEstoque.objects.filter(material=recusada.itens.first().material).update(
-        saldo_fisico=0, saldo_reservado=0
-    )
+    SaldoEstoque.objects.filter(
+        material=requisicao_atendida.itens.first().material
+    ).update(saldo_fisico=0, saldo_reservado=0)
 
     novo = copiar_requisicao(
         ator_id=solicitante.pk,
-        requisicao_id=recusada.pk,
+        requisicao_id=requisicao_atendida.pk,
     )
 
-    assert novo.itens.count() == recusada.itens.count()
+    assert novo.itens.count() == requisicao_atendida.itens.count()
 
 
 # ---------------------------------------------------------------------------

@@ -47,7 +47,7 @@ Consequências que o design não pode contrariar:
 
 **Stack:** Django 6 + HTMX + Alpine.js + Tailwind CSS v4, server-rendered, **sem camada de API REST** e sem SPA. Estado de domínio nunca vive no JavaScript. PostgreSQL. Python 3.13+.
 
-**Funcionalidades confirmadas:** requisições (criar, enviar, autorizar, recusar, retornar a rascunho, separar, atender, devolver, estornar, cancelar/descartar), catálogo de materiais, saldos e reservas, saída excepcional (`SXP-AAAA-NNNNNN`), movimentações de estoque (livro-razão append-only), importação SCPI com preview/alertas/histórico, notificações, RBAC por papel efetivo.
+**Funcionalidades confirmadas:** requisições (criar, enviar, autorizar, retornar a rascunho — inclui a variante "recusar" do chefe, issue #170 —, separar, atender, devolver, estornar, cancelar/descartar), catálogo de materiais, saldos e reservas, saída excepcional (`SXP-AAAA-NNNNNN`), movimentações de estoque (livro-razão append-only), importação SCPI com preview/alertas/histórico, notificações, RBAC por papel efetivo.
 
 **Restrições de domínio que a UI consome, não redefine:**
 - **Ações disponíveis** vêm de uma fonte única (tabela de transições + policies). O botão é apresentação; a Operação é domínio. A interface nunca reconstrói o grafo de estados.

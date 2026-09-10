@@ -34,7 +34,7 @@ Para cada mudança, localizar o invariante aplicável, implementar na camada ind
 | REQ-06 | Requisições | Após envio, não há edição direta de itens. | Máquina de estados/service. | Bloquear edição; permitir retorno para rascunho. | Crit. 1.8 |
 | REQ-07 | Requisições | Registrar criador, beneficiário e setor do beneficiário. | Campos obrigatórios/snapshots. | Criar em nome de terceiro preservando papéis. | Crit. 1.1 |
 | REQ-08 | Requisições | Timeline registra eventos principais e é visível a autorizados. | Service/policy. | Eventos do ciclo; autorizado vê completa; fora de escopo não vê. | Modelo 2.1 |
-| REQ-09 | Requisições | Cópia recalcula saldo e não copia autorizado/entregue; origem pode ser atendida ou recusada. | Service de cópia. | Copiar atendida ou recusada; bloquear item sem saldo/divergente. | Crit. 1.13 |
+| REQ-09 | Requisições | Cópia recalcula saldo e não copia autorizado/entregue; origem só pode ser atendida (issue #170: recusar não é mais estado terminal). | Service de cópia. | Copiar atendida; incluir itens inelegíveis e validar elegibilidade no envio (TR-005). | Crit. 1.13 |
 | ITEM-01 | Itens | Na autorização, quantidade autorizada deve ser igual à quantidade solicitada para todos os itens. | Service/constraint. | Autorizar integralmente; bloquear autorização parcial, zero ou acima do solicitado. | Crit. 2 |
 | ITEM-02 | Itens | Quantidade entregue nunca maior que autorizada. | Service/constraint. | Bloquear entrega acima. | Crit. 3 |
 | ITEM-03 | Itens | Atendimento parcial exige justificativa. | Service | Menor com justificativa; sem justificativa negado. | Crit. 3.3 |

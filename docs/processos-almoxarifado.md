@@ -35,31 +35,28 @@ A requisição deve possuir um ciclo de vida claro, com estados explícitos. A v
    - O número público da requisição é gerado apenas no primeiro envio para autorização.
    - Não é permitido salvar rascunho sem itens.
    - Pode ser editada somente por quem a criou enquanto permanecer nesse estado.
+   - Requisição aguardando autorização pode retornar para rascunho (issue #170): o criador ou o beneficiário pode realizar o retorno com observação opcional; somente o criador ajusta e reenvia o rascunho; o chefe do setor do beneficiário devolve por decisão — a antiga "recusa" — com motivo obrigatório. Nenhuma das duas encerra a requisição; ambas preservam o número público.
 
 2. **Aguardando autorização**
    - Requisição enviada para análise do chefe do setor do beneficiário.
    - No primeiro envio para autorização, o sistema gera o número público da requisição no padrão `REQ-AAAA-NNNNNN`.
    - Ainda não gera baixa de estoque.
 
-3. **Recusada**
-   - Requisição negada pelo chefe do setor do beneficiário.
-   - Deve registrar motivo da recusa.
-
-4. **Autorizada**
+3. **Autorizada**
    - Requisição aprovada pelo chefe do setor do beneficiário.
    - Fica disponível para atendimento pelo Almoxarifado.
    - Ainda não gera baixa de estoque, mas gera reserva de estoque.
 
-5. **Pronta para retirada**
+4. **Pronta para retirada**
    - As quantidades autorizadas foram separadas e estão aguardando coleta.
 
-6. **Atendida**
+5. **Atendida**
    - A retirada foi registrada pelo Almoxarifado, com entrega total ou parcial das quantidades autorizadas.
    - Nesse momento ocorre a baixa definitiva do estoque.
    - O estoque deve ser baixado apenas na quantidade efetivamente retirada.
    - A parte autorizada e não entregue deve ter sua reserva liberada.
 
-7. **Cancelada**
+6. **Cancelada**
    - Requisição encerrada antes da retirada final.
    - Rascunho nunca enviado para autorização pode ser descartado/excluído pelo criador sem justificativa, pois ainda não virou requisição formal nem consumiu número público.
    - Rascunho que já foi enviado alguma vez e retornou de autorização mantém seu número público e só pode ser cancelado logicamente, sem justificativa.
@@ -68,7 +65,7 @@ A requisição deve possuir um ciclo de vida claro, com estados explícitos. A v
    - Ao cancelar uma requisição autorizada, o sistema deve liberar automaticamente as quantidades reservadas, devolvendo-as ao saldo disponível. O saldo físico não muda, pois ainda não houve retirada.
    - Requisições atendidas ou estornadas não podem ser canceladas.
 
-8. **Estornada**
+7. **Estornada**
    - Retirada finalizada anteriormente foi revertida por algum motivo.
    - O estorno deve preservar o histórico original e registrar a movimentação inversa no estoque.
 
@@ -100,7 +97,7 @@ entre os dois é rotina recorrente, não etapa de migração com prazo.
 
 Fluxos alternativos inicialmente previstos:
 
-- Recusa da requisição pelo chefe do setor do beneficiário.
+- Retorno da requisição para rascunho por decisão do chefe do setor do beneficiário (a antiga "recusa"), com motivo obrigatório — não encerra a requisição.
 - Cancelamento antes da retirada final.
 - Atendimento parcial quando nem todos os itens ou quantidades autorizadas puderem ser entregues.
 - Estorno após retirada final, preservando o histórico original.
@@ -116,7 +113,7 @@ Regras iniciais:
 - Quando autorizada, a requisição pode ser cancelada pelo criador, beneficiário, funcionário do Almoxarifado ou chefe do Almoxarifado, sempre com justificativa.
 - Ao cancelar uma requisição autorizada, o sistema deve liberar automaticamente as quantidades reservadas, devolvendo-as ao saldo disponível. O saldo físico não muda, pois ainda não houve retirada.
 - Requisições atendidas não podem ser canceladas; quando aplicável, devem ser tratadas por estorno.
-- Quando uma requisição for recusada, o chefe deve informar obrigatoriamente o motivo da recusa.
+- Quando o chefe do setor do beneficiário devolve a requisição para rascunho por decisão (recusa), deve informar obrigatoriamente o motivo.
 - A observação geral da requisição é opcional.
 - Justificativa de atendimento parcial é obrigatória quando o Almoxarifado entregar quantidade menor do que a autorizada.
 - Motivo de cancelamento é obrigatório somente para cancelamento de requisição já autorizada.

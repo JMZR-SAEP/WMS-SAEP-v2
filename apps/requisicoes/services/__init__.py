@@ -22,7 +22,6 @@ from apps.requisicoes.services.ciclo_vida import (
     editar_rascunho,
     enviar_para_autorizacao,
     estornar_requisicao,
-    recusar_requisicao,
     retornar_para_rascunho,
 )
 from apps.requisicoes.services.composites import criar_e_enviar_requisicao
@@ -36,7 +35,6 @@ __all__ = [
     'editar_rascunho',
     'enviar_para_autorizacao',
     'retornar_para_rascunho',
-    'recusar_requisicao',
     'autorizar_requisicao',
     'estornar_requisicao',
     'cancelar_requisicao',

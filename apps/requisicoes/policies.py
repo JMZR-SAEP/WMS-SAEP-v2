@@ -226,14 +226,14 @@ def exigir_pode_ver_fila_autorizacao(papel: 'PapelEfetivo') -> None:
 def pode_retornar_para_rascunho(papel: 'PapelEfetivo', requisicao: Requisicao) -> bool:
     """True para criador, beneficiário ou o chefe que decide a requisição.
 
-    O chefe entrou depois (Etapa 8), por um beco medido no fluxo: ele autoriza
-    sem ver saldo, a reserva falha, e a mensagem chega numa faixa no topo da
-    página. Sem esta porta, as únicas saídas eram deixar a requisição parada na
-    fila ou **recusar** — encerrar em definitivo o pedido de alguém porque a
-    quantidade digitada não cabia no estoque. Devolver para rascunho é a
-    operação que descreve o que de fato aconteceu: falta ajustar, não negar.
+    Única policy pública do fluxo TR-006/TR-011 (issue #170): "recusar" deixou
+    de ser um encerramento definitivo separado e virou uma variante desta
+    operação — o chefe que recebe uma requisição sem sentido a devolve para
+    ajustes, exatamente como o dono faria com o próprio pedido. O service
+    (`retornar_para_rascunho`) decide, pelo ator, qual evento de timeline
+    gravar e se o motivo é obrigatório.
 
-    A condição do chefe é a mesma de autorizar e recusar — chefiar o setor do
+    A condição do chefe é a mesma de autorizar — chefiar o setor do
     beneficiário —, então não abre alcance novo: quem já podia encerrar a
     requisição passa a poder devolvê-la. A consequência da TR-006 continua
     valendo: depois do retorno o rascunho volta a ser exclusivo do criador, e o chefe
@@ -248,7 +248,7 @@ def pode_retornar_para_rascunho(papel: 'PapelEfetivo', requisicao: Requisicao) -
         or papel.ator_id == requisicao.beneficiario_id
     ):
         return True
-    return pode_recusar_requisicao(papel, requisicao)
+    return _eh_chefe_do_setor_beneficiario(papel, requisicao)
 
 
 def exigir_pode_retornar_para_rascunho(
@@ -307,8 +307,16 @@ def exigir_pode_cancelar_requisicao(
         )
 
 
-def pode_recusar_requisicao(papel: 'PapelEfetivo', requisicao: Requisicao) -> bool:
-    """True se o ator chefia o setor do beneficiário."""
+def _eh_chefe_do_setor_beneficiario(
+    papel: 'PapelEfetivo', requisicao: Requisicao
+) -> bool:
+    """True se o ator chefia o setor do beneficiário (ou é superuser).
+
+    Condição compartilhada por autorizar e pela variante de recusa absorvida
+    em ``retornar_para_rascunho`` (TR-011, issue #170) — quem podia recusar
+    continua podendo devolver a requisição por decisão, só que o efeito
+    deixou de ser um encerramento definitivo.
+    """
     if not papel.ativo:
         return False
     if papel.eh_superusuario:
@@ -317,19 +325,9 @@ def pode_recusar_requisicao(papel: 'PapelEfetivo', requisicao: Requisicao) -> bo
     return bool(setor_id is not None and requisicao.setor_beneficiario_id == setor_id)
 
 
-def exigir_pode_recusar_requisicao(
-    papel: 'PapelEfetivo', requisicao: Requisicao
-) -> None:
-    if not pode_recusar_requisicao(papel, requisicao):
-        raise PermissaoNegada(
-            'Você não tem permissão para recusar esta requisição.',
-            code='recusar_requisicao_negada',
-        )
-
-
 def pode_autorizar_requisicao(papel: 'PapelEfetivo', requisicao: Requisicao) -> bool:
     """True se o ator chefia o setor do beneficiário ou é superuser."""
-    return pode_recusar_requisicao(papel, requisicao)
+    return _eh_chefe_do_setor_beneficiario(papel, requisicao)
 
 
 def exigir_pode_autorizar_requisicao(
