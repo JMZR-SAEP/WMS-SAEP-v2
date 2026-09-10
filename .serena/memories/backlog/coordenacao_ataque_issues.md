@@ -2,7 +2,15 @@
 
 **Documento vivo.** Ponto de partida para quem entra no backlog e ferramenta de acompanhamento para quem já está nele. Visão macro: o detalhe técnico vive na issue, aqui vive a **ordem, a dependência e o estado**.
 
-Última atualização: **2026-09-10, sexta passada, PR #199 em review + shapes #179/#180** (PR `#199` (#170) com CI 100% verde — ruff format, ruff check, mypy, css build, migrations, pytest, navegador. `CodeRabbit` ainda `PENDING`, sem veredito. Enquanto a review corre, 2 agentes `Plan` read-only em paralelo (sem banco, sem app):
+Última atualização: **2026-09-10, sétima passada, #180 implementada e fechada** (implementação disparada a partir do shape, branch `feat/180-inativar-reativar-material`. **PR `JMZR-SAEP#200` mergeada** (`3230f34`) → **#180 fechada, auto-close funcionou**. `pode_gerir_catalogo` aceita `eh_chefe_de_almoxarifado`; admin do Django fica deliberadamente desacoplado dessa policy e continua superusuário-only (superfície edita todos os campos do material, não só `ativo`). Service novo `reativar_material` (espelha `desativar_material`, idempotente, sem checagem de saldo). UI em `lista_materiais.html`: botão+modal por cartão.
+
+**CodeRabbit revisou de verdade desta vez** (repo não estava mais em modo "skip review manual"). 2 achados reais, ambos corrigidos num segundo commit: (1) major — `save_model` deixava o material sem `SaldoEstoque` se não houvesse `Estoque` ativo, invisível em `listar_materiais_com_saldo`; corrigido validando *antes* de `super().save_model()`, recusa com `ConflitoDominio`. (2) minor — o harness compartilhado de contrato de modal (`CenarioModal`) nunca provava mutação real em cenário `muta=True`; o `reativar_material` foi o **primeiro cenário `muta=True` do repo inteiro** (todo cenário anterior era `muta=False`), e nenhuma view mutante jamais teve essa prova. Campo novo `estado_esperado` em `apps/core/tests/contrato_modal.py`, comparado após 204 — achado que vale para qualquer app que ganhe cenário mutante no futuro, não só estoque.
+
+Gates: 2796 pytest, ruff/mypy verdes. Verificado ao vivo no navegador (login como chefe, inativar/reativar com saldo zerado, e o 422 do erro reabrindo o modal).
+
+**Próximo passo do coordenador:** #179 segue escalada — decisão A/B (quantidade-contra-agregado vs model `Devolucao` próprio) pendente do usuário, shape completo aguardando resposta. #171 (medir CSV real) livre pra rodar em paralelo, read-only. Fila de agente de implementação vazia — nada mais liberado sem decisão humana no momento.)
+
+Última atualização anterior: **2026-09-10, sexta passada, PR #199 em review + shapes #179/#180** (PR `#199` (#170) com CI 100% verde — ruff format, ruff check, mypy, css build, migrations, pytest, navegador. `CodeRabbit` ainda `PENDING`, sem veredito. Enquanto a review corre, 2 agentes `Plan` read-only em paralelo (sem banco, sem app):
 
 **#180 — shape completo, liberada para implementação.** `desativar_material` (`apps/estoque/services.py:822-863`) é o molde exato pra `reativar_material` (idempotente, sem checagem de saldo — reativar não tem o mesmo risco que desativar). Policy `pode_gerir_catalogo` passa a aceitar `eh_chefe_de_almoxarifado` além de superusuário. UI entra em `lista_materiais.html`, botão+modal por card (padrão de `requisicoes/detalhe.html:229-234`, não tela de detalhe nova — ela não existe pra material). 3 decisões de detalhe **não-bloqueantes** com default proposto no shape (cor do botão via Regra da Reversão Não é Erro, texto do modal avisando saldo zerado, simetria do caminho reativar em `admin.py`). 12 passos, arquivos: `policies.py`, `services.py`, `views.py`, `presentation.py`, `lista_materiais.html`, `urls.py`, `admin.py` + testes.
 
@@ -241,7 +249,7 @@ Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/account
 |---|---|---|---|
 | 178 | `divergente_calculado` expõe o marcador EST-07 a solicitante/aux. setor/chefe setor (matriz L89) | `ready-for-agent` | — |
 | 179 | `pode_estornar_devolucao` + service — linha de matriz (L83) sem implementação | `ready-for-agent` | **shape completo 2026-09-10** — 1 decisão bloqueante: estorno por quantidade-contra-agregado (A, recomendada) vs model `Devolucao` próprio (B). |
-| 180 | inativar material só existe pelo admin do Django; decidir UI de produto ou recuar a matriz | `ready-for-agent` | **shape completo 2026-09-10 — liberada para implementação.** `pode_gerir_catalogo` aceita `eh_chefe_de_almoxarifado`, cria `reativar_material`, matriz L74/§3 mantida. |
+| ~~180~~ | inativar material só existe pelo admin do Django; decidir UI de produto ou recuar a matriz | **fechada** (`JMZR-SAEP#200`, merge `3230f34`) | — |
 
 **Spinoffs da #166 — triados, onda 5.** Achados pela auditoria de papéis que escolheu o usuário de cada tela do parametrize. Nenhum é vazamento de autorização hoje; os dois são defeito de contrato.
 
@@ -286,7 +294,7 @@ Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/account
 | 169 | 11 | `needs-info` | medição da rede do piloto |
 | 174 | 12 | `ready-for-human` (decisão de contrato, maior item) | — |
 | 179 | — | `ready-for-agent` | **shape completo** (2026-09-10) — falta decisão A/B (quantidade-contra-agregado vs model `Devolucao` próprio), escalada ao usuário. |
-| 180 | — | `ready-for-agent` | **shape completo, liberada** (2026-09-10) — pronta pra virar branch, aguarda vaga na fila de banco único. |
+| ~~180~~ | — | **fechada** (`JMZR-SAEP#200`, merge `3230f34`) — inativar/reativar material, UI de produto | — |
 
 ## Ordem de ataque
 
@@ -305,7 +313,7 @@ Nota factual: a policy real é `apps/estoque/policies.py:56`, não `apps/account
 10. **#170** — destravada 2026-09-10. Shape: recusar⇒rascunho, cancelar⇒anular (criador/chefe), gate de entrega. Roda fora da fila da onda 7.
 11. **#171** — destravada 2026-09-10, CSV real anexado. Medir o arquivo; cada quebra vira issue própria. Não ocupa slot de implementação.
 12. **#179** — shape completo 2026-09-10. Falta decisão A/B (quantidade-contra-agregado vs model `Devolucao`) antes de abrir branch.
-13. **#180** — shape completo 2026-09-10, liberada. Op de domínio completa: policy + service (`reativar_material`) + UI em `lista_materiais.html` + testes.
+13. ~~**#180**~~ **Feita e fechada — PR `JMZR-SAEP#200`** (merge `3230f34`, 2026-09-10). Policy + service (`reativar_material`) + UI em `lista_materiais.html` + testes. 2 achados reais do CodeRabbit corrigidos num segundo commit (saldo inicial ausente sem estoque ativo; harness de contrato de modal sem prova de mutação em `muta=True`).
 14. **#169** — medir a rede do piloto e decidir. `wontfix` consciente é o desfecho provável.
 15. **#174** — a maior. Primeira a cortar do escopo se o piloto apertar.
 
