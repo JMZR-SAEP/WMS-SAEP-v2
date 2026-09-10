@@ -36,9 +36,16 @@
         {% endcomment %}
         {% erros_do_formulario form acao="entrar" id="login-error" ancora_geral="id_username" %}
 
+        {% comment %}
+          `required_marker=False`: os dois campos são obrigatórios (herdado de
+          AuthenticationForm). O asterisco é o único indicador de obrigatoriedade
+          (DESIGN.md, A Regra do Cinza Medido) — e quando 100% dos campos o
+          carregam ele não discrimina nada, só vira ruído. O `required` nativo
+          do HTML continua no widget; só a marca visual é suprimida.
+        {% endcomment %}
         <div class="space-y-5">
-          {% include "components/form_field.html" with field=form.username label_class="rotulo-campo" %}
-          {% include "components/form_field.html" with field=form.password label_class="rotulo-campo" %}
+          {% include "components/form_field.html" with field=form.username label_class="rotulo-campo" required_marker=False %}
+          {% include "components/form_field.html" with field=form.password label_class="rotulo-campo" required_marker=False %}
         </div>
 
         <input type="hidden" name="next" value="{{ next }}">

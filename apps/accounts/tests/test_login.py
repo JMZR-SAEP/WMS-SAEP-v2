@@ -43,6 +43,19 @@ def test_tela_login_exibe_identidade_e_campos_acessiveis(client):
     assert '<header' not in conteudo
 
 
+def test_login_nao_marca_campo_obrigatorio_com_asterisco(client):
+    """Todos os campos do login são obrigatórios, então o asterisco não
+
+    discrimina nada — DESIGN.md (A Regra do Cinza Medido) manda suprimi-lo.
+    """
+    resposta = client.get(reverse('accounts:login'))
+    conteudo = resposta.content.decode()
+
+    assert 'ml-0.5 text-danger-text' not in conteudo
+    # obrigatoriedade continua anunciada pelo `required` nativo do HTML
+    assert 'required' in conteudo
+
+
 def test_login_valido_por_matricula(client, usuario):
     resposta = client.post(
         reverse('accounts:login'),
