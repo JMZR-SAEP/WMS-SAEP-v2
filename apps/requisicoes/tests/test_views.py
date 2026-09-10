@@ -1311,6 +1311,49 @@ def test_fila_autorizacao_ator_sem_permissao_retorna_403(client, solicitante):
     assert response.status_code == 403
 
 
+def _rotulo_da_navegacao(url_name):
+    """Rótulo do item de nav cuja rota é `url_name` (fonte única: NAVEGACAO)."""
+    from apps.core.templatetags.core_tags import NAVEGACAO
+
+    return next(
+        item['rotulo']
+        for secao in NAVEGACAO
+        for item in secao['itens']
+        if item['url_name'] == url_name
+    )
+
+
+@pytest.mark.django_db
+def test_fila_autorizacao_h1_e_title_repetem_o_rotulo_da_navegacao(client, chefe_obras):
+    """Rótulo do link tem de ser o rótulo do destino (issue #160).
+
+    A nav dizia "Fila de autorizações" e a tela "Fila de autorização": quem
+    clica perde a confirmação de que chegou no lugar certo. A fonte única do
+    rótulo é `NAVEGACAO`; renomear na nav quebra aqui.
+    """
+    _login(client, chefe_obras)
+    rotulo = _rotulo_da_navegacao('requisicoes:autorizacoes')
+    html = client.get(reverse('requisicoes:autorizacoes')).content.decode()
+    assert f'>{rotulo}</h1>' in html
+    assert f'<title>{rotulo} — WMS-SAEP</title>' in html
+
+
+@pytest.mark.django_db
+def test_fila_atendimento_h1_e_title_repetem_o_rotulo_da_navegacao(
+    client, aux_almoxarifado
+):
+    """Rótulo do link tem de ser o rótulo do destino (issue #160).
+
+    A nav dizia "Atendimento" e a tela "Fila de atendimento". A fonte única do
+    rótulo é `NAVEGACAO`; renomear na nav quebra aqui.
+    """
+    _login(client, aux_almoxarifado)
+    rotulo = _rotulo_da_navegacao('requisicoes:atendimentos')
+    html = client.get(reverse('requisicoes:atendimentos')).content.decode()
+    assert f'>{rotulo}</h1>' in html
+    assert f'<title>{rotulo} — WMS-SAEP</title>' in html
+
+
 @pytest.mark.django_db
 def test_retornar_rascunho_post_criador_redireciona_e_muda_estado(
     client, solicitante, req_enviada_solicitante
@@ -2314,7 +2357,7 @@ def test_topbar_exibe_link_atendimento_para_almox(client, aux_almoxarifado):
     response = client.get(reverse('requisicoes:minhas'))
     assert response.status_code == 200
     html = response.content.decode('utf-8')
-    assert 'Atendimento' in html
+    assert 'Fila de atendimento' in html
 
 
 @pytest.mark.django_db
@@ -2323,7 +2366,7 @@ def test_topbar_nao_exibe_link_atendimento_para_solicitante(client, solicitante)
     response = client.get(reverse('requisicoes:minhas'))
     assert response.status_code == 200
     html = response.content.decode('utf-8')
-    assert 'Fila de Atendimento' not in html
+    assert 'Fila de atendimento' not in html
 
 
 # ---------------------------------------------------------------------------

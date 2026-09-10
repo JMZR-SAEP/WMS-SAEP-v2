@@ -60,7 +60,7 @@ def test_secao_navegacao_traz_inicio_da_fonte_unica():
 def test_flag_ligada_individualmente_mostra_item_correspondente():
     secoes = secoes_navegacao({'pode_ver_fila_autorizacao': True})
     rotulos = [item['rotulo'] for item in _secao(secoes, 'Requisições')['itens']]
-    assert 'Fila de autorizações' in rotulos
+    assert 'Fila de autorização' in rotulos
 
 
 def test_flag_ausente_esconde_item_e_secao_almoxarifado_some_sem_nenhuma_flag():
@@ -74,7 +74,7 @@ def test_uma_flag_de_almoxarifado_liga_a_secao_inteira():
     titulos = [secao['titulo'] for secao in secoes]
     assert 'Almoxarifado' in titulos
     (almoxarifado,) = [s for s in secoes if s['titulo'] == 'Almoxarifado']
-    assert [item['rotulo'] for item in almoxarifado['itens']] == ['Atendimento']
+    assert [item['rotulo'] for item in almoxarifado['itens']] == ['Fila de atendimento']
 
 
 def test_todas_as_flags_mostram_todos_os_itens_na_ordem_original():
@@ -84,9 +84,9 @@ def test_todas_as_flags_mostram_todos_os_itens_na_ordem_original():
         'Início',
         'Nova requisição',
         'Minhas requisições',
-        'Fila de autorizações',
+        'Fila de autorização',
         'Histórico de requisições',
-        'Atendimento',
+        'Fila de atendimento',
         'Saídas excepcionais',
         'Catálogo de materiais',
         'Movimentações',
@@ -151,10 +151,10 @@ def test_todo_url_name_e_url_names_ativos_sao_resolviveis():
                 assert _url_name_existe(nome_ativo), nome_ativo
 
 
-def test_topbar_usa_capitalizacao_sentence_case_para_fila_de_autorizacoes():
+def test_topbar_usa_capitalizacao_sentence_case_para_fila_de_autorizacao():
     html = _topbar_nav(pode_ver_fila_autorizacao=True)
-    assert 'Fila de autorizações' in html
-    assert 'Fila de Autorizações' not in html
+    assert 'Fila de autorização' in html
+    assert 'Fila de Autorização' not in html
 
 
 def test_side_nav_marca_aria_current_no_item_ativo():
@@ -206,9 +206,9 @@ def test_sidebar_e_drawer_mostram_os_mesmos_rotulos_para_o_mesmo_papel():
         'Início',
         'Nova requisição',
         'Minhas requisições',
-        'Fila de autorizações',
+        'Fila de autorização',
         'Histórico de requisições',
-        'Atendimento',
+        'Fila de atendimento',
     }
     catalogo = {item['rotulo'] for secao in NAVEGACAO for item in secao['itens']}
     visiveis_side = {rotulo for rotulo in catalogo if rotulo in side_html}
