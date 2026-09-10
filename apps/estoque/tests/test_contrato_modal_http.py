@@ -112,6 +112,7 @@ def _cenario_reativar_material(request) -> CenarioModal:
         ator=chefe,
         modal_id=f'gerir-material-{material.pk}',
         muta=True,
+        estado_esperado=(True,),
     )
 
 
@@ -151,7 +152,17 @@ def test_resposta_htmx_cabe_na_caixa_do_modal(db, request, client, rota):
             html_inicial=inicial.content.decode('utf-8'),
             modal_id=cenario.modal_id,
         )
-    if not cenario.muta:
+    if resposta.status_code == 204 and cenario.muta:
+        # Sem isto, uma view que virasse no-op ainda responderia 204 e
+        # passaria — `destino_esperado` prova o cabeçalho, não a gravação.
+        assert cenario.estado_esperado is not None, (
+            f'{rota}: cenário mutável sem `estado_esperado` declarado — nada '
+            'prova que a mutação aconteceu.'
+        )
+        assert cenario.ler_estado() == cenario.estado_esperado, (
+            f'{rota}: estado pós-mutação não bate com `estado_esperado`.'
+        )
+    elif not cenario.muta:
         # Sem isto, um cenário de erro e um de caminho feliz asseveram a mesma
         # resposta e nada distingue os dois.
         assert cenario.ler_estado() == antes, (

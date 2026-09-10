@@ -141,6 +141,54 @@ def test_material_criado_pelo_admin_ganha_saldo_zerado(
     assert saldo.saldo_reservado == 0
 
 
+def test_material_sem_estoque_ativo_nao_e_criado(client, superuser, db):
+    """Sem estoque (ativo), não há onde gravar o saldo inicial — recusar a
+    criação é melhor que persistir um material invisível ao catálogo, achado
+    de review da #180."""
+    from apps.estoque.models import Material
+
+    client.force_login(superuser)
+    resposta = client.post(
+        reverse('admin:estoque_material_add'),
+        {
+            'codigo': 'MAT-SEM-ESTOQUE',
+            'nome': 'Sem estoque',
+            'unidade': 'un',
+            'observacao_interna': '',
+            'ativo': 'on',
+        },
+    )
+
+    assert resposta.status_code == 302
+    assert not Material.objects.filter(codigo='MAT-SEM-ESTOQUE').exists()
+
+
+def test_material_com_estoque_inativo_nao_e_criado(
+    client, superuser, estoque_principal
+):
+    """Estoque inativo não serve de saldo inicial — mesma recusa do caso sem
+    estoque nenhum."""
+    from apps.estoque.models import Material
+
+    estoque_principal.ativo = False
+    estoque_principal.save(update_fields=['ativo'])
+
+    client.force_login(superuser)
+    resposta = client.post(
+        reverse('admin:estoque_material_add'),
+        {
+            'codigo': 'MAT-ESTOQUE-INATIVO',
+            'nome': 'Estoque inativo',
+            'unidade': 'un',
+            'observacao_interna': '',
+            'ativo': 'on',
+        },
+    )
+
+    assert resposta.status_code == 302
+    assert not Material.objects.filter(codigo='MAT-ESTOQUE-INATIVO').exists()
+
+
 def test_pode_gerir_autoriza_superusuario(material_admin, request_de, superuser):
     assert material_admin._pode_gerir(request_de(superuser)) is True
 
