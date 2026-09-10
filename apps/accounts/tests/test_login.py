@@ -29,7 +29,8 @@ def test_tela_login_exibe_identidade_e_campos_acessiveis(client):
     resposta = client.get(reverse('accounts:login'))
     conteudo = resposta.content.decode()
 
-    assert 'WMS SAEP' in conteudo
+    assert 'WMS-SAEP' in conteudo
+    assert 'WMS SAEP' not in conteudo
     assert 'Sistema interno de gestão de materiais' in conteudo
     assert 'Acesse com sua matrícula e senha.' in conteudo
     assert 'Acesso restrito a funcionários autorizados.' in conteudo
