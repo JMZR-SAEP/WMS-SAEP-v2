@@ -116,11 +116,25 @@ def cancelamento_copy(
 
 
 MODAL_COPY: dict[str, dict[str, str]] = {
+    # 'retornar' e 'recusar' são as duas faces do mesmo card de decisão
+    # (TR-006/TR-011 unificadas, issue #170): o dono ajusta o próprio pedido
+    # (motivo opcional), o chefe do setor devolve por decisão (motivo
+    # obrigatório). Nenhuma das duas encerra a requisição em definitivo —
+    # as duas voltam para rascunho.
+    'retornar': {
+        'titulo': 'Retornar para rascunho?',
+        'descricao': 'A requisição volta a ser rascunho visível apenas ao criador.',
+        'confirm_label': 'Confirmar retorno',
+        'icon_variant': 'warning',
+    },
     'recusar': {
         'titulo': 'Recusar requisição?',
-        'descricao': 'A recusa encerra a requisição sem reservar ou baixar estoque.',
+        'descricao': (
+            'A requisição volta para rascunho, visível apenas ao criador, que '
+            'pode ajustar e reenviar. Nenhum saldo é reservado ou baixado.'
+        ),
         'confirm_label': 'Confirmar recusa',
-        'icon_variant': 'danger',
+        'icon_variant': 'warning',
     },
     'estornar': {
         'titulo': 'Estornar requisição',

@@ -296,21 +296,21 @@
     </section>
   {% endif %}
 
-  {% if pode_autorizar or pode_retornar or pode_recusar %}
+  {% if pode_autorizar or pode_retornar %}
     <section
       class="mb-6 rounded-xl border border-border bg-surface p-4 shadow-sm sm:p-6"
       aria-labelledby="decisao-autorizacao-titulo"
     >
       <div class="mb-4">
         <h2 id="decisao-autorizacao-titulo" class="text-lg font-semibold text-text-primary">
-          {% if pode_retornar and not pode_autorizar and not pode_recusar %}
+          {% if pode_retornar and not pode_autorizar %}
             Retorno para rascunho
           {% else %}
             Decisão de autorização
           {% endif %}
         </h2>
         <p class="mt-1 text-sm text-text-secondary">
-          {% if pode_retornar and not pode_autorizar and not pode_recusar %}
+          {% if pode_retornar and not pode_autorizar %}
             Use este bloco para devolver a requisição ao criador com observação opcional.
           {% else %}
             Revise beneficiário, setor e itens antes de registrar a decisão.
@@ -321,22 +321,15 @@
       {% comment %}
         Duas colunas no máximo, e a autorização ocupa a linha inteira.
 
-        A grade de três colunas iguais era uma afirmação de equivalência sobre
-        três operações que não são equivalentes: autorizar reserva saldo,
-        retornar é totalmente reversível e recusar encerra a requisição em
-        definitivo. Medido a 1440: os três cartões a 383×154px e os três botões
-        a 349×44px, com as lavagens `info` e `danger` a 1,00:1 de contraste uma
-        da outra e o mesmo glifo circular nas duas. Dessaturada, a grade não
-        dizia qual botão encerra a requisição.
-
-        Pior a 1024, onde ela caía para duas colunas: "Recusar" aterrissava
-        diretamente sob "Autorizar", mesma coluna, no momento em que o chefe de
-        setor varre uma fila.
+        Um card só para retornar/recusar (issue #170): as duas eram a mesma
+        operação com dois nomes — "recusar" encerrava em definitivo o que
+        "retornar" já fazia de forma reversível, e o chefe via as duas ao
+        mesmo tempo. O card sobrevivente resolve rótulo e obrigatoriedade do
+        motivo por `retorno_como_chefe` (ver `views.py`), sem duplicar botão.
 
         O `lg:col-span-2` do cartão de autorizar dá ao caminho primário uma
-        pegada própria e tira os dois desfechos opostos da mesma coluna. O
-        `h-full` do wrapper mantém a cadeia de altura até o painel colorido —
-        ver a nota em `_painel_decisao.html`.
+        pegada própria. O `h-full` do wrapper mantém a cadeia de altura até o
+        painel colorido — ver a nota em `_painel_decisao.html`.
       {% endcomment %}
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {% if pode_autorizar %}
@@ -348,13 +341,13 @@
 
         {% if pode_retornar %}
           {% url 'requisicoes:retornar_rascunho' requisicao.pk as retornar_url %}
-          {% include "requisicoes/partials/_confirmacao_acao.html" with registro=registro layout="card" variant_token="warning" modal_id="confirmar-retornar" titulo="Retornar para rascunho" conteudo="Peça ajustes ao criador antes de decidir. Observação opcional." botao_label="Retornar" botao_variant="warning-outline" modal_titulo="Retornar para rascunho?" modal_descricao="A requisição volta a ser rascunho visível apenas ao criador." action_url=retornar_url confirm_label="Confirmar retorno" confirm_variant="neutral" icon_variant="warning" form_body_template="requisicoes/partials/_modal_form_retornar.html" hidden_inputs=retornar_hidden_inputs corpo_com_campo_focavel=True loading_label="Retornando…" %}
-        {% endif %}
-
-        {% if pode_recusar %}
-          {% modal_copy "recusar" as recusar_copy %}
-          {% url 'requisicoes:recusar' requisicao.pk as recusar_url %}
-          {% include "requisicoes/partials/_confirmacao_acao.html" with registro=registro layout="card" variant_token="danger" modal_id="confirmar-recusar" abrir_ao_carregar=recusa_erro titulo="Recusar requisição" conteudo="Recuse informando o motivo. Nenhum saldo é reservado ou baixado." botao_label="Recusar" botao_variant="danger-outline" modal_titulo=recusar_copy.titulo modal_descricao=recusar_copy.descricao action_url=recusar_url confirm_label=recusar_copy.confirm_label confirm_variant="danger" icon_variant=recusar_copy.icon_variant form_body_template="requisicoes/partials/_modal_form_recusar.html" erro=recusa_erro motivo_recusa=motivo_recusa hidden_inputs=recusar_hidden_inputs role="alertdialog" corpo_com_campo_focavel=True loading_label="Recusando…" %}
+          {% if retorno_como_chefe %}
+            {% modal_copy "recusar" as retornar_modal_copy %}
+            {% include "requisicoes/partials/_confirmacao_acao.html" with registro=registro layout="card" variant_token="warning" modal_id="confirmar-retornar" abrir_ao_carregar=recusa_erro titulo="Recusar requisição" conteudo="Recuse informando o motivo. A requisição volta para rascunho, visível apenas ao criador." botao_label="Recusar" botao_variant="warning-outline" modal_titulo=retornar_modal_copy.titulo modal_descricao=retornar_modal_copy.descricao action_url=retornar_url confirm_label=retornar_modal_copy.confirm_label confirm_variant="neutral" icon_variant=retornar_modal_copy.icon_variant form_body_template="requisicoes/partials/_modal_form_retornar.html" erro=recusa_erro motivo_recusa=motivo_recusa hidden_inputs=retornar_hidden_inputs role="alertdialog" corpo_com_campo_focavel=True loading_label="Retornando…" %}
+          {% else %}
+            {% modal_copy "retornar" as retornar_modal_copy %}
+            {% include "requisicoes/partials/_confirmacao_acao.html" with registro=registro layout="card" variant_token="warning" modal_id="confirmar-retornar" titulo="Retornar para rascunho" conteudo="Peça ajustes ao criador antes de decidir. Observação opcional." botao_label="Retornar" botao_variant="warning-outline" modal_titulo=retornar_modal_copy.titulo modal_descricao=retornar_modal_copy.descricao action_url=retornar_url confirm_label=retornar_modal_copy.confirm_label confirm_variant="neutral" icon_variant=retornar_modal_copy.icon_variant form_body_template="requisicoes/partials/_modal_form_retornar.html" hidden_inputs=retornar_hidden_inputs corpo_com_campo_focavel=True loading_label="Retornando…" %}
+          {% endif %}
         {% endif %}
       </div>
     </section>

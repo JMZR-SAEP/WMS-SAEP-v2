@@ -1,24 +1,42 @@
 {% comment %}
-  Corpo do modal de retorno para rascunho. Params: observacao_retorno (opcional).
+  Corpo do modal de retorno para rascunho — TR-006/TR-011 unificadas (issue
+  #170). Params: erro, motivo_recusa (valor atual do campo), retorno_como_chefe.
 
-  Rótulo e ajuda na grafia de `components/form_field.html` — ver a nota em
-  `_modal_form_recusar.html`. Sem asterisco: a observação é opcional.
+  Rótulo, ajuda e obrigatoriedade mudam com quem decide, não a ação nem o
+  nome do campo no POST (sempre `observacao`, lido por
+  `retornar_para_rascunho`): o dono (criador ou beneficiário) ajusta o
+  próprio pedido com observação opcional; qualquer outro decisor — o chefe do
+  setor do beneficiário, na prática — devolve por decisão e precisa
+  justificar. `retorno_como_chefe` chega pronto do contexto da view
+  (`_eh_decisao_de_terceiro`, em `views.py`) — este template só exibe.
 
-  O `value` existe mesmo sem caminho de 422 nesta ação (a view redireciona em
-  vez de re-renderizar o corpo). É o único dos cinco corpos que não conseguia
-  devolver o que a pessoa digitou, e a assimetria não tinha razão: no dia em
-  que `retornar_rascunho_view` ganhar um 422, o corpo já sabe se recompor.
+  Rótulo, texto de ajuda e marcador de obrigatório seguem a mesma grafia de
+  `components/form_field.html` — `.rotulo-campo` (que já carrega a régua até o
+  elemento seguinte), ajuda em `text-text-tertiary` sob o id `<campo>-ajuda`, e
+  o asterisco com `ml-0.5`. O `<textarea>` não passa por `form_field.html`
+  porque não há BoundField aqui: o valor é lido de `request.POST` direto pela
+  view, sem Form.
 {% endcomment %}
 <label for="modal-retornar-observacao" class="rotulo-campo">
-  Observação do retorno
+  {% if retorno_como_chefe %}
+    Motivo da recusa <span class="ml-0.5 text-danger-text" aria-hidden="true">*</span>
+  {% else %}
+    Observação do retorno
+  {% endif %}
 </label>
 <p id="modal-retornar-observacao-ajuda" class="mt-1 text-xs text-text-tertiary">
-  Opcional. A requisição volta a ser rascunho visível apenas ao criador.
+  {% if retorno_como_chefe %}
+    Obrigatório. A requisição volta a ser rascunho visível apenas ao criador, que pode ajustar e reenviar.
+  {% else %}
+    Opcional. A requisição volta a ser rascunho visível apenas ao criador.
+  {% endif %}
 </p>
 <textarea
   id="modal-retornar-observacao"
   name="observacao"
   rows="4"
-  aria-describedby="modal-retornar-observacao-ajuda"
+  {% if retorno_como_chefe %}aria-required="true"{% endif %}
+  aria-describedby="modal-retornar-observacao-ajuda{% if erro %} {{ id }}-erro{% endif %}"
+  {% if erro %}aria-invalid="true"{% endif %}
   class="campo"
->{{ observacao_retorno|default_if_none:"" }}</textarea>
+>{{ motivo_recusa|default_if_none:"" }}</textarea>

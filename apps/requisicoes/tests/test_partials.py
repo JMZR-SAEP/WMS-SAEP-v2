@@ -16,7 +16,6 @@ ESTADOS_CANONICOS = {
     'autorizada': 'blue',
     'pronta_para_retirada': 'blue-strong',
     'atendida': 'green',
-    'recusada': 'red-strong',
     'cancelada': 'cancel',
     'estornada': 'teal-strong',
 }
@@ -64,7 +63,6 @@ def test_estado_canonico_mantem_variante_de_hoje(estado, variant_esperada):
         'blue': 'bg-primary-muted ',
         'blue-strong': 'bg-primary-muted-strong',
         'green': 'bg-success-muted',
-        'red-strong': 'bg-danger-muted-strong',
         'cancel': 'bg-cancel-muted',
         'teal-strong': 'bg-return-muted-strong',
     }[variant_esperada]
