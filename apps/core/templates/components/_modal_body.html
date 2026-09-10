@@ -195,8 +195,18 @@
     Sem isso, um modal na altura máxima (estorno com justificativa, teclado
     aberto) deixa o botão de confirmar embaixo da barra do sistema.
   {% endcomment %}
-  <footer class="flex flex-col-reverse gap-2 border-t border-border bg-bg-page px-6 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:flex-row sm:justify-end">
+  <footer class="flex flex-col gap-2 border-t border-border bg-bg-page px-6 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:flex-row sm:justify-end">
     {% comment %}
+      Ordem do DOM = ordem de leitura = ordem de foco em toda largura
+      (DESIGN.md §Layout, A Regra da Pilha que Segue o DOM): a dispensa
+      ("Voltar"), então a primária ("Confirmar"). `flex-col` no mobile desce
+      nessa ordem — primária no pé da pilha, ao alcance do polegar —,
+      `sm:flex-row sm:justify-end` alinha à direita no desktop. Sem
+      `flex-col-reverse`: inverter só o eixo vertical fazia o Tab visitar
+      `[Voltar, Confirmar]` enquanto o olho lia `[Confirmar, Voltar]` a <640px
+      (falha WCAG 2.4.3). Corrigido pela #190 (2026-09-10), que encerrou a
+      exceção temporária que este ponto carregava no DESIGN.md.
+
       Rodapé usa components/button.html como qualquer outra ação do sistema, e
       `confirm_variant` é repassado direto: o modal não traduz vocabulário. Ele
       já teve o seu próprio ("secondary" significava confirmação grafite
