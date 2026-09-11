@@ -1,0 +1,29 @@
+{% comment %}
+  Recapitulação por item do modal de autorizar (#195 — "autorizar-e-quicar").
+
+  A tela já mostra "Disponível" em âmbar quando um item não cobre o solicitado
+  (`requisicoes/detalhe.html`, bloco `saldo_disponivel_exibido`); este partial
+  repete a mesma leitura dentro do modal, que é quem efetivamente reserva o
+  saldo. Sem isto o chefe via o déficit na lista, rolava até o modal, e a
+  confirmação em si não dizia nada — a cópia genérica ("reserva o saldo
+  necessário") ficava sem números atrás dela, e é o modal, não a lista, quem
+  o chefe olha no instante de confirmar.
+
+  Params: `itens`, herdado do contexto — mesma lista anotada por
+  `_anotar_saldo_para_autorizar` (views.py), com `saldo_insuficiente`,
+  `saldo_disponivel_exibido` e `saldo_motivo` por item.
+{% endcomment %}
+<dl class="divide-y divide-border rounded-lg border border-border px-3 text-sm">
+  {% for item in itens %}
+    <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-2">
+      <dt class="min-w-0 font-medium text-text-primary">{{ item.material.nome }}</dt>
+      <dd>
+        {% if item.saldo_insuficiente %}
+          {% include "components/quantidade.html" with valor=item.saldo_disponivel_exibido unidade=item.material.unidade unidade_label=item.material.get_unidade_display tom="warning" referencia=item.saldo_motivo|default:"não cobre o solicitado" %}
+        {% else %}
+          {% include "components/quantidade.html" with valor=item.quantidade_solicitada unidade=item.material.unidade unidade_label=item.material.get_unidade_display %}
+        {% endif %}
+      </dd>
+    </div>
+  {% endfor %}
+</dl>

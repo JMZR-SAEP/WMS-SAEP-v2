@@ -164,6 +164,28 @@ def _pode_copiar_agora(papel: PapelEfetivo, requisicao: Requisicao) -> bool:
     )
 
 
+def _anotar_saldo_para_autorizar(itens: list[ItemRequisicao]) -> bool:
+    """Marca saldo disponível/insuficiente por item; devolve se algum não cobre.
+
+    Reusada pelo GET do detalhe (para decidir se o botão fica desabilitado e
+    para o recap do modal) e pelo 422 do POST de autorizar (#195), quando o
+    saldo que era suficiente no render já não é mais na confirmação — as duas
+    pontas precisam da mesma anotação por item.
+    """
+    saldos = saldos_por_materiais([i.material_id for i in itens])
+    algum_insuficiente = False
+    for item in itens:
+        info = saldos.get(item.material_id)
+        if info is None:
+            continue
+        item.saldo_disponivel_exibido = info['saldo_disponivel']
+        item.saldo_insuficiente = info['saldo_disponivel'] < item.quantidade_solicitada
+        item.saldo_motivo = info['motivo']
+        if item.saldo_insuficiente:
+            algum_insuficiente = True
+    return algum_insuficiente
+
+
 def _detalhe_context(
     request,
     requisicao: Requisicao,
@@ -257,17 +279,29 @@ def _detalhe_context(
     # modal dizia "reserva o saldo necessário para todos os itens" sem dizer
     # quanto, de quê, nem se existe. O chefe descobria o problema depois de
     # confirmar. Uma consulta só, e só no estado em que ela decide algo.
-    if Operacao.AUTORIZAR in acoes:
-        saldos = saldos_por_materiais([i.material_id for i in itens])
-        for item in itens:
-            info = saldos.get(item.material_id)
-            if info is None:
-                continue
-            item.saldo_disponivel_exibido = info['saldo_disponivel']
-            item.saldo_insuficiente = (
-                info['saldo_disponivel'] < item.quantidade_solicitada
-            )
-            item.saldo_motivo = info['motivo']
+    autorizacao_permitida_papel_estado = Operacao.AUTORIZAR in acoes
+    algum_item_saldo_insuficiente = False
+    if autorizacao_permitida_papel_estado:
+        algum_item_saldo_insuficiente = _anotar_saldo_para_autorizar(itens)
+    # #195 ("autorizar-e-quicar"): saldo insuficiente não é só apresentação —
+    # o domínio (`autorizar_requisicao` -> `reservar_saldos_para_autorizacao`)
+    # recusa a operação inteira quando algum item não cobre. Oferecer o botão
+    # como se fosse ter sucesso é a UI prometendo o que o domínio já sabe que
+    # vai negar. `acoes_disponiveis`/policies não fazem essa consulta (custaria
+    # IO extra em toda fila/listagem que usa a mesma frozenset em lote); o
+    # predicado estende aqui, na view, que já paga essa consulta.
+    pode_autorizar = (
+        autorizacao_permitida_papel_estado and not algum_item_saldo_insuficiente
+    )
+    autorizar_bloqueado_por_saldo = (
+        autorizacao_permitida_papel_estado and algum_item_saldo_insuficiente
+    )
+    autorizar_card_conteudo = (
+        'Algum item não tem saldo suficiente para autorizar integralmente. '
+        'Retorne para rascunho para ajustar as quantidades.'
+        if autorizar_bloqueado_por_saldo
+        else 'Aprove a requisição e reserve o saldo necessário para todos os itens.'
+    )
 
     # `item_erro` chega da querystring quando uma tentativa de autorização
     # barrou por saldo: o service diz qual material, a view repassa, e a lista
@@ -299,7 +333,9 @@ def _detalhe_context(
         # Um card só para TR-006/TR-011 (issue #170): o rótulo e a
         # obrigatoriedade do motivo mudam com quem decide, não a ação.
         'retorno_como_chefe': _eh_decisao_de_terceiro(request.user.pk, requisicao),
-        'pode_autorizar': Operacao.AUTORIZAR in acoes,
+        'pode_autorizar': pode_autorizar,
+        'autorizar_bloqueado_por_saldo': autorizar_bloqueado_por_saldo,
+        'autorizar_card_conteudo': autorizar_card_conteudo,
         'pode_separar_retirada': Operacao.SEPARAR_PARA_RETIRADA in acoes,
         'pode_atender_retirada': Operacao.REGISTRAR_ATENDIMENTO in acoes,
         'pode_cancelar': cancelavel,
@@ -808,7 +844,9 @@ def fila_autorizacao_view(request):
 @require_http_methods(['POST'])
 def autorizar_requisicao_view(request, pk: int):
     """Autoriza integralmente uma requisição e reserva saldo."""
-    get_object_or_404(requisicoes_visiveis_para(request.user.pk), pk=pk)
+    requisicao_atual = get_object_or_404(
+        requisicoes_visiveis_para(request.user.pk), pk=pk
+    )
     try:
         requisicao = autorizar_requisicao(
             ator_id=request.user.pk,
@@ -820,6 +858,34 @@ def autorizar_requisicao_view(request, pk: int):
         messages.warning(request, str(exc))
         return htmx_redirect(request, reverse('requisicoes:detalhe', args=[pk]))
     except ConflitoDominio as exc:
+        # #195 ("autorizar-e-quicar"): o saldo era suficiente quando a tela
+        # renderizou (o botão só fica clicável nesse caso — ver
+        # `_detalhe_context`) e deixou de ser entre o render e a confirmação —
+        # outra autorização/saída consumiu o saldo primeiro. Com htmx, o erro
+        # volta pelo mesmo modal (422 + fragment), com foco no corpo e recap
+        # atualizado, em vez de reload inteiro + flash. Sem JS não há fragment
+        # para trocar: cai no fallback de sempre.
+        if request.htmx:
+            itens = list(requisicao_atual.itens.select_related('material').all())
+            _anotar_saldo_para_autorizar(itens)
+            return render_modal_erro(
+                request,
+                modal_id='confirmar-autorizar',
+                titulo='Autorizar requisição?',
+                descricao=(
+                    'Reserva o saldo dos itens listados abaixo, '
+                    'sem alterar o saldo físico.'
+                ),
+                registro=registro_requisicao(requisicao_atual),
+                erro=str(exc),
+                form_body_template='requisicoes/partials/_modal_corpo_autorizar.html',
+                confirm_label='Confirmar autorização',
+                confirm_variant='primary',
+                icon_variant='info',
+                acao_erro='autorizar a requisição',
+                loading_label='Autorizando…',
+                contexto_form={'itens': itens},
+            )
         messages.warning(request, str(exc))
         # O material que barrou a reserva volta na querystring para o detalhe
         # marcar o item. A faixa no topo diz o que aconteceu; sem isto o

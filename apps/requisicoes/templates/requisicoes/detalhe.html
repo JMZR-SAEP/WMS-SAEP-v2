@@ -296,21 +296,21 @@
     </section>
   {% endif %}
 
-  {% if pode_autorizar or pode_retornar %}
+  {% if pode_autorizar or pode_retornar or autorizar_bloqueado_por_saldo %}
     <section
       class="mb-6 rounded-xl border border-border bg-surface p-4 shadow-sm sm:p-6"
       aria-labelledby="decisao-autorizacao-titulo"
     >
       <div class="mb-4">
         <h2 id="decisao-autorizacao-titulo" class="text-lg font-semibold text-text-primary">
-          {% if pode_retornar and not pode_autorizar %}
+          {% if pode_retornar and not pode_autorizar and not autorizar_bloqueado_por_saldo %}
             Retorno para rascunho
           {% else %}
             Decisão de autorização
           {% endif %}
         </h2>
         <p class="mt-1 text-sm text-text-secondary">
-          {% if pode_retornar and not pode_autorizar %}
+          {% if pode_retornar and not pode_autorizar and not autorizar_bloqueado_por_saldo %}
             Use este bloco para devolver a requisição ao criador com observação opcional.
           {% else %}
             Revise beneficiário, setor e itens antes de registrar a decisão.
@@ -332,10 +332,18 @@
         painel colorido — ver a nota em `_painel_decisao.html`.
       {% endcomment %}
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {% if pode_autorizar %}
+        {% if pode_autorizar or autorizar_bloqueado_por_saldo %}
           {% url 'requisicoes:autorizar' requisicao.pk as autorizar_url %}
           <div class="h-full lg:col-span-2">
-          {% include "requisicoes/partials/_confirmacao_acao.html" with registro=registro layout="card" variant_token="info" modal_id="confirmar-autorizar" titulo="Autorização integral" conteudo="Aprove a requisição e reserve o saldo necessário para todos os itens." botao_label="Autorizar" botao_variant="primary" modal_titulo="Autorizar requisição?" modal_descricao="Reserva o saldo necessário para todos os itens sem alterar o saldo físico." action_url=autorizar_url confirm_label="Confirmar autorização" confirm_variant="primary" icon_variant="info" hidden_inputs=autorizar_hidden_inputs role="alertdialog" loading_label="Autorizando…" %}
+          {% comment %}
+            Motivo do bloqueio (#195) renderizado DENTRO do painel (ver
+            _painel_decisao.html) — como `<p>` solto aqui fora, ficava fora do
+            fluxo do `h-full` que estica por `align-items: stretch` e sobrepunha
+            o próximo card da grade. Amarrado por aria-describedby, tom
+            warning; aponta para "Retornar para rascunho", a única saída
+            disponível para ajustar a quantidade.
+          {% endcomment %}
+          {% include "requisicoes/partials/_confirmacao_acao.html" with registro=registro layout="card" variant_token="info" modal_id="confirmar-autorizar" titulo="Autorização integral" conteudo=autorizar_card_conteudo botao_label="Autorizar" botao_variant="primary" botao_disabled=autorizar_bloqueado_por_saldo botao_aria_describedby="autorizar-motivo-saldo" motivo_bloqueio="Algum item não tem saldo suficiente para autorizar integralmente. Retornar para rascunho permite ajustar as quantidades antes de tentar novamente." modal_titulo="Autorizar requisição?" modal_descricao="Reserva o saldo dos itens listados abaixo, sem alterar o saldo físico." form_body_template="requisicoes/partials/_modal_corpo_autorizar.html" action_url=autorizar_url confirm_label="Confirmar autorização" confirm_variant="primary" icon_variant="info" hidden_inputs=autorizar_hidden_inputs role="alertdialog" loading_label="Autorizando…" %}
           </div>
         {% endif %}
 

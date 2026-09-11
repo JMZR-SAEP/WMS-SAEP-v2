@@ -224,6 +224,54 @@ def test_re_render_422_leva_o_foco_ao_campo_invalido(
     assert dialogo.evaluate('(d) => d.open'), 'O 422 não pode fechar o diálogo.'
 
 
+def test_re_render_422_sem_campo_leva_o_foco_ao_sumario_de_erro(
+    abrir_pagina, chefe_obras, req_para_decisao, material_disponivel
+):
+    """#195 — saldo insuficiente na confirmação, não no render.
+
+    `confirmar-autorizar` não tem campo nenhum: sem a perna de
+    `[data-error-summary]` em `focarPrimeiroCampo`, o 422 caía direto na
+    perna "sem campo" e o foco voltava para "Voltar" — o leitor de tela
+    nunca anunciava por que a confirmação falhou. A corrida é real: o saldo
+    está de sobra quando a página abre (o botão só é clicável nesse caso),
+    e alguém consome o saldo — outra autorização, uma saída — entre a
+    abertura do modal e o clique em "Confirmar autorização".
+    """
+
+    from apps.estoque.models import SaldoEstoque
+
+    page = abrir_pagina(
+        chefe_obras, reverse('requisicoes:detalhe', kwargs={'pk': req_para_decisao.pk})
+    )
+    _abrir_modal(page, 'confirmar-autorizar')
+
+    # Consome o saldo depois que a página já abriu com o botão habilitado —
+    # é exatamente a janela entre o render e a confirmação que a #195 pede
+    # para cobrir. Sobra 1: zerar o disponível cai em `_validar_itens`
+    # ("sem saldo disponível", `DadosInvalidos`, pré-existente) em vez do
+    # `ConflitoDominio` de `reservar_saldos_para_autorizacao` que este teste
+    # quer exercitar — o item pede 2, sobra 1 é insuficiente sem ser zero.
+    saldo = SaldoEstoque.objects.get(material=material_disponivel)
+    saldo.saldo_reservado = saldo.saldo_fisico - Decimal('1')
+    saldo.save(update_fields=['saldo_reservado'])
+
+    dialogo = page.locator('dialog#confirmar-autorizar')
+    dialogo.locator('[data-modal-confirm]').click()
+    page.wait_for_selector('dialog#confirmar-autorizar [data-modal-erro]')
+    page.wait_for_function(
+        "() => document.activeElement.hasAttribute('data-error-summary')"
+    )
+
+    foco = page.evaluate(_DESCRICAO_DO_FOCO)
+    assert not foco['dispensa'], (
+        f'O foco caiu em "Voltar" em vez do sumário de erro — o leitor de '
+        f'tela não anuncia por que a autorização falhou. Foco em {foco}.'
+    )
+    assert dialogo.evaluate('(d) => d.open'), 'O 422 não pode fechar o diálogo.'
+    req_para_decisao.refresh_from_db()
+    assert req_para_decisao.estado == EstadoRequisicao.AGUARDANDO_AUTORIZACAO
+
+
 def test_enter_no_campo_numerico_nao_confirma_a_devolucao(
     abrir_pagina, aux_almoxarifado, req_com_devolucao
 ):

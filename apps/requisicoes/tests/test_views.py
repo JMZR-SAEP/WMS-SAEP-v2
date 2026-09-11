@@ -1862,6 +1862,53 @@ def test_autorizar_requisicao_post_sem_permissao_retorna_403(
 
 
 @pytest.mark.django_db
+def test_autorizar_requisicao_conflito_saldo_htmx_retorna_422_fragment(
+    client, chefe_obras, req_enviada_solicitante, material_disponivel
+):
+    """#195 — saldo insuficiente na confirmação vira 422+fragment, não flash+reload."""
+    req_enviada_solicitante.itens.create(
+        material=material_disponivel, quantidade_solicitada=Decimal('200')
+    )
+    _login(client, chefe_obras)
+
+    response = client.post(
+        reverse('requisicoes:autorizar', kwargs={'pk': req_enviada_solicitante.pk}),
+        HTTP_HX_REQUEST='true',
+    )
+
+    assert response.status_code == 422
+    html = response.content.decode('utf-8')
+    assert 'data-modal-body="confirmar-autorizar"' in html
+    assert 'data-modal-erro' in html
+    assert '<!DOCTYPE html>' not in html
+    req_enviada_solicitante.refresh_from_db()
+    assert req_enviada_solicitante.estado == EstadoRequisicao.AGUARDANDO_AUTORIZACAO
+
+
+@pytest.mark.django_db
+def test_autorizar_requisicao_conflito_saldo_sem_htmx_mantem_flash_e_redirect(
+    client, chefe_obras, req_enviada_solicitante, material_disponivel
+):
+    """Sem JS, o fallback de reload inteiro + flash + `item_erro` continua valendo."""
+    item = req_enviada_solicitante.itens.create(
+        material=material_disponivel, quantidade_solicitada=Decimal('200')
+    )
+    _login(client, chefe_obras)
+
+    response = client.post(
+        reverse('requisicoes:autorizar', kwargs={'pk': req_enviada_solicitante.pk})
+    )
+
+    assert response.status_code == 302
+    detalhe_url = reverse(
+        'requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk}
+    )
+    assert response.url == f'{detalhe_url}?item_erro={item.material_id}'
+    req_enviada_solicitante.refresh_from_db()
+    assert req_enviada_solicitante.estado == EstadoRequisicao.AGUARDANDO_AUTORIZACAO
+
+
+@pytest.mark.django_db
 def test_detalhe_exibe_retorno_para_criador_e_nao_exibe_recusa(
     client, solicitante, req_enviada_solicitante
 ):
@@ -1888,12 +1935,17 @@ def test_detalhe_autorizar_card_e_modal_tem_copy_diferenciada(
     )
     html = response.content.decode('utf-8')
 
+    card_copy = 'Aprove a requisição e reserve o saldo necessário para todos os itens.'
     modal_copy = (
-        'Reserva o saldo necessário para todos os itens sem alterar o saldo físico.'
+        'Reserva o saldo dos itens listados abaixo, sem alterar o saldo físico.'
     )
 
     assert response.context['pode_autorizar'] is True
+    assert html.count(card_copy) == 1
     assert html.count(modal_copy) == 1
+    # A frase antiga garantia reserva "para todos os itens" mesmo quando o
+    # domínio recusaria — #195.
+    assert 'Reserva o saldo necessário para todos os itens sem alterar' not in html
 
 
 @pytest.mark.django_db
@@ -6192,6 +6244,94 @@ class TestSaldoVisivelNaDecisao:
         html = client.get(f'{url}?item_erro={material_id}').content.decode('utf-8')
         assert 'aria-invalid="true"' in html
         assert 'border-danger-border-input' in html
+
+    def _com_item_sem_saldo(self, requisicao, material):
+        """Quantidade bem acima do saldo disponível do fixture (90)."""
+        requisicao.itens.create(material=material, quantidade_solicitada=Decimal('200'))
+        return requisicao
+
+    @pytest.mark.django_db
+    def test_pode_autorizar_falso_quando_item_sem_saldo(
+        self, client, chefe_obras, req_enviada_solicitante, material_disponivel
+    ):
+        """#195 — 'autorizar-e-quicar': a ação some quando o domínio já sabe que
+        vai recusar por saldo."""
+        self._com_item_sem_saldo(req_enviada_solicitante, material_disponivel)
+        _login(client, chefe_obras)
+        response = client.get(
+            reverse('requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk})
+        )
+
+        assert response.context['pode_autorizar'] is False
+        assert response.context['autorizar_bloqueado_por_saldo'] is True
+
+    @pytest.mark.django_db
+    def test_pode_autorizar_verdadeiro_quando_saldo_cobre(
+        self, client, chefe_obras, req_enviada_solicitante, material_disponivel
+    ):
+        self._com_item(req_enviada_solicitante, material_disponivel)
+        _login(client, chefe_obras)
+        response = client.get(
+            reverse('requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk})
+        )
+
+        assert response.context['pode_autorizar'] is True
+        assert response.context['autorizar_bloqueado_por_saldo'] is False
+
+    @pytest.mark.django_db
+    def test_autorizar_bloqueado_fica_visivel_e_desabilitado_com_motivo(
+        self, client, chefe_obras, req_enviada_solicitante, material_disponivel
+    ):
+        """Continua visível (regra do design system para ação bloqueada) em vez
+        de sumir do DOM — só o clique é barrado."""
+        self._com_item_sem_saldo(req_enviada_solicitante, material_disponivel)
+        _login(client, chefe_obras)
+        response = client.get(
+            reverse('requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk})
+        )
+        html = response.content.decode('utf-8')
+
+        assert 'Autorizar' in html
+        assert 'aria-disabled="true"' in html
+        assert 'aria-describedby="autorizar-motivo-saldo"' in html
+        assert 'id="autorizar-motivo-saldo"' in html
+        assert 'Retornar para rascunho' in html
+
+    @pytest.mark.django_db
+    def test_modal_autorizar_recap_por_item_marca_ambar_quando_insuficiente(
+        self, client, chefe_obras, req_enviada_solicitante, material_disponivel
+    ):
+        """#195 item 3 — o corpo do modal repete o "não cobre" que a lista de
+        itens já mostra, em vez de omitir o déficit da confirmação."""
+        self._com_item_sem_saldo(req_enviada_solicitante, material_disponivel)
+        _login(client, chefe_obras)
+        response = client.get(
+            reverse('requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk})
+        )
+        html = response.content.decode('utf-8')
+
+        assert 'data-modal-body="confirmar-autorizar"' in html
+        # A lista de itens (fora do modal) já mostra "não cobre" desde a
+        # Etapa 8; o recap dentro do modal é uma SEGUNDA ocorrência do nome do
+        # material e do aviso — se só existir uma, o modal continua omisso.
+        assert html.count(material_disponivel.nome) >= 2
+        assert html.count('não cobre o solicitado') >= 2
+
+    @pytest.mark.django_db
+    def test_modal_autorizar_recap_por_item_sem_ambar_quando_saldo_cobre(
+        self, client, chefe_obras, req_enviada_solicitante, material_disponivel
+    ):
+        self._com_item(req_enviada_solicitante, material_disponivel)
+        _login(client, chefe_obras)
+        response = client.get(
+            reverse('requisicoes:detalhe', kwargs={'pk': req_enviada_solicitante.pk})
+        )
+        html = response.content.decode('utf-8')
+
+        # Recap sempre presente no corpo do modal, mesmo com saldo suficiente
+        # (nome do item aparece na lista E de novo dentro do modal).
+        assert html.count(material_disponivel.nome) >= 2
+        assert 'não cobre o solicitado' not in html
 
 
 class TestTimelineDevolveOQueOFormularioExige:
