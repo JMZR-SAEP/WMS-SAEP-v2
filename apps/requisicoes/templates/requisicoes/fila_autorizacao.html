@@ -10,44 +10,63 @@
 </p>
 
 {% url 'requisicoes:autorizacoes' as url_lista %}
-{% include "components/busca_simples.html" with action_url=url_lista id="busca-autorizacoes" name="busca" label="Requisição ou material" value=busca placeholder="Número público, código ou nome do material" %}
+{% include "components/busca_simples.html" with action_url=url_lista id="busca-autorizacoes" name="busca" label="Requisição ou material" value=busca placeholder="Número, código ou material" %}
 
 {% if requisicoes %}
   {% include "components/ordenacao_data.html" with page_obj=page_obj rotulo_contagem="requisição,requisições" %}
-  {% include "components/table.html#cards_abertura" %}
+  <div class="mb-3 flex justify-end">
+    {% if ordenar == 'saldo' %}
+      {% include "components/button.html" with variant="secondary" label="Ordem padrão (mais antiga primeiro)" href=url_ordenar_padrao %}
+    {% else %}
+      {% include "components/button.html" with variant="secondary" label="Priorizar saldo insuficiente" href=url_ordenar_saldo %}
+    {% endif %}
+  </div>
+  <div
+    x-data="travessiaFila()"
+    @keydown.arrow-down.prevent="proximo()"
+    @keydown.arrow-up.prevent="anterior()"
+  >
+    {% include "components/table.html#cards_abertura" %}
     {% for req in requisicoes %}
       {% include "components/table.html#card_abertura" %}
         {% url 'requisicoes:detalhe' pk=req.pk as url_detalhe_req %}
         {% with next_encoded=request.get_full_path|urlencode %}
-        <div>
-          <h2 class="break-words text-sm font-semibold text-text-primary">
+        <div class="flex flex-col gap-2 xl:flex-row xl:items-start xl:justify-between xl:gap-3">
+          <div class="min-w-0">
+            <h2 class="break-words text-sm font-semibold text-text-primary">
+              {% comment %}
+                O link do título é o alvo real; `data-cartao-link` faz o cartão
+                inteiro responder por ele (core/js/cartao-alvo.js). O nome
+                acessível traz o verbo — o número público sozinho não diz o que o
+                link faz.
+              {% endcomment %}
+              <a
+                href="{{ url_detalhe_req }}?next={{ next_encoded }}"
+                data-cartao-link
+                class="rounded-sm focus-visible:outline-none"
+                aria-label="Analisar requisição {{ req.numero_publico }}"
+              >{{ req.numero_publico }}</a>
+            </h2>
             {% comment %}
-              O link do título é o alvo real; `data-cartao-link` faz o cartão
-              inteiro responder por ele (core/js/cartao-alvo.js). O nome
-              acessível traz o verbo — o número público sozinho não diz o que o
-              link faz.
-            {% endcomment %}
-            <a
-              href="{{ url_detalhe_req }}?next={{ next_encoded }}"
-              data-cartao-link
-              class="rounded-sm focus-visible:outline-none"
-              aria-label="Analisar requisição {{ req.numero_publico }}"
-            >{{ req.numero_publico }}</a>
-          </h2>
-          {% comment %}
-            A linha inteira sai quando não há data — nunca "Enviada em —" com
-            o rótulo órfão na segunda posição de leitura do cartão (issue #160).
+              A linha inteira sai quando não há data — nunca "Enviada em —" com
+              o rótulo órfão na segunda posição de leitura do cartão (issue #160).
 
-            A guarda é defensiva, não "campo opcional": `enviada_em` é anotação
-            do selector `fila_autorizacao` sobre o evento `envio_autorizacao`,
-            e TR-005 é a única porta de entrada em `aguardando_autorizacao` —
-            o único estado que esta fila lista. A timeline é append-only
-            (ADR-0002) e o admin nega add/change/delete nela, então em dado
-            consistente a data sempre existe. `None` só aparece em registro
-            montado fora dos services (ORM direto, seed antigo, migração).
-          {% endcomment %}
-          {% if req.enviada_em %}
-            <p class="mt-1 text-xs text-text-tertiary">Enviada em {{ req.enviada_em|date:"d/m/Y H:i" }}</p>
+              A guarda é defensiva, não "campo opcional": `enviada_em` é anotação
+              do selector `fila_autorizacao` sobre o evento `envio_autorizacao`,
+              e TR-005 é a única porta de entrada em `aguardando_autorizacao` —
+              o único estado que esta fila lista. A timeline é append-only
+              (ADR-0002) e o admin nega add/change/delete nela, então em dado
+              consistente a data sempre existe. `None` só aparece em registro
+              montado fora dos services (ORM direto, seed antigo, migração).
+            {% endcomment %}
+            {% if req.enviada_em %}
+              <p class="mt-1 text-xs {% if req.data_antiga %}text-warning-text{% else %}text-text-tertiary{% endif %}">Enviada em {{ req.enviada_em|date:"d/m/Y H:i" }}{% if req.data_antiga %}<span class="sr-only"> (há mais de 24 horas)</span>{% endif %}</p>
+            {% endif %}
+          </div>
+          {% if req.saldo_insuficiente %}
+            <span class="shrink-0">
+              {% include "components/badge.html" with variant="amber" label="Saldo insuficiente" prefixo_sr="Saldo: " %}
+            </span>
           {% endif %}
         </div>
 
@@ -86,6 +105,7 @@
         {% endwith %}
       </article>
     {% endfor %}
+    </div>
   </div>
 
   {% include 'components/pagination.html' with page_obj=page_obj querystring_filtros=querystring_filtros rotulo_itens='requisições' aria_label='Paginação da fila de autorização' %}

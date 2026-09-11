@@ -4,6 +4,7 @@ Fluxo: ler input → chamar service com IDs → traduzir exceção → renderiza
 Nenhuma regra de domínio, query de escopo ou decisão de autorização própria.
 """
 
+from datetime import timedelta
 from decimal import Decimal
 
 from apps.accounts.papeis import PapelEfetivo, papel_efetivo
@@ -24,6 +25,7 @@ from django.forms.formsets import DELETION_FIELD_NAME
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_GET, require_http_methods
 
 from apps.core.exceptions import (
@@ -43,7 +45,7 @@ from apps.core.http import (
 from apps.core.listagem import contar_filtros_ativos, paginar, paginar_com_filtros
 from apps.core.modal import render_modal_erro
 from apps.core.presentation import traduz_erro_dominio
-from apps.core.querystring import caminho_canonico
+from apps.core.querystring import caminho_canonico, canonicalizar
 from apps.requisicoes.presentation import MODAL_COPY
 from apps.requisicoes.presentation import cancelamento_copy, registro_requisicao
 from apps.core.quantidades import formatar as formatar_quantidade
@@ -88,7 +90,9 @@ from apps.requisicoes.selectors import (
     minhas_requisicoes,
     pode_filtrar_historico_por_setor,
     requisicoes_visiveis_para,
+    saldo_insuficiente_por_requisicoes,
     saldos_por_materiais,
+    separacao_bloqueada_por_requisicoes,
     setores_do_historico,
 )
 from apps.requisicoes.services import (
@@ -745,8 +749,67 @@ def buscar_beneficiarios(request):
 # ---------------------------------------------------------------------------
 
 
+LIMIAR_IDADE_FILA = timedelta(hours=24)
+
+
+def _marcar_idade_antiga(requisicoes, campo_data: str) -> None:
+    """`req.data_antiga = True` quando `campo_data` passou de 24h corridas.
+
+    Limiar único (#194): o timestamp muda de tom neutro (`text-text-tertiary`)
+    pra warning (`text-warning-text`, o mesmo token de `quantidade.html`) —
+    sem escalada em múltiplos níveis, decisão do shape da issue.
+    """
+    agora = timezone.now()
+    for req in requisicoes:
+        valor = getattr(req, campo_data)
+        req.data_antiga = bool(valor and agora - valor > LIMIAR_IDADE_FILA)
+
+
+def _marcar_saldo_insuficiente(requisicoes) -> None:
+    """`req.saldo_insuficiente` via batch único pra página inteira (Task 2).
+
+    Só serve pra `fila_autorizacao` (saldo pra uma autorização nova) — ver
+    `_marcar_saldo_insuficiente_atendimento` pra fila de atendimento.
+    """
+    mapa = saldo_insuficiente_por_requisicoes([r.pk for r in requisicoes])
+    for req in requisicoes:
+        req.saldo_insuficiente = mapa.get(req.pk, False)
+
+
+def _marcar_saldo_insuficiente_atendimento(requisicoes) -> None:
+    """`req.saldo_insuficiente` pra fila de atendimento — regra de TR-015B
+    (`separacao_bloqueada_por_requisicoes`), não a disponibilidade de
+    autorização nova: o item já reservou saldo na autorização (TR-008), e
+    reusar o cálculo de `_marcar_saldo_insuficiente` compararia a própria
+    reserva do item contra ela mesma (achado de review).
+    """
+    mapa = separacao_bloqueada_por_requisicoes([r.pk for r in requisicoes])
+    for req in requisicoes:
+        req.saldo_insuficiente = mapa.get(req.pk, False)
+
+
 PAGINA_MINHAS_REQUISICOES_TAMANHO = 25
 PAGINA_FILA_TAMANHO = 25
+
+# Ordem canônica da querystring das filas de trabalho (issue #152/#194).
+ORDEM_QUERYSTRING_FILA = ('busca', 'ordenar')
+
+
+def _url_fila_com_ordenar(request, ordenar_valor: str) -> str:
+    """Monta a URL da fila trocando `?ordenar=`, preservando `busca` ativa.
+
+    Achado de review: os templates montavam o link de ordenar direto de
+    `url_lista` (um `{% url %}` puro, sem querystring) — clicar em "ordenar"
+    numa fila filtrada por busca voltava pra fila inteira. `ordenar_valor`
+    vazio remove o parâmetro (link de volta ao padrão).
+    """
+    params = request.GET.copy()
+    if ordenar_valor:
+        params['ordenar'] = ordenar_valor
+    else:
+        params.pop('ordenar', None)
+    query = canonicalizar(params, ordem_chaves=ORDEM_QUERYSTRING_FILA)
+    return f'{request.path}?{query}' if query else request.path
 
 
 @login_required
@@ -813,13 +876,38 @@ def fila_autorizacao_view(request):
     except PermissaoNegada as exc:
         raise PermissionDenied(str(exc))
 
+    # URL é fonte de verdade do recorte (issue #152): `?ordenar=` redundante
+    # redireciona pra forma canônica antes de montar a página.
+    url_canonica = caminho_canonico(request, ordem_chaves=ORDEM_QUERYSTRING_FILA)
+    if not request.htmx and request.get_full_path() != url_canonica:
+        return redirect(url_canonica)
+
     busca = request.GET.get('busca', '').strip()
-    requisicoes = filtrar_por_busca_simples(fila_autorizacao(request.user.pk), busca)
-    # `paginar`, não `paginar_com_filtros`: a fila tem ordem de domínio (FIFO
-    # por `atualizado_em`) e `?ordem=` não se aplica — uma fila de trabalho
-    # ordenada por mais recentes primeiro é o oposto de uma fila. O que faltava
-    # era a contagem, que o mesmo componente entrega sem `url_ordenacao`.
-    page_obj = paginar(request, requisicoes, per_page=PAGINA_FILA_TAMANHO)
+    ordenar = request.GET.get('ordenar', '')
+    requisicoes_qs = filtrar_por_busca_simples(fila_autorizacao(request.user.pk), busca)
+
+    if ordenar == 'saldo':
+        # Saldo é calculado em Python em todo o projeto (`saldos_por_materiais`)
+        # — ordenar por ele em SQL exigiria portar esse cálculo pra
+        # Subquery/annotate agregado, que não existe hoje. A fila cabe em
+        # memória (escala municipal, não milhões de linhas): materializar o
+        # recorte filtrado inteiro e reordenar em Python, preservando FIFO
+        # como critério de desempate (sort estável), é a opção mais simples
+        # que não muda a paginação do que já existe.
+        requisicoes_lista = list(requisicoes_qs)
+        mapa_saldo = saldo_insuficiente_por_requisicoes(
+            [r.pk for r in requisicoes_lista]
+        )
+        requisicoes_lista.sort(key=lambda r: 0 if mapa_saldo.get(r.pk, False) else 1)
+        page_obj = paginar(request, requisicoes_lista, per_page=PAGINA_FILA_TAMANHO)
+    else:
+        # Sem `?ordenar=`: a fila tem ordem de domínio (FIFO por
+        # `atualizado_em`) e não reordena por padrão — uma fila de trabalho
+        # com mais recentes primeiro seria o oposto de uma fila.
+        page_obj = paginar(request, requisicoes_qs, per_page=PAGINA_FILA_TAMANHO)
+
+    _marcar_idade_antiga(page_obj.object_list, 'enviada_em')
+    _marcar_saldo_insuficiente(page_obj.object_list)
     return render(
         request,
         'requisicoes/fila_autorizacao.html',
@@ -831,6 +919,9 @@ def fila_autorizacao_view(request):
             # para a fila inteira.
             'querystring_filtros': querystring_sem_page(request.GET),
             'busca': busca,
+            'ordenar': ordenar,
+            'url_ordenar_saldo': _url_fila_com_ordenar(request, 'saldo'),
+            'url_ordenar_padrao': _url_fila_com_ordenar(request, ''),
         },
     )
 
@@ -918,13 +1009,44 @@ def fila_atendimento_view(request):
     except PermissaoNegada as exc:
         raise PermissionDenied(str(exc))
 
+    # URL é fonte de verdade do recorte (issue #152): `?ordenar=` redundante
+    # redireciona pra forma canônica antes de montar a página.
+    url_canonica = caminho_canonico(request, ordem_chaves=ORDEM_QUERYSTRING_FILA)
+    if not request.htmx and request.get_full_path() != url_canonica:
+        return redirect(url_canonica)
+
     busca = request.GET.get('busca', '').strip()
-    requisicoes = filtrar_por_busca_simples(fila_atendimento(request.user.pk), busca)
-    # `paginar`, não `paginar_com_filtros`: a fila tem ordem de domínio (FIFO
-    # por `atualizado_em`) e `?ordem=` não se aplica — uma fila de trabalho
-    # ordenada por mais recentes primeiro é o oposto de uma fila. O que faltava
-    # era a contagem, que o mesmo componente entrega sem `url_ordenacao`.
-    page_obj = paginar(request, requisicoes, per_page=PAGINA_FILA_TAMANHO)
+    ordenar = request.GET.get('ordenar', '')
+    requisicoes_qs = filtrar_por_busca_simples(fila_atendimento(request.user.pk), busca)
+
+    if ordenar == 'saldo':
+        # `separacao_bloqueada_por_requisicoes`, não `saldo_insuficiente_...`:
+        # o item desta fila já reservou saldo na autorização (TR-008) — a
+        # regra que importa aqui é TR-015B (achado de review), não a
+        # disponibilidade pra uma autorização nova.
+        requisicoes_lista = list(requisicoes_qs)
+        mapa_saldo = separacao_bloqueada_por_requisicoes(
+            [r.pk for r in requisicoes_lista]
+        )
+        requisicoes_lista.sort(key=lambda r: 0 if mapa_saldo.get(r.pk, False) else 1)
+        page_obj = paginar(request, requisicoes_lista, per_page=PAGINA_FILA_TAMANHO)
+    elif ordenar == 'setor':
+        # SQL puro — ao contrário de `saldo`, não depende de cálculo Python.
+        # Só existe em atendimento: autorização é escopada a um único setor
+        # (`fila_autorizacao` filtra por `ator.setor_chefiado`), então ordenar
+        # por setor lá seria no-op — decisão do shape da issue.
+        requisicoes_qs = requisicoes_qs.order_by(
+            'setor_beneficiario__nome', 'atualizado_em', 'criado_em', 'id'
+        )
+        page_obj = paginar(request, requisicoes_qs, per_page=PAGINA_FILA_TAMANHO)
+    else:
+        # Sem `?ordenar=`: a fila tem ordem de domínio (FIFO por
+        # `atualizado_em`) e não reordena por padrão — uma fila de trabalho
+        # com mais recentes primeiro seria o oposto de uma fila.
+        page_obj = paginar(request, requisicoes_qs, per_page=PAGINA_FILA_TAMANHO)
+
+    _marcar_idade_antiga(page_obj.object_list, 'autorizada_em')
+    _marcar_saldo_insuficiente_atendimento(page_obj.object_list)
     return render(
         request,
         'requisicoes/fila_atendimento.html',
@@ -936,6 +1058,10 @@ def fila_atendimento_view(request):
             # para a fila inteira.
             'querystring_filtros': querystring_sem_page(request.GET),
             'busca': busca,
+            'ordenar': ordenar,
+            'url_ordenar_saldo': _url_fila_com_ordenar(request, 'saldo'),
+            'url_ordenar_setor': _url_fila_com_ordenar(request, 'setor'),
+            'url_ordenar_padrao': _url_fila_com_ordenar(request, ''),
         },
     )
 

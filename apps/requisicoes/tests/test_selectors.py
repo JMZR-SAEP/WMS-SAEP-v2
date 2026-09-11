@@ -8,7 +8,13 @@ from django.utils import timezone
 
 from apps.accounts.models import User
 from apps.accounts.papeis import PapelEfetivo
-from apps.requisicoes.models import EstadoRequisicao, Operacao, Requisicao
+from apps.estoque.models import Material, SaldoEstoque, UnidadeMedida
+from apps.requisicoes.models import (
+    EstadoRequisicao,
+    ItemRequisicao,
+    Operacao,
+    Requisicao,
+)
 from apps.requisicoes.selectors import (
     acoes_disponiveis,
     chefe_autorizador_do_setor,
@@ -21,7 +27,9 @@ from apps.requisicoes.selectors import (
     minhas_requisicoes,
     pode_filtrar_historico_por_setor,
     requisicoes_visiveis_para,
+    saldo_insuficiente_por_requisicoes,
     saldos_por_materiais,
+    separacao_bloqueada_por_requisicoes,
     setores_do_historico,
 )
 
@@ -1075,3 +1083,164 @@ class TestSaldosPorMateriais:
         resultado = saldos_por_materiais([material_sem_saldo.pk])
         assert resultado[material_sem_saldo.pk]['elegivel'] is False
         assert resultado[material_sem_saldo.pk]['unidade'] == material_sem_saldo.unidade
+
+
+# ---------------------------------------------------------------------------
+# saldo_insuficiente_por_requisicoes
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_saldo_insuficiente_por_requisicoes_marca_so_quem_nao_cobre(
+    solicitante, setor_obras, material_disponivel, material_sem_saldo
+):
+    req_ok = Requisicao.objects.create(
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+        estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+        numero_publico='REQ-2026-8001',
+    )
+    ItemRequisicao.objects.create(
+        requisicao=req_ok, material=material_disponivel, quantidade_solicitada=1
+    )
+    req_insuficiente = Requisicao.objects.create(
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+        estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+        numero_publico='REQ-2026-8002',
+    )
+    ItemRequisicao.objects.create(
+        requisicao=req_insuficiente,
+        material=material_sem_saldo,
+        quantidade_solicitada=1,
+    )
+
+    resultado = saldo_insuficiente_por_requisicoes([req_ok.pk, req_insuficiente.pk])
+
+    assert resultado == {req_ok.pk: False, req_insuficiente.pk: True}
+
+
+@pytest.mark.django_db
+def test_saldo_insuficiente_por_requisicoes_sem_itens_devolve_dict_vazio():
+    assert saldo_insuficiente_por_requisicoes([]) == {}
+
+
+# ---------------------------------------------------------------------------
+# separacao_bloqueada_por_requisicoes (TR-015B, fila de atendimento — #194)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_separacao_bloqueada_por_requisicoes_fisico_igual_reservado_igual_autorizado_nao_bloqueia(
+    solicitante, setor_obras, estoque_principal
+):
+    """Achado de review: reservado inclui a PRÓPRIA reserva do item. Com
+    físico=reservado=autorizado, a separação (TR-015) passaria de verdade —
+    sem divergência (físico não é menor que reservado) e sem físico
+    insuficiente (físico cobre o autorizado). `saldo_insuficiente_por_
+    requisicoes` marcaria isto como insuficiente incorretamente, porque
+    compara saldo_disponivel (fisico-reservado=0) contra a quantidade — mas
+    é exatamente essa reserva de 0 que sobra que a própria separação usa.
+    """
+    material = Material.objects.create(
+        codigo='MAT-TR015-OK',
+        nome='Material com reserva própria exata',
+        unidade=UnidadeMedida.UNIDADE,
+        ativo=True,
+    )
+    SaldoEstoque.objects.create(
+        estoque=estoque_principal,
+        material=material,
+        saldo_fisico=1,
+        saldo_reservado=1,
+    )
+    req = Requisicao.objects.create(
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+        estado=EstadoRequisicao.AUTORIZADA,
+        numero_publico='REQ-2026-8201',
+    )
+    ItemRequisicao.objects.create(
+        requisicao=req,
+        material=material,
+        quantidade_solicitada=1,
+        quantidade_autorizada=1,
+    )
+
+    resultado = separacao_bloqueada_por_requisicoes([req.pk])
+
+    assert resultado == {req.pk: False}
+
+
+@pytest.mark.django_db
+def test_separacao_bloqueada_por_requisicoes_marca_divergencia_critica(
+    solicitante, setor_obras, material_divergente
+):
+    """`material_divergente` (físico=2 < reservado=5) bloqueia TR-015B
+    independentemente da quantidade autorizada — é o outro braço da regra,
+    que `saldo_disponivel` sozinho (usado no selector de autorização) não
+    captura da mesma forma."""
+    req = Requisicao.objects.create(
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+        estado=EstadoRequisicao.AUTORIZADA,
+        numero_publico='REQ-2026-8202',
+    )
+    ItemRequisicao.objects.create(
+        requisicao=req,
+        material=material_divergente,
+        quantidade_solicitada=1,
+        quantidade_autorizada=1,
+    )
+
+    resultado = separacao_bloqueada_por_requisicoes([req.pk])
+
+    assert resultado == {req.pk: True}
+
+
+@pytest.mark.django_db
+def test_separacao_bloqueada_por_requisicoes_marca_fisico_abaixo_do_autorizado(
+    solicitante, setor_obras, estoque_principal
+):
+    """Sem divergência (físico >= reservado), mas físico abaixo do
+    autorizado deste item — segundo braço de TR-015B."""
+    material = Material.objects.create(
+        codigo='MAT-TR015-FISICO-BAIXO',
+        nome='Material com físico abaixo do autorizado',
+        unidade=UnidadeMedida.UNIDADE,
+        ativo=True,
+    )
+    SaldoEstoque.objects.create(
+        estoque=estoque_principal,
+        material=material,
+        saldo_fisico=1,
+        saldo_reservado=1,
+    )
+    req = Requisicao.objects.create(
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+        estado=EstadoRequisicao.AUTORIZADA,
+        numero_publico='REQ-2026-8203',
+    )
+    ItemRequisicao.objects.create(
+        requisicao=req,
+        material=material,
+        quantidade_solicitada=2,
+        quantidade_autorizada=2,
+    )
+
+    resultado = separacao_bloqueada_por_requisicoes([req.pk])
+
+    assert resultado == {req.pk: True}
+
+
+@pytest.mark.django_db
+def test_separacao_bloqueada_por_requisicoes_ignora_item_sem_autorizacao():
+    """Itens sem `quantidade_autorizada` (rascunho/enviada) não fazem parte
+    da fila de atendimento — filtrados fora, não geram entrada no dict."""
+    assert separacao_bloqueada_por_requisicoes([999999]) == {}
