@@ -142,9 +142,35 @@ def _normalizar_csv_scpi(conteudo_bytes: bytes) -> str:
     return '\n'.join(registros)
 
 
+def _limite_denominacao_scpi() -> int:
+    """Maior denominação que qualquer escrita da importação SCPI aceita.
+
+    `confirmar_importacao_scpi` grava a denominação em dois lugares com
+    colunas de tamanhos diferentes: `Material.nome` (material novo) e
+    `LinhaDivergenteSCPI.denominacao` (linha divergente). O parser não sabe
+    ainda, linha por linha, qual dos dois destinos a linha vai ter — isso só
+    é decidido depois, no cruzamento com o catálogo (`gerar_preview_...`) —
+    então valida contra o menor teto dos dois. Não hardcoda o número: lê o
+    `max_length` real de cada campo, para acompanhar sozinho se um dos
+    modelos mudar.
+    """
+    from apps.estoque.models import LinhaDivergenteSCPI
+
+    limite_material = Material._meta.get_field('nome').max_length
+    limite_linha_divergente = LinhaDivergenteSCPI._meta.get_field(
+        'denominacao'
+    ).max_length
+    # Os dois campos são `CharField` com `max_length` fixo no model; nunca
+    # `None` em tempo de execução — só o tipo do stub do Django é opcional.
+    assert limite_material is not None
+    assert limite_linha_divergente is not None
+    return min(limite_material, limite_linha_divergente)
+
+
 def _parse_linhas_csv_scpi(conteudo: str) -> list[dict]:
     from apps.core.exceptions import DadosInvalidos
 
+    limite_denominacao = _limite_denominacao_scpi()
     reader = csv.DictReader(io.StringIO(conteudo), delimiter=';')
     if reader.fieldnames is None or 'CADPRO' not in reader.fieldnames:
         raise DadosInvalidos(
@@ -179,6 +205,12 @@ def _parse_linhas_csv_scpi(conteudo: str) -> list[dict]:
                 code='csv_quantidade_invalida',
             )
         denominacao = (row.get(col_den) or '').strip() if col_den else ''
+        if len(denominacao) > limite_denominacao:
+            raise DadosInvalidos(
+                f'Denominação muito longa no produto {cadpro} (linha {i}): '
+                f'{len(denominacao)} caracteres, máximo {limite_denominacao}.',
+                code='csv_denominacao_muito_longa',
+            )
         linhas.append(
             {'cadpro': cadpro, 'quantidade': quantidade, 'denominacao': denominacao}
         )

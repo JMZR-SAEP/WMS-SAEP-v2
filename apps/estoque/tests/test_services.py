@@ -619,6 +619,36 @@ class TestConfirmarImportacaoScpi:
                 estoque_id=estoque_principal.pk,
             )
 
+    def test_denominacao_excede_limite_lanca_dados_invalidos_sem_gravar_nada(
+        self, db, superuser, estoque_principal
+    ):
+        """Regressão #202: sem a checagem cedo, uma denominação SCPI acima de
+        200 chars estourava `Material.nome` no INSERT (500 de banco) e o
+        `transaction.atomic` derrubava o lote inteiro — inclusive linhas
+        válidas do mesmo arquivo. Confirma que agora a rejeição acontece antes
+        de qualquer escrita.
+        """
+        import pytest
+
+        from apps.core.exceptions import DadosInvalidos
+        from apps.estoque.models import ImportacaoSCPI, Material
+        from apps.estoque.services import confirmar_importacao_scpi
+
+        denominacao_longa = 'B' * 201
+        csv_bytes = self._csv('000.999.910', denominacao_longa, '3.000')
+        with pytest.raises(DadosInvalidos):
+            confirmar_importacao_scpi(
+                ator_id=superuser.pk,
+                conteudo_bytes=csv_bytes,
+                arquivo_nome='denominacao-longa.csv',
+                estoque_id=estoque_principal.pk,
+            )
+
+        assert not Material.objects.filter(codigo='000.999.910').exists()
+        assert not ImportacaoSCPI.objects.filter(
+            arquivo_nome='denominacao-longa.csv'
+        ).exists()
+
     def test_sem_permissao_lanca_permissao_negada(
         self, db, aux_almoxarifado, estoque_principal
     ):
