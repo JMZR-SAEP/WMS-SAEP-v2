@@ -52,6 +52,7 @@ distinguir a variante na auditoria.
 | Liberação de reserva | `liberacao_reserva` | Cancelamento de autorizada ou atendimento parcial. | Ator da transição | Conforme transição |
 | Devolução registrada | `devolucao_registrada` | Entrada por devolução vinculada. | Almoxarifado | Sim |
 | Estorno | `estorno` | Reversão total/parcial pelo chefe de Almoxarifado. | Chefe de Almoxarifado | Sim |
+| Estorno de devolução | `estorno_devolucao` | Reversão de devolução registrada, por quantidade, contra o agregado do ledger; não cria model próprio. | Chefe de Almoxarifado | Opcional |
 | Atualização de estoque relevante | `atualizacao_estoque_relevante` | Operação ou importação afeta saldo/divergência de material relacionado. Para requisições em estado `autorizada`: quando importação SCPI cria divergência crítica superveniente em material de item autorizado, o evento é registrado na timeline dessa requisição (descoberta ativa). Um evento agregado por requisição por importação, listando os materiais afetados. A requisição não muda de estado automaticamente; a separação fica bloqueada até resolução do estoque ou cancelamento via TR-013. | Ator da operação | Não |
 
 ## 5. Matriz compacta de transições
@@ -79,6 +80,7 @@ distinguir a variante na auditoria.
 | TR-020 | Atendida -> Atendida | Registrar devolução | Auxiliar ou chefe de Almoxarifado | Vinculada a requisição atendida; quantidade > 0 e <= entregue líquida do item; justificativa ou observação conforme regra operacional; transação e lock de estoque | Aumenta físico; não altera status nem reserva; registra devolução na timeline e movimentação de estoque | 1.4; EST-01, EST-06 |
 | TR-021 | Atendida -> Estornada | Estornar requisição | Chefe de Almoxarifado | Justificativa obrigatória; quantidade > 0 e <= entregue líquida do item; estorno total reverte a entregue líquida atual; preserva histórico original; transação e lock de estoque | Registra movimentação inversa; devolve físico conforme estorno total ou parcial; encerra definitivamente a requisição | 1.3, 1.4; EST-06 |
 | TR-022 | Estornada -> Estornada | Bloquear ações pós-estorno | Qualquer usuário | Requisição estornada | Permite somente consulta à timeline e ao histórico por usuários autorizados; bloqueia corrigir, reenviar, separar, atender, cancelar e nova devolução operacional | 1.3, 1.4 |
+| TR-023 | Atendida -> Atendida | Estornar devolução | Chefe de Almoxarifado | Vinculada a requisição atendida; quantidade > 0, finita e <= devolvida líquida ainda de pé do item (não excede o que foi devolvido e ainda não estornado); saldo disponível suficiente; transação e lock de estoque (`Requisicao` primeiro, `SaldoEstoque` depois) | Decrementa físico conforme a quantidade estornada; não altera status nem reserva; registra estorno de devolução na timeline e movimentação de estoque | LED-06, LED-07; issue #179 |
 
 ## 6. Regras rápidas de quantidade e estoque
 
@@ -96,7 +98,9 @@ distinguir a variante na auditoria.
 - Cancelamento de autorizada libera reserva e não altera físico.
 - Devolução aumenta físico e não altera status.
 - Estorno preserva histórico e registra movimentação inversa.
-- Entregue líquida de um item = quantidade entregue − Σ devoluções − Σ estornos do item; derivada das `MovimentacaoEstoque`, nunca armazenada; calculada dentro da transação do service com a `Requisicao` travada (ADR-0005).
+- Estorno de devolução diminui físico na quantidade estornada e não altera status nem reserva; não excede a devolvida líquida ainda de pé do item.
+- Entregue líquida de um item = quantidade entregue − Σ devoluções − Σ estornos − Σ estornos de devolução do item; derivada das `MovimentacaoEstoque`, nunca armazenada; calculada dentro da transação do service com a `Requisicao` travada (ADR-0005).
+- Devolvida líquida de um item = Σ devoluções − Σ estornos de devolução do item; limita a quantidade estornável de uma devolução.
 - Devolução (TR-020) e estorno (TR-021) operam apenas quantidade > 0 e <= entregue líquida atual do item; estorno total reverte a entregue líquida atual, não a quantidade entregue bruta — evita double-count com devoluções anteriores.
 - Saldo disponível = saldo físico - saldo reservado, sempre recalculado no ponto crítico.
 - Material divergente bloqueia novas requisições e autorizações até resolução.

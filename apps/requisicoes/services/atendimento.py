@@ -506,7 +506,7 @@ def estornar_devolucao(
     exigir_pode_estornar_devolucao(papel, requisicao)
     verificar_transicao_valida(Operacao.ESTORNAR_DEVOLUCAO, requisicao)
 
-    if quantidade <= 0:
+    if not quantidade.is_finite() or quantidade <= 0:
         raise DadosInvalidos(
             'A quantidade estornada deve ser maior que zero.',
             code='quantidade_invalida',

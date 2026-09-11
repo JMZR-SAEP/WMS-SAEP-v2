@@ -30,8 +30,8 @@ Usuário com vínculo de apoio a um Setor, habilitado a criar requisições em
 nome de outros Usuários do mesmo Setor.
 
 **Chefe de Almoxarifado**:
-O Chefe do Setor Almoxarifado; único papel autorizado a estornar e a
-registrar saída excepcional.
+O Chefe do Setor Almoxarifado; único papel autorizado a estornar, a
+estornar devolução e a registrar saída excepcional.
 
 **Auxiliar de Almoxarifado**:
 Usuário com vínculo de apoio ao Setor Almoxarifado; executa separação,

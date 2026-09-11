@@ -2794,6 +2794,32 @@ def test_estornar_devolucao_quantidade_zero(
 
 
 @pytest.mark.django_db
+def test_estornar_devolucao_quantidade_nao_finita(
+    requisicao_atendida_para_devolucao, chefe_almoxarifado
+):
+    """quantidade = Decimal('NaN') → DadosInvalidos, não InvalidOperation."""
+    from apps.requisicoes.services import estornar_devolucao, registrar_devolucao
+
+    req = requisicao_atendida_para_devolucao
+    item = req.itens.first()
+    registrar_devolucao(
+        ator_id=chefe_almoxarifado.pk,
+        requisicao_id=req.pk,
+        item_id=item.pk,
+        quantidade=Decimal('1'),
+    )
+
+    with pytest.raises(DadosInvalidos) as excinfo:
+        estornar_devolucao(
+            ator_id=chefe_almoxarifado.pk,
+            requisicao_id=req.pk,
+            item_id=item.pk,
+            quantidade=Decimal('NaN'),
+        )
+    assert excinfo.value.code == 'quantidade_invalida'
+
+
+@pytest.mark.django_db
 def test_estornar_devolucao_item_nao_pertence(
     requisicao_atendida_para_devolucao, chefe_almoxarifado
 ):
