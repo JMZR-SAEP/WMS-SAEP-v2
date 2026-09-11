@@ -52,17 +52,6 @@ interior — cursor, hover e anel de foco passam a ser do cartão, não do link 
 7 caracteres dentro dele. Cartão sem esse link (ledger, catálogo) fica inerte,
 porque `has-[...]` simplesmente não casa.
 
-## Tinta de item não lido
-
-O mesmo mecanismo cobre um segundo marcador, `data-nao-lida`: um cartão com
-qualquer descendente carregando esse atributo ganha fundo `primary-subtle`
-(`has-[[data-nao-lida]]`). É a tinta que `/notificacoes/` usa para "não lida"
-em vez de um badge azulado a mais ao lado do estado (issue #197,
-DESIGN.md §A Regra do Cinza Medido) — o marcador real na árvore é um `<span
-class="sr-only">`, então o sinal continua chegando a quem lê a tela sem
-carregar cor nenhuma. Cartão sem o atributo (todas as outras 24+ listagens)
-fica inerte, pelo mesmo motivo de `data-cartao-link`.
-
 Antes, cada cartão de 483×256px tinha como alvo um botão "Ver detalhes" de
 109×44px — 4% da área. O design system exige 44px porque "a mesma tela é usada
 com o dedo, em pé, no galpão": o piso estava cumprido no botão e ignorado no
@@ -102,5 +91,5 @@ Uso canônico (dentro de {% partialdef resultados %} da própria tela, GET-only)
 {% endpartialdef %}
 
 {% partialdef card_abertura %}
-<article class="relative rounded-xl border border-border bg-surface p-4 shadow-sm transition-colors has-[[data-nao-lida]]:bg-primary-subtle has-[a[data-cartao-link]]:cursor-pointer hover:has-[a[data-cartao-link]]:bg-bg-page has-[a[data-cartao-link]:focus-visible]:ring-2 has-[a[data-cartao-link]:focus-visible]:ring-border-focus has-[a[data-cartao-link]:focus-visible]:ring-offset-2">
+<article class="relative rounded-xl border border-border bg-surface p-4 shadow-sm transition-colors has-[a[data-cartao-link]]:cursor-pointer hover:has-[a[data-cartao-link]]:bg-bg-page has-[a[data-cartao-link]:focus-visible]:ring-2 has-[a[data-cartao-link]:focus-visible]:ring-border-focus has-[a[data-cartao-link]:focus-visible]:ring-offset-2">
 {% endpartialdef %}
