@@ -13,8 +13,6 @@ from apps.requisicoes.models import EstadoRequisicao, ItemRequisicao, Requisicao
 
 pytestmark = pytest.mark.navegador
 
-MOBILE = {'width': 375, 'height': 812}
-
 
 @pytest.fixture
 def abrir_pagina(live_server, context, page):

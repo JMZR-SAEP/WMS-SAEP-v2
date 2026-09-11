@@ -40,12 +40,18 @@ def contar_filtros_ativos(*flags: bool, listas: tuple = ()) -> int:
     return sum(1 for flag in flags if flag) + sum(len(lista) for lista in listas)
 
 
-def paginar(request: HtmxHttpRequest, queryset: QuerySet, *, per_page: int) -> Page:
+def paginar(
+    request: HtmxHttpRequest, queryset: QuerySet | list, *, per_page: int
+) -> Page:
     """Pagina preservando a ordenação que o selector já definiu.
 
     Diferente de `paginar_com_filtros`, não reordena: fila de trabalho tem
     ordem de domínio (FIFO por `atualizado_em`) e "minhas requisições" tem
     ordem por `-criado_em` — a apresentação pagina, não redefine a ordem.
+
+    Aceita também uma `list` já materializada: as filas de trabalho
+    reordenam por saldo em Python (saldo não é campo de banco) antes de
+    paginar, então o `queryset` original já chega convertido.
     """
     return Paginator(queryset, per_page).get_page(request.GET.get('page'))
 

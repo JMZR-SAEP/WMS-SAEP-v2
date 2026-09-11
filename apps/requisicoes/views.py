@@ -842,8 +842,8 @@ def fila_autorizacao_view(request):
     except PermissaoNegada as exc:
         raise PermissionDenied(str(exc))
 
-    # URL é fonte de verdade do recorte (issue #152): `?ordenar=` inválido ou
-    # redundante redireciona pra forma canônica antes de montar a página.
+    # URL é fonte de verdade do recorte (issue #152): `?ordenar=` redundante
+    # redireciona pra forma canônica antes de montar a página.
     url_canonica = caminho_canonico(request, ordem_chaves=ORDEM_QUERYSTRING_FILA)
     if not request.htmx and request.get_full_path() != url_canonica:
         return redirect(url_canonica)
@@ -867,6 +867,9 @@ def fila_autorizacao_view(request):
         requisicoes_lista.sort(key=lambda r: 0 if mapa_saldo.get(r.pk, False) else 1)
         page_obj = paginar(request, requisicoes_lista, per_page=PAGINA_FILA_TAMANHO)
     else:
+        # Sem `?ordenar=`: a fila tem ordem de domínio (FIFO por
+        # `atualizado_em`) e não reordena por padrão — uma fila de trabalho
+        # com mais recentes primeiro seria o oposto de uma fila.
         page_obj = paginar(request, requisicoes_qs, per_page=PAGINA_FILA_TAMANHO)
 
     _marcar_idade_antiga(page_obj.object_list, 'enviada_em')
@@ -970,6 +973,8 @@ def fila_atendimento_view(request):
     except PermissaoNegada as exc:
         raise PermissionDenied(str(exc))
 
+    # URL é fonte de verdade do recorte (issue #152): `?ordenar=` redundante
+    # redireciona pra forma canônica antes de montar a página.
     url_canonica = caminho_canonico(request, ordem_chaves=ORDEM_QUERYSTRING_FILA)
     if not request.htmx and request.get_full_path() != url_canonica:
         return redirect(url_canonica)
@@ -995,6 +1000,9 @@ def fila_atendimento_view(request):
         )
         page_obj = paginar(request, requisicoes_qs, per_page=PAGINA_FILA_TAMANHO)
     else:
+        # Sem `?ordenar=`: a fila tem ordem de domínio (FIFO por
+        # `atualizado_em`) e não reordena por padrão — uma fila de trabalho
+        # com mais recentes primeiro seria o oposto de uma fila.
         page_obj = paginar(request, requisicoes_qs, per_page=PAGINA_FILA_TAMANHO)
 
     _marcar_idade_antiga(page_obj.object_list, 'autorizada_em')
