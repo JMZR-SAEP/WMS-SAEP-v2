@@ -338,9 +338,10 @@ def test_lista_exibe_rotulo_e_link_de_separacao_retirada(
     assert resp.status_code == 200
     # O título é o DESFECHO, não o rótulo do tipo. O guarda contra esquecer um
     # membro novo é `test_todo_tipo_de_notificacao_tem_evento`, que lê o enum.
-    # Evento no passado + estado atual: o registro é do que aconteceu, e quem
-    # diz como as coisas estão agora é a segunda metade do título.
-    assert 'Sua requisição foi separada para retirada · Pronta para retirada' in corpo
+    # Evento no passado + estado atual, como uma frase só (issue #197): o
+    # registro é do que aconteceu, e o travessão emenda como as coisas estão
+    # agora, em minúscula, como continuação — não como um segundo rótulo.
+    assert 'Sua requisição foi separada para retirada — pronta para retirada' in corpo
     assert reverse('requisicoes:detalhe', kwargs={'pk': req.pk}) in corpo
     assert 'REQ-2026-000109' in corpo
 
@@ -426,6 +427,67 @@ class TestListaNotificacoesEtapa8:
         assert 'border-dashed' in html
 
 
+class TestBadgesEBotaoIssue197:
+    """`Resolvida`/`Não lida` viravam badge a mais ao lado do estado; `Marcar
+    como lida` era `<button>` semântico mas sem afordância visual (issue #197).
+    """
+
+    URL = '/notificacoes/'
+
+    def test_cartao_nao_lido_ganha_marcador_sem_badge_azul(
+        self, client, solicitante, notificacao_nao_lida
+    ):
+        client.force_login(solicitante)
+        html = client.get(self.URL).content.decode('utf-8')
+        # O sinal de "não lida" é o marcador `sr-only` que aciona
+        # `has-[[data-nao-lida]]` no chrome do cartão — não um badge com cor
+        # própria (era `variant="blue"` antes da #197).
+        assert '<span data-nao-lida class="sr-only">Não lida</span>' in html
+        assert 'prefixo_sr="Leitura: "' not in html
+
+    def test_cartao_lido_nao_ganha_marcador(self, client, solicitante, setor_obras):
+        requisicao = Requisicao.objects.create(
+            estado=EstadoRequisicao.ATENDIDA,
+            numero_publico='REQ-2026-000401',
+            criador=solicitante,
+            beneficiario=solicitante,
+            setor_beneficiario=setor_obras,
+        )
+        Notificacao.objects.create(
+            destinatario=solicitante,
+            tipo=TipoNotificacao.ATENDIMENTO,
+            requisicao_id=requisicao.pk,
+            lida=True,
+        )
+        client.force_login(solicitante)
+        html = client.get(self.URL).content.decode('utf-8')
+        # `has-[[data-nao-lida]]` no chrome fixo do cartão contém a substring
+        # `data-nao-lida` em toda página — o que não pode existir é o
+        # marcador em si, o `<span>` que aciona o seletor.
+        assert '<span data-nao-lida' not in html
+
+    def test_botao_marcar_como_lida_usa_variante_secondary(
+        self, client, solicitante, notificacao_nao_lida
+    ):
+        """Antes era texto cinza sem borda (`bg-transparent`, sem contorno) —
+        `<button>` semântico com alvo de 44px, mas sem pista visual de
+        controle até o cursor chegar perto. Agora reusa os tokens de
+        `secondary` (`bg-surface` + `border-border-control`), os mesmos do
+        resto do sistema para ação secundária."""
+        import re
+
+        client.force_login(solicitante)
+        html = client.get(self.URL).content.decode('utf-8')
+        alvo = reverse(
+            'notificacoes:marcar_lida', kwargs={'pk': notificacao_nao_lida.pk}
+        )
+        botao = next(
+            b for b in re.findall(r'<button\b[^>]*>', html, flags=re.S) if alvo in b
+        )
+        assert 'border-border-control' in botao
+        assert 'bg-surface' in botao
+
+
 class TestCartaoReconsultaOEstado:
     """A notificação afirmava um estado que nunca reconsultava (issue #175)."""
 
@@ -457,7 +519,7 @@ class TestCartaoReconsultaOEstado:
 
         html = client.get(self.URL).content.decode('utf-8')
 
-        assert 'Aguardava sua autorização · Atendida' in html
+        assert 'Sua requisição foi enviada para autorização — atendida' in html
         # O presente do indicativo é uma cobrança, e aqui não há o que cobrar.
         assert 'Uma requisição aguarda sua autorização' not in html
 
@@ -480,7 +542,7 @@ class TestCartaoReconsultaOEstado:
 
         html = client.get(self.URL).content.decode('utf-8')
 
-        assert 'Uma requisição aguarda sua autorização · Aguardando autorização' in html
+        assert 'Uma requisição aguarda sua autorização — aguardando autorização' in html
         assert 'Resolvida' not in html
 
     @pytest.mark.django_db
@@ -519,6 +581,11 @@ class TestCartaoReconsultaOEstado:
 
         `/notificacoes/` é o diário do que aconteceu com as minhas requisições,
         não uma caixa de entrada — a chamada à ação já tem duas telas dedicadas.
+
+        A marca deixou de ser um badge "Resolvida" à parte (issue #197): o
+        badge repetia, sem contraste próprio, o que o título combinado já diz
+        — o evento mais o desfecho atual. `resolvida` continua True no
+        contexto, só que a interface para de duplicar o sinal.
         """
         requisicao = self._requisicao(
             EstadoRequisicao.CANCELADA, solicitante, setor_obras, 'REQ-2026-000304'
@@ -534,8 +601,10 @@ class TestCartaoReconsultaOEstado:
         html = resp.content.decode('utf-8')
 
         assert len(resp.context['notificacoes']) == 1
+        assert resp.context['notificacoes'][0].resolvida is True
         assert 'REQ-2026-000304' in html
-        assert 'Resolvida' in html
+        assert 'Sua requisição foi enviada para autorização — cancelada' in html
+        assert 'Resolvida' not in html
         assert resp.context['notificacoes_pendentes'] == 0
 
     @pytest.mark.django_db
