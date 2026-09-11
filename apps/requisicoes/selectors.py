@@ -14,7 +14,7 @@ from django.db.models import Count, Exists, F, OuterRef, Q, QuerySet, Subquery
 
 from apps.accounts.models import Setor, User
 from apps.accounts.papeis import papel_efetivo
-from apps.estoque.models import Material
+from apps.estoque.models import Material, SaldoEstoque
 from apps.notificacoes.models import TipoNotificacao
 from apps.requisicoes import policies
 from apps.requisicoes.models import (
@@ -442,6 +442,12 @@ def saldo_insuficiente_por_requisicoes(
     vez de uma chamada por requisição — é o que torna este selector seguro
     pra listagem (Task 2/#194), diferente de `_anotar_saldo_para_autorizar`
     em views.py, que opera sobre os itens de UMA requisição já carregada.
+
+    Só serve pra `fila_autorizacao` — mede se HÁ saldo pra uma autorização
+    NOVA. Numa requisição já autorizada (fila de atendimento), o item já
+    reservou saldo (TR-008); usar este selector ali compara o saldo
+    disponível contra a própria reserva do item e falsifica quase todo item
+    com estoque apertado. Ver `separacao_bloqueada_por_requisicoes` abaixo.
     """
     itens = list(
         ItemRequisicao.objects.filter(requisicao_id__in=list(requisicao_ids)).values(
@@ -459,6 +465,47 @@ def saldo_insuficiente_por_requisicoes(
         insuficiente = info['saldo_disponivel'] < item['quantidade_solicitada']
         resultado[item['requisicao_id']] = (
             resultado.get(item['requisicao_id'], False) or insuficiente
+        )
+    return resultado
+
+
+def separacao_bloqueada_por_requisicoes(
+    requisicao_ids: Iterable[int],
+) -> dict[int, bool]:
+    """Pra cada requisição autorizada, algum item bloquearia TR-015B?
+
+    Sinal de leitura pra `fila_atendimento` (#194) — mesma regra de
+    `separar_para_retirada` (`apps/requisicoes/services/atendimento.py`):
+    divergência crítica (`saldo_fisico < saldo_reservado`) ou `saldo_fisico`
+    abaixo do `quantidade_autorizada` do item. Sem lock — é display, não
+    escrita; a transição em si continua sendo a fonte de verdade do bloqueio.
+
+    Não usar `saldo_insuficiente_por_requisicoes` aqui: aquele mede saldo
+    disponível pra uma autorização nova, e o item desta fila já reservou o
+    seu — comparar de novo conta a própria reserva contra ela mesma.
+    """
+    itens = list(
+        ItemRequisicao.objects.filter(
+            requisicao_id__in=list(requisicao_ids), quantidade_autorizada__gt=0
+        ).values('requisicao_id', 'material_id', 'quantidade_autorizada')
+    )
+    if not itens:
+        return {}
+    material_ids = [item['material_id'] for item in itens]
+    saldos_por_material: dict[int, list[SaldoEstoque]] = {}
+    for saldo in SaldoEstoque.objects.filter(material_id__in=material_ids):
+        saldos_por_material.setdefault(saldo.material_id, []).append(saldo)
+
+    resultado: dict[int, bool] = {}
+    for item in itens:
+        saldos = saldos_por_material.get(item['material_id'], [])
+        qty_autorizada = item['quantidade_autorizada']
+        assert (
+            qty_autorizada is not None
+        )  # garantido por filter(quantidade_autorizada__gt=0)
+        bloqueado = any(s.divergente or s.saldo_fisico < qty_autorizada for s in saldos)
+        resultado[item['requisicao_id']] = (
+            resultado.get(item['requisicao_id'], False) or bloqueado
         )
     return resultado
 

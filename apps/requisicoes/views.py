@@ -45,7 +45,7 @@ from apps.core.http import (
 from apps.core.listagem import contar_filtros_ativos, paginar, paginar_com_filtros
 from apps.core.modal import render_modal_erro
 from apps.core.presentation import traduz_erro_dominio
-from apps.core.querystring import caminho_canonico
+from apps.core.querystring import caminho_canonico, canonicalizar
 from apps.requisicoes.presentation import MODAL_COPY
 from apps.requisicoes.presentation import cancelamento_copy, registro_requisicao
 from apps.core.quantidades import formatar as formatar_quantidade
@@ -92,6 +92,7 @@ from apps.requisicoes.selectors import (
     requisicoes_visiveis_para,
     saldo_insuficiente_por_requisicoes,
     saldos_por_materiais,
+    separacao_bloqueada_por_requisicoes,
     setores_do_historico,
 )
 from apps.requisicoes.services import (
@@ -765,8 +766,24 @@ def _marcar_idade_antiga(requisicoes, campo_data: str) -> None:
 
 
 def _marcar_saldo_insuficiente(requisicoes) -> None:
-    """`req.saldo_insuficiente` via batch único pra página inteira (Task 2)."""
+    """`req.saldo_insuficiente` via batch único pra página inteira (Task 2).
+
+    Só serve pra `fila_autorizacao` (saldo pra uma autorização nova) — ver
+    `_marcar_saldo_insuficiente_atendimento` pra fila de atendimento.
+    """
     mapa = saldo_insuficiente_por_requisicoes([r.pk for r in requisicoes])
+    for req in requisicoes:
+        req.saldo_insuficiente = mapa.get(req.pk, False)
+
+
+def _marcar_saldo_insuficiente_atendimento(requisicoes) -> None:
+    """`req.saldo_insuficiente` pra fila de atendimento — regra de TR-015B
+    (`separacao_bloqueada_por_requisicoes`), não a disponibilidade de
+    autorização nova: o item já reservou saldo na autorização (TR-008), e
+    reusar o cálculo de `_marcar_saldo_insuficiente` compararia a própria
+    reserva do item contra ela mesma (achado de review).
+    """
+    mapa = separacao_bloqueada_por_requisicoes([r.pk for r in requisicoes])
     for req in requisicoes:
         req.saldo_insuficiente = mapa.get(req.pk, False)
 
@@ -776,6 +793,23 @@ PAGINA_FILA_TAMANHO = 25
 
 # Ordem canônica da querystring das filas de trabalho (issue #152/#194).
 ORDEM_QUERYSTRING_FILA = ('busca', 'ordenar')
+
+
+def _url_fila_com_ordenar(request, ordenar_valor: str) -> str:
+    """Monta a URL da fila trocando `?ordenar=`, preservando `busca` ativa.
+
+    Achado de review: os templates montavam o link de ordenar direto de
+    `url_lista` (um `{% url %}` puro, sem querystring) — clicar em "ordenar"
+    numa fila filtrada por busca voltava pra fila inteira. `ordenar_valor`
+    vazio remove o parâmetro (link de volta ao padrão).
+    """
+    params = request.GET.copy()
+    if ordenar_valor:
+        params['ordenar'] = ordenar_valor
+    else:
+        params.pop('ordenar', None)
+    query = canonicalizar(params, ordem_chaves=ORDEM_QUERYSTRING_FILA)
+    return f'{request.path}?{query}' if query else request.path
 
 
 @login_required
@@ -886,6 +920,8 @@ def fila_autorizacao_view(request):
             'querystring_filtros': querystring_sem_page(request.GET),
             'busca': busca,
             'ordenar': ordenar,
+            'url_ordenar_saldo': _url_fila_com_ordenar(request, 'saldo'),
+            'url_ordenar_padrao': _url_fila_com_ordenar(request, ''),
         },
     )
 
@@ -984,8 +1020,12 @@ def fila_atendimento_view(request):
     requisicoes_qs = filtrar_por_busca_simples(fila_atendimento(request.user.pk), busca)
 
     if ordenar == 'saldo':
+        # `separacao_bloqueada_por_requisicoes`, não `saldo_insuficiente_...`:
+        # o item desta fila já reservou saldo na autorização (TR-008) — a
+        # regra que importa aqui é TR-015B (achado de review), não a
+        # disponibilidade pra uma autorização nova.
         requisicoes_lista = list(requisicoes_qs)
-        mapa_saldo = saldo_insuficiente_por_requisicoes(
+        mapa_saldo = separacao_bloqueada_por_requisicoes(
             [r.pk for r in requisicoes_lista]
         )
         requisicoes_lista.sort(key=lambda r: 0 if mapa_saldo.get(r.pk, False) else 1)
@@ -1006,7 +1046,7 @@ def fila_atendimento_view(request):
         page_obj = paginar(request, requisicoes_qs, per_page=PAGINA_FILA_TAMANHO)
 
     _marcar_idade_antiga(page_obj.object_list, 'autorizada_em')
-    _marcar_saldo_insuficiente(page_obj.object_list)
+    _marcar_saldo_insuficiente_atendimento(page_obj.object_list)
     return render(
         request,
         'requisicoes/fila_atendimento.html',
@@ -1019,6 +1059,9 @@ def fila_atendimento_view(request):
             'querystring_filtros': querystring_sem_page(request.GET),
             'busca': busca,
             'ordenar': ordenar,
+            'url_ordenar_saldo': _url_fila_com_ordenar(request, 'saldo'),
+            'url_ordenar_setor': _url_fila_com_ordenar(request, 'setor'),
+            'url_ordenar_padrao': _url_fila_com_ordenar(request, ''),
         },
     )
 

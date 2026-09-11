@@ -3255,8 +3255,13 @@ def test_fila_autorizacao_saldo_suficiente_nao_mostra_badge(
 
 @pytest.mark.django_db
 def test_fila_atendimento_saldo_insuficiente_mostra_badge(
-    client, aux_almoxarifado, solicitante, setor_obras, material_sem_saldo
+    client, aux_almoxarifado, solicitante, setor_obras, material_divergente
 ):
+    """Achado de review: o item já reservou saldo na autorização (TR-008) —
+    o sinal certo pra atendimento é TR-015B (divergência crítica ou físico
+    abaixo do autorizado), não a disponibilidade de uma autorização nova.
+    `material_divergente` (físico=2 < reservado=5) bloqueia TR-015B
+    independentemente do autorizado."""
     req = Requisicao.objects.create(
         estado=EstadoRequisicao.AUTORIZADA,
         numero_publico='REQ-2026-8106',
@@ -3266,12 +3271,40 @@ def test_fila_atendimento_saldo_insuficiente_mostra_badge(
     )
     ItemRequisicao.objects.create(
         requisicao=req,
-        material=material_sem_saldo,
+        material=material_divergente,
         quantidade_solicitada=1,
+        quantidade_autorizada=1,
     )
     _login(client, aux_almoxarifado)
     html = client.get(reverse('requisicoes:atendimentos')).content.decode('utf-8')
     assert 'Saldo insuficiente' in html
+
+
+@pytest.mark.django_db
+def test_fila_atendimento_fisico_igual_reservado_igual_autorizado_nao_mostra_badge(
+    client, aux_almoxarifado, solicitante, setor_obras, material_sem_saldo
+):
+    """Regressão do bug de review: `material_sem_saldo` (físico=reservado=5)
+    tem saldo_disponivel=0, mas a reserva JÁ É a deste item — com autorizado
+    também 5, TR-015B não bloquearia (sem divergência, físico cobre o
+    autorizado). O sinal antigo (`saldo_insuficiente_por_requisicoes`)
+    marcava isto como insuficiente incorretamente."""
+    req = Requisicao.objects.create(
+        estado=EstadoRequisicao.AUTORIZADA,
+        numero_publico='REQ-2026-8107',
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+    )
+    ItemRequisicao.objects.create(
+        requisicao=req,
+        material=material_sem_saldo,
+        quantidade_solicitada=5,
+        quantidade_autorizada=5,
+    )
+    _login(client, aux_almoxarifado)
+    html = client.get(reverse('requisicoes:atendimentos')).content.decode('utf-8')
+    assert 'Saldo insuficiente' not in html
 
 
 @pytest.mark.django_db
@@ -5259,6 +5292,52 @@ def test_fila_atendimento_ordenar_setor_agrupa_por_nome_do_setor(
 
 
 @pytest.mark.django_db
+def test_fila_atendimento_ordenar_saldo_lista_bloqueadas_por_tr015b_primeiro(
+    client,
+    aux_almoxarifado,
+    solicitante,
+    setor_obras,
+    material_disponivel,
+    material_divergente,
+):
+    """`ordenar=saldo` na fila de atendimento usa `separacao_bloqueada_por_
+    requisicoes` (TR-015B), não `saldo_insuficiente_por_requisicoes`."""
+    req_ok = Requisicao.objects.create(
+        estado=EstadoRequisicao.AUTORIZADA,
+        numero_publico='REQ-2026-8303',
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+    )
+    ItemRequisicao.objects.create(
+        requisicao=req_ok,
+        material=material_disponivel,
+        quantidade_solicitada=1,
+        quantidade_autorizada=1,
+    )
+    req_bloqueada = Requisicao.objects.create(
+        estado=EstadoRequisicao.AUTORIZADA,
+        numero_publico='REQ-2026-8304',
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+    )
+    ItemRequisicao.objects.create(
+        requisicao=req_bloqueada,
+        material=material_divergente,
+        quantidade_solicitada=1,
+        quantidade_autorizada=1,
+    )
+    _login(client, aux_almoxarifado)
+
+    html = client.get(
+        reverse('requisicoes:atendimentos'), {'ordenar': 'saldo'}
+    ).content.decode('utf-8')
+
+    assert html.index('REQ-2026-8304') < html.index('REQ-2026-8303')
+
+
+@pytest.mark.django_db
 def test_fila_autorizacao_nao_mostra_controle_de_ordenar_por_setor(
     client, chefe_obras, req_enviada_solicitante
 ):
@@ -5266,6 +5345,41 @@ def test_fila_autorizacao_nao_mostra_controle_de_ordenar_por_setor(
     _login(client, chefe_obras)
     html = client.get(reverse('requisicoes:autorizacoes')).content.decode('utf-8')
     assert 'ordenar=setor' not in html
+
+
+@pytest.mark.django_db
+def test_fila_autorizacao_link_de_ordenar_preserva_busca_ativa(
+    client, chefe_obras, req_enviada_solicitante
+):
+    """Achado de review: o link de ordenar era montado de `url_lista` puro
+    (sem querystring) — clicar em "ordenar" numa fila filtrada por busca
+    voltava pra fila inteira. O link agora preserva `busca=`."""
+    _login(client, chefe_obras)
+    html = client.get(
+        reverse('requisicoes:autorizacoes'), {'busca': 'REQ-2026-0010'}
+    ).content.decode('utf-8')
+    assert (
+        'href="/requisicoes/autorizacoes/?busca=REQ-2026-0010&amp;ordenar=saldo"'
+        in html
+    )
+
+
+@pytest.mark.django_db
+def test_fila_atendimento_link_de_ordenar_preserva_busca_ativa(
+    client, aux_almoxarifado, req_autorizada_view
+):
+    _login(client, aux_almoxarifado)
+    html = client.get(
+        reverse('requisicoes:atendimentos'), {'busca': 'REQ-2026-9001'}
+    ).content.decode('utf-8')
+    assert (
+        'href="/requisicoes/atendimentos/?busca=REQ-2026-9001&amp;ordenar=saldo"'
+        in html
+    )
+    assert (
+        'href="/requisicoes/atendimentos/?busca=REQ-2026-9001&amp;ordenar=setor"'
+        in html
+    )
 
 
 @pytest.mark.django_db

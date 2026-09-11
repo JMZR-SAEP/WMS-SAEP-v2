@@ -16,9 +16,9 @@
   {% include "components/ordenacao_data.html" with page_obj=page_obj rotulo_contagem="requisição,requisições" %}
   <div class="mb-3 flex justify-end">
     {% if ordenar == 'saldo' %}
-      {% include "components/button.html" with variant="secondary" label="Ordem padrão (mais antiga primeiro)" href=url_lista %}
+      {% include "components/button.html" with variant="secondary" label="Ordem padrão (mais antiga primeiro)" href=url_ordenar_padrao %}
     {% else %}
-      {% include "components/button.html" with variant="secondary" label="Priorizar saldo insuficiente" href=url_lista|add:"?ordenar=saldo" %}
+      {% include "components/button.html" with variant="secondary" label="Priorizar saldo insuficiente" href=url_ordenar_saldo %}
     {% endif %}
   </div>
   <div
