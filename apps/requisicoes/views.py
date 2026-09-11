@@ -4,6 +4,7 @@ Fluxo: ler input → chamar service com IDs → traduzir exceção → renderiza
 Nenhuma regra de domínio, query de escopo ou decisão de autorização própria.
 """
 
+from datetime import timedelta
 from decimal import Decimal
 
 from apps.accounts.papeis import PapelEfetivo, papel_efetivo
@@ -24,6 +25,7 @@ from django.forms.formsets import DELETION_FIELD_NAME
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_GET, require_http_methods
 
 from apps.core.exceptions import (
@@ -88,6 +90,7 @@ from apps.requisicoes.selectors import (
     minhas_requisicoes,
     pode_filtrar_historico_por_setor,
     requisicoes_visiveis_para,
+    saldo_insuficiente_por_requisicoes,
     saldos_por_materiais,
     setores_do_historico,
 )
@@ -745,6 +748,29 @@ def buscar_beneficiarios(request):
 # ---------------------------------------------------------------------------
 
 
+LIMIAR_IDADE_FILA = timedelta(hours=24)
+
+
+def _marcar_idade_antiga(requisicoes, campo_data: str) -> None:
+    """`req.data_antiga = True` quando `campo_data` passou de 24h corridas.
+
+    Limiar único (#194): o timestamp muda de tom neutro (`text-text-tertiary`)
+    pra warning (`text-warning-text`, o mesmo token de `quantidade.html`) —
+    sem escalada em múltiplos níveis, decisão do shape da issue.
+    """
+    agora = timezone.now()
+    for req in requisicoes:
+        valor = getattr(req, campo_data)
+        req.data_antiga = bool(valor and agora - valor > LIMIAR_IDADE_FILA)
+
+
+def _marcar_saldo_insuficiente(requisicoes) -> None:
+    """`req.saldo_insuficiente` via batch único pra página inteira (Task 2)."""
+    mapa = saldo_insuficiente_por_requisicoes([r.pk for r in requisicoes])
+    for req in requisicoes:
+        req.saldo_insuficiente = mapa.get(req.pk, False)
+
+
 PAGINA_MINHAS_REQUISICOES_TAMANHO = 25
 PAGINA_FILA_TAMANHO = 25
 
@@ -820,6 +846,8 @@ def fila_autorizacao_view(request):
     # ordenada por mais recentes primeiro é o oposto de uma fila. O que faltava
     # era a contagem, que o mesmo componente entrega sem `url_ordenacao`.
     page_obj = paginar(request, requisicoes, per_page=PAGINA_FILA_TAMANHO)
+    _marcar_idade_antiga(page_obj.object_list, 'enviada_em')
+    _marcar_saldo_insuficiente(page_obj.object_list)
     return render(
         request,
         'requisicoes/fila_autorizacao.html',
@@ -925,6 +953,8 @@ def fila_atendimento_view(request):
     # ordenada por mais recentes primeiro é o oposto de uma fila. O que faltava
     # era a contagem, que o mesmo componente entrega sem `url_ordenacao`.
     page_obj = paginar(request, requisicoes, per_page=PAGINA_FILA_TAMANHO)
+    _marcar_idade_antiga(page_obj.object_list, 'autorizada_em')
+    _marcar_saldo_insuficiente(page_obj.object_list)
     return render(
         request,
         'requisicoes/fila_atendimento.html',

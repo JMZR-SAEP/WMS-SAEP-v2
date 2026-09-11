@@ -3100,6 +3100,191 @@ def test_fila_atendimento_placeholder_de_busca_cabe_a_375(
     assert 'placeholder="Número, código ou material"' in html
 
 
+# ---------------------------------------------------------------------------
+# Issue #194 — sinal de triagem no cartão: idade do timestamp e saldo
+#
+# Limiar único de 24h corridas (sem escalada), decisão do shape da issue.
+# `data_antiga`/`saldo_insuficiente` são atributos dinâmicos que a view marca
+# em `page_obj.object_list` (não anotação de queryset) — ver
+# `_marcar_idade_antiga`/`_marcar_saldo_insuficiente` em views.py.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_fila_autorizacao_timestamp_recente_sem_tom_de_warning(
+    client, chefe_obras, solicitante, setor_obras
+):
+    from apps.requisicoes.models import EventoTimeline, TimelineRequisicao
+
+    req = Requisicao.objects.create(
+        estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+        numero_publico='REQ-2026-8101',
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+    )
+    TimelineRequisicao.objects.create(
+        requisicao=req,
+        evento=EventoTimeline.ENVIO_AUTORIZACAO,
+        ator=solicitante,
+    )
+    _login(client, chefe_obras)
+    html = client.get(reverse('requisicoes:autorizacoes')).content.decode('utf-8')
+    assert 'text-warning-text">Enviada em' not in html
+    assert 'text-text-tertiary">Enviada em' in html
+
+
+@pytest.mark.django_db
+def test_fila_autorizacao_timestamp_com_mais_de_24h_ganha_tom_de_warning(
+    client, chefe_obras, solicitante, setor_obras
+):
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from apps.requisicoes.models import EventoTimeline, TimelineRequisicao
+
+    req = Requisicao.objects.create(
+        estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+        numero_publico='REQ-2026-8102',
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+    )
+    evento = TimelineRequisicao.objects.create(
+        requisicao=req,
+        evento=EventoTimeline.ENVIO_AUTORIZACAO,
+        ator=solicitante,
+    )
+    TimelineRequisicao.objects.filter(pk=evento.pk).update(
+        criado_em=timezone.now() - timedelta(hours=25)
+    )
+    _login(client, chefe_obras)
+    html = client.get(reverse('requisicoes:autorizacoes')).content.decode('utf-8')
+    assert 'text-warning-text">Enviada em' in html
+
+
+@pytest.mark.django_db
+def test_fila_atendimento_timestamp_recente_sem_tom_de_warning(
+    client, aux_almoxarifado, solicitante, setor_obras
+):
+    from apps.requisicoes.models import EventoTimeline, TimelineRequisicao
+
+    req = Requisicao.objects.create(
+        estado=EstadoRequisicao.AUTORIZADA,
+        numero_publico='REQ-2026-8104',
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+    )
+    TimelineRequisicao.objects.create(
+        requisicao=req,
+        evento=EventoTimeline.AUTORIZACAO_TOTAL,
+        ator=solicitante,
+    )
+    _login(client, aux_almoxarifado)
+    html = client.get(reverse('requisicoes:atendimentos')).content.decode('utf-8')
+    assert 'text-warning-text">Autorizada em' not in html
+    assert 'text-text-tertiary">Autorizada em' in html
+
+
+@pytest.mark.django_db
+def test_fila_atendimento_timestamp_com_mais_de_24h_ganha_tom_de_warning(
+    client, aux_almoxarifado, solicitante, setor_obras
+):
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from apps.requisicoes.models import EventoTimeline, TimelineRequisicao
+
+    req = Requisicao.objects.create(
+        estado=EstadoRequisicao.AUTORIZADA,
+        numero_publico='REQ-2026-8105',
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+    )
+    evento = TimelineRequisicao.objects.create(
+        requisicao=req,
+        evento=EventoTimeline.AUTORIZACAO_TOTAL,
+        ator=solicitante,
+    )
+    TimelineRequisicao.objects.filter(pk=evento.pk).update(
+        criado_em=timezone.now() - timedelta(hours=25)
+    )
+    _login(client, aux_almoxarifado)
+    html = client.get(reverse('requisicoes:atendimentos')).content.decode('utf-8')
+    assert 'text-warning-text">Autorizada em' in html
+
+
+@pytest.mark.django_db
+def test_fila_autorizacao_saldo_insuficiente_mostra_badge(
+    client, chefe_obras, solicitante, setor_obras, material_sem_saldo
+):
+    req = Requisicao.objects.create(
+        estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+        numero_publico='REQ-2026-8103',
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+    )
+    ItemRequisicao.objects.create(
+        requisicao=req,
+        material=material_sem_saldo,
+        quantidade_solicitada=1,
+    )
+    _login(client, chefe_obras)
+    html = client.get(reverse('requisicoes:autorizacoes')).content.decode('utf-8')
+    assert 'Saldo insuficiente' in html
+
+
+@pytest.mark.django_db
+def test_fila_autorizacao_saldo_suficiente_nao_mostra_badge(
+    client, chefe_obras, req_enviada_solicitante, material_disponivel
+):
+    ItemRequisicao.objects.create(
+        requisicao=req_enviada_solicitante,
+        material=material_disponivel,
+        quantidade_solicitada=1,
+    )
+    _login(client, chefe_obras)
+    html = client.get(reverse('requisicoes:autorizacoes')).content.decode('utf-8')
+    assert 'Saldo insuficiente' not in html
+
+
+@pytest.mark.django_db
+def test_fila_atendimento_saldo_insuficiente_mostra_badge(
+    client, aux_almoxarifado, solicitante, setor_obras, material_sem_saldo
+):
+    req = Requisicao.objects.create(
+        estado=EstadoRequisicao.AUTORIZADA,
+        numero_publico='REQ-2026-8106',
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+    )
+    ItemRequisicao.objects.create(
+        requisicao=req,
+        material=material_sem_saldo,
+        quantidade_solicitada=1,
+    )
+    _login(client, aux_almoxarifado)
+    html = client.get(reverse('requisicoes:atendimentos')).content.decode('utf-8')
+    assert 'Saldo insuficiente' in html
+
+
+@pytest.mark.django_db
+def test_fila_atendimento_saldo_suficiente_nao_mostra_badge(
+    client, aux_almoxarifado, req_autorizada_view
+):
+    # `req_autorizada_view` já nasce com um item de `material_disponivel` e
+    # saldo suficiente (conftest) — não precisa de item extra.
+    _login(client, aux_almoxarifado)
+    html = client.get(reverse('requisicoes:atendimentos')).content.decode('utf-8')
+    assert 'Saldo insuficiente' not in html
+
+
 @pytest.mark.django_db
 def test_minhas_placeholder_de_busca_cabe_a_375(client, solicitante):
     _login(client, solicitante)

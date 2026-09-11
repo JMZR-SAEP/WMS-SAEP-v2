@@ -88,14 +88,17 @@
       dos services (ORM direto, seed antigo, migração).
     {% endcomment %}
     {% if req.autorizada_em %}
-      <p class="mt-1 text-xs text-text-tertiary">Autorizada em {{ req.autorizada_em|date:"d/m/Y H:i" }}</p>
+      <p class="mt-1 text-xs {% if req.data_antiga %}text-warning-text{% else %}text-text-tertiary{% endif %}">Autorizada em {{ req.autorizada_em|date:"d/m/Y H:i" }}</p>
     {% endif %}
   </div>
-  <span class="shrink-0">
+  <span class="shrink-0 flex flex-col items-end gap-1.5">
     {% if req.estado == 'autorizada' %}
       {% include "components/badge.html" with variant="blue" label="Autorizada" prefixo_sr="Estado: " %}
     {% else %}
       {% include "components/badge.html" with variant="teal" label="Pronta para retirada" prefixo_sr="Estado: " %}
+    {% endif %}
+    {% if req.saldo_insuficiente %}
+      {% include "components/badge.html" with variant="amber" label="Saldo insuficiente" prefixo_sr="Saldo: " %}
     {% endif %}
   </span>
 </div>
