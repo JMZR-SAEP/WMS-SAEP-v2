@@ -432,6 +432,37 @@ def saldos_por_materiais(material_ids: list[int]) -> dict[int, dict]:
     return resultado
 
 
+def saldo_insuficiente_por_requisicoes(
+    requisicao_ids: Iterable[int],
+) -> dict[int, bool]:
+    """Pra cada requisição, algum item pede mais que o saldo disponível?
+
+    Reusa `saldos_por_materiais` (a mesma fonte do sinal já usado no detalhe/
+    modal de autorizar, #195) num único batch pra página inteira de fila, em
+    vez de uma chamada por requisição — é o que torna este selector seguro
+    pra listagem (Task 2/#194), diferente de `_anotar_saldo_para_autorizar`
+    em views.py, que opera sobre os itens de UMA requisição já carregada.
+    """
+    itens = list(
+        ItemRequisicao.objects.filter(requisicao_id__in=list(requisicao_ids)).values(
+            'requisicao_id', 'material_id', 'quantidade_solicitada'
+        )
+    )
+    if not itens:
+        return {}
+    saldos = saldos_por_materiais([item['material_id'] for item in itens])
+    resultado: dict[int, bool] = {}
+    for item in itens:
+        info = saldos.get(item['material_id'])
+        if info is None:
+            continue
+        insuficiente = info['saldo_disponivel'] < item['quantidade_solicitada']
+        resultado[item['requisicao_id']] = (
+            resultado.get(item['requisicao_id'], False) or insuficiente
+        )
+    return resultado
+
+
 def historico_requisicoes_visiveis_para(ator_id: int) -> QuerySet[Requisicao]:
     """Queryset system-wide de requisições visíveis ao ator (histórico).
 

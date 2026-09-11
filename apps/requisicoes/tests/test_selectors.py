@@ -8,7 +8,12 @@ from django.utils import timezone
 
 from apps.accounts.models import User
 from apps.accounts.papeis import PapelEfetivo
-from apps.requisicoes.models import EstadoRequisicao, Operacao, Requisicao
+from apps.requisicoes.models import (
+    EstadoRequisicao,
+    ItemRequisicao,
+    Operacao,
+    Requisicao,
+)
 from apps.requisicoes.selectors import (
     acoes_disponiveis,
     chefe_autorizador_do_setor,
@@ -21,6 +26,7 @@ from apps.requisicoes.selectors import (
     minhas_requisicoes,
     pode_filtrar_historico_por_setor,
     requisicoes_visiveis_para,
+    saldo_insuficiente_por_requisicoes,
     saldos_por_materiais,
     setores_do_historico,
 )
@@ -1075,3 +1081,45 @@ class TestSaldosPorMateriais:
         resultado = saldos_por_materiais([material_sem_saldo.pk])
         assert resultado[material_sem_saldo.pk]['elegivel'] is False
         assert resultado[material_sem_saldo.pk]['unidade'] == material_sem_saldo.unidade
+
+
+# ---------------------------------------------------------------------------
+# saldo_insuficiente_por_requisicoes
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_saldo_insuficiente_por_requisicoes_marca_so_quem_nao_cobre(
+    solicitante, setor_obras, material_disponivel, material_sem_saldo
+):
+    req_ok = Requisicao.objects.create(
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+        estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+        numero_publico='REQ-2026-8001',
+    )
+    ItemRequisicao.objects.create(
+        requisicao=req_ok, material=material_disponivel, quantidade_solicitada=1
+    )
+    req_insuficiente = Requisicao.objects.create(
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+        estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+        numero_publico='REQ-2026-8002',
+    )
+    ItemRequisicao.objects.create(
+        requisicao=req_insuficiente,
+        material=material_sem_saldo,
+        quantidade_solicitada=1,
+    )
+
+    resultado = saldo_insuficiente_por_requisicoes([req_ok.pk, req_insuficiente.pk])
+
+    assert resultado == {req_ok.pk: False, req_insuficiente.pk: True}
+
+
+@pytest.mark.django_db
+def test_saldo_insuficiente_por_requisicoes_sem_itens_devolve_dict_vazio():
+    assert saldo_insuficiente_por_requisicoes([]) == {}
