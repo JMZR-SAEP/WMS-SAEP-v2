@@ -10,7 +10,7 @@
 </p>
 
 {% url 'requisicoes:autorizacoes' as url_lista %}
-{% include "components/busca_simples.html" with action_url=url_lista id="busca-autorizacoes" name="busca" label="Requisição ou material" value=busca placeholder="Número público, código ou nome do material" %}
+{% include "components/busca_simples.html" with action_url=url_lista id="busca-autorizacoes" name="busca" label="Requisição ou material" value=busca placeholder="Número, código ou material" %}
 
 {% if requisicoes %}
   {% include "components/ordenacao_data.html" with page_obj=page_obj rotulo_contagem="requisição,requisições" %}

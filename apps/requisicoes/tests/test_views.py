@@ -3080,6 +3080,35 @@ def test_fila_autorizacao_renderiza_cartoes(
 
 
 @pytest.mark.django_db
+def test_fila_autorizacao_placeholder_de_busca_cabe_a_375(
+    client, chefe_obras, req_enviada_solicitante
+):
+    """Texto mais curto: o antigo cortava para "nome do materia" a 375px."""
+    _login(client, chefe_obras)
+    response = client.get(reverse('requisicoes:autorizacoes'))
+    html = response.content.decode('utf-8')
+    assert 'placeholder="Número, código ou material"' in html
+
+
+@pytest.mark.django_db
+def test_fila_atendimento_placeholder_de_busca_cabe_a_375(
+    client, aux_almoxarifado, req_autorizada_view
+):
+    _login(client, aux_almoxarifado)
+    response = client.get(reverse('requisicoes:atendimentos'))
+    html = response.content.decode('utf-8')
+    assert 'placeholder="Número, código ou material"' in html
+
+
+@pytest.mark.django_db
+def test_minhas_placeholder_de_busca_cabe_a_375(client, solicitante):
+    _login(client, solicitante)
+    response = client.get(reverse('requisicoes:minhas'))
+    html = response.content.decode('utf-8')
+    assert 'placeholder="Número, código ou material"' in html
+
+
+@pytest.mark.django_db
 def test_detalhe_registrar_retirada_botao_azul(
     client, aux_almoxarifado, req_pronta_view_com_itens
 ):
