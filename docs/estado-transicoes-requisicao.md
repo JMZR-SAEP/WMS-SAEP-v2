@@ -99,7 +99,7 @@ distinguir a variante na auditoria.
 - Devolução aumenta físico e não altera status.
 - Estorno preserva histórico e registra movimentação inversa.
 - Estorno de devolução diminui físico na quantidade estornada e não altera status nem reserva; não excede a devolvida líquida ainda de pé do item.
-- Entregue líquida de um item = quantidade entregue − Σ devoluções − Σ estornos − Σ estornos de devolução do item; derivada das `MovimentacaoEstoque`, nunca armazenada; calculada dentro da transação do service com a `Requisicao` travada (ADR-0005).
+- Entregue líquida de um item = quantidade entregue − Σ devoluções − Σ estornos + Σ estornos de devolução do item (estorno de devolução reverte uma devolução, então soma de volta); derivada das `MovimentacaoEstoque`, nunca armazenada; calculada dentro da transação do service com a `Requisicao` travada (ADR-0005).
 - Devolvida líquida de um item = Σ devoluções − Σ estornos de devolução do item; limita a quantidade estornável de uma devolução.
 - Devolução (TR-020) e estorno (TR-021) operam apenas quantidade > 0 e <= entregue líquida atual do item; estorno total reverte a entregue líquida atual, não a quantidade entregue bruta — evita double-count com devoluções anteriores.
 - Saldo disponível = saldo físico - saldo reservado, sempre recalculado no ponto crítico.

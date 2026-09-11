@@ -148,8 +148,9 @@ apenas classifica o caso — os efeitos vivem nos handlers.
 **Entregue líquida**:
 A parte de um item já entregue que ainda permanece fora do estoque — a
 quantidade entregue menos o que voltou por **Devolução** ou **Estorno de
-Requisição** (`estorno_requisicao`). Nunca armazenada; derivada das
-**Movimentações de estoque** do item.
+Requisição** (`estorno_requisicao`), mais o que foi revertido por **Estorno de
+Devolução** (`estorno_devolucao`, que desfaz uma devolução e por isso soma de
+volta). Nunca armazenada; derivada das **Movimentações de estoque** do item.
 
 ### Estoque
 
@@ -164,9 +165,9 @@ _Avoid_: histórico técnico, snapshot de saldo.
 
 **Tipo de movimentação**:
 A natureza do evento que gerou a movimentação: `reserva`, `liberacao`,
-`consumo`, `saida_excepcional`, `estorno_saida`, `devolucao` ou
-`estorno_requisicao`. O tipo determina qual documento de origem é válido e o
-sinal esperado das variações.
+`consumo`, `saida_excepcional`, `estorno_saida`, `devolucao`,
+`estorno_requisicao` ou `estorno_devolucao`. O tipo determina qual documento
+de origem é válido e o sinal esperado das variações.
 
 ## Relationships
 

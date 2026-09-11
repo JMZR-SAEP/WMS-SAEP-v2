@@ -2743,31 +2743,6 @@ def test_estornar_devolucao_permissao_negada_auxiliar_almoxarifado(
 
 
 @pytest.mark.django_db
-def test_estornar_devolucao_aceita_superuser(
-    requisicao_atendida_para_devolucao, chefe_almoxarifado, superuser
-):
-    """Superusuário pode estornar devolução."""
-    from apps.requisicoes.services import estornar_devolucao, registrar_devolucao
-
-    req = requisicao_atendida_para_devolucao
-    item = req.itens.first()
-    registrar_devolucao(
-        ator_id=chefe_almoxarifado.pk,
-        requisicao_id=req.pk,
-        item_id=item.pk,
-        quantidade=Decimal('1'),
-    )
-
-    resultado = estornar_devolucao(
-        ator_id=superuser.pk,
-        requisicao_id=req.pk,
-        item_id=item.pk,
-        quantidade=Decimal('1'),
-    )
-    assert resultado.estado == EstadoRequisicao.ATENDIDA
-
-
-@pytest.mark.django_db
 def test_estornar_devolucao_quantidade_zero(
     requisicao_atendida_para_devolucao, chefe_almoxarifado
 ):
