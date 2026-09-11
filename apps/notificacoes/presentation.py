@@ -29,7 +29,14 @@ EVENTO_POR_TIPO: dict[str, str] = {
     TipoNotificacao.RECUSA: 'Sua requisição foi devolvida para ajustes',
     TipoNotificacao.ATENDIMENTO: 'Sua requisição foi atendida',
     TipoNotificacao.SEPARACAO_RETIRADA: 'Sua requisição foi separada para retirada',
-    TipoNotificacao.ENVIO_AUTORIZACAO: 'Aguardava sua autorização',
+    # Não "Aguardava sua autorização" (issue #197): essa metade só aparece
+    # quando `pede_acao` já é falso, ou seja, o pedido de autorização não
+    # cabe mais — mas o que aconteceu depois (autorizada por outro caminho,
+    # devolvida, cancelada) este módulo não sabe, e "aguardava" lido ao lado
+    # do estado atual soava como um processo ainda em curso. "Foi enviada
+    # para autorização" é o único fato que este tipo sempre garante, verdadeiro
+    # qualquer que tenha sido o desfecho — e lê como evento encerrado.
+    TipoNotificacao.ENVIO_AUTORIZACAO: 'Sua requisição foi enviada para autorização',
     TipoNotificacao.DIVERGENCIA_ESTOQUE: 'Divergência de estoque em uma requisição sua',
 }
 
@@ -62,13 +69,19 @@ def titulo_da_notificacao(
     pede_acao: bool = False,
     estado_label: str = '',
 ) -> str:
-    """Evento + estado atual, separados por `·`, no formato `Aguardava sua autorização · Atendida`.
+    """Evento + estado atual como uma frase só, no formato
+    `Sua requisição foi enviada para autorização — atendida`.
 
     `estado_label` vem de `get_estado_display()` da requisição referenciada e é
     vazio quando não há requisição para consultar (aviso sem link, id órfão) —
-    aí o título é só o evento, sem afirmar estado nenhum.
+    aí o título é só o evento, sem afirmar estado nenhum. O travessão substitui
+    o `·` (issue #197): duas frases separadas por um marcador de lista liam
+    como dois rótulos desconexos, e não como o mesmo registro contando o que
+    aconteceu e como as coisas estão agora. A segunda metade entra em
+    minúscula porque continua a primeira, e não recomeça um rótulo novo.
     """
     evento = evento_da_notificacao(tipo, pede_acao=pede_acao) or rotulo_do_tipo
     if not estado_label:
         return evento
-    return f'{evento} · {estado_label}'
+    estado_em_minuscula = estado_label[:1].lower() + estado_label[1:]
+    return f'{evento} — {estado_em_minuscula}'
