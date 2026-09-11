@@ -340,6 +340,28 @@ class TestDenominacaoScpiNoPreview:
                 conteudo_bytes=csv_bytes, estoque_id=estoque_principal.pk
             )
 
+    def test_denominacao_dentro_do_limite_bruto_mas_expande_na_normalizacao_lanca_dados_invalidos(
+        self, db, estoque_principal
+    ):
+        """Achado do CodeRabbit na PR #204: a checagem de limite validava a
+        denominação bruta, antes de `capitalizar_frase`. `str.lower()` expande
+        certos caracteres Unicode (`İ`, U+0130, vira `i` + combining dot —
+        2 caracteres); uma denominação de exatos 200 `İ` passa no limite bruto
+        mas vira 400 caracteres depois de normalizada, estourando
+        `Material.nome` do mesmo jeito que a #202 original.
+        """
+        import pytest
+
+        from apps.core.exceptions import DadosInvalidos
+        from apps.estoque.selectors import gerar_preview_importacao_scpi
+
+        denominacao_expande_ao_normalizar = 'İ' * 200
+        csv_bytes = self._csv('000.999.902', denominacao_expande_ao_normalizar, '5.000')
+        with pytest.raises(DadosInvalidos, match='000.999.902'):
+            gerar_preview_importacao_scpi(
+                conteudo_bytes=csv_bytes, estoque_id=estoque_principal.pk
+            )
+
 
 class TestEntregaLiquidaPorMaterial:
     @pytest.mark.django_db

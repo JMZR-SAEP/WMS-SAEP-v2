@@ -8,6 +8,7 @@ from django.db.models import Count, Exists, OuterRef, Q, QuerySet
 
 from apps.accounts.models import User
 from apps.accounts.papeis import PapelEfetivo, papel_efetivo
+from apps.core.texto import capitalizar_frase
 from apps.requisicoes.models import EstadoRequisicao
 from apps.estoque.models import (
     Material,
@@ -205,10 +206,16 @@ def _parse_linhas_csv_scpi(conteudo: str) -> list[dict]:
                 code='csv_quantidade_invalida',
             )
         denominacao = (row.get(col_den) or '').strip() if col_den else ''
-        if len(denominacao) > limite_denominacao:
+        # Valida o comprimento já normalizado, não o bruto: `capitalizar_frase`
+        # chama `str.lower()`, que expande certos caracteres Unicode (ex. `İ`
+        # vira `i` + combining dot, 2 chars) — uma denominação dentro do
+        # limite bruto ainda pode estourar a coluna depois de normalizada.
+        denominacao_normalizada = capitalizar_frase(denominacao)
+        if len(denominacao_normalizada) > limite_denominacao:
             raise DadosInvalidos(
                 f'Denominação muito longa no produto {cadpro} (linha {i}): '
-                f'{len(denominacao)} caracteres, máximo {limite_denominacao}.',
+                f'{len(denominacao_normalizada)} caracteres, máximo '
+                f'{limite_denominacao}.',
                 code='csv_denominacao_muito_longa',
             )
         linhas.append(
