@@ -774,6 +774,9 @@ def _marcar_saldo_insuficiente(requisicoes) -> None:
 PAGINA_MINHAS_REQUISICOES_TAMANHO = 25
 PAGINA_FILA_TAMANHO = 25
 
+# Ordem canônica da querystring das filas de trabalho (issue #152/#194).
+ORDEM_QUERYSTRING_FILA = ('busca', 'ordenar')
+
 
 @login_required
 @require_GET
@@ -839,13 +842,33 @@ def fila_autorizacao_view(request):
     except PermissaoNegada as exc:
         raise PermissionDenied(str(exc))
 
+    # URL é fonte de verdade do recorte (issue #152): `?ordenar=` inválido ou
+    # redundante redireciona pra forma canônica antes de montar a página.
+    url_canonica = caminho_canonico(request, ordem_chaves=ORDEM_QUERYSTRING_FILA)
+    if not request.htmx and request.get_full_path() != url_canonica:
+        return redirect(url_canonica)
+
     busca = request.GET.get('busca', '').strip()
-    requisicoes = filtrar_por_busca_simples(fila_autorizacao(request.user.pk), busca)
-    # `paginar`, não `paginar_com_filtros`: a fila tem ordem de domínio (FIFO
-    # por `atualizado_em`) e `?ordem=` não se aplica — uma fila de trabalho
-    # ordenada por mais recentes primeiro é o oposto de uma fila. O que faltava
-    # era a contagem, que o mesmo componente entrega sem `url_ordenacao`.
-    page_obj = paginar(request, requisicoes, per_page=PAGINA_FILA_TAMANHO)
+    ordenar = request.GET.get('ordenar', '')
+    requisicoes_qs = filtrar_por_busca_simples(fila_autorizacao(request.user.pk), busca)
+
+    if ordenar == 'saldo':
+        # Saldo é calculado em Python em todo o projeto (`saldos_por_materiais`)
+        # — ordenar por ele em SQL exigiria portar esse cálculo pra
+        # Subquery/annotate agregado, que não existe hoje. A fila cabe em
+        # memória (escala municipal, não milhões de linhas): materializar o
+        # recorte filtrado inteiro e reordenar em Python, preservando FIFO
+        # como critério de desempate (sort estável), é a opção mais simples
+        # que não muda a paginação do que já existe.
+        requisicoes_lista = list(requisicoes_qs)
+        mapa_saldo = saldo_insuficiente_por_requisicoes(
+            [r.pk for r in requisicoes_lista]
+        )
+        requisicoes_lista.sort(key=lambda r: 0 if mapa_saldo.get(r.pk, False) else 1)
+        page_obj = paginar(request, requisicoes_lista, per_page=PAGINA_FILA_TAMANHO)
+    else:
+        page_obj = paginar(request, requisicoes_qs, per_page=PAGINA_FILA_TAMANHO)
+
     _marcar_idade_antiga(page_obj.object_list, 'enviada_em')
     _marcar_saldo_insuficiente(page_obj.object_list)
     return render(
@@ -859,6 +882,7 @@ def fila_autorizacao_view(request):
             # para a fila inteira.
             'querystring_filtros': querystring_sem_page(request.GET),
             'busca': busca,
+            'ordenar': ordenar,
         },
     )
 
@@ -946,13 +970,33 @@ def fila_atendimento_view(request):
     except PermissaoNegada as exc:
         raise PermissionDenied(str(exc))
 
+    url_canonica = caminho_canonico(request, ordem_chaves=ORDEM_QUERYSTRING_FILA)
+    if not request.htmx and request.get_full_path() != url_canonica:
+        return redirect(url_canonica)
+
     busca = request.GET.get('busca', '').strip()
-    requisicoes = filtrar_por_busca_simples(fila_atendimento(request.user.pk), busca)
-    # `paginar`, não `paginar_com_filtros`: a fila tem ordem de domínio (FIFO
-    # por `atualizado_em`) e `?ordem=` não se aplica — uma fila de trabalho
-    # ordenada por mais recentes primeiro é o oposto de uma fila. O que faltava
-    # era a contagem, que o mesmo componente entrega sem `url_ordenacao`.
-    page_obj = paginar(request, requisicoes, per_page=PAGINA_FILA_TAMANHO)
+    ordenar = request.GET.get('ordenar', '')
+    requisicoes_qs = filtrar_por_busca_simples(fila_atendimento(request.user.pk), busca)
+
+    if ordenar == 'saldo':
+        requisicoes_lista = list(requisicoes_qs)
+        mapa_saldo = saldo_insuficiente_por_requisicoes(
+            [r.pk for r in requisicoes_lista]
+        )
+        requisicoes_lista.sort(key=lambda r: 0 if mapa_saldo.get(r.pk, False) else 1)
+        page_obj = paginar(request, requisicoes_lista, per_page=PAGINA_FILA_TAMANHO)
+    elif ordenar == 'setor':
+        # SQL puro — ao contrário de `saldo`, não depende de cálculo Python.
+        # Só existe em atendimento: autorização é escopada a um único setor
+        # (`fila_autorizacao` filtra por `ator.setor_chefiado`), então ordenar
+        # por setor lá seria no-op — decisão do shape da issue.
+        requisicoes_qs = requisicoes_qs.order_by(
+            'setor_beneficiario__nome', 'atualizado_em', 'criado_em', 'id'
+        )
+        page_obj = paginar(request, requisicoes_qs, per_page=PAGINA_FILA_TAMANHO)
+    else:
+        page_obj = paginar(request, requisicoes_qs, per_page=PAGINA_FILA_TAMANHO)
+
     _marcar_idade_antiga(page_obj.object_list, 'autorizada_em')
     _marcar_saldo_insuficiente(page_obj.object_list)
     return render(
@@ -966,6 +1010,7 @@ def fila_atendimento_view(request):
             # para a fila inteira.
             'querystring_filtros': querystring_sem_page(request.GET),
             'busca': busca,
+            'ordenar': ordenar,
         },
     )
 

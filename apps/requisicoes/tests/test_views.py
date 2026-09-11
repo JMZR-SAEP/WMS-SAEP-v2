@@ -5136,6 +5136,139 @@ def test_fila_paginacao_preserva_ordem_do_selector(
 
 
 @pytest.mark.django_db
+def test_fila_autorizacao_ordenar_saldo_lista_insuficientes_primeiro(
+    client,
+    chefe_obras,
+    solicitante,
+    setor_obras,
+    material_disponivel,
+    material_sem_saldo,
+):
+    req_ok = Requisicao.objects.create(
+        estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+        numero_publico='REQ-2026-8201',
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+    )
+    ItemRequisicao.objects.create(
+        requisicao=req_ok,
+        material=material_disponivel,
+        quantidade_solicitada=1,
+    )
+    req_insuficiente = Requisicao.objects.create(
+        estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+        numero_publico='REQ-2026-8202',
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+    )
+    ItemRequisicao.objects.create(
+        requisicao=req_insuficiente,
+        material=material_sem_saldo,
+        quantidade_solicitada=1,
+    )
+    _login(client, chefe_obras)
+
+    html = client.get(
+        reverse('requisicoes:autorizacoes'), {'ordenar': 'saldo'}
+    ).content.decode('utf-8')
+
+    assert html.index('REQ-2026-8202') < html.index('REQ-2026-8201')
+
+
+@pytest.mark.django_db
+def test_fila_autorizacao_sem_ordenar_mantem_fifo(
+    client,
+    chefe_obras,
+    solicitante,
+    setor_obras,
+    material_disponivel,
+    material_sem_saldo,
+):
+    """Ausência de `?ordenar=` não muda em nada o comportamento de hoje."""
+    req_antiga = Requisicao.objects.create(
+        estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+        numero_publico='REQ-2026-8203',
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+    )
+    ItemRequisicao.objects.create(
+        requisicao=req_antiga,
+        material=material_sem_saldo,
+        quantidade_solicitada=1,
+    )
+    req_nova = Requisicao.objects.create(
+        estado=EstadoRequisicao.AGUARDANDO_AUTORIZACAO,
+        numero_publico='REQ-2026-8204',
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+    )
+    ItemRequisicao.objects.create(
+        requisicao=req_nova,
+        material=material_disponivel,
+        quantidade_solicitada=1,
+    )
+    _login(client, chefe_obras)
+
+    html = client.get(reverse('requisicoes:autorizacoes')).content.decode('utf-8')
+
+    # FIFO por `atualizado_em`: quem foi criado primeiro aparece primeiro,
+    # mesmo sendo a requisição com saldo insuficiente.
+    assert html.index('REQ-2026-8203') < html.index('REQ-2026-8204')
+
+
+@pytest.mark.django_db
+def test_fila_atendimento_ordenar_setor_agrupa_por_nome_do_setor(
+    client, aux_almoxarifado, solicitante, setor_obras, setor_ti, material_disponivel
+):
+    req_ti = Requisicao.objects.create(
+        estado=EstadoRequisicao.AUTORIZADA,
+        numero_publico='REQ-2026-8301',
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_ti,
+    )
+    ItemRequisicao.objects.create(
+        requisicao=req_ti,
+        material=material_disponivel,
+        quantidade_solicitada=1,
+    )
+    req_obras = Requisicao.objects.create(
+        estado=EstadoRequisicao.AUTORIZADA,
+        numero_publico='REQ-2026-8302',
+        criador=solicitante,
+        beneficiario=solicitante,
+        setor_beneficiario=setor_obras,
+    )
+    ItemRequisicao.objects.create(
+        requisicao=req_obras,
+        material=material_disponivel,
+        quantidade_solicitada=1,
+    )
+    _login(client, aux_almoxarifado)
+
+    html = client.get(
+        reverse('requisicoes:atendimentos'), {'ordenar': 'setor'}
+    ).content.decode('utf-8')
+
+    # "Obras" < "TI" alfabeticamente.
+    assert html.index('REQ-2026-8302') < html.index('REQ-2026-8301')
+
+
+@pytest.mark.django_db
+def test_fila_autorizacao_nao_mostra_controle_de_ordenar_por_setor(
+    client, chefe_obras, req_enviada_solicitante
+):
+    """Decisão do shape: `fila_autorizacao` é de um único setor, sem o controle."""
+    _login(client, chefe_obras)
+    html = client.get(reverse('requisicoes:autorizacoes')).content.decode('utf-8')
+    assert 'ordenar=setor' not in html
+
+
+@pytest.mark.django_db
 def test_historico_live_region_vazia_no_carregamento_inicial(
     client, superuser, req_historico_obras
 ):

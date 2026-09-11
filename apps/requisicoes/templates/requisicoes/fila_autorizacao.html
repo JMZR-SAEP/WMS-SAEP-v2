@@ -14,6 +14,13 @@
 
 {% if requisicoes %}
   {% include "components/ordenacao_data.html" with page_obj=page_obj rotulo_contagem="requisição,requisições" %}
+  <div class="mb-3 flex justify-end">
+    {% if ordenar == 'saldo' %}
+      {% include "components/button.html" with variant="secondary" label="Ordem padrão (mais antiga primeiro)" href=url_lista aria_label="Voltar à ordem padrão da fila" %}
+    {% else %}
+      {% include "components/button.html" with variant="secondary" label="Priorizar saldo insuficiente" href=url_lista|add:"?ordenar=saldo" aria_label="Ordenar pelas requisições com saldo insuficiente primeiro" %}
+    {% endif %}
+  </div>
   {% include "components/table.html#cards_abertura" %}
     {% for req in requisicoes %}
       {% include "components/table.html#card_abertura" %}
