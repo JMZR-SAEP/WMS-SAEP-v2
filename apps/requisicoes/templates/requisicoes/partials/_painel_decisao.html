@@ -50,6 +50,19 @@ Parâmetros:
   botao_label    texto do botão de disparo
   botao_variant  variant repassado a components/button.html
   botao_icon     (opcional) icon_template repassado a components/button.html
+  botao_disabled (opcional, bool) ação de workflow bloqueada por uma condição
+                 que a permissão já libera (#195, ex.: saldo insuficiente) —
+                 continua visível, aria-disabled, sem abrir o modal. Regra do
+                 design system para ação bloqueada: some do fluxo, não do DOM.
+  botao_aria_describedby (obrigatório com botao_disabled) id do texto que
+                 explica o bloqueio, repassado a aria_describedby do botão
+  motivo_bloqueio (obrigatório com botao_disabled) texto do motivo, renderizado
+                 dentro do próprio painel — abaixo do botão — em tom `warning`,
+                 com `id="{{ botao_aria_describedby }}"`. Mora dentro da caixa
+                 colorida (não como `<p>` solto do chamador) para herdar o
+                 fluxo vertical do painel: um elemento externo ao `h-full` que
+                 estica por `align-items: stretch` colide/sobrepõe o próximo
+                 item da grade (#195).
 
 `aria-haspopup="dialog"` não é parâmetro: o botão do painel abre um modal por
 definição — é isso que faz dele um painel de decisão e não um cartão qualquer.
@@ -96,7 +109,17 @@ era redundante — `<h3>` já é bloco.
       <p class="mt-1 text-sm">{{ conteudo }}</p>
     </div>
   </div>
-  {% include "components/button.html" with variant=botao_variant label=botao_label data_modal_trigger=modal_id icon_template=botao_icon aria_haspopup="dialog" class="shrink-0" full_width_mobile=True %}
+  {% if botao_disabled %}
+    <div class="flex flex-col items-start gap-2 sm:items-end">
+      {% include "components/button.html" with variant=botao_variant label=botao_label icon_template=botao_icon class="shrink-0" full_width_mobile=True disabled=True aria_describedby=botao_aria_describedby %}
+      <p id="{{ botao_aria_describedby }}" class="flex items-start gap-1.5 text-xs text-warning-text">
+        {% include "components/_icone_nivel.html" with variant="warning" class="mt-0.5 h-3.5 w-3.5 shrink-0" %}
+        <span>{{ motivo_bloqueio }}</span>
+      </p>
+    </div>
+  {% else %}
+    {% include "components/button.html" with variant=botao_variant label=botao_label data_modal_trigger=modal_id icon_template=botao_icon aria_haspopup="dialog" class="shrink-0" full_width_mobile=True %}
+  {% endif %}
 </section>
 {% else %}
 <div
@@ -112,6 +135,14 @@ era redundante — `<h3>` já é bloco.
       <p class="mt-1 text-sm">{{ conteudo }}</p>
     </div>
   </div>
-  {% include "components/button.html" with variant=botao_variant label=botao_label data_modal_trigger=modal_id icon_template=botao_icon aria_haspopup="dialog" full_width_mobile=True class="mt-3" %}
+  {% if botao_disabled %}
+    {% include "components/button.html" with variant=botao_variant label=botao_label icon_template=botao_icon full_width_mobile=True class="mt-3" disabled=True aria_describedby=botao_aria_describedby %}
+    <p id="{{ botao_aria_describedby }}" class="mt-2 flex items-start gap-1.5 text-xs text-warning-text">
+      {% include "components/_icone_nivel.html" with variant="warning" class="mt-0.5 h-3.5 w-3.5 shrink-0" %}
+      <span>{{ motivo_bloqueio }}</span>
+    </p>
+  {% else %}
+    {% include "components/button.html" with variant=botao_variant label=botao_label data_modal_trigger=modal_id icon_template=botao_icon aria_haspopup="dialog" full_width_mobile=True class="mt-3" %}
+  {% endif %}
 </div>
 {% endif %}
