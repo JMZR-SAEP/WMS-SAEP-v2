@@ -40,6 +40,7 @@ _POLICY_POR_OPERACAO: dict[Operacao, Callable[['PapelEfetivo', Requisicao], bool
     Operacao.REGISTRAR_ATENDIMENTO: policies.pode_atender_retirada,
     Operacao.REGISTRAR_DEVOLUCAO: policies.pode_registrar_devolucao,
     Operacao.ESTORNAR: policies.pode_estornar_requisicao,
+    Operacao.ESTORNAR_DEVOLUCAO: policies.pode_estornar_devolucao,
 }
 
 

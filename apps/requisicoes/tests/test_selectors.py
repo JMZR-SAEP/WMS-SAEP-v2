@@ -656,7 +656,13 @@ def test_acoes_disponiveis_retorna_frozenset():
                 ator_id=ATOR_ID, eh_almoxarifado=True, eh_chefe_de_almoxarifado=True
             ),
             _req(EstadoRequisicao.ATENDIDA, criador_id=999, beneficiario_id=999),
-            frozenset({Operacao.REGISTRAR_DEVOLUCAO, Operacao.ESTORNAR}),
+            frozenset(
+                {
+                    Operacao.REGISTRAR_DEVOLUCAO,
+                    Operacao.ESTORNAR,
+                    Operacao.ESTORNAR_DEVOLUCAO,
+                }
+            ),
             id='chefe_almoxarifado_em_atendida',
         ),
         pytest.param(

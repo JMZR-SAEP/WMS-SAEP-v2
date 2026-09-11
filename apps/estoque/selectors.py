@@ -379,6 +379,17 @@ TIPOS_MOVIMENTO_ENTREGA_LIQUIDA = [
     TipoMovimentacaoEstoque.CONSUMO,
     TipoMovimentacaoEstoque.DEVOLUCAO,
     TipoMovimentacaoEstoque.ESTORNO_REQUISICAO,
+    TipoMovimentacaoEstoque.ESTORNO_DEVOLUCAO,
+]
+
+#: Estorno de devolução tem delta_fisico negativo (desfaz o incremento da
+#: devolução original), então soma-lo em TIPOS_MOVIMENTO_ENTREGA_LIQUIDA
+#: devolve a entregue líquida ao patamar anterior à devolução estornada
+#: (issue #179).
+
+TIPOS_MOVIMENTO_DEVOLVIDA_LIQUIDA = [
+    TipoMovimentacaoEstoque.DEVOLUCAO,
+    TipoMovimentacaoEstoque.ESTORNO_DEVOLUCAO,
 ]
 
 
@@ -386,7 +397,8 @@ def entregue_liquida_por_material(*, requisicao_id: int, material_id: int) -> De
     """Calcula a quantidade entregue líquida de um material de requisição via ledger.
 
     Entregue líquida = −Σ delta_fisico para movimentações do tipo consumo,
-    devolucao ou estorno_requisicao vinculadas à requisição e ao material.
+    devolucao, estorno_requisicao ou estorno_devolucao vinculadas à
+    requisição e ao material.
 
     Leitura pura: não faz select_for_update. Quem muta deve travar a requisição
     antes de chamar (ADR-0005) — o lock da Requisição garante que nenhuma nova
@@ -428,6 +440,31 @@ def entregue_liquida_por_requisicao(*, requisicao_id: int) -> dict[int, Decimal]
         .annotate(total=Sum('delta_fisico'))
     )
     return {linha['material_id']: -(linha['total'] or Decimal('0')) for linha in linhas}
+
+
+def devolvida_liquida_por_material(*, requisicao_id: int, material_id: int) -> Decimal:
+    """Calcula quanto de devolução ainda está de pé (não estornado) via ledger.
+
+    Devolvida líquida = Σ delta_fisico para movimentações do tipo devolucao ou
+    estorno_devolucao vinculadas à requisição e ao material. `estorno_devolucao`
+    tem delta_fisico negativo, então cada estorno reduz o total — é o teto que
+    `estornar_devolucao_estoque` usa para barrar estorno maior do que o que
+    ainda está pendente de devolução (issue #179).
+
+    Leitura pura: não faz select_for_update. Quem muta deve travar a requisição
+    antes de chamar (ADR-0005), mesmo contrato de `entregue_liquida_por_material`.
+    """
+    from django.db.models import Sum
+
+    from apps.estoque.models import MovimentacaoEstoque
+
+    resultado = MovimentacaoEstoque.objects.filter(
+        requisicao_id=requisicao_id,
+        material_id=material_id,
+        tipo__in=TIPOS_MOVIMENTO_DEVOLVIDA_LIQUIDA,
+    ).aggregate(total=Sum('delta_fisico'))
+
+    return resultado['total'] or Decimal('0')
 
 
 def _eh_almoxarifado(ator: User) -> bool:

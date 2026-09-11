@@ -2577,6 +2577,274 @@ def test_registrar_devolucao_requisicao_inexistente(aux_almoxarifado):
 
 
 # ---------------------------------------------------------------------------
+# estornar_devolucao (issue #179)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_estornar_devolucao_caminho_feliz(
+    requisicao_atendida_para_devolucao, chefe_almoxarifado
+):
+    """Estorno de devolução decrementa saldo físico, mantém ATENDIDA, emite
+    ledger e timeline."""
+    from apps.estoque.models import MovimentacaoEstoque, TipoMovimentacaoEstoque
+    from apps.estoque.selectors import (
+        devolvida_liquida_por_material,
+        entregue_liquida_por_material,
+    )
+    from apps.requisicoes.services import estornar_devolucao, registrar_devolucao
+
+    req = requisicao_atendida_para_devolucao
+    item = req.itens.first()
+    quantidade_devolvida = Decimal('2')
+    registrar_devolucao(
+        ator_id=chefe_almoxarifado.pk,
+        requisicao_id=req.pk,
+        item_id=item.pk,
+        quantidade=quantidade_devolvida,
+    )
+
+    saldo = item.material.saldos.get()
+    saldo_fisico_antes = saldo.saldo_fisico
+    saldo_reservado_antes = saldo.saldo_reservado
+    quantidade_estorno = Decimal('1')
+
+    resultado = estornar_devolucao(
+        ator_id=chefe_almoxarifado.pk,
+        requisicao_id=req.pk,
+        item_id=item.pk,
+        quantidade=quantidade_estorno,
+    )
+
+    saldo.refresh_from_db()
+    assert saldo.saldo_fisico == saldo_fisico_antes - quantidade_estorno
+    assert saldo.saldo_reservado == saldo_reservado_antes
+    resultado.refresh_from_db()
+    assert resultado.estado == EstadoRequisicao.ATENDIDA
+
+    mov = MovimentacaoEstoque.objects.get(
+        requisicao=req,
+        material=item.material,
+        tipo=TipoMovimentacaoEstoque.ESTORNO_DEVOLUCAO,
+    )
+    assert mov.delta_fisico == -quantidade_estorno
+    assert mov.delta_reservado == Decimal('0')
+
+    evento = resultado.eventos.filter(evento=EventoTimeline.ESTORNO_DEVOLUCAO).get()
+    assert evento.ator == chefe_almoxarifado
+
+    devolvida = devolvida_liquida_por_material(
+        requisicao_id=req.pk, material_id=item.material_id
+    )
+    assert devolvida == quantidade_devolvida - quantidade_estorno
+
+    liquida = entregue_liquida_por_material(
+        requisicao_id=req.pk, material_id=item.material_id
+    )
+    assert (
+        liquida == item.quantidade_entregue - quantidade_devolvida + quantidade_estorno
+    )
+
+
+@pytest.mark.django_db
+def test_estornar_devolucao_quantidade_excede_devolvida_liquida(
+    requisicao_atendida_para_devolucao, chefe_almoxarifado
+):
+    """quantidade > devolvida líquida → ConflitoDominio."""
+    from apps.requisicoes.services import estornar_devolucao, registrar_devolucao
+
+    req = requisicao_atendida_para_devolucao
+    item = req.itens.first()
+    registrar_devolucao(
+        ator_id=chefe_almoxarifado.pk,
+        requisicao_id=req.pk,
+        item_id=item.pk,
+        quantidade=Decimal('1'),
+    )
+
+    with pytest.raises(ConflitoDominio) as excinfo:
+        estornar_devolucao(
+            ator_id=chefe_almoxarifado.pk,
+            requisicao_id=req.pk,
+            item_id=item.pk,
+            quantidade=Decimal('2'),
+        )
+    assert excinfo.value.code == 'quantidade_excede_devolvida_liquida'
+
+
+@pytest.mark.django_db
+def test_estornar_devolucao_saldo_disponivel_insuficiente(
+    requisicao_atendida_para_devolucao, chefe_almoxarifado
+):
+    """Saldo disponível insuficiente (consumido por outra operação) barra o estorno."""
+    from apps.requisicoes.services import estornar_devolucao, registrar_devolucao
+
+    req = requisicao_atendida_para_devolucao
+    item = req.itens.first()
+    registrar_devolucao(
+        ator_id=chefe_almoxarifado.pk,
+        requisicao_id=req.pk,
+        item_id=item.pk,
+        quantidade=Decimal('2'),
+    )
+
+    saldo = item.material.saldos.get()
+    saldo.saldo_reservado = saldo.saldo_fisico
+    saldo.save(update_fields=['saldo_reservado'])
+
+    with pytest.raises(ConflitoDominio) as excinfo:
+        estornar_devolucao(
+            ator_id=chefe_almoxarifado.pk,
+            requisicao_id=req.pk,
+            item_id=item.pk,
+            quantidade=Decimal('1'),
+        )
+    assert excinfo.value.code == 'saldo_disponivel_insuficiente'
+
+
+@pytest.mark.django_db
+def test_estornar_devolucao_estado_invalido(requisicao_autorizada, chefe_almoxarifado):
+    """Estorno de devolução em estado que não seja ATENDIDA → EstadoInvalido."""
+    from apps.requisicoes.services import estornar_devolucao
+
+    item = requisicao_autorizada.itens.first()
+    with pytest.raises(EstadoInvalido):
+        estornar_devolucao(
+            ator_id=chefe_almoxarifado.pk,
+            requisicao_id=requisicao_autorizada.pk,
+            item_id=item.pk,
+            quantidade=Decimal('1'),
+        )
+
+
+@pytest.mark.django_db
+def test_estornar_devolucao_permissao_negada_auxiliar_almoxarifado(
+    requisicao_atendida_para_devolucao, aux_almoxarifado, chefe_almoxarifado
+):
+    """Auxiliar de almoxarifado não pode estornar devolução (só o chefe)."""
+    from apps.requisicoes.services import estornar_devolucao, registrar_devolucao
+
+    req = requisicao_atendida_para_devolucao
+    item = req.itens.first()
+    registrar_devolucao(
+        ator_id=aux_almoxarifado.pk,
+        requisicao_id=req.pk,
+        item_id=item.pk,
+        quantidade=Decimal('1'),
+    )
+
+    with pytest.raises(PermissaoNegada):
+        estornar_devolucao(
+            ator_id=aux_almoxarifado.pk,
+            requisicao_id=req.pk,
+            item_id=item.pk,
+            quantidade=Decimal('1'),
+        )
+
+
+@pytest.mark.django_db
+def test_estornar_devolucao_quantidade_zero(
+    requisicao_atendida_para_devolucao, chefe_almoxarifado
+):
+    """quantidade = 0 → DadosInvalidos."""
+    from apps.requisicoes.services import estornar_devolucao, registrar_devolucao
+
+    req = requisicao_atendida_para_devolucao
+    item = req.itens.first()
+    registrar_devolucao(
+        ator_id=chefe_almoxarifado.pk,
+        requisicao_id=req.pk,
+        item_id=item.pk,
+        quantidade=Decimal('1'),
+    )
+
+    with pytest.raises(DadosInvalidos) as excinfo:
+        estornar_devolucao(
+            ator_id=chefe_almoxarifado.pk,
+            requisicao_id=req.pk,
+            item_id=item.pk,
+            quantidade=Decimal('0'),
+        )
+    assert excinfo.value.code == 'quantidade_invalida'
+
+
+@pytest.mark.django_db
+def test_estornar_devolucao_quantidade_nao_finita(
+    requisicao_atendida_para_devolucao, chefe_almoxarifado
+):
+    """quantidade = Decimal('NaN') → DadosInvalidos, não InvalidOperation."""
+    from apps.requisicoes.services import estornar_devolucao, registrar_devolucao
+
+    req = requisicao_atendida_para_devolucao
+    item = req.itens.first()
+    registrar_devolucao(
+        ator_id=chefe_almoxarifado.pk,
+        requisicao_id=req.pk,
+        item_id=item.pk,
+        quantidade=Decimal('1'),
+    )
+
+    with pytest.raises(DadosInvalidos) as excinfo:
+        estornar_devolucao(
+            ator_id=chefe_almoxarifado.pk,
+            requisicao_id=req.pk,
+            item_id=item.pk,
+            quantidade=Decimal('NaN'),
+        )
+    assert excinfo.value.code == 'quantidade_invalida'
+
+
+@pytest.mark.django_db
+def test_estornar_devolucao_item_nao_pertence(
+    requisicao_atendida_para_devolucao, chefe_almoxarifado
+):
+    """item_id inexistente ou de outra requisição → DadosInvalidos."""
+    from apps.requisicoes.services import estornar_devolucao
+
+    req = requisicao_atendida_para_devolucao
+    with pytest.raises(DadosInvalidos) as excinfo:
+        estornar_devolucao(
+            ator_id=chefe_almoxarifado.pk,
+            requisicao_id=req.pk,
+            item_id=999_999,
+            quantidade=Decimal('1'),
+        )
+    assert excinfo.value.code == 'item_nao_pertence_requisicao'
+
+
+@pytest.mark.django_db
+def test_estornar_devolucao_ator_inexistente(requisicao_atendida_para_devolucao):
+    """Ator inexistente → DadosInvalidos."""
+    from apps.requisicoes.services import estornar_devolucao
+
+    req = requisicao_atendida_para_devolucao
+    item = req.itens.first()
+    with pytest.raises(DadosInvalidos) as excinfo:
+        estornar_devolucao(
+            ator_id=999_999,
+            requisicao_id=req.pk,
+            item_id=item.pk,
+            quantidade=Decimal('1'),
+        )
+    assert excinfo.value.code == 'ator_nao_encontrado'
+
+
+@pytest.mark.django_db
+def test_estornar_devolucao_requisicao_inexistente(chefe_almoxarifado):
+    """Requisição inexistente → DadosInvalidos."""
+    from apps.requisicoes.services import estornar_devolucao
+
+    with pytest.raises(DadosInvalidos) as excinfo:
+        estornar_devolucao(
+            ator_id=chefe_almoxarifado.pk,
+            requisicao_id=999_999,
+            item_id=1,
+            quantidade=Decimal('1'),
+        )
+    assert excinfo.value.code == 'requisicao_nao_encontrada'
+
+
+# ---------------------------------------------------------------------------
 # TR-021: estornar_requisicao
 # ---------------------------------------------------------------------------
 

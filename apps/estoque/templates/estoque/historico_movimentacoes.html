@@ -50,10 +50,10 @@
     {% include "components/filter_presets_periodo.html" with presets=presets_periodo target_id="resultados-movimentacoes" %}
 
     {% comment %}
-      Agrupa os 7 tipos por origem, espelhando `_TIPOS_ORIGEM_REQUISICAO` e
+      Agrupa os 8 tipos por origem, espelhando `_TIPOS_ORIGEM_REQUISICAO` e
       `_TIPOS_ORIGEM_SAIDA` em apps/estoque/models.py — a mesma partição que a
       constraint `movimentacao_tipo_origem_coerente` já exige do ledger, e que
-      a coluna "Origem" do cartão exibe (issue #160). As 7 caixas e os 7
+      a coluna "Origem" do cartão exibe (issue #160). As 8 caixas e os 8
       valores da querystring seguem intactos — só a apresentação ganha dois
       fieldset/legend. `agrupar_opcoes` erra alto se a partição sair de
       sincronia com `TipoMovimentacaoEstoque`.
@@ -64,7 +64,7 @@
       `{% templatetag openblock %} url ... as ... {% templatetag closeblock %}`
       documentados mais abaixo.
     {% endcomment %}
-    {% agrupar_opcoes tipos_opcoes "De requisição" "reserva liberacao consumo devolucao estorno_requisicao" "De saída excepcional" "saida_excepcional estorno_saida" as tipos_grupos %}
+    {% agrupar_opcoes tipos_opcoes "De requisição" "reserva liberacao consumo devolucao estorno_requisicao estorno_devolucao" "De saída excepcional" "saida_excepcional estorno_saida" as tipos_grupos %}
     {% include "components/filter_checkbox_group.html" with legend="Tipo" name="tipos" grupos=tipos_grupos selecionados=filtros.tipos %}
 
     {# Preserva ordenação corrente ao submeter os filtros #}

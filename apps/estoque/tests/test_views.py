@@ -4023,10 +4023,11 @@ class TestHistoricoMovimentacoesFiltrosPartials:
 class TestHistoricoMovimentacoesGruposDeTipo:
     """Partição do fieldset "Tipo" por origem da movimentação (issue #160).
 
-    Os 7 tipos vinham numa fileira única enquanto o fieldset menor — os 8
-    estados do histórico de requisições — já tinha ganhado a partição na issue
-    #154. Aqui a partição espelha `_TIPOS_ORIGEM_REQUISICAO`/`_TIPOS_ORIGEM_SAIDA`
-    de `apps/estoque/models.py`, a mesma que a constraint
+    Os 8 tipos (7 originais + `estorno_devolucao`, issue #179) vinham numa
+    fileira única enquanto o fieldset menor — os 8 estados do histórico de
+    requisições — já tinha ganhado a partição na issue #154. Aqui a partição
+    espelha `_TIPOS_ORIGEM_REQUISICAO`/`_TIPOS_ORIGEM_SAIDA` de
+    `apps/estoque/models.py`, a mesma que a constraint
     `movimentacao_tipo_origem_coerente` exige do ledger.
     """
 
@@ -4048,15 +4049,15 @@ class TestHistoricoMovimentacoesGruposDeTipo:
         assert self.LEGENDA_REQUISICAO in html
         assert self.LEGENDA_SAIDA in html
 
-    def test_grupos_preservam_as_7_caixas_e_os_7_valores(self, client, superuser):
-        """Só a apresentação muda: mesmo `name`, mesmos 7 valores, mesma
+    def test_grupos_preservam_as_8_caixas_e_os_8_valores(self, client, superuser):
+        """Só a apresentação muda: mesmo `name`, mesmos 8 valores, mesma
         querystring que o uso plano produzia."""
         from apps.estoque.models import TipoMovimentacaoEstoque
 
         client.force_login(superuser)
         html = client.get(URL_MOVIMENTACOES).content.decode()
-        assert html.count('name="tipos"') == 7
-        assert html.count('type="checkbox"') == 7
+        assert html.count('name="tipos"') == 8
+        assert html.count('type="checkbox"') == 8
         for tipo in TipoMovimentacaoEstoque:
             assert f'value="{tipo.value}"' in html
 
@@ -4099,7 +4100,7 @@ class TestHistoricoMovimentacoesGruposDeTipo:
             'De requisição',
             'De saída excepcional',
         ]
-        assert [len(pares) for _, pares in grupos] == [5, 2]
+        assert [len(pares) for _, pares in grupos] == [6, 2]
 
     def test_querystring_de_tipo_continua_filtrando_e_marcando(
         self, client, superuser, requisicao_autorizada
@@ -4131,7 +4132,7 @@ class TestHistoricoMovimentacoesGruposDeTipo:
         assert 'hx-swap-oob="true"' in parcial
         assert self.LEGENDA_REQUISICAO in parcial
         assert self.LEGENDA_SAIDA in parcial
-        assert parcial.count('name="tipos"') == 7
+        assert parcial.count('name="tipos"') == 8
 
     def test_comentario_da_particao_nao_vaza_para_a_tela(self, client, superuser):
         # Comentário multilinha precisa ser {% comment %}, não {# #}.

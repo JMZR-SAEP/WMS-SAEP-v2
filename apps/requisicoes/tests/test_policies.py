@@ -13,6 +13,7 @@ from apps.core.exceptions import PermissaoNegada
 from apps.requisicoes.models import EstadoRequisicao
 from apps.requisicoes.policies import (
     exigir_pode_consultar_historico_requisicoes,
+    exigir_pode_estornar_devolucao,
     exigir_pode_estornar_requisicao,
     pode_atender_retirada,
     pode_autorizar_requisicao,
@@ -22,6 +23,7 @@ from apps.requisicoes.policies import (
     pode_criar_para_beneficiario,
     pode_editar_rascunho,
     pode_enviar_rascunho,
+    pode_estornar_devolucao,
     pode_estornar_requisicao,
     pode_registrar_devolucao,
     pode_retornar_para_rascunho,
@@ -731,6 +733,48 @@ def test_exigir_pode_estornar_levanta_permissao_negada():
     with pytest.raises(PermissaoNegada) as excinfo:
         exigir_pode_estornar_requisicao(AUX_ALMOX, req)
     assert excinfo.value.code == 'estornar_requisicao_negada'
+
+
+# ---------------------------------------------------------------------------
+# pode_estornar_devolucao (issue #179)
+# ---------------------------------------------------------------------------
+
+
+def test_chefe_almoxarifado_pode_estornar_devolucao():
+    req = _req(EstadoRequisicao.ATENDIDA)
+    assert pode_estornar_devolucao(CHEFE_ALMOX, req) is True
+
+
+def test_aux_almox_nao_pode_estornar_devolucao():
+    req = _req(EstadoRequisicao.ATENDIDA)
+    assert pode_estornar_devolucao(AUX_ALMOX, req) is False
+
+
+def test_superuser_pode_estornar_devolucao():
+    req = _req(EstadoRequisicao.ATENDIDA)
+    assert pode_estornar_devolucao(SUPERUSER, req) is True
+
+
+def test_solicitante_nao_pode_estornar_devolucao():
+    req = _req(EstadoRequisicao.ATENDIDA)
+    assert pode_estornar_devolucao(SOLICITANTE, req) is False
+
+
+def test_inativo_nao_pode_estornar_devolucao():
+    req = _req(EstadoRequisicao.ATENDIDA)
+    assert pode_estornar_devolucao(INATIVO, req) is False
+
+
+def test_estado_diferente_de_atendida_bloqueia_estorno_devolucao():
+    req = _req(EstadoRequisicao.AUTORIZADA)
+    assert pode_estornar_devolucao(CHEFE_ALMOX, req) is False
+
+
+def test_exigir_pode_estornar_devolucao_levanta_permissao_negada():
+    req = _req(EstadoRequisicao.ATENDIDA)
+    with pytest.raises(PermissaoNegada) as excinfo:
+        exigir_pode_estornar_devolucao(AUX_ALMOX, req)
+    assert excinfo.value.code == 'estornar_devolucao_negada'
 
 
 # ---------------------------------------------------------------------------

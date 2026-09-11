@@ -18,6 +18,7 @@ from apps.estoque.models import SaldoEstoque
 from apps.estoque.services import (
     OrigemMovimentacaoEstoque,
     consumir_e_liberar_reservas_para_atendimento,
+    estornar_devolucao_estoque,
     registrar_devolucao_estoque,
 )
 from apps.estoque.types import ItemAtendimentoSaldo
@@ -33,6 +34,7 @@ from apps.requisicoes.models import (
 )
 from apps.requisicoes.policies import (
     exigir_pode_atender_retirada,
+    exigir_pode_estornar_devolucao,
     exigir_pode_registrar_devolucao,
     exigir_pode_separar_para_retirada,
 )
@@ -448,6 +450,96 @@ def registrar_devolucao(
     TimelineRequisicao.objects.create(
         requisicao=requisicao,
         evento=EventoTimeline.DEVOLUCAO_REGISTRADA,
+        ator=ator,
+        estado_resultante=EstadoRequisicao.ATENDIDA,
+        metadata=metadata,
+    )
+
+    return requisicao
+
+
+# ---------------------------------------------------------------------------
+# Estornar devolução (issue #179)
+# ---------------------------------------------------------------------------
+
+
+@transaction.atomic
+def estornar_devolucao(
+    *,
+    ator_id: int,
+    requisicao_id: int,
+    item_id: int,
+    quantidade: Decimal,
+    observacao: str = '',
+) -> Requisicao:
+    """Estorna devolução registrada de item de requisição atendida (issue #179).
+
+    ATENDIDA → ATENDIDA. Decrementa saldo_fisico; não altera estado nem
+    reserva. Exige saldo disponível suficiente
+    (`docs/matriz-permissoes.md` L83) e que a quantidade não exceda a
+    devolução líquida ainda de pé. Emite
+    MovimentacaoEstoque(tipo=estorno_devolucao) +
+    TimelineRequisicao(ESTORNO_DEVOLUCAO).
+    Lock: Requisicao primeiro, SaldoEstoque depois (ADR-0005, EST-06).
+    """
+    try:
+        ator = User.objects.get(pk=ator_id)
+    except User.DoesNotExist:
+        raise DadosInvalidos(
+            'Ator não encontrado.', code='ator_nao_encontrado'
+        ) from None
+
+    try:
+        requisicao = Requisicao.objects.select_for_update().get(pk=requisicao_id)
+    except Requisicao.DoesNotExist:
+        raise DadosInvalidos(
+            'Requisição não encontrada.', code='requisicao_nao_encontrada'
+        ) from None
+
+    if requisicao.estado != EstadoRequisicao.ATENDIDA:
+        raise EstadoInvalido(
+            'Estorno de devolução só pode ser registrado em requisição atendida.',
+            code='estado_origem_invalido',
+        )
+
+    papel = papel_efetivo(ator)
+    exigir_pode_estornar_devolucao(papel, requisicao)
+    verificar_transicao_valida(Operacao.ESTORNAR_DEVOLUCAO, requisicao)
+
+    if not quantidade.is_finite() or quantidade <= 0:
+        raise DadosInvalidos(
+            'A quantidade estornada deve ser maior que zero.',
+            code='quantidade_invalida',
+        )
+
+    try:
+        item = ItemRequisicao.objects.select_related('material').get(
+            pk=item_id, requisicao=requisicao
+        )
+    except ItemRequisicao.DoesNotExist:
+        raise DadosInvalidos(
+            'Item não pertence à requisição informada.',
+            code='item_nao_pertence_requisicao',
+        ) from None
+
+    estornar_devolucao_estoque(
+        requisicao_id=requisicao_id,
+        material_id=item.material_id,
+        quantidade=quantidade,
+        ator_id=ator_id,
+    )
+
+    observacao_limpa = (observacao or '').strip()
+    metadata: dict[str, object] = {
+        'quantidade': str(quantidade),
+        'item_id': item_id,
+    }
+    if observacao_limpa:
+        metadata['observacao'] = observacao_limpa
+
+    TimelineRequisicao.objects.create(
+        requisicao=requisicao,
+        evento=EventoTimeline.ESTORNO_DEVOLUCAO,
         ator=ator,
         estado_resultante=EstadoRequisicao.ATENDIDA,
         metadata=metadata,
