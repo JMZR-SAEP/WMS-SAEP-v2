@@ -4897,6 +4897,18 @@ def test_detalhe_pronta_retirada_registrar_antes_cancelar(
     assert html.index('atender-retirada-titulo') < html.index('cancelamento-titulo')
 
 
+@pytest.mark.django_db
+def test_detalhe_autorizada_separar_antes_cancelar(
+    client, aux_almoxarifado, req_autorizada_view
+):
+    _login(client, aux_almoxarifado)
+    response = client.get(
+        reverse('requisicoes:detalhe', kwargs={'pk': req_autorizada_view.pk})
+    )
+    html = response.content.decode('utf-8')
+    assert html.index('separacao-retirada-titulo') < html.index('cancelamento-titulo')
+
+
 # ---------------------------------------------------------------------------
 # Issue #111 — timeline mostra o que a divergência de estoque significa
 # ---------------------------------------------------------------------------

@@ -382,12 +382,6 @@
     </section>
   {% endif %}
 
-  {% if pode_cancelar and not cancelamento_inline %}
-    {% cancelamento_copy cancelamento_info requisicao.estado as cancelamento_copy_texto %}
-    {% url 'requisicoes:cancelar' requisicao.pk as cancelar_url %}
-    {% include "requisicoes/partials/_confirmacao_acao.html" with registro=registro layout="banner" variant_token="danger" heading_id="cancelamento-titulo" modal_id="confirmar-cancelar" abrir_ao_carregar=cancelamento_modal_aberto titulo=cancelamento_copy_texto.titulo conteudo=cancelamento_copy_texto.descricao botao_label=cancelamento_copy_texto.trigger botao_variant="danger-outline" botao_icon="components/icons/lixeira.svg" modal_titulo=cancelamento_copy_texto.titulo modal_descricao=cancelamento_copy_texto.descricao action_url=cancelar_url confirm_label=cancelamento_copy_texto.confirmar confirm_variant="danger" icon_variant=cancelamento_copy_texto.icon_variant form_body_template="requisicoes/partials/_modal_form_cancelar.html" erro=cancelamento_erro hidden_inputs=cancelamento_hidden_inputs role="alertdialog" corpo_com_campo_focavel=cancelamento_requer_justificativa loading_label="Cancelando…" %}
-  {% endif %}
-
   {% if pode_separar_retirada %}
     <section
       class="mb-6 rounded-xl border border-border bg-surface p-4 shadow-sm sm:p-6"
@@ -408,6 +402,19 @@
       {% url 'requisicoes:separar_retirada' requisicao.pk as separar_url %}
       {% include "components/modal.html" with id="confirmar-separar" titulo="Marcar como pronta para retirada?" descricao="A requisição passa a aparecer como pronta para o beneficiário retirar no almoxarifado." registro=registro action_url=separar_url confirm_label="Confirmar separação" confirm_variant="primary" icon_variant="info" hidden_inputs=separar_hidden_inputs role="alertdialog" loading_label="Separando…" %}
     </section>
+  {% endif %}
+
+  {% comment %}
+    #196: seção destrutiva sempre por último. AUTORIZADA e PRONTA_PARA_RETIRADA
+    permitem cancelar (banner) ao mesmo tempo que separar/atender (TRANSICOES em
+    transitions.py) — por isso o banner não pode ficar entre as duas seções de
+    retirada acima, senão o painel vermelho antecede a ação primária num dos
+    dois estados.
+  {% endcomment %}
+  {% if pode_cancelar and not cancelamento_inline %}
+    {% cancelamento_copy cancelamento_info requisicao.estado as cancelamento_copy_texto %}
+    {% url 'requisicoes:cancelar' requisicao.pk as cancelar_url %}
+    {% include "requisicoes/partials/_confirmacao_acao.html" with registro=registro layout="banner" variant_token="danger" heading_id="cancelamento-titulo" modal_id="confirmar-cancelar" abrir_ao_carregar=cancelamento_modal_aberto titulo=cancelamento_copy_texto.titulo conteudo=cancelamento_copy_texto.descricao botao_label=cancelamento_copy_texto.trigger botao_variant="danger-outline" botao_icon="components/icons/lixeira.svg" modal_titulo=cancelamento_copy_texto.titulo modal_descricao=cancelamento_copy_texto.descricao action_url=cancelar_url confirm_label=cancelamento_copy_texto.confirmar confirm_variant="danger" icon_variant=cancelamento_copy_texto.icon_variant form_body_template="requisicoes/partials/_modal_form_cancelar.html" erro=cancelamento_erro hidden_inputs=cancelamento_hidden_inputs role="alertdialog" corpo_com_campo_focavel=cancelamento_requer_justificativa loading_label="Cancelando…" %}
   {% endif %}
 
   {% if pode_estornar %}
