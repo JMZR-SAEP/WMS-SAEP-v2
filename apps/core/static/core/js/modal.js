@@ -588,6 +588,23 @@
           invalido.focus({ preventScroll: true });
           return;
         }
+        // Segunda perna, e não a mesma dead code do comentário acima: aquela
+        // procurava um CONTROLE dentro da caixa de erro (nunca existiu); esta
+        // foca a própria caixa (`components/error_summary.html`, sempre
+        // `tabindex="-1"`). Sem ela, um 422 de erro puramente textual — sem
+        // nenhum campo para marcar `aria-invalid` (#195: autorizar não tem
+        // formulário) — caía direto na perna de "sem campo" e o foco pousava
+        // em "Voltar" sem o leitor de tela anunciar por quê. `erros_do_formulario`
+        // sempre chama com `focar=False` dentro do modal (é o modal.js quem
+        // governa o foco aqui, não o `autofocus` do componente), então sem
+        // este `querySelector` o `role="alert"` da caixa nunca ganhava foco.
+        const sumario = dialog.querySelector(
+          '[data-modal-erro] [data-error-summary]'
+        );
+        if (sumario) {
+          sumario.focus({ preventScroll: true });
+          return;
+        }
         const primeiroCampo = dialog.querySelector(
           'textarea, input:not([type="hidden"]):not([type="submit"]):not([type="button"]), select'
         );
