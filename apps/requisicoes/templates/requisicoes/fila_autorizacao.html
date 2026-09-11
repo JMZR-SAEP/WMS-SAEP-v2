@@ -21,7 +21,12 @@
       {% include "components/button.html" with variant="secondary" label="Priorizar saldo insuficiente" href=url_lista|add:"?ordenar=saldo" aria_label="Ordenar pelas requisições com saldo insuficiente primeiro" %}
     {% endif %}
   </div>
-  {% include "components/table.html#cards_abertura" %}
+  <div
+    x-data="travessiaFila()"
+    @keydown.arrow-down.prevent="proximo()"
+    @keydown.arrow-up.prevent="anterior()"
+  >
+    {% include "components/table.html#cards_abertura" %}
     {% for req in requisicoes %}
       {% include "components/table.html#card_abertura" %}
         {% url 'requisicoes:detalhe' pk=req.pk as url_detalhe_req %}
@@ -100,6 +105,7 @@
         {% endwith %}
       </article>
     {% endfor %}
+    </div>
   </div>
 
   {% include 'components/pagination.html' with page_obj=page_obj querystring_filtros=querystring_filtros rotulo_itens='requisições' aria_label='Paginação da fila de autorização' %}

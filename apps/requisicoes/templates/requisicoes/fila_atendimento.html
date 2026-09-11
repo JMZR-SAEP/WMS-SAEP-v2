@@ -22,7 +22,12 @@
       {% include "components/button.html" with variant="secondary" label="Agrupar por setor" href=url_lista|add:"?ordenar=setor" aria_label="Ordenar as requisições agrupadas por setor" %}
     {% endif %}
   </div>
-  {% include "components/table.html#cards_abertura" %}
+  <div
+    x-data="travessiaFila()"
+    @keydown.arrow-down.prevent="proximo()"
+    @keydown.arrow-up.prevent="anterior()"
+  >
+    {% include "components/table.html#cards_abertura" %}
     {% for req in requisicoes %}
       {% comment %}
         Esta é a tela de maior consequência física do produto: o auxiliar a
@@ -45,6 +50,7 @@
         {% endwith %}
       </article>
     {% endfor %}
+    </div>
   </div>
 
   {% include 'components/pagination.html' with page_obj=page_obj querystring_filtros=querystring_filtros rotulo_itens='requisições' aria_label='Paginação da fila de atendimento' %}
