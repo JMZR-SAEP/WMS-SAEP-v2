@@ -320,6 +320,48 @@ class TestDenominacaoScpiNoPreview:
         )
         assert linhas[0].denominacao_scpi == ''
 
+    def test_denominacao_excede_limite_lanca_dados_invalidos(
+        self, db, estoque_principal
+    ):
+        """Regressão #202: denominação do SCPI maior que `Material.nome`
+        estourava a coluna no INSERT do confirm (500), derrubando o lote
+        inteiro. Rejeita cedo, ainda no preview, como já acontece com
+        quantidade inválida.
+        """
+        import pytest
+
+        from apps.core.exceptions import DadosInvalidos
+        from apps.estoque.selectors import gerar_preview_importacao_scpi
+
+        denominacao_longa = 'A' * 201  # > Material.nome.max_length (200)
+        csv_bytes = self._csv('000.999.900', denominacao_longa, '5.000')
+        with pytest.raises(DadosInvalidos, match='000.999.900'):
+            gerar_preview_importacao_scpi(
+                conteudo_bytes=csv_bytes, estoque_id=estoque_principal.pk
+            )
+
+    def test_denominacao_dentro_do_limite_bruto_mas_expande_na_normalizacao_lanca_dados_invalidos(
+        self, db, estoque_principal
+    ):
+        """Achado do CodeRabbit na PR #204: a checagem de limite validava a
+        denominação bruta, antes de `capitalizar_frase`. `str.lower()` expande
+        certos caracteres Unicode (`İ`, U+0130, vira `i` + combining dot —
+        2 caracteres); uma denominação de exatos 200 `İ` passa no limite bruto
+        mas vira 400 caracteres depois de normalizada, estourando
+        `Material.nome` do mesmo jeito que a #202 original.
+        """
+        import pytest
+
+        from apps.core.exceptions import DadosInvalidos
+        from apps.estoque.selectors import gerar_preview_importacao_scpi
+
+        denominacao_expande_ao_normalizar = 'İ' * 200
+        csv_bytes = self._csv('000.999.902', denominacao_expande_ao_normalizar, '5.000')
+        with pytest.raises(DadosInvalidos, match='000.999.902'):
+            gerar_preview_importacao_scpi(
+                conteudo_bytes=csv_bytes, estoque_id=estoque_principal.pk
+            )
+
 
 class TestEntregaLiquidaPorMaterial:
     @pytest.mark.django_db
