@@ -71,32 +71,41 @@
               <p class="mt-1 text-xs text-text-secondary">{{ notificacao.criado_em|date:"d/m/Y H:i" }}</p>
             </div>
             {% comment %}
-              Os carimbos, em ordem de importância: o estado da requisição hoje,
-              se este aviso já não pede mais nada, e se ele ainda não foi lido.
+              Só o carimbo de estado, que é o de domínio (issue #197): "Resolvida"
+              saiu porque virou redundante — o título já é evento + desfecho
+              atual, e o desfecho é exatamente o que "Resolvida" tentava dizer de
+              novo, sem contraste próprio (as duas eram slate). "Não lida" saiu
+              de badge por ser sinal de UI, não de domínio, e vira tinta no
+              próprio cartão (ver `has-[[data-nao-lida]]` em
+              `components/table.html#card_abertura`) — som único em vez de
+              badge azulado a mais ao lado do estado. O marcador continua na
+              árvore, só que como texto `sr-only`: some visualmente, permanece
+              anunciado.
 
               Aviso sem requisição resolvível (sem link ou id órfão) não recebe
-              nenhum dos dois primeiros: sem estado a afirmar, e sem pendência a
-              resolver, ele é notícia solta — carimbá-lo seria justamente
-              disfarçá-lo de item acionável.
+              carimbo de estado: sem estado a afirmar, ele é notícia solta —
+              carimbá-lo seria justamente disfarçá-lo de item acionável.
             {% endcomment %}
             <div class="flex shrink-0 flex-wrap items-center gap-2">
               {% if notificacao.requisicao_existe %}
                 {% include "requisicoes/partials/_estado_badge.html" with requisicao=notificacao.requisicao_referida %}
               {% endif %}
-              {% if notificacao.resolvida %}
-                {% include "components/badge.html" with variant="slate" label="Resolvida" prefixo_sr="Pendência: " %}
-              {% endif %}
-              {% if not notificacao.lida %}
-                {% include "components/badge.html" with variant="blue" label="Não lida" prefixo_sr="Leitura: " %}
-              {% endif %}
             </div>
           </div>
+          {% if not notificacao.lida %}<span data-nao-lida class="sr-only">Não lida</span>{% endif %}
 
           {% if notificacao.requisicao_existe %}
-            {# Rótulo rebaixado (issue #158): `Rótulo: valor` inline, sem caixa alta, `<dl>/<dt>/<dd>` preservado. #}
+            {% comment %}
+              Rótulo rebaixado (issue #158): `Rótulo: valor` inline, sem caixa
+              alta, `<dl>/<dt>/<dd>` preservado. `text-text-secondary`, e não o
+              cinza de metadado (issue #197): o cartão não lido veste
+              `bg-primary-subtle`, onde `text-tertiary` mede 4,38:1 e reprova a
+              WCAG 1.4.3 — mesmo motivo que já valia para o carimbo de data
+              (`test_timestamp_nao_usa_o_cinza_apagado`).
+            {% endcomment %}
             <dl class="mt-4 space-y-1 text-sm">
               <div class="flex gap-x-2">
-                <dt class="shrink-0 text-text-tertiary">Requisição:</dt>
+                <dt class="shrink-0 text-text-secondary">Requisição:</dt>
                 <dd class="min-w-0 break-words text-text-primary">{{ notificacao.numero_publico_exibicao }}</dd>
               </div>
             </dl>
@@ -118,21 +127,20 @@
             {% endif %}
             {% if not notificacao.lida %}
               {% comment %}
-                Ação secundária, e não o único azul da linha. Continua sendo um
-                POST de verdade; `cartao-alvo.js` ignora clique cujo alvo já é
-                interativo, então ela convive com o cartão clicável.
+                Ação secundária, e não o único azul da linha — por isso os
+                tokens de `secondary` (borda visível, sem preenchimento), não os
+                de `primary`. Antes era texto solto com hover: `<button>`
+                semântico e com os 44px de alvo, mas sem nenhuma pista visual de
+                controle até o cursor chegar perto — o defeito de afordância que
+                a issue #197 aponta mesmo num elemento tecnicamente correto.
+                Continua sendo um POST de verdade; `cartao-alvo.js` ignora
+                clique cujo alvo já é interativo, então ela convive com o
+                cartão clicável.
               {% endcomment %}
-              <form method="post" action="{% url 'notificacoes:marcar_lida' notificacao.pk %}" class="shrink-0">
+              {% url 'notificacoes:marcar_lida' notificacao.pk as marcar_lida_url %}
+              <form method="post" action="{{ marcar_lida_url }}" class="shrink-0">
                 {% csrf_token %}
-                <button
-                  type="submit"
-                  class="inline-flex min-h-11 shrink-0 cursor-pointer items-center rounded-md px-2 text-xs font-medium text-text-secondary hover:bg-bg-page hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-1"
-                  hx-post="{% url 'notificacoes:marcar_lida' notificacao.pk %}"
-                  hx-swap="outerHTML"
-                  hx-target="closest article"
-                >
-                  Marcar como lida
-                </button>
+                {% include "components/button.html" with variant="secondary" size="sm" type="submit" label="Marcar como lida" hx_post=marcar_lida_url hx_swap="outerHTML" hx_target="closest article" %}
               </form>
             {% endif %}
           </div>
