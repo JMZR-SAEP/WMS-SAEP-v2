@@ -18,6 +18,24 @@ SHELL := /bin/bash
 GNUMAKEFLAGS += --no-print-directory
 .DEFAULT_GOAL := help
 
+# No Windows, o SHELL acima só resolve se bash/dirname/awk/printf do Git for
+# Windows já estiverem no PATH *antes* de o make ser invocado — o make decide
+# qual shell usar ao iniciar, antes de ler este arquivo, então não dá pra
+# resolver isso com `export PATH` aqui dentro. Pré-requisito de ambiente:
+# adicione `C:\Program Files\Git\usr\bin` ao PATH (variável de ambiente do
+# Windows), fora do Makefile.
+#
+# O find.exe nativo do Windows (System32) não entende a sintaxe GNU usada em
+# `clean`/`veryclean`, e como o PATH de máquina do Windows sempre precede o
+# de usuário, o find do Git nunca ganharia essa disputa mesmo com o PATH
+# acima ajustado — por isso FIND aponta pro caminho absoluto no Windows,
+# contornando a colisão em vez de depender de ordem de PATH.
+ifeq ($(OS),Windows_NT)
+FIND := "/c/Program Files/Git/usr/bin/find"
+else
+FIND := find
+endif
+
 ROOT_DIR ?= $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 VENV_DIR ?= .venv
 ENV_FILE ?= .env
@@ -97,24 +115,24 @@ seed-dev: ## Carregar seed canônico do piloto
 clean: resetpostgres ## Limpar artefatos locais e caches (sem afetar o banco)
 	-rm -rf $(EPHEMERAL_DIRS)
 	-rm -f $(PID_FILE)
-		-find . -path "*/migrations/*.py" \
+		-$(FIND) . -path "*/migrations/*.py" \
 		-not -name "__init__.py" \
 		-not -path "./$(VENV_DIR)/*" \
 		-delete
 
 veryclean: clean ## Voltar o workspace para um estado "do zero".
 	-rm -rf $(VENV_DIR)
-	find . -iname "*.pyc" -iname "*.pyo" -delete
-	find . -type f \( -name "*.pyc" -o -name "*.pyo" \) -delete
+	$(FIND) . -iname "*.pyc" -iname "*.pyo" -delete
+	$(FIND) . -type f \( -name "*.pyc" -o -name "*.pyo" \) -delete
 
 # Reset agressivo do PostgreSQL para simular o efeito de apagar um db.sqlite3
 # Requer DATABASE_URL disponível no ambiente/.env e o cliente psql instalado.
 resetpostgres: ## Apagar schema public do PostgreSQL e recriá-lo do zero
 	@test -n "$$DATABASE_URL" || (echo "DATABASE_URL não definido em $(ENV_FILE) ou no ambiente" && exit 1)
 	@command -v $(PSQL) >/dev/null 2>&1 || (echo "psql não encontrado" && exit 1)
-	$(PSQL) "$$DATABASE_URL" -v ON_ERROR_STOP=1 -c "DROP SCHEMA IF EXISTS public CASCADE;"
-	$(PSQL) "$$DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE SCHEMA public;"
-	$(PSQL) "$$DATABASE_URL" -v ON_ERROR_STOP=1 -c "GRANT ALL ON SCHEMA public TO CURRENT_USER;"
+	$(PSQL) -d "$$DATABASE_URL" -v ON_ERROR_STOP=1 -c "DROP SCHEMA IF EXISTS public CASCADE;"
+	$(PSQL) -d "$$DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE SCHEMA public;"
+	$(PSQL) -d "$$DATABASE_URL" -v ON_ERROR_STOP=1 -c "GRANT ALL ON SCHEMA public TO CURRENT_USER;"
 
 # ------------------------------------------------------------------------------
 # Extra úteis
