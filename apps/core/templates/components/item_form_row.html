@@ -17,10 +17,15 @@ chamadora (mesmo idioma de `body_template`/`icon_template`/`item_template`
 já usado em alert.html/button.html/autocomplete.html — um path de template
 que este componente inclui sem interpretar):
   saldo_slot_template — path de template incluído na coluna do material, no
-    lugar do antigo painel de saldo. Cada app é dono do seu (requisições
-    renderiza texto estático a partir de `saldo_item`, que chega ao slot por
-    herança de contexto do `{% with %}` da tela chamadora — nunca declarado
-    aqui; saída excepcional renderiza texto reativo client-side).
+    lugar do antigo painel de saldo. Cada app é dono do seu. Os dois slots
+    são reativos, ligados ao escopo Alpine da linha (`saldoLinha`) — nenhum
+    lê `saldo_item` diretamente: requisições semeia o estado inicial do
+    Alpine a partir dele (via `linha_alpine_config`) quando o material já
+    chega vinculado, mas quem atualiza depois é sempre `registrarMaterial()`,
+    nunca mais o servidor (troca de material na mesma linha sem reload —
+    achado do CodeRabbit no PR #214, que pegou o painel de requisições ainda
+    estático mostrando o material anterior enquanto o aviso de saldo já
+    falava do novo).
   saldo_aviso_template — path de template incluído na coluna de quantidade,
     no lugar do antigo aviso "Acima do saldo". Mesmo texto/ARIA nas duas
     telas, então vive uma vez só em estoque/partials (dona do conceito de

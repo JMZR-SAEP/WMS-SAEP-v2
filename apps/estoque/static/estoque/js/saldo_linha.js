@@ -31,7 +31,7 @@
  *
  * Uso no template (via `linha_alpine_factory`/`linha_alpine_config` de
  * `components/item_form_row.html`):
- *   {% como_json saldoTexto=... saldoValor=... unidade=... as linha_config %}
+ *   {% como_json saldoTexto=... saldoValor=... unidade=... motivo=... as linha_config %}
  *   {% include "components/item_form_row.html" with
  *        linha_alpine_factory="saldoLinha" linha_alpine_config=linha_config ... %}
  */
@@ -50,6 +50,11 @@
       saldoValor: valorNumericoOuNulo(config.saldoValor),
       saldoRotulo: config.saldoRotulo || 'Disponível',
       unidade: config.unidade || '',
+      // Motivo de inelegibilidade (requisições) — só existe para o material
+      // conhecido no render inicial (`saldo_item.motivo`, quando o item já
+      // vinha inelegível). Ver `registrarMaterial` abaixo pro porquê de
+      // qualquer seleção nova sempre limpar isto.
+      motivo: config.motivo || '',
 
       registrarMaterial(item) {
         generico.registrarMaterial.call(this, item);
@@ -64,6 +69,15 @@
         // só o texto aparece — degradar para menos aviso, nunca para aviso
         // errado.
         this.saldoValor = valorNumericoOuNulo(item.saldo_bruto);
+        // O autocomplete de requisições só lista material elegível
+        // (`materiais_para_requisicao`, apps/requisicoes/views.py::
+        // buscar_materiais) e o de estoque nem tem noção de elegibilidade —
+        // qualquer material que chega aqui por seleção já passou por esse
+        // filtro. `motivo` só reflete o material do render inicial; ele nunca
+        // sobrevive a uma troca de material na mesma linha, senão o painel
+        // mostraria "Sem saldo disponível" para um material recém-escolhido
+        // que nem tem esse problema (achado do CodeRabbit no PR #214).
+        this.motivo = '';
       },
 
       get excedeuSaldo() {
