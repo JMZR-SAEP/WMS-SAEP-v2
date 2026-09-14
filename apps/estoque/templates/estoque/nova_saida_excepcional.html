@@ -110,7 +110,7 @@
         <div id="itens-container" data-itens-container class="flex flex-col gap-3">
           {% for item_form in formset %}
             {% with unidade_item=unidades_itens|get_item:item_form.material_id.value %}
-            {% include "components/item_form_row.html" with material_id_field=item_form.material_id material_label_field=item_form.material_label quantidade_field=item_form.quantidade quantidade_label="Quantidade" autocomplete_url_name="estoque:buscar_materiais_saida_excepcional" autocomplete_item_template="estoque/partials/_autocomplete_item_material.html" delete_field=item_form.DELETE form_index=forloop.counter0 habilitar_veto_duplicidade=True unidade_item=unidade_item %}
+            {% include "components/item_form_row.html" with material_id_field=item_form.material_id material_label_field=item_form.material_label quantidade_field=item_form.quantidade quantidade_label="Quantidade" autocomplete_url_name="estoque:buscar_materiais_saida_excepcional" autocomplete_item_template="estoque/partials/_autocomplete_item_material.html" delete_field=item_form.DELETE form_index=forloop.counter0 habilitar_veto_duplicidade=True unidade_item=unidade_item linha_alpine_factory="saldoLinha" saldo_slot_template="estoque/partials/_item_saldo_painel.html" saldo_aviso_template="estoque/partials/_item_saldo_aviso.html" %}
             {% endwith %}
           {% endfor %}
         </div>

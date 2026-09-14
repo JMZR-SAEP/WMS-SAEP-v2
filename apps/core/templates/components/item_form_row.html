@@ -3,6 +3,49 @@ Linha de item de formset reutilizável entre telas com itens dinâmicos
 (requisições, saída excepcional). Extraído per ADR-0016 — markup de linha
 de item compartilhado em vez de reimplementado por tela.
 
+Componente global (docs/design-system.md, ADR-0004, ADR-0011): esta linha
+não conhece saldo de estoque nem qualquer outra semântica de domínio (issue
+#174 — o componente chegou a acumular `saldo_item`/`unidade_item` com dict
+de motivo/elegibilidade, borda condicional e markup de saldo hardcoded).
+O que sobra aqui é ESTRUTURA: autocomplete, campo de quantidade, botão
+remover, campo DELETE, grupo nomeado por posição e o rastreamento genérico
+`data-material`/`data-unidade` (contrato com modal.js — não é saldo, é
+"qual material e unidade estão selecionados nesta linha").
+
+Conteúdo de domínio entra por dois pontos de extensão, resolvidos pela tela
+chamadora (mesmo idioma de `body_template`/`icon_template`/`item_template`
+já usado em alert.html/button.html/autocomplete.html — um path de template
+que este componente inclui sem interpretar):
+  saldo_slot_template — path de template incluído na coluna do material, no
+    lugar do antigo painel de saldo. Cada app é dono do seu (requisições
+    renderiza texto estático a partir de `saldo_item`, que chega ao slot por
+    herança de contexto do `{% with %}` da tela chamadora — nunca declarado
+    aqui; saída excepcional renderiza texto reativo client-side).
+  saldo_aviso_template — path de template incluído na coluna de quantidade,
+    no lugar do antigo aviso "Acima do saldo". Mesmo texto/ARIA nas duas
+    telas, então vive uma vez só em estoque/partials (dona do conceito de
+    saldo) e as duas o referenciam.
+  borda_alerta — bool (opcional, default False): liga a borda/fundo âmbar do
+    grupo. É só um flag de apresentação já resolvido pela tela chamadora
+    (ex.: `saldo_item|saldo_insuficiente` em requisições) — o componente não
+    sabe o que o acendeu, só que precisa acender.
+
+O escopo Alpine da linha segue a mesma lógica: `itemFormRow` (genérico, em
+item_form_row.js) só sabe rastrear material/unidade e ajustar o passo do
+campo numérico à unidade. Quando a tela precisa de saldo reativo, ela troca
+a factory pela sua — `saldoLinha` (apps/estoque/static/estoque/js/
+saldo_linha.js, dona do conceito porque saldo é domínio de estoque, reusada
+por requisições do mesmo jeito que `estoque/partials/_autocomplete_item_material.html`
+já é) — que compõe sobre `itemFormRow` (via `window.WMSItemFormRow`) em vez
+de duplicar `registrarMaterial`/`aplicarPassoDaUnidade`. A troca de factory e
+o estado inicial (saldo conhecido no servidor) chegam por `linha_alpine_factory`
+(nome da factory) e `linha_alpine_config` (JSON já serializado por
+`{% como_json %}`, em core_tags — genérico: kwargs vira JSON, sem saber que
+"saldoTexto" existe). Só há UM x-data na raiz da linha porque o evento
+`material-selecionado` borbulha até ela e não até um wrapper mais aninhado
+— não dava para separar rastreamento genérico e saldo em dois escopos Alpine
+sem duplicar `registrarMaterial` ou perder o evento.
+
 Parâmetros de contexto (todos BoundField, exceto indicado):
   material_id_field      — campo hidden com o id do material
   material_label_field    — campo de autocomplete (texto exibido)
@@ -19,11 +62,17 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
   form_index              — índice numérico da linha (int)
   quantidade_label         — rótulo do campo de quantidade (str, opcional, default "Quantidade")
   delete_field             — BoundField do campo DELETE do formset (opcional)
-  saldo_item               — dict {elegivel, saldo_disponivel, motivo} (opcional)
   unidade_item             — unidade do material vinculado (str, opcional). Só
-    alimenta o `data-unidade` da linha, para telas que não passam `saldo_item`
-    e ainda assim precisam que a recapitulação do modal saiba a unidade num
-    POST re-renderizado por erro. Quando ausente, cai em `saldo_item.unidade`.
+    alimenta o `data-unidade` da linha, para telas cujo material já está
+    escolhido num POST re-renderizado por erro (a recapitulação do modal lê
+    dali, sem depender de evento nenhum disparar). Quando ausente, "" .
+  saldo_slot_template      — path de template (str, opcional) — ver acima.
+  saldo_aviso_template     — path de template (str, opcional) — ver acima.
+  borda_alerta             — bool (opcional, default False) — ver acima.
+  linha_alpine_factory     — nome da factory Alpine da linha (str, opcional,
+    default "itemFormRow") — ver acima.
+  linha_alpine_config      — JSON (str, opcional, default "{}") passado à
+    factory — ver acima.
   habilitar_veto_duplicidade — bool (opcional): quando True, chama
     window.selecionarMaterial(form_index, item) no onSelect do autocomplete —
     a tela chamadora deve definir essa função globalmente (veto client-side
@@ -44,7 +93,7 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
   removida) e o material continua sendo anunciado pelo próprio combobox, que
   sempre carrega o valor atual.
 {% endcomment %}
-<div class="item-form-row flex flex-wrap items-start gap-3 p-3 rounded-lg border {% if saldo_item and not saldo_item.elegivel %}border-warning-border-strong bg-warning-subtle/40{% else %}border-border bg-surface{% endif %}"
+<div class="item-form-row flex flex-wrap items-start gap-3 p-3 rounded-lg border {% if borda_alerta %}border-warning-border-strong bg-warning-subtle/40{% else %}border-border bg-surface{% endif %}"
      role="group"
      aria-label="Item {{ form_index|add:1 }}"
      data-index="{{ form_index }}"
@@ -58,12 +107,8 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
        durante a edição.
      {% endcomment %}
      data-material="{{ material_label_field.value|default:'' }}"
-     data-unidade="{% firstof unidade_item saldo_item.unidade '' %}"
-     x-data="saldoLinha({
-       saldoTexto: '{{ saldo_item.saldo_disponivel|default:''|escapejs }}',
-       saldoValor: '{{ saldo_item.saldo_bruto|default:''|escapejs }}' || undefined,
-       unidade: '{{ saldo_item.unidade|default:''|escapejs }}',
-     })"
+     data-unidade="{{ unidade_item|default:'' }}"
+     x-data="{{ linha_alpine_factory|default:'itemFormRow' }}({{ linha_alpine_config|default:'{}' }})"
      @material-selecionado="registrarMaterial($event.detail)"
      {% if delete_field.value %}style="display: none"{% endif %}>
 
@@ -102,33 +147,7 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
     {% if material_id_field.errors %}
       {% include "components/field_error.html" with id=material_id_field.id_for_label|add:"-erro" erros=material_id_field.errors %}
     {% endif %}
-    {% if saldo_item %}
-      {% if not saldo_item.elegivel %}
-        <p class="mt-1.5 flex items-center gap-1 text-xs font-medium text-warning-text-subtle" role="alert">
-          {% icon "atencao" class="h-3.5 w-3.5 shrink-0" %}
-          {% comment %}
-            Quantidade com a unidade, e com a precisão que a unidade manda —
-            `floatformat:"-3"` dava "12,5" sem dizer de quê, e escrevia três
-            casas para um material contado em caixas. A grafia é a mesma de
-            estoque/lista_materiais.html: valor formatado seguido do código
-            curto.
-          {% endcomment %}
-          {{ saldo_item.motivo }} — saldo atual: {{ saldo_item.saldo_disponivel|formatar_quantidade:saldo_item.unidade }} {{ saldo_item.unidade }}
-        </p>
-      {% else %}
-        <p class="mt-1.5 text-xs text-text-tertiary">Saldo disponível: {{ saldo_item.saldo_disponivel|formatar_quantidade:saldo_item.unidade }} {{ saldo_item.unidade }}</p>
-      {% endif %}
-    {% else %}
-      {% comment %}
-        O saldo do material escolhido no cliente. Sem isto, o número que o
-        dropdown mostrava (`disponível: 4530 un`) sumia no instante da seleção —
-        logo antes de digitar a quantidade, que é quando ele decide. `x-cloak`
-        para a linha não piscar vazia antes do Alpine subir.
-      {% endcomment %}
-      <p x-show="saldoTexto" x-cloak class="mt-1.5 text-xs text-text-tertiary">
-        <span x-text="saldoRotulo"></span>: <span class="tabular-nums" x-text="saldoTexto"></span> <span x-text="unidade"></span>
-      </p>
-    {% endif %}
+    {% if saldo_slot_template %}{% include saldo_slot_template %}{% endif %}
   </div>
 
   {% comment %}
@@ -157,17 +176,14 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
       o banco guarda. Sem unidade conhecida, `step_por_unidade` devolve o passo
       mais fino — na dúvida não estreitar o que o domínio aceita.
     {% endcomment %}
-    {% firstof unidade_item saldo_item.unidade '' as unidade_efetiva %}
+    {% firstof unidade_item '' as unidade_efetiva %}
     {% if unidade_efetiva %}
       {% attrs_widget step=unidade_efetiva|step_por_unidade min=unidade_efetiva|step_por_unidade as attrs_quantidade %}
       {% include "components/form_field.html" with field=quantidade_field label_override=quantidade_label|default:"Quantidade" attrs_extra=attrs_quantidade %}
     {% else %}
       {% include "components/form_field.html" with field=quantidade_field label_override=quantidade_label|default:"Quantidade" %}
     {% endif %}
-    <p x-show="excedeuSaldo" x-cloak role="status" class="mt-1.5 flex items-start gap-1 text-xs font-medium text-warning-text-subtle">
-      {% icon "atencao" class="mt-0.5 h-3.5 w-3.5 shrink-0" %}
-      <span>Acima do saldo</span>
-    </p>
+    {% if saldo_aviso_template %}{% include saldo_aviso_template %}{% endif %}
   </div>
 
   {# Campo DELETE do formset (escondido — controlado por JS/botão) #}

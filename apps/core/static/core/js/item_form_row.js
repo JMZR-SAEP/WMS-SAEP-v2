@@ -199,29 +199,22 @@
   }
 
   /**
-   * saldoDaLinha — escopo Alpine da própria linha de item, para o saldo
-   * sobreviver à seleção do material.
+   * itemFormRow — escopo Alpine genérico da própria linha de item: só
+   * rastreamento de material/unidade selecionados e ajuste do `step` do
+   * campo numérico. Nenhuma noção de saldo mora aqui (issue #174) — este
+   * arquivo é `apps/core`, componente global, e saldo é domínio de estoque.
    *
-   * O autocomplete mostrava `(disponível: 4530 un)` na opção do dropdown e
-   * apagava esse número no instante em que a pessoa escolhia o material — logo
-   * antes de digitar a quantidade, que é exatamente quando ele decide. O campo
-   * ficava ao lado, vazio, sem unidade e sem teto: 99999 unidades de um
-   * material com 4530 disponíveis atravessavam criação, envio e fila do chefe
-   * sem um único aviso, e o erro só aparecia depois da confirmação da
-   * autorização, numa faixa no topo da página e sem número nenhum.
-   *
-   * O que este escopo faz é só não jogar fora o que o servidor já mandou: o
-   * payload do autocomplete traz `saldo_disponivel` (ou `saldo_fisico`, na
-   * saída excepcional) e `unidade`. A fonte de verdade continua sendo o
-   * `clean()` do formset e, no fim, a reserva no service — isto é aviso, não
-   * validação.
+   * Telas que precisam de saldo reativo na linha (requisições, saída
+   * excepcional) trocam a factory usada no `x-data` da linha para
+   * `saldoLinha` (apps/estoque/static/estoque/js/saldo_linha.js), que compõe
+   * por cima desta aqui via `window.WMSItemFormRow` em vez de duplicar
+   * `registrarMaterial`/`aplicarPassoDaUnidade`. Ver o comentário de
+   * `components/item_form_row.html` para o motivo de ser um escopo só (o
+   * evento `material-selecionado` borbulha até a raiz da linha, não até um
+   * wrapper mais aninhado).
    */
-  function saldoLinha(config = {}) {
+  function itemFormRow(config = {}) {
     return {
-      saldoTexto: config.saldoTexto || '',
-      saldoValor: config.saldoValor === undefined ? null : Number(config.saldoValor),
-      saldoRotulo: config.saldoRotulo || 'Disponível',
-      unidade: config.unidade || '',
       quantidade: '',
 
       registrarMaterial(item) {
@@ -233,17 +226,6 @@
         this.$el.dataset.material = item.label || item.nome || '';
         this.$el.dataset.unidade = item.unidade || '';
         this.aplicarPassoDaUnidade(item.step);
-        const temDisponivel = item.saldo_disponivel !== undefined;
-        this.saldoRotulo = temDisponivel ? 'Disponível' : 'Físico';
-        this.saldoTexto = temDisponivel ? item.saldo_disponivel : item.saldo_fisico;
-        this.unidade = item.unidade || '';
-        // `saldo_bruto` é o número em notação de máquina, para comparar; o
-        // `saldo_disponivel` já vem formatado em pt-BR e com vírgula, que
-        // `Number()` não lê. Ausente (payload antigo), a comparação desliga e
-        // só o texto aparece — degradar para menos aviso, nunca para aviso
-        // errado.
-        this.saldoValor =
-          item.saldo_bruto === undefined ? null : Number(item.saldo_bruto);
       },
 
       /**
@@ -269,18 +251,16 @@
         // Teclado numérico sem separador decimal só onde fração não existe.
         campo.inputMode = passo === '1' ? 'numeric' : 'decimal';
       },
-
-      get excedeuSaldo() {
-        if (this.saldoValor === null) return false;
-        const pedido = Number(String(this.quantidade).replace(',', '.'));
-        if (!Number.isFinite(pedido) || pedido <= 0) return false;
-        return pedido > this.saldoValor;
-      },
     };
   }
 
+  // Exposta para a factory de domínio (`saldoLinha`) compor por cima sem
+  // duplicar `registrarMaterial`/`aplicarPassoDaUnidade` — ver o comentário
+  // dela em apps/estoque/static/estoque/js/saldo_linha.js.
+  window.WMSItemFormRow = itemFormRow;
+
   document.addEventListener('alpine:init', () => {
     window.Alpine.data('itensFormset', factory);
-    window.Alpine.data('saldoLinha', saldoLinha);
+    window.Alpine.data('itemFormRow', itemFormRow);
   });
 })();

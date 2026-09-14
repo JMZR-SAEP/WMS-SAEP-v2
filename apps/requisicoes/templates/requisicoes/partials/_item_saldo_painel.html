@@ -1,0 +1,52 @@
+{% load core_tags %}
+{% comment %}
+Painel de saldo da linha de item (issue #174) — slot de domínio de
+`components/item_form_row.html` (parâmetro `saldo_slot_template`), incluído
+na coluna do material.
+
+Depende de `saldo_item` (dict {elegivel, saldo_disponivel, motivo, unidade}
+ou None) estar em contexto — chega aqui por herança do
+`{% with saldo_item=... %}` que envolve o
+`{% include "components/item_form_row.html" %}` em rascunho_form.html, sem
+precisar ser declarado como parâmetro do componente global.
+
+`saldo_item` é por LINHA, não por tela: o rascunho de requisição conhece o
+saldo de cada material já vinculado no momento do render (`saldo_info`, ver
+apps/requisicoes/views.py), mas uma linha em branco (formulário novo, ou
+material ainda não reconhecido em `saldo_info`) chega aqui com
+`saldo_item=None` — mesmo caso de uma linha nova adicionada via HTMX
+(`nova_linha_item`, que nem passa `saldo_item`). Por isso as duas variantes
+continuam num arquivo só: sem o `{% if saldo_item %}`, o filtro
+`saldo_item.unidade` como argumento de `formatar_quantidade` levanta
+`VariableDoesNotExist` — diferente de variável ausente no corpo do
+template, argumento de filtro não falha em silêncio.
+{% endcomment %}
+{% if saldo_item %}
+  {% if not saldo_item.elegivel %}
+    <p class="mt-1.5 flex items-center gap-1 text-xs font-medium text-warning-text-subtle" role="alert">
+      {% icon "atencao" class="h-3.5 w-3.5 shrink-0" %}
+      {% comment %}
+        Quantidade com a unidade, e com a precisão que a unidade manda —
+        `floatformat:"-3"` dava "12,5" sem dizer de quê, e escrevia três
+        casas para um material contado em caixas. A grafia é a mesma de
+        estoque/lista_materiais.html: valor formatado seguido do código
+        curto.
+      {% endcomment %}
+      {{ saldo_item.motivo }} — saldo atual: {{ saldo_item.saldo_disponivel|formatar_quantidade:saldo_item.unidade }} {{ saldo_item.unidade }}
+    </p>
+  {% else %}
+    <p class="mt-1.5 text-xs text-text-tertiary">Saldo disponível: {{ saldo_item.saldo_disponivel|formatar_quantidade:saldo_item.unidade }} {{ saldo_item.unidade }}</p>
+  {% endif %}
+{% else %}
+  {% comment %}
+    O saldo do material escolhido no cliente. Sem isto, o número que o
+    dropdown mostrava (`disponível: 4530 un`) sumia no instante da seleção —
+    logo antes de digitar a quantidade, que é quando ele decide. `x-cloak`
+    para a linha não piscar vazia antes do Alpine subir. Mesmo markup de
+    `estoque/partials/_item_saldo_painel.html` — não dá pra reusar o arquivo
+    porque o ramo acima (`saldo_item` presente) é exclusivo de requisições.
+  {% endcomment %}
+  <p x-show="saldoTexto" x-cloak class="mt-1.5 text-xs text-text-tertiary">
+    <span x-text="saldoRotulo"></span>: <span class="tabular-nums" x-text="saldoTexto"></span> <span x-text="unidade"></span>
+  </p>
+{% endif %}

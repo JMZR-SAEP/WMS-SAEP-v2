@@ -392,6 +392,12 @@ def nova_linha_item_saida_excepcional_view(request):
             'autocomplete_item_template': 'estoque/partials/_autocomplete_item_material.html',
             'delete_field': form[DELETION_FIELD_NAME],
             'form_index': index,
+            # Mesma factory/slots da linha renderizada no servidor, senão a
+            # linha nova perde o painel/aviso de saldo assim que a pessoa
+            # escolher um material (issue #174).
+            'linha_alpine_factory': 'saldoLinha',
+            'saldo_slot_template': 'estoque/partials/_item_saldo_painel.html',
+            'saldo_aviso_template': 'estoque/partials/_item_saldo_aviso.html',
         },
     )
 

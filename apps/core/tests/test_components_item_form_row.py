@@ -93,6 +93,12 @@ def test_saldo_exibe_a_unidade_e_a_precisao_da_unidade():
     "Saldo disponível: 12,5" não diz se sobram 12 quilos ou 12 caixas, e a
     decisão logo abaixo é quanto pedir. `floatformat:"-3"` ainda escrevia três
     casas decimais para material contado em caixa.
+
+    O painel de saldo não vive mais no componente global (issue #174): o
+    componente só inclui o `saldo_slot_template` que a tela escolhe, e o
+    partial de domínio (aqui, o de requisições) é quem lê `saldo_item` — o
+    mesmo dict de antes, agora chegando por herança de contexto em vez de
+    parâmetro do componente.
     """
     html = _render(
         saldo_item={
@@ -100,7 +106,8 @@ def test_saldo_exibe_a_unidade_e_a_precisao_da_unidade():
             'saldo_disponivel': Decimal('12.5'),
             'motivo': '',
             'unidade': 'kg',
-        }
+        },
+        saldo_slot_template='requisicoes/partials/_item_saldo_painel.html',
     )
     assert 'Saldo disponível: 12,5 kg' in html
 
@@ -112,9 +119,43 @@ def test_saldo_de_material_inelegivel_tambem_leva_unidade():
             'saldo_disponivel': Decimal('0'),
             'motivo': 'Sem saldo disponível',
             'unidade': 'cx',
-        }
+        },
+        saldo_slot_template='requisicoes/partials/_item_saldo_painel.html',
     )
     assert 'saldo atual: 0 cx' in html
+
+
+def test_sem_saldo_slot_template_a_linha_nao_mostra_painel_de_saldo():
+    """O componente global não decide mais sozinho se mostra saldo (issue #174).
+
+    Sem `saldo_slot_template`, a linha não sabe renderizar nada de saldo —
+    nem o painel estático nem o reativo — porque deixou de conhecer
+    `saldo_item`.
+    """
+    html = _render(
+        saldo_item={
+            'elegivel': False,
+            'saldo_disponivel': Decimal('0'),
+            'motivo': 'Sem saldo disponível',
+            'unidade': 'cx',
+        }
+    )
+    assert 'saldo atual' not in html
+    assert 'Saldo disponível' not in html
+
+
+def test_borda_alerta_liga_a_classe_de_destaque_ambar():
+    """A borda âmbar é um flag de apresentação (`borda_alerta`), não mais uma
+    leitura de `saldo_item.elegivel` dentro do componente global (issue #174)."""
+    html = _render(borda_alerta=True)
+    assert 'border-warning-border-strong' in html
+    assert 'bg-warning-subtle/40' in html
+
+
+def test_sem_borda_alerta_a_linha_usa_a_borda_neutra():
+    html = _render()
+    assert 'border-warning-border-strong' not in html
+    assert 'border-border bg-surface' in html
 
 
 def test_copy_dos_avisos_nao_vive_no_javascript():

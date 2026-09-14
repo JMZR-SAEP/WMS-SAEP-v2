@@ -230,7 +230,8 @@
         <div id="itens-container" data-itens-container class="flex flex-col gap-3">
           {% for item_form in formset %}
             {% with saldo_item=saldo_info|get_item:item_form.material_id.value %}
-            {% include "components/item_form_row.html" with material_id_field=item_form.material_id material_label_field=item_form.material_label quantidade_field=item_form.quantidade_solicitada quantidade_label="Quantidade" autocomplete_url_name="requisicoes:buscar_materiais" autocomplete_item_template="estoque/partials/_autocomplete_item_material.html" delete_field=item_form.DELETE form_index=forloop.counter0 saldo_item=saldo_item %}
+            {% como_json saldoTexto=saldo_item.saldo_disponivel saldoValor=saldo_item.saldo_bruto unidade=saldo_item.unidade as linha_alpine_config %}
+            {% include "components/item_form_row.html" with material_id_field=item_form.material_id material_label_field=item_form.material_label quantidade_field=item_form.quantidade_solicitada quantidade_label="Quantidade" autocomplete_url_name="requisicoes:buscar_materiais" autocomplete_item_template="estoque/partials/_autocomplete_item_material.html" delete_field=item_form.DELETE form_index=forloop.counter0 unidade_item=saldo_item.unidade borda_alerta=saldo_item|saldo_insuficiente linha_alpine_factory="saldoLinha" linha_alpine_config=linha_alpine_config saldo_slot_template="requisicoes/partials/_item_saldo_painel.html" saldo_aviso_template="estoque/partials/_item_saldo_aviso.html" %}
             {% endwith %}
           {% endfor %}
         </div>

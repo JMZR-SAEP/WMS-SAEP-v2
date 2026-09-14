@@ -642,6 +642,16 @@ def nova_linha_item(request):
             'autocomplete_item_template': 'estoque/partials/_autocomplete_item_material.html',
             'delete_field': form[DELETION_FIELD_NAME],
             'form_index': index,
+            # Linha nova nasce sem material selecionado — sem saldo_item
+            # conhecido (o antigo `{% if saldo_item %}` já caía no ramo
+            # reativo quando a view não passava saldo_item; o slot de
+            # requisições é o estático, que pressupõe saldo_item real). O
+            # painel usado aqui é o reativo de estoque, igual à saída
+            # excepcional: some o painel/aviso de saldo assim que a pessoa
+            # escolher um material (issue #174).
+            'linha_alpine_factory': 'saldoLinha',
+            'saldo_slot_template': 'estoque/partials/_item_saldo_painel.html',
+            'saldo_aviso_template': 'estoque/partials/_item_saldo_aviso.html',
         },
     )
 

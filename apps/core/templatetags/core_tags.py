@@ -1,3 +1,4 @@
+import json
 from collections.abc import Iterable, Mapping
 from datetime import timedelta
 from typing import Any
@@ -5,6 +6,7 @@ from typing import Any
 from django.core.exceptions import NON_FIELD_ERRORS, ImproperlyConfigured
 from django import template
 from django.core.paginator import Page
+from django.core.serializers.json import DjangoJSONEncoder
 from django.forms import BoundField
 from django.template.loader import render_to_string
 from django.utils.functional import Promise
@@ -513,6 +515,27 @@ def attrs_widget(**kwargs: Any) -> dict[str, Any]:
         else:
             convertidos[chave.replace('_', '-')] = valor
     return convertidos
+
+
+@register.simple_tag
+def como_json(**kwargs: Any) -> str:
+    """Serializa kwargs para embutir num atributo HTML (ex.: `x-data="fabrica({...})"`).
+
+    Mesma lacuna do `attrs_widget`: a linguagem de template não constrói
+    estruturas, e um componente que recebe uma factory Alpine escolhida pela
+    tela chamadora (ex. `components/item_form_row.html`, issue #174) precisa
+    de um jeito de a tela passar o estado inicial dela sem o componente saber
+    o que cada chave significa. Não marca a saída como segura: o auto-escape
+    do Django troca `"` por `&quot;` no atributo, e o navegador decodifica de
+    volta antes do Alpine interpretar o JSON — é assim que o objeto convive
+    com o atributo que o envolve sem quebrar a tag nem abrir injeção.
+
+    `DjangoJSONEncoder` porque `saldo_disponivel`/`saldo_bruto` chegam como
+    `Decimal` (campo de saldo do formset) — `json.dumps` puro rejeita
+    `Decimal`; o encoder do Django o serializa como string, mesmo resultado
+    que a interpolação antiga via `{{ valor|escapejs }}` já dava.
+    """
+    return json.dumps(kwargs, cls=DjangoJSONEncoder)
 
 
 @register.filter
