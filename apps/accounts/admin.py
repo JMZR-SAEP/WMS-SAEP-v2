@@ -1,6 +1,14 @@
 import logging
 
+from django import forms
 from django.contrib import admin, messages
+from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
+from django.contrib.auth.forms import (
+    BaseUserCreationForm,
+    ReadOnlyPasswordHashField,
+    SetPasswordMixin,
+    UsernameField,
+)
 from django.db import OperationalError
 from django.http import HttpResponseRedirect
 
@@ -107,8 +115,120 @@ class SetorAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
 
 
+class UserCreationForm(BaseUserCreationForm):
+    """Formulário de criação de usuário no admin (issue #217).
+
+    `BaseUserCreationForm` é a base documentada pelo Django para adaptar a
+    criação a um model de usuário customizado: `Meta.model`/`fields` trocam
+    `username` por `matricula`, e `clean`/`_post_clean`/`save` (herdados)
+    validam senha+confirmação e gravam com `set_password` — nunca em texto
+    puro.
+
+    Sem `usable_password` (o Django 6 traz essa opção via
+    `AdminUserCreationForm`/`SetUnusablePasswordMixin`, que permite criar
+    usuário sem senha para autenticação por outro backend, ex. SSO/LDAP): o
+    domínio não tem backend alternativo em `AUTHENTICATION_BACKENDS` — todo
+    usuário entra por matrícula + senha, então a opção só criaria um estado
+    que o login nunca aceita.
+    """
+
+    class Meta(BaseUserCreationForm.Meta):
+        model = User
+        fields = ('matricula', 'nome', 'email', 'setor')
+        field_classes = {'matricula': UsernameField}
+
+
+class UserChangeForm(forms.ModelForm):
+    """Formulário de edição no admin (issue #217): senha vira hash somente leitura.
+
+    Mesma estrutura do `django.contrib.auth.forms.UserChangeForm` — que não dá
+    para reaproveitar direto porque o `Meta.model` dele aponta para
+    `auth.models.User`, não para este model.
+    """
+
+    password = ReadOnlyPasswordHashField(
+        label='Senha',
+        help_text=(
+            'Senhas não ficam salvas em texto puro, então não há como ver a '
+            'senha deste usuário.'
+        ),
+    )
+
+    class Meta:
+        model = User
+        fields = '__all__'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        password = self.fields.get('password')
+        if password and self.instance and not self.instance.has_usable_password():
+            password.help_text = (
+                'Ative a autenticação por senha definindo uma senha para este usuário.'
+            )
+        user_permissions = self.fields.get('user_permissions')
+        if user_permissions:
+            user_permissions.queryset = user_permissions.queryset.select_related(
+                'content_type'
+            )
+
+
+class AdminPasswordChangeForm(SetPasswordMixin, forms.Form):
+    """Troca de senha de usuário existente pelo admin (issue #217).
+
+    Mesma decisão de `UserCreationForm`: sem a opção `usable_password` do
+    Django 6 (`django.contrib.auth.forms.AdminPasswordChangeForm` a traz via
+    `SetUnusablePasswordMixin`) — aqui a senha é sempre exigida.
+    """
+
+    required_css_class = 'required'
+    password1, password2 = SetPasswordMixin.create_password_fields()
+
+    def __init__(self, user, *args, **kwargs):
+        self.user = user
+        super().__init__(*args, **kwargs)
+        self.fields['password1'].widget.attrs['autofocus'] = True
+
+    def clean(self):
+        self.validate_passwords()
+        self.validate_password_for_user(self.user)
+        # `django.contrib.auth.admin.UserAdmin.user_change_password` (herdado
+        # por `UserAdmin` abaixo) lê `set_usable_password` para decidir se o
+        # POST é válido. Aqui a senha é sempre obrigatória, então o valor é
+        # sempre `True` — nunca há o ramo de "desativar senha".
+        self.cleaned_data['set_usable_password'] = True
+        return super().clean()
+
+    def save(self, commit=True):
+        return self.set_password_and_save(self.user, commit=commit)
+
+    @property
+    def changed_data(self):
+        data = super().changed_data
+        if 'password1' in data and 'password2' in data:
+            return ['password']
+        return []
+
+
 @admin.register(User)
-class UserAdmin(admin.ModelAdmin):
+class UserAdmin(DjangoUserAdmin):
+    """Admin de usuário, adaptado a `matricula` como `USERNAME_FIELD` (#217).
+
+    Herda de `django.contrib.auth.admin.UserAdmin` em vez de montar tudo à
+    mão: o Django já resolve criação com senha+confirmação, edição com hash
+    somente leitura e a view de troca de senha (`user_change_password`) —
+    reescrever isso duplicaria lógica já testada pelo próprio framework.
+    Todo atributo/método que a base referencia e que não existe neste model
+    (`username`, `first_name`, `last_name`, `add_fieldsets` da base) é
+    sobrescrito abaixo.
+    """
+
+    form = UserChangeForm
+    add_form = UserCreationForm
+    change_password_form = AdminPasswordChangeForm
+    # O template da base oferece "desativar autenticação por senha", que
+    # `AdminPasswordChangeForm` não implementa (ver o comentário do template).
+    change_user_password_template = 'admin/accounts/user/change_password.html'
+
     list_display = ('matricula', 'nome', 'email', 'setor', 'is_active', 'is_staff')
     list_filter = ('setor', 'is_active', 'is_staff')
     search_fields = ('matricula', 'nome', 'email')
@@ -129,6 +249,21 @@ class UserAdmin(admin.ModelAdmin):
             },
         ),
         ('Datas Importantes', {'fields': ('last_login', 'date_joined')}),
+    )
+    # Substitui o `add_fieldsets` da base (`username`, `usable_password`,
+    # `password1`, `password2`): sem `usable_password` (ver `UserCreationForm`
+    # acima) e com `nome`/`email`/`setor` — sem essa seção a criação regrediria
+    # (hoje dá para lotar o usuário na mesma tela) e `nome` é obrigatório no
+    # model, então deixá-lo de fora criaria usuário com nome vazio sem avisar.
+    add_fieldsets = (
+        (
+            None,
+            {
+                'classes': ('wide',),
+                'fields': ('matricula', 'password1', 'password2'),
+            },
+        ),
+        ('Informações Pessoais', {'fields': ('nome', 'email', 'setor')}),
     )
 
     def changeform_view(self, request, object_id=None, form_url='', extra_context=None):
