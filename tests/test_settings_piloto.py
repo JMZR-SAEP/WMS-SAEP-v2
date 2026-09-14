@@ -417,3 +417,68 @@ def test_hosts_efetivos_no_boot_nao_tem_espacos():
     efetivos = _settings_efetivos(ALLOWED_HOSTS='a.exemplo.br, b.exemplo.br')
 
     assert efetivos['ALLOWED_HOSTS'] == ['a.exemplo.br', 'b.exemplo.br']
+
+
+# --- LOGGING (issue #216) -----------------------------------------------------
+#
+# Sem `LOGGING`, o logger `django.request` só tem os handlers do
+# `DEFAULT_LOGGING` do Django: `console` (filtro `require_debug_true`, inerte
+# com `DEBUG=False`) e `mail_admins` (sem destinatário, porque `ADMINS=[]` —
+# no-op). Um erro 500 não tratado em view desaparece: é a reprodução exata da
+# issue #216. Os testes abaixo rodam em subprocesso, como os demais desta
+# suíte de boot: o comportamento depende da carga completa dos settings via
+# `django.setup()`, não de uma função isolada.
+
+ERRO_DJANGO_REQUEST = """
+import django, logging
+django.setup()
+logger = logging.getLogger('django.request')
+try:
+    raise ValueError('erro-216-django-request')
+except ValueError:
+    logger.error('erro simulado de view', exc_info=True)
+"""
+
+ERRO_DJANGO_SECURITY = """
+import django, logging
+django.setup()
+logger = logging.getLogger('django.security.DisallowedHost')
+try:
+    raise ValueError('erro-216-django-security')
+except ValueError:
+    logger.error('host simulado nao permitido', exc_info=True)
+"""
+
+
+def test_erro_django_request_vai_para_stderr_com_traceback_uma_vez():
+    resultado = _rodar(ERRO_DJANGO_REQUEST)
+
+    assert resultado.returncode == 0, resultado.stderr
+    # A contagem do cabeçalho do traceback, não da mensagem: a mensagem
+    # aparece duas vezes DENTRO de um único traceback (na linha do `raise` e
+    # na linha final `ValueError: ...`), então contar a mensagem não provaria
+    # "uma única vez" — provaria só que o texto existe.
+    assert resultado.stderr.count('Traceback (most recent call last):') == 1
+    assert 'erro-216-django-request' in resultado.stderr
+
+
+def test_erro_django_security_vai_para_stderr_uma_vez():
+    resultado = _rodar(ERRO_DJANGO_SECURITY)
+
+    assert resultado.returncode == 0, resultado.stderr
+    assert resultado.stderr.count('Traceback (most recent call last):') == 1
+    assert 'erro-216-django-security' in resultado.stderr
+
+
+def test_settings_test_nao_ganha_logging_do_piloto():
+    """`LOGGING` é exclusivo do piloto — `test.py` não herda nem redefine."""
+    from config.settings import test as settings_test
+
+    assert not hasattr(settings_test, 'LOGGING')
+
+
+def test_settings_dev_nao_ganha_logging_do_piloto():
+    """`LOGGING` é exclusivo do piloto — `dev.py` não herda nem redefine."""
+    from config.settings import dev as settings_dev
+
+    assert not hasattr(settings_dev, 'LOGGING')

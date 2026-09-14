@@ -126,3 +126,58 @@ if env_piloto.bool('PILOTO_ATRAS_DE_PROXY_TLS', default=False):
     # por fora. O GL-02 cobra que isso seja impossível na implantação.
     AXES_IPWARE_META_PRECEDENCE_ORDER = ['HTTP_X_FORWARDED_FOR', 'REMOTE_ADDR']
     AXES_IPWARE_PROXY_COUNT = 1
+
+# ---------------------------------------------------------------------------
+# Logging — traceback de erro 500 chega a algum lugar
+# ---------------------------------------------------------------------------
+#
+# Sem isto, um erro não tratado em view desaparece: no `DEFAULT_LOGGING` do
+# Django, o logger `django.request` só tem `console` (filtro
+# `require_debug_true`, inerte com `DEBUG=False` aqui em cima) e `mail_admins`
+# (sem destinatário, porque `ADMINS` fica `[]` nesta fase — no-op silencioso).
+# O piloto não tem e-mail configurado; o processo que serve a aplicação já
+# tem stdout/stderr capturados por quem o supervisiona (systemd, gunicorn,
+# etc.), e é o destino mais simples que existe sem inventar infraestrutura
+# nova. `StreamHandler` sem `stream` explícito já vai para stderr — é a mesma
+# convenção do handler `console` do próprio Django.
+#
+# `django.request` fica em ERROR: é onde mora o traceback de exceção não
+# tratada (resposta 500), que é o buraco que a issue #216 fecha. `django`
+# também loga 4xx (403, 400) nesse mesmo logger, mas em WARNING — fora do
+# escopo aqui, e o handler não desce a esse nível de propósito.
+#
+# `django.security` fica em WARNING, não em ERROR: os eventos de
+# `SuspiciousOperation` (`DisallowedHost` incluído) saem forçados em ERROR
+# pelo próprio Django, mas rejeição de CSRF (`django.security.csrf`) sai em
+# WARNING — resultado do status 403, não escolha nossa. As duas classes são
+# sinal direto de configuração de rede errada (ver GL-03), então o corte fica
+# em WARNING para não perder a segunda.
+#
+# `propagate: False` nos dois: sem isso, o registro subiria também para o
+# logger `django` — que continua com `console` e `mail_admins` do
+# `DEFAULT_LOGGING`, porque `disable_existing_loggers` é `False` e este
+# `LOGGING` não redefine a chave `django`. Hoje isso não duplicaria a saída
+# em stderr só porque `mail_admins` é no-op com `ADMINS=[]`; mas a duplicação
+# ficaria latente até alguém configurar `ADMINS`, e cortar a propagação aqui
+# evita depender dessa coincidência.
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'stderr': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'django.request': {
+            'handlers': ['stderr'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        'django.security': {
+            'handlers': ['stderr'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+    },
+}

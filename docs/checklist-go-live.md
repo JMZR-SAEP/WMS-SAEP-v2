@@ -138,3 +138,45 @@ python manage.py axes_reset_failure_logs --age <dias>
 `axes_reset_logs` apaga `AccessLog` (acessos bem-sucedidos);
 `axes_reset_failure_logs` apaga `AccessFailureLog` (falhas). Ambos guardam
 matrícula, IP e user-agent, e não há rotina agendada de expurgo nesta fase.
+
+## Observabilidade
+
+### GL-03 — Erro chega ao log do processo que serve o piloto
+
+**Por quê?** `config/settings/piloto.py` roda com `DEBUG=False` e sem
+`ADMINS`. Sem `LOGGING`, um erro 500 não tratado em view (`django.request`) e
+eventos de segurança (`django.security` — Host header inválido, CSRF)
+desapareciam: nenhum dos dois handlers padrão do Django emitia algo (`console`
+exige `DEBUG=True`; `mail_admins` não tem destinatário). O usuário via a
+página genérica de erro e o administrador não tinha nada para diagnosticar
+(issue #216). A correção manda os dois loggers para stderr — mas isso só vale
+alguma coisa se o **processo real que serve o piloto** de fato escreve nesse
+stderr em algum lugar que o supervisor (systemd, gunicorn, etc.) capture. Um
+`manage.py shell` à parte não prova isso: ele escreve no terminal de quem
+rodou o shell, não no log do serviço.
+
+**Como conferir?** Sem criar rota nem levantar erro de propósito: o próprio
+`SecurityMiddleware` já rejeita qualquer Host fora de `ALLOWED_HOSTS` antes de
+tocar em view ou banco. Da máquina de operação, contra o processo que está de
+fato servindo o piloto:
+
+```bash
+curl -i -H 'Host: host-invalido' http://127.0.0.1:<porta-do-piloto>/login/
+```
+
+Esperado: resposta `400`, e no log do serviço (onde o supervisor redireciona
+o stderr do processo — `journalctl`, arquivo de log do systemd/gunicorn,
+etc.) uma linha `Invalid HTTP_HOST header: 'host-invalido'...` com traceback
+terminando em `django.core.exceptions.DisallowedHost`, uma única vez por
+requisição.
+
+**Validado localmente** (`manage.py runserver` com settings do piloto,
+`ALLOWED_HOSTS=127.0.0.1`): `curl -H 'Host: host-invalido' .../login/`
+respondeu `400` e o stderr do processo recebeu exatamente um traceback de
+`DisallowedHost` — nada foi escrito em stdout.
+
+**Se falhar.** Resposta `400` sem nada no log do serviço indica que o
+`LOGGING` do piloto não está ativo no processo real — settings module errado,
+deploy antigo ainda no ar, ou stderr do processo não está de fato conectado ao
+que o supervisor lê. Não libere o sistema até essa linha aparecer: é o mesmo
+canal que carregaria o traceback de um erro 500 de verdade.
