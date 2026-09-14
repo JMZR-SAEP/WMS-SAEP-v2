@@ -37,18 +37,24 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def _preparar_projeto(tmp_path: Path, django_settings_module: str) -> Path:
+def _preparar_projeto(
+    tmp_path: Path,
+    django_settings_module: str,
+    *,
+    database_url: str | None = 'postgres://x:y@127.0.0.1:5999/nada',
+) -> Path:
     """Copia o `Makefile` real e monta `.env` falso + `psql` falso em tmp_path.
+
+    Com `database_url=None`, o `.env` falso sai sem `DATABASE_URL`.
 
     Retorna o caminho do `psql` falso, pronto para ser passado como `PSQL=`.
     """
     shutil.copy(MAKEFILE_ORIGINAL, tmp_path / 'Makefile')
 
-    env_falso = tmp_path / '.env'
-    env_falso.write_text(
-        'DATABASE_URL=postgres://x:y@127.0.0.1:5999/nada\n'
-        f'DJANGO_SETTINGS_MODULE={django_settings_module}\n'
-    )
+    linhas = [f'DJANGO_SETTINGS_MODULE={django_settings_module}\n']
+    if database_url is not None:
+        linhas.insert(0, f'DATABASE_URL={database_url}\n')
+    (tmp_path / '.env').write_text(''.join(linhas))
 
     psql_falso = tmp_path / 'psql_falso.sh'
     psql_falso.write_text(PSQL_FALSO)
@@ -111,6 +117,28 @@ def test_resetpostgres_com_settings_do_piloto_aborta_sem_chamar_psql(tmp_path):
     assert 'config.settings.piloto' in saida
     assert 'config.settings.dev' in saida
     assert 'config.settings.test' in saida
+    assert not _marcador(tmp_path).exists()
+
+
+def test_resetpostgres_com_settings_do_piloto_sem_database_url_recusa_pela_guarda(
+    tmp_path,
+):
+    """A guarda vem antes da checagem de `DATABASE_URL`.
+
+    Sem `DATABASE_URL` o alvo abortaria de qualquer jeito na checagem seguinte;
+    o que este teste trava é a ordem: a recusa tem de vir da guarda, não da
+    falta de `DATABASE_URL`.
+    """
+    psql_falso = _preparar_projeto(
+        tmp_path, 'config.settings.piloto', database_url=None
+    )
+
+    resultado = _rodar_make(tmp_path, 'resetpostgres', psql_falso=psql_falso)
+    saida = _saida(resultado)
+
+    assert resultado.returncode != 0
+    assert 'não está na lista permitida' in saida
+    assert 'DATABASE_URL não definido' not in saida
     assert not _marcador(tmp_path).exists()
 
 
