@@ -42,3 +42,10 @@ def test_remover_aparece_ao_adicionar_e_esconde_ao_voltar_pra_uma(pagina_rascunh
     pagina_rascunho.wait_for_timeout(200)
 
     assert not pagina_rascunho.locator(BOTAO_REMOVER).first.is_visible()
+    # O botão que recebia o foco (issue #198) desaparece no mesmo instante em
+    # que a linha 0 fica sozinha — sem o desvio pro combobox, o foco caía em
+    # <body>.
+    assert (
+        pagina_rascunho.evaluate('document.activeElement.id')
+        == 'id_itens-0-material_label'
+    )

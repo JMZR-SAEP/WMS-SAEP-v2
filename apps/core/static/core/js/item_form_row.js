@@ -120,14 +120,22 @@
         const visiveis = this._linhasVisiveis();
         const posicao = visiveis.indexOf(row);
         const vizinha = visiveis[posicao + 1] || visiveis[posicao - 1];
-        const botaoFoco = vizinha?.querySelector('[data-remover-item]');
+        // Se só a vizinha for sobrar visível, o próprio botão de remover dela
+        // some no mesmo instante (`x-show="totalVisiveis > 1"`, issue #198) —
+        // focar nele focava um elemento que o navegador escondia a seguir, e o
+        // foco caía em <body>. Sobrando 1, o combobox da linha é o alvo que
+        // continua na tela.
+        const sobraApenasUma = visiveis.length - 1 <= 1;
+        const alvoFoco = sobraApenasUma
+          ? vizinha?.querySelector('input[role="combobox"]')
+          : vizinha?.querySelector('[data-remover-item]');
 
         const rotulo = this._rotuloDaLinha(row);
         row.style.display = 'none';
         this.totalVisiveis -= 1;
         const deleteInput = row.querySelector('[name$="-DELETE"]');
         if (deleteInput) deleteInput.value = 'on';
-        botaoFoco?.focus();
+        alvoFoco?.focus();
         this._anunciar(this._copy('avisoRemovido', { item: rotulo }));
       },
 
