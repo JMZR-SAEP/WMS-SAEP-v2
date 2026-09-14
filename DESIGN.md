@@ -491,26 +491,40 @@ Borda é estrutural, não decorativa: 1px sólido em toda superfície de papel c
 ### Gramática de silhueta
 
 O `border-radius` acima descreve a superfície; a silhueta descreve o glifo e a
-forma do marcador. Duas coisas ficam registradas aqui (a segunda é pré-requisito
-da #172).
+forma do marcador. Duas coisas ficam registradas aqui.
 
 #### As três silhuetas de glifo de nível de feedback
 
 Arquivos em `apps/core/templates/components/icons/`, mapeados por
 `apps/core/templates/components/_icone_nivel.html`:
 
-| Nível | Arquivo | Silhueta |
-|---|---|---|
-| `warning` | `atencao.svg` | triângulo arredondado — silhueta própria |
-| `danger` | `alerta.svg` | círculo, path `M18 10A8 8 0 1 1 2 10a8 8 0 0 1 16 0Z` + miolo de exclamação |
-| `info` | `informacao.svg` | **o mesmo círculo idêntico** `M18 10A8 8 0 1 1 2 10a8 8 0 0 1 16 0Z` + miolo "i" |
+| Nível | Arquivo | Silhueta | Vértices do contorno |
+|---|---|---|---|
+| `warning` | `atencao.svg` | triângulo arredondado — silhueta própria | 3 |
+| `danger` | `alerta.svg` | octógono arredondado — silhueta própria, path `M17.391 11.592C17.391 13.061 17.391 13.061 16.352 14.101L14.101 16.352C13.061 17.391 13.061 17.391 11.592 17.391L8.408 17.391C6.939 17.391 6.939 17.391 5.899 16.352L3.648 14.101C2.609 13.061 2.609 13.061 2.609 11.592L2.609 8.408C2.609 6.939 2.609 6.939 3.648 5.899L5.899 3.648C6.939 2.609 6.939 2.609 8.408 2.609L11.592 2.609C13.061 2.609 13.061 2.609 14.101 3.648L16.352 5.899C17.391 6.939 17.391 6.939 17.391 8.408Z` + miolo de exclamação | 8 |
+| `info` | `informacao.svg` | círculo, path `M18 10A8 8 0 1 1 2 10a8 8 0 0 1 16 0Z` + miolo "i" | 0 (duas curvas `A`, sem vértice) |
 
-**A colisão `danger` ≈ `info` é dívida conhecida, não escolha.** O único sinal
-não-cromático que hoje separa perigo de informação é o caractere interno do
-glifo (`!` vs `i`); o contorno é bit a bit igual. Quando a cor cai — impressão
-P&B, daltonismo de vermelho, alto contraste — os dois viram o mesmo círculo. A
-#172 vai dar silhueta própria ao `danger`; aqui só se registra o estado atual e
-que é dívida. O `warning` já está fora dela, com o triângulo.
+**A colisão `danger` ≈ `info` era dívida conhecida, resolvida pela #172.** Até
+ali, o único sinal não-cromático que separava perigo de informação era o
+caractere interno do glifo (`!` vs `i`); o contorno era bit a bit igual, e sob
+impressão P&B, daltonismo de vermelho ou alto contraste os dois viravam o
+mesmo círculo. A #172 deu ao `danger` um octógono regular de cantos levemente
+arredondados — a convenção universal de placa de pare para erro/perigo,
+gerado por script (não à mão) e inscrito no mesmo raio 8 do círculo que
+`informacao.svg` mantém. O `warning` já estava fora dessa colisão, com o
+triângulo; agora as três silhuetas de nível são todas distintas entre si, e a
+severidade se lê pelo contorno sozinho, sem depender de cor.
+
+**Critério objetivo, não impressão visual.** "Raio 8" na tabela acima é só a
+escala comum aos três — não prova distinção nenhuma sozinho. O que distingue
+é contável: contagem de vértices do contorno (coluna acima — 0, 3 e 8, três
+valores diferentes) e o fato de nenhum dos três paths de contorno ser prefixo,
+substring ou cópia de outro — os `d=` de `atencao.svg`, `alerta.svg` e
+`informacao.svg` não compartilham nenhum comando entre si. `test_icons.py`
+prova isso literalmente: cada teste de variante compara o `d=` renderizado
+contra o path esperado daquele arquivo, então qualquer regressão que
+reaproveitasse o contorno de outro glifo — ou voltasse a colidir dois deles —
+quebraria o teste da variante errada.
 
 ### Named Rules
 

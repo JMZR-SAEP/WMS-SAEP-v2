@@ -480,16 +480,19 @@ parâmetro, e três dos oito consumidores reais não passavam nada.
 |---|---|---|---|
 | `info` | círculo (`informacao.svg`), miolo "i" | azul | ação neutra, sem consequência a destacar |
 | `warning` | triângulo arredondado (`atencao.svg`) | âmbar | pede cuidado redobrado antes de confirmar |
-| `danger` | círculo (`alerta.svg`), miolo "!" | vermelho | cancelar: encerra a requisição, mas a trilha é append-only |
+| `danger` | octógono arredondado (`alerta.svg`), miolo "!" | vermelho | cancelar: encerra a requisição, mas a trilha é append-only |
 | `descarte` | lixeira | vermelho | reservada à única operação que remove um registro sem rastro (descarte de rascunho sem número público) |
 | `return` | seta de devolução | teal | devolução **e estorno** — reversão operacional, Regra da Reversão Não é Erro |
 
-**`info` e `danger` têm a mesma silhueta.** `informacao.svg` e `alerta.svg`
-compartilham o contorno de círculo bit a bit (`M18 10A8 8 0 1 1 2 10a8 8 0 0 1
-16 0Z`); a distinção é só o miolo — "i" contra "!". Não há distinção geométrica,
-e a redação anterior ("círculo de informação" / "círculo de alerta") fingia uma.
-É dívida conhecida, registrada na §Gramática de silhueta do `DESIGN.md` e ancorada
-pela #172. Só o `warning`, com o triângulo, tem silhueta própria.
+**`info` e `danger` tinham a mesma silhueta; a #172 resolveu isso.**
+`informacao.svg` e `alerta.svg` compartilhavam o contorno de círculo bit a bit
+(`M18 10A8 8 0 1 1 2 10a8 8 0 0 1 16 0Z`); a distinção era só o miolo — "i"
+contra "!". Não havia distinção geométrica, e a redação anterior ("círculo de
+informação" / "círculo de alerta") fingia uma. A #172 deu ao `danger` um
+octógono regular de cantos levemente arredondados — a convenção de placa de
+pare para erro/perigo —, mantendo o miolo "!". As três variantes de nível
+(`info`, `warning`, `danger`) têm hoje silhueta própria; ver §Gramática de
+silhueta do `DESIGN.md` para o path gerado e o registro completo.
 
 Os cinco glifos saem do **registry de ícones** (`{% icon %}` de `core_tags.py`,
 com os SVGs em `apps/core/templates/components/icons/`), nunca de `<path>`
