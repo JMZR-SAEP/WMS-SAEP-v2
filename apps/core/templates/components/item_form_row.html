@@ -30,10 +30,16 @@ que este componente inclui sem interpretar):
     quantidade, no lugar do antigo aviso "Acima do saldo". Mesmo texto/ARIA
     nas duas telas, então vive uma vez só em estoque/partials (dona do
     conceito de saldo) e as duas o referenciam.
-  borda_alerta — bool (opcional, default False): liga a borda/fundo âmbar do
-    grupo. É só um flag de apresentação já resolvido pela tela chamadora
-    (ex.: `saldo_item|saldo_insuficiente` em requisições) — o componente não
-    sabe o que o acendeu, só que precisa acender.
+  A borda/fundo âmbar do grupo é presentation-only e 100% reativa, ligada ao
+    `alerta` do escopo Alpine da linha (`:class`, ver abaixo) — não é mais um
+    parâmetro de contexto (`borda_alerta`). Era um flag calculado uma vez no
+    render do servidor (`saldo_item|saldo_insuficiente`, em requisições),
+    preso ao material que a linha tinha naquele instante — mesma classe de
+    bug que o painel de saldo tinha antes do PR #214, só que na borda em vez
+    do texto. `itemFormRow` (genérico) expõe `alerta` sempre `false`;
+    `saldoLinha` sobrescreve com um getter ligado ao mesmo `motivo` que já
+    dirige o painel — o componente continua sem saber o que acende, só que
+    precisa acender.
 
 O escopo Alpine da linha segue a mesma lógica: `itemFormRow` (genérico, em
 item_form_row.js) só sabe rastrear material/unidade e ajustar o passo do
@@ -73,7 +79,6 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
     dali, sem depender de evento nenhum disparar). Quando ausente, "" .
   material_extra_template  — path de template (str, opcional) — ver acima.
   quantidade_extra_template — path de template (str, opcional) — ver acima.
-  borda_alerta             — bool (opcional, default False) — ver acima.
   linha_alpine_factory     — nome da factory Alpine da linha (str, opcional,
     default "itemFormRow") — ver acima.
   linha_alpine_config      — JSON (str, opcional, default "{}") passado à
@@ -98,7 +103,19 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
   removida) e o material continua sendo anunciado pelo próprio combobox, que
   sempre carrega o valor atual.
 {% endcomment %}
-<div class="item-form-row flex flex-wrap items-start gap-3 p-3 rounded-lg border {% if borda_alerta %}border-warning-border-strong bg-warning-subtle/40{% else %}border-border bg-surface{% endif %}"
+<div class="item-form-row flex flex-wrap items-start gap-3 p-3 rounded-lg border"
+     {% comment %}
+       100% reativo, ligado ao `alerta` do escopo Alpine da própria linha
+       (genérico em `itemFormRow`, sobrescrito por getter em `saldoLinha` a
+       partir de `motivo`) — sem ramo estático condicional aqui. Um `{% if %}`
+       calculado uma vez no render ficava preso ao material que a linha tinha
+       naquele instante (mesma classe de bug que o painel de saldo tinha antes
+       do PR #214, só que na borda em vez do texto); e coexistir com este
+       `:class` seria pior ainda: o Alpine só remove classes que ele mesmo
+       adicionou, nunca as que já vieram estáticas no HTML — a classe estática
+       "vazava" e sobrevivia a qualquer troca de material.
+     {% endcomment %}
+     :class="alerta ? 'border-warning-border-strong bg-warning-subtle/40' : 'border-border bg-surface'"
      role="group"
      aria-label="Item {{ form_index|add:1 }}"
      data-index="{{ form_index }}"

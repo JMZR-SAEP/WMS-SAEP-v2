@@ -86,6 +86,19 @@
         if (!Number.isFinite(pedido) || pedido <= 0) return false;
         return pedido > this.saldoValor;
       },
+
+      // Sobrescreve o `alerta` genérico de `itemFormRow` (config-only, sem
+      // significado de domínio) com uma leitura reativa do mesmo `motivo` que
+      // já dirige o painel de saldo: mesma classe de bug que o painel tinha
+      // antes do PR #214 (achado do CodeRabbit), só que na borda da linha —
+      // `borda_alerta` chegava calculado uma vez, no render do servidor
+      // (`saldo_item|saldo_insuficiente` em rascunho_form.html), e não
+      // acompanhava a troca de material na mesma linha. `motivo` já é limpo
+      // por `registrarMaterial` em toda seleção nova, então a borda some
+      // sozinha junto com o painel.
+      get alerta() {
+        return Boolean(this.motivo);
+      },
     };
   }
 

@@ -217,6 +217,14 @@
     return {
       quantidade: '',
 
+      // Hook genérico de apresentação (issue #174): liga a borda/fundo âmbar
+      // da linha (ver `:class` em item_form_row.html). Este escopo não sabe
+      // o que acenderia `alerta` — nunca acende sozinho. Uma factory de
+      // domínio (ex.: `saldoLinha`, apps/estoque/static/estoque/js/
+      // saldo_linha.js) sobrescreve isto com um getter reativo, do mesmo
+      // jeito que já faz com `excedeuSaldo`.
+      alerta: false,
+
       registrarMaterial(item) {
         if (!item) return;
         // O rótulo e a unidade também no DOM, e não só no escopo: a

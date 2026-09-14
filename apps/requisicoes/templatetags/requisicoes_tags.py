@@ -38,19 +38,3 @@ def get_choice_label(field, value):
         if str(opt_value) == str_value:
             return opt_label
     return ''
-
-
-@register.filter
-def saldo_insuficiente(saldo_item: dict | None) -> bool:
-    """True quando o item tem saldo mapeado e o saldo é insuficiente.
-
-    Resolve o `borda_alerta` de `components/item_form_row.html` (issue #174):
-    o componente global não sabe mais o que é `saldo_item`, então quem decide
-    se a linha acende a borda de alerta é a própria tela de requisições, dona
-    do dict de saldo. `saldo_item` ausente (material ainda não mapeado, ou a
-    tela nem passa saldo — caso da saída excepcional) nunca acende a borda:
-    ausência de informação não é a mesma coisa que saldo insuficiente.
-    """
-    if not saldo_item:
-        return False
-    return not saldo_item.get('elegivel', True)

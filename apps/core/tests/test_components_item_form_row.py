@@ -244,18 +244,35 @@ def test_sem_material_extra_template_a_linha_nao_mostra_painel_de_saldo():
     assert 'x-text="motivo"' not in html
 
 
-def test_borda_alerta_liga_a_classe_de_destaque_ambar():
-    """A borda âmbar é um flag de apresentação (`borda_alerta`), não mais uma
-    leitura de `saldo_item.elegivel` dentro do componente global (issue #174)."""
-    html = _render(borda_alerta=True)
-    assert 'border-warning-border-strong' in html
-    assert 'bg-warning-subtle/40' in html
+def test_a_borda_de_alerta_nao_tem_ramo_estatico_e_e_100_por_cento_reativa():
+    """A borda âmbar deixou de ser um parâmetro de contexto (`borda_alerta`,
+    issue #174) calculado uma vez no render do servidor — mesma classe de bug
+    que o painel de saldo tinha antes do PR #214 (achado do CodeRabbit), só
+    que na borda em vez do texto: um `{% if %}` estático ficava preso ao
+    material que a linha tinha no render e não acompanhava a troca de
+    material na mesma linha, sem reload.
 
+    O `class=` estático não carrega nenhuma classe de cor/fundo condicional
+    (nenhum `{% if %}` aqui — coexistir com o `:class` seria pior ainda: o
+    Alpine só remove classes que ele mesmo adicionou, nunca as que já vieram
+    estáticas no HTML). Quem decide a cor, desde o primeiro instante em que o
+    Alpine sobe, é o `:class` ligado a `alerta` — genérico em `itemFormRow`
+    (sempre `false`), sobrescrito por getter em `saldoLinha` a partir do
+    mesmo `motivo` que já dirige o painel.
 
-def test_sem_borda_alerta_a_linha_usa_a_borda_neutra():
+    Este teste é estrutural (`render_to_string`, sem Alpine de verdade): só
+    prova que o markup é assim. Não prova que `alerta` de fato muda ao trocar
+    de material — isso só é exercitável com um navegador real (ADR-0019), ver
+    `test_navegador_item_form_row.py::test_borda_de_alerta_acompanha_troca_de_material_no_autocomplete`.
+    """
     html = _render()
-    assert 'border-warning-border-strong' not in html
-    assert 'border-border bg-surface' in html
+    classe_estatica = re.search(r'<div class="([^"]*)"', html).group(1)
+    assert 'border-warning-border-strong' not in classe_estatica
+    assert 'border-border' not in classe_estatica
+    assert (
+        ":class=\"alerta ? 'border-warning-border-strong bg-warning-subtle/40'"
+        " : 'border-border bg-surface'\""
+    ) in html
 
 
 def test_copy_dos_avisos_nao_vive_no_javascript():

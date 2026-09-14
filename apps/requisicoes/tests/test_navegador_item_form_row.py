@@ -1,5 +1,6 @@
-"""Camada Navegador (ADR-0019) — botão "Remover" do formset de itens (issue #198)
-e painel de saldo reativo da linha (issue #174, PR #214).
+"""Camada Navegador (ADR-0019) — botão "Remover" do formset de itens (issue #198),
+painel de saldo reativo da linha (issue #174, PR #214) e borda de alerta
+reativa da linha (mesma issue/PR, achado posterior).
 
 Critério de admissão: a regra é mínimo 1 item, mas o servidor sempre renderiza
 o botão de cada linha — quem decide se ele aparece é `totalVisiveis`, contado
@@ -141,3 +142,31 @@ def test_painel_de_saldo_acompanha_troca_de_material_no_autocomplete(
     campo_quantidade.fill('999')
     pagina_editar_rascunho.wait_for_timeout(200)
     assert linha.get_by_text('Acima do saldo').is_visible()
+
+
+def test_borda_de_alerta_acompanha_troca_de_material_no_autocomplete(
+    pagina_editar_rascunho, material_disponivel_2
+):
+    """Mesma classe de bug do painel de saldo (achado do CodeRabbit, PR #214),
+    só que na borda da linha em vez do texto: `borda_alerta` era calculado
+    uma vez no render do servidor (`saldo_item|saldo_insuficiente`) e não
+    acompanhava a troca de material na mesma linha, sem reload. A borda passou
+    a acompanhar `alerta`, reativo — mesmo `motivo` que já dirige o painel.
+    """
+    linha = pagina_editar_rascunho.locator('.item-form-row').first
+
+    # A linha já vem vinculada a um material sem saldo — a borda âmbar acende
+    # desde a carga da página.
+    assert 'border-warning-border-strong' in linha.get_attribute('class')
+
+    campo = pagina_editar_rascunho.locator('#id_itens-0-material_label')
+    campo.fill('Fita')
+    pagina_editar_rascunho.wait_for_timeout(900)
+    pagina_editar_rascunho.locator('li[role="option"]').first.click()
+    pagina_editar_rascunho.wait_for_timeout(150)
+
+    # O material novo é elegível — a borda não pode ficar presa ao material
+    # anterior, o mesmo `motivo` que já limpa o painel de saldo.
+    classe = linha.get_attribute('class')
+    assert 'border-warning-border-strong' not in classe
+    assert 'border-border' in classe
