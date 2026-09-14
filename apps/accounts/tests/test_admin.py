@@ -602,6 +602,29 @@ def test_trocar_senha_pelo_admin_atualiza_hash_e_autentica(
 
 
 @pytest.mark.django_db
+def test_troca_de_senha_nao_oferece_desativar_autenticacao_por_senha(
+    client, superusuario, lotado
+):
+    """O template do Django 6 mostra `unset-password` a quem tem senha utilizável.
+
+    `AdminPasswordChangeForm` sempre grava a senha digitada, então o botão
+    prometeria desativar a autenticação e, no POST, trocaria a senha.
+    """
+    client.force_login(superusuario)
+
+    resposta = client.get(reverse('admin:auth_user_password_change', args=[lotado.pk]))
+    conteudo = resposta.content.decode()
+
+    assert resposta.status_code == 200
+    assert lotado.has_usable_password()
+    assert 'name="set-password"' in conteudo
+    assert 'name="password1"' in conteudo
+    assert 'name="password2"' in conteudo
+    assert 'unset-password' not in conteudo
+    assert 'usable_password' not in conteudo
+
+
+@pytest.mark.django_db
 def test_changeform_traduz_erro_operacional_na_criacao_em_mensagem(
     monkeypatch, client, superusuario
 ):

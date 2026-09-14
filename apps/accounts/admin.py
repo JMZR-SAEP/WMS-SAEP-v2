@@ -225,6 +225,9 @@ class UserAdmin(DjangoUserAdmin):
     form = UserChangeForm
     add_form = UserCreationForm
     change_password_form = AdminPasswordChangeForm
+    # O template da base oferece "desativar autenticação por senha", que
+    # `AdminPasswordChangeForm` não implementa (ver o comentário do template).
+    change_user_password_template = 'admin/accounts/user/change_password.html'
 
     list_display = ('matricula', 'nome', 'email', 'setor', 'is_active', 'is_staff')
     list_filter = ('setor', 'is_active', 'is_staff')
