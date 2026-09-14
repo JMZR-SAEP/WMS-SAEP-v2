@@ -16,6 +16,11 @@
   o asterisco com `ml-0.5`. O `<textarea>` não passa por `form_field.html`
   porque não há BoundField aqui: o valor é lido de `request.POST` direto pela
   view, sem Form.
+
+  A ajuda diz só a obrigatoriedade (issue #198): o desfecho — "volta a ser
+  rascunho visível apenas ao criador" — já está na `descricao` do cabeçalho
+  do modal (`MODAL_COPY`, em `presentation.py`), repeti-lo aqui duplicava a
+  mesma frase duas vezes na mesma tela.
 {% endcomment %}
 <label for="modal-retornar-observacao" class="rotulo-campo">
   {% if retorno_como_chefe %}
@@ -26,9 +31,9 @@
 </label>
 <p id="modal-retornar-observacao-ajuda" class="mt-1 text-xs text-text-tertiary">
   {% if retorno_como_chefe %}
-    Obrigatório. A requisição volta a ser rascunho visível apenas ao criador, que pode ajustar e reenviar.
+    Obrigatório.
   {% else %}
-    Opcional. A requisição volta a ser rascunho visível apenas ao criador.
+    Opcional.
   {% endif %}
 </p>
 <textarea

@@ -65,6 +65,15 @@ def test_botao_remover_tem_hook_estavel_para_o_js():
     assert 'data-remover-item' in _render()
 
 
+def test_botao_remover_e_controlado_pela_contagem_reativa():
+    """Regra é mínimo 1 item (issue #198): o servidor não sabe quantas linhas
+    o formset terá no cliente, então quem decide se o botão aparece é
+    `totalVisiveis`, contado em tempo de execução por `itensFormset`
+    (`item_form_row.js`)."""
+    html = _render()
+    assert 'x-show="totalVisiveis > 1"' in html
+
+
 def test_a_linha_nomeia_o_evento_que_o_autocomplete_emite():
     """O nome do evento é de quem instancia, não do componente genérico.
 
