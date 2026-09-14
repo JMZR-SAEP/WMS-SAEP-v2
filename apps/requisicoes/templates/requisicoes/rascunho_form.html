@@ -230,7 +230,25 @@
         <div id="itens-container" data-itens-container class="flex flex-col gap-3">
           {% for item_form in formset %}
             {% with saldo_item=saldo_info|get_item:item_form.material_id.value %}
-            {% include "components/item_form_row.html" with material_id_field=item_form.material_id material_label_field=item_form.material_label quantidade_field=item_form.quantidade_solicitada quantidade_label="Quantidade" autocomplete_url_name="requisicoes:buscar_materiais" autocomplete_item_template="estoque/partials/_autocomplete_item_material.html" delete_field=item_form.DELETE form_index=forloop.counter0 saldo_item=saldo_item %}
+            {% comment %}
+              O painel de saldo (requisicoes/partials/_item_saldo_painel.html)
+              é só reativo (issue #174, achado do CodeRabbit no PR #214): sem
+              isto, `saldoLinha.registrarMaterial()` atualizava o aviso "Acima
+              do saldo" ao trocar de material na mesma linha, mas o painel
+              continuava mostrando o texto estático do material anterior —
+              `saldoTexto`/`motivo` são o único jeito de o painel saber que o
+              material mudou. `saldo_item` pode ser None (linha em branco, ou
+              material ainda sem saldo mapeado): `saldo_item.unidade` como
+              argumento de filtro em `saldo_item` None levanta
+              VariableDoesNotExist (diferente de variável ausente no corpo do
+              template), daí o guard.
+            {% endcomment %}
+            {% if saldo_item %}
+              {% como_json saldoTexto=saldo_item.saldo_disponivel|formatar_quantidade:saldo_item.unidade saldoValor=saldo_item.saldo_bruto unidade=saldo_item.unidade motivo=saldo_item.motivo as linha_alpine_config %}
+            {% else %}
+              {% como_json as linha_alpine_config %}
+            {% endif %}
+            {% include "components/item_form_row.html" with material_id_field=item_form.material_id material_label_field=item_form.material_label quantidade_field=item_form.quantidade_solicitada quantidade_label="Quantidade" autocomplete_url_name="requisicoes:buscar_materiais" autocomplete_item_template="estoque/partials/_autocomplete_item_material.html" delete_field=item_form.DELETE form_index=forloop.counter0 unidade_item=saldo_item.unidade linha_alpine_factory="saldoLinha" linha_alpine_config=linha_alpine_config material_extra_template="requisicoes/partials/_item_saldo_painel.html" quantidade_extra_template="estoque/partials/_item_saldo_aviso.html" %}
             {% endwith %}
           {% endfor %}
         </div>

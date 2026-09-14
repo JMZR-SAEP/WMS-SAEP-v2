@@ -1,13 +1,46 @@
 """Testes diretos de components/item_form_row.html (sem DB, sem view)."""
 
+import html as html_lib
+import json
 import re
 from decimal import Decimal
 
+from django.core.serializers.json import DjangoJSONEncoder
 from django.forms import BooleanField
 from django.forms.formsets import DELETION_FIELD_NAME
 from django.template.loader import render_to_string
 
+from apps.core.templatetags.core_tags import formatar_quantidade
 from apps.requisicoes.forms import ItemRequisicaoFormSet
+
+
+def _linha_alpine_config(saldo_item):
+    """Replica o `{% como_json %}` que rascunho_form.html monta a partir de
+    `saldo_item` (formatar_quantidade + motivo), pra testar o mesmo contrato
+    que a view produz de verdade — sem isto o teste passaria mesmo se o JSON
+    real esquecesse um campo que `saldoLinha` espera."""
+    if not saldo_item:
+        return '{}'
+    return json.dumps(
+        {
+            'saldoTexto': formatar_quantidade(
+                saldo_item['saldo_disponivel'], saldo_item['unidade']
+            ),
+            'saldoValor': str(saldo_item['saldo_disponivel']),
+            'unidade': saldo_item['unidade'],
+            'motivo': saldo_item['motivo'],
+        },
+        cls=DjangoJSONEncoder,
+    )
+
+
+def _x_data_saldo_linha(html_saida):
+    """Extrai e decodifica o JSON de `x-data="saldoLinha({...})"` do HTML
+    renderizado — o painel de saldo é reativo (issue #174, PR #214) e não
+    tem mais texto estático pra buscar direto na string."""
+    m = re.search(r'x-data="saldoLinha\((\{.*?\})\)"', html_saida)
+    assert m, 'x-data="saldoLinha(...)" não encontrado no HTML'
+    return json.loads(html_lib.unescape(m.group(1)))
 
 
 def _render(form_index=0, **extra):
@@ -93,28 +126,153 @@ def test_saldo_exibe_a_unidade_e_a_precisao_da_unidade():
     "Saldo disponível: 12,5" não diz se sobram 12 quilos ou 12 caixas, e a
     decisão logo abaixo é quanto pedir. `floatformat:"-3"` ainda escrevia três
     casas decimais para material contado em caixa.
+
+    O painel de saldo não vive mais no componente global (issue #174) e,
+    desde o PR #214 (achado do CodeRabbit), também não é mais texto estático
+    dentro do partial de domínio: é reativo, ligado ao escopo Alpine
+    `saldoLinha`, semeado com o `saldo_item` do servidor via
+    `linha_alpine_config` — a mesma peça que `rascunho_form.html` monta de
+    verdade com `{% como_json %}`.
     """
+    saldo_item = {
+        'elegivel': True,
+        'saldo_disponivel': Decimal('12.5'),
+        'motivo': '',
+        'unidade': 'kg',
+    }
     html = _render(
-        saldo_item={
-            'elegivel': True,
-            'saldo_disponivel': Decimal('12.5'),
-            'motivo': '',
-            'unidade': 'kg',
-        }
+        linha_alpine_factory='saldoLinha',
+        linha_alpine_config=_linha_alpine_config(saldo_item),
+        material_extra_template='requisicoes/partials/_item_saldo_painel.html',
     )
-    assert 'Saldo disponível: 12,5 kg' in html
+    config = _x_data_saldo_linha(html)
+    assert config == {
+        'saldoTexto': '12,5',
+        'saldoValor': '12.5',
+        'unidade': 'kg',
+        'motivo': '',
+    }
+    # Reativo de verdade: o painel não escreve o número no HTML, só o lê do
+    # estado Alpine em tempo de execução.
+    assert '12,5 kg' not in html
+    assert 'x-text="saldoTexto"' in html
 
 
 def test_saldo_de_material_inelegivel_tambem_leva_unidade():
+    saldo_item = {
+        'elegivel': False,
+        'saldo_disponivel': Decimal('0'),
+        'motivo': 'Sem saldo disponível',
+        'unidade': 'cx',
+    }
     html = _render(
-        saldo_item={
-            'elegivel': False,
-            'saldo_disponivel': Decimal('0'),
-            'motivo': 'Sem saldo disponível',
-            'unidade': 'cx',
-        }
+        linha_alpine_factory='saldoLinha',
+        linha_alpine_config=_linha_alpine_config(saldo_item),
+        material_extra_template='requisicoes/partials/_item_saldo_painel.html',
     )
-    assert 'saldo atual: 0 cx' in html
+    config = _x_data_saldo_linha(html)
+    assert config['motivo'] == 'Sem saldo disponível'
+    assert config['saldoTexto'] == '0'
+    assert config['unidade'] == 'cx'
+
+
+def test_painel_de_saldo_nao_imprime_texto_fixo_so_liga_no_escopo_reativo():
+    """Garantia estrutural (não comportamental) do achado do CodeRabbit no PR #214.
+
+    Antes da correção, uma linha com `saldo_item` conhecido do servidor
+    renderizava o painel como texto estático. Trocar o material no
+    autocomplete da mesma linha atualizava o aviso "Acima do saldo" (já
+    reativo) mas não o painel — o painel continuava mostrando o saldo do
+    material anterior.
+
+    Este teste é unitário (`render_to_string`, sem Alpine de verdade) e só
+    prova que o painel NUNCA imprime número/motivo como texto fixo — ele
+    existe apenas dentro do JSON inicial de `x-data` e dos `x-text`/`x-show`
+    que o escopo `saldoLinha` mantém. Isso não é prova de que
+    `registrarMaterial()` de fato atualiza `saldoTexto`/`motivo` ao trocar de
+    material: esse comportamento reativo só é exercitável com um navegador
+    real (ADR-0019) — ver
+    `test_navegador_item_form_row.py::test_painel_de_saldo_acompanha_troca_de_material_no_autocomplete`,
+    que seleciona outro material no autocomplete de verdade e confere o DOM
+    resultante (achado do próprio João no PR #214: este teste, sozinho,
+    continuaria verde mesmo se `registrarMaterial()` parasse de atualizar
+    `saldoTexto`/`motivo`).
+    """
+    saldo_item = {
+        'elegivel': False,
+        'saldo_disponivel': Decimal('0'),
+        'motivo': 'Sem saldo disponível',
+        'unidade': 'cx',
+    }
+    html = _render(
+        linha_alpine_factory='saldoLinha',
+        linha_alpine_config=_linha_alpine_config(saldo_item),
+        material_extra_template='requisicoes/partials/_item_saldo_painel.html',
+        quantidade_extra_template='estoque/partials/_item_saldo_aviso.html',
+    )
+    # Nem o motivo nem o número aparecem como texto fixo — só dentro do JSON
+    # de x-data, que registrarMaterial() reescreve por completo a cada
+    # seleção nova.
+    assert 'Sem saldo disponível —' not in html
+    assert 'saldo atual: 0 cx' not in html
+    assert 'x-text="motivo"' in html
+    assert 'x-show="motivo"' in html
+    assert 'x-show="!motivo && saldoTexto"' in html
+    # O aviso "Acima do saldo" e o painel leem o mesmo escopo Alpine — não há
+    # dois estados (um estático, um reativo) que possam divergir.
+    assert 'x-show="excedeuSaldo"' in html
+
+
+def test_sem_material_extra_template_a_linha_nao_mostra_painel_de_saldo():
+    """O componente global não decide mais sozinho se mostra saldo (issue #174).
+
+    Sem `material_extra_template`, a linha não sabe renderizar nada de saldo.
+    """
+    html = _render(
+        linha_alpine_factory='saldoLinha',
+        linha_alpine_config=_linha_alpine_config(
+            {
+                'elegivel': False,
+                'saldo_disponivel': Decimal('0'),
+                'motivo': 'Sem saldo disponível',
+                'unidade': 'cx',
+            }
+        ),
+    )
+    assert 'saldo atual' not in html
+    assert 'Saldo disponível' not in html
+    assert 'x-text="motivo"' not in html
+
+
+def test_a_borda_de_alerta_nao_tem_ramo_estatico_e_e_100_por_cento_reativa():
+    """A borda âmbar deixou de ser um parâmetro de contexto (`borda_alerta`,
+    issue #174) calculado uma vez no render do servidor — mesma classe de bug
+    que o painel de saldo tinha antes do PR #214 (achado do CodeRabbit), só
+    que na borda em vez do texto: um `{% if %}` estático ficava preso ao
+    material que a linha tinha no render e não acompanhava a troca de
+    material na mesma linha, sem reload.
+
+    O `class=` estático não carrega nenhuma classe de cor/fundo condicional
+    (nenhum `{% if %}` aqui — coexistir com o `:class` seria pior ainda: o
+    Alpine só remove classes que ele mesmo adicionou, nunca as que já vieram
+    estáticas no HTML). Quem decide a cor, desde o primeiro instante em que o
+    Alpine sobe, é o `:class` ligado a `alerta` — genérico em `itemFormRow`
+    (sempre `false`), sobrescrito por getter em `saldoLinha` a partir do
+    mesmo `motivo` que já dirige o painel.
+
+    Este teste é estrutural (`render_to_string`, sem Alpine de verdade): só
+    prova que o markup é assim. Não prova que `alerta` de fato muda ao trocar
+    de material — isso só é exercitável com um navegador real (ADR-0019), ver
+    `test_navegador_item_form_row.py::test_borda_de_alerta_acompanha_troca_de_material_no_autocomplete`.
+    """
+    html = _render()
+    classe_estatica = re.search(r'<div class="([^"]*)"', html).group(1)
+    assert 'border-warning-border-strong' not in classe_estatica
+    assert 'border-border' not in classe_estatica
+    assert (
+        ":class=\"alerta ? 'border-warning-border-strong bg-warning-subtle/40'"
+        " : 'border-border bg-surface'\""
+    ) in html
 
 
 def test_copy_dos_avisos_nao_vive_no_javascript():

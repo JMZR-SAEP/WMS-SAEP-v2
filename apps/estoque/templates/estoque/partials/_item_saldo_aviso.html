@@ -1,0 +1,21 @@
+{% load core_tags %}
+{% comment %}
+Aviso "Acima do saldo" da linha de item (issue #174) — slot de domínio de
+`components/item_form_row.html` (parâmetro `quantidade_extra_template`), incluído
+na coluna de quantidade. Vive em estoque (dona do conceito de saldo) e é
+reusado por requisições, sem duplicação — o texto e o ARIA são idênticos nas
+duas telas.
+
+Aviso, não bloqueio: o `max` nativo recusaria o envio no cliente e a fonte
+de verdade é o `clean()` do formset e a reserva no service. O que faltava
+era a pessoa **saber** antes de enviar — a mesma gramática reativa do
+`Entrega parcial — justificativa obrigatória` da tela de atendimento.
+
+`excedeuSaldo` vem do escopo Alpine `saldoLinha`
+(apps/estoque/static/estoque/js/saldo_linha.js), instanciado na raiz da
+linha via `linha_alpine_factory="saldoLinha"`.
+{% endcomment %}
+<p x-show="excedeuSaldo" x-cloak role="status" class="mt-1.5 flex items-start gap-1 text-xs font-medium text-warning-text-subtle">
+  {% icon "atencao" class="mt-0.5 h-3.5 w-3.5 shrink-0" %}
+  <span>Acima do saldo</span>
+</p>

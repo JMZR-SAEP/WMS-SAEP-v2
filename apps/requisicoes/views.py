@@ -642,6 +642,14 @@ def nova_linha_item(request):
             'autocomplete_item_template': 'estoque/partials/_autocomplete_item_material.html',
             'delete_field': form[DELETION_FIELD_NAME],
             'form_index': index,
+            # Linha nova nasce sem material selecionado — sem estado inicial
+            # de saldo pra semear (`linha_alpine_config` fica no default
+            # "{}"). Mesmos slots/factory da saída excepcional: some o
+            # painel/aviso de saldo assim que a pessoa escolher um material
+            # (issue #174).
+            'linha_alpine_factory': 'saldoLinha',
+            'material_extra_template': 'estoque/partials/_item_saldo_painel.html',
+            'quantidade_extra_template': 'estoque/partials/_item_saldo_aviso.html',
         },
     )
 

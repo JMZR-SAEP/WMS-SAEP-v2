@@ -1,0 +1,48 @@
+{% load core_tags %}
+{% comment %}
+Painel de saldo da linha de item (issue #174) — slot de domínio de
+`components/item_form_row.html` (parâmetro `material_extra_template`), incluído
+na coluna do material.
+
+Totalmente reativo, ligado ao escopo Alpine `saldoLinha`
+(apps/estoque/static/estoque/js/saldo_linha.js) — não lê `saldo_item`
+diretamente. Achado do CodeRabbit no PR #214: a versão anterior tinha dois
+ramos, um estático (`{% if saldo_item %}`, com o texto vindo direto do
+`saldo_item` do servidor) e um reativo (`{% else %}`, só para telas sem
+`saldo_item`). Numa linha cujo material já veio vinculado do servidor, trocar
+o material no autocomplete atualizava o aviso "Acima do saldo" (reativo) mas
+o painel continuava mostrando o saldo do material ANTERIOR — os dois ramos
+descreviam o mesmo material só na carga inicial da página.
+
+Os dois casos (`saldo_item` presente/ausente) agora nascem do mesmo jeito:
+`rascunho_form.html` semeia o estado inicial do Alpine com
+`{% como_json saldoTexto=... motivo=... %}` a partir de `saldo_item` quando
+ele existe (`linha_alpine_config`), e a linha sem material nenhum (formulário
+novo, ou linha adicionada via HTMX) nasce com esse estado vazio. Dali em
+diante quem atualiza é sempre `registrarMaterial()` — nunca mais o servidor.
+
+`motivo` só é não-vazio pro material que já veio inelegível do servidor: o
+autocomplete de requisições só lista material elegível
+(`materiais_para_requisicao`), então qualquer seleção nova limpa `motivo`
+(ver o comentário de `registrarMaterial` em saldo_linha.js) — não existe
+"trocar para um material inelegível" neste fluxo, só "o material que já
+estava vinculado continua, ou não, inelegível até a próxima seleção".
+
+`x-cloak` para a linha não piscar vazia antes do Alpine subir — mesmo motivo
+do `x-show="saldoTexto"` que o slot de estoque já usava (agora até o caso
+"saldo conhecido do servidor" depende do Alpine ter subido, não só o
+client-side puro).
+{% endcomment %}
+<p x-show="motivo" x-cloak class="mt-1.5 flex items-center gap-1 text-xs font-medium text-warning-text-subtle" role="alert">
+  {% icon "atencao" class="h-3.5 w-3.5 shrink-0" %}
+  {% comment %}
+    Quantidade com a unidade, e com a precisão que a unidade manda —
+    `formatar_quantidade` (aplicado antes de virar `saldoTexto`, em
+    rascunho_form.html) escreve a casa decimal certa pra unidade, igual à
+    grafia de estoque/lista_materiais.html.
+  {% endcomment %}
+  <span x-text="motivo"></span> — saldo atual: <span class="tabular-nums" x-text="saldoTexto"></span> <span x-text="unidade"></span>
+</p>
+<p x-show="!motivo && saldoTexto" x-cloak class="mt-1.5 text-xs text-text-tertiary">
+  Saldo disponível: <span class="tabular-nums" x-text="saldoTexto"></span> <span x-text="unidade"></span>
+</p>

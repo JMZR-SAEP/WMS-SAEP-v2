@@ -1,0 +1,20 @@
+{% comment %}
+Painel de saldo da linha de item (issue #174) — slot de domínio de
+`components/item_form_row.html` (parâmetro `material_extra_template`), incluído
+na coluna do material. Texto reativo client-side: a saída excepcional não
+tem saldo pré-calculado por material no momento do render (o formset nasce
+vazio, ou some/perde correspondência num POST inválido), então só sabe o
+saldo depois que a pessoa escolhe um material no autocomplete — ao contrário
+do slot equivalente de `requisicoes/partials/_item_saldo_painel.html`, que
+já chega com o saldo pronto do servidor.
+
+`saldoTexto`/`saldoRotulo`/`unidade` vêm do escopo Alpine `saldoLinha`
+(apps/estoque/static/estoque/js/saldo_linha.js), instanciado na raiz da
+linha via `linha_alpine_factory="saldoLinha"`. Sem isto, o número que o
+dropdown mostrava (`disponível: 4530 un`) sumia no instante da seleção —
+logo antes de digitar a quantidade, que é quando ela decide. `x-cloak` para
+a linha não piscar vazia antes do Alpine subir.
+{% endcomment %}
+<p x-show="saldoTexto" x-cloak class="mt-1.5 text-xs text-text-tertiary">
+  <span x-text="saldoRotulo"></span>: <span class="tabular-nums" x-text="saldoTexto"></span> <span x-text="unidade"></span>
+</p>
