@@ -143,7 +143,7 @@ def test_saldo_exibe_a_unidade_e_a_precisao_da_unidade():
     html = _render(
         linha_alpine_factory='saldoLinha',
         linha_alpine_config=_linha_alpine_config(saldo_item),
-        saldo_slot_template='requisicoes/partials/_item_saldo_painel.html',
+        material_extra_template='requisicoes/partials/_item_saldo_painel.html',
     )
     config = _x_data_saldo_linha(html)
     assert config == {
@@ -168,7 +168,7 @@ def test_saldo_de_material_inelegivel_tambem_leva_unidade():
     html = _render(
         linha_alpine_factory='saldoLinha',
         linha_alpine_config=_linha_alpine_config(saldo_item),
-        saldo_slot_template='requisicoes/partials/_item_saldo_painel.html',
+        material_extra_template='requisicoes/partials/_item_saldo_painel.html',
     )
     config = _x_data_saldo_linha(html)
     assert config['motivo'] == 'Sem saldo disponível'
@@ -176,18 +176,27 @@ def test_saldo_de_material_inelegivel_tambem_leva_unidade():
     assert config['unidade'] == 'cx'
 
 
-def test_painel_de_saldo_sobrevive_a_troca_de_material_na_mesma_linha():
-    """PR #214 (CodeRabbit): o painel não pode congelar no material inicial.
+def test_painel_de_saldo_nao_imprime_texto_fixo_so_liga_no_escopo_reativo():
+    """Garantia estrutural (não comportamental) do achado do CodeRabbit no PR #214.
 
-    Antes desta correção, uma linha com `saldo_item` conhecido do servidor
+    Antes da correção, uma linha com `saldo_item` conhecido do servidor
     renderizava o painel como texto estático. Trocar o material no
     autocomplete da mesma linha atualizava o aviso "Acima do saldo" (já
     reativo) mas não o painel — o painel continuava mostrando o saldo do
-    material anterior. A garantia estrutural é que o painel NUNCA imprime o
-    número/motivo como texto fixo: ele só existe dentro do JSON inicial de
-    `x-data` e nos `x-text`/`x-show` que o escopo Alpine `saldoLinha` mantém
-    — a mesma peça (`registrarMaterial`) que já atualiza o aviso atualiza o
-    painel, porque os dois leem o mesmo estado.
+    material anterior.
+
+    Este teste é unitário (`render_to_string`, sem Alpine de verdade) e só
+    prova que o painel NUNCA imprime número/motivo como texto fixo — ele
+    existe apenas dentro do JSON inicial de `x-data` e dos `x-text`/`x-show`
+    que o escopo `saldoLinha` mantém. Isso não é prova de que
+    `registrarMaterial()` de fato atualiza `saldoTexto`/`motivo` ao trocar de
+    material: esse comportamento reativo só é exercitável com um navegador
+    real (ADR-0019) — ver
+    `test_navegador_item_form_row.py::test_painel_de_saldo_acompanha_troca_de_material_no_autocomplete`,
+    que seleciona outro material no autocomplete de verdade e confere o DOM
+    resultante (achado do próprio João no PR #214: este teste, sozinho,
+    continuaria verde mesmo se `registrarMaterial()` parasse de atualizar
+    `saldoTexto`/`motivo`).
     """
     saldo_item = {
         'elegivel': False,
@@ -198,8 +207,8 @@ def test_painel_de_saldo_sobrevive_a_troca_de_material_na_mesma_linha():
     html = _render(
         linha_alpine_factory='saldoLinha',
         linha_alpine_config=_linha_alpine_config(saldo_item),
-        saldo_slot_template='requisicoes/partials/_item_saldo_painel.html',
-        saldo_aviso_template='estoque/partials/_item_saldo_aviso.html',
+        material_extra_template='requisicoes/partials/_item_saldo_painel.html',
+        quantidade_extra_template='estoque/partials/_item_saldo_aviso.html',
     )
     # Nem o motivo nem o número aparecem como texto fixo — só dentro do JSON
     # de x-data, que registrarMaterial() reescreve por completo a cada
@@ -214,10 +223,10 @@ def test_painel_de_saldo_sobrevive_a_troca_de_material_na_mesma_linha():
     assert 'x-show="excedeuSaldo"' in html
 
 
-def test_sem_saldo_slot_template_a_linha_nao_mostra_painel_de_saldo():
+def test_sem_material_extra_template_a_linha_nao_mostra_painel_de_saldo():
     """O componente global não decide mais sozinho se mostra saldo (issue #174).
 
-    Sem `saldo_slot_template`, a linha não sabe renderizar nada de saldo.
+    Sem `material_extra_template`, a linha não sabe renderizar nada de saldo.
     """
     html = _render(
         linha_alpine_factory='saldoLinha',

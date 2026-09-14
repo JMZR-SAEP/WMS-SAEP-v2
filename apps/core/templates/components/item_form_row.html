@@ -16,8 +16,8 @@ Conteúdo de domínio entra por dois pontos de extensão, resolvidos pela tela
 chamadora (mesmo idioma de `body_template`/`icon_template`/`item_template`
 já usado em alert.html/button.html/autocomplete.html — um path de template
 que este componente inclui sem interpretar):
-  saldo_slot_template — path de template incluído na coluna do material, no
-    lugar do antigo painel de saldo. Cada app é dono do seu. Os dois slots
+  material_extra_template — path de template incluído na coluna do material,
+    no lugar do antigo painel de saldo. Cada app é dono do seu. Os dois slots
     são reativos, ligados ao escopo Alpine da linha (`saldoLinha`) — nenhum
     lê `saldo_item` diretamente: requisições semeia o estado inicial do
     Alpine a partir dele (via `linha_alpine_config`) quando o material já
@@ -26,10 +26,10 @@ que este componente inclui sem interpretar):
     achado do CodeRabbit no PR #214, que pegou o painel de requisições ainda
     estático mostrando o material anterior enquanto o aviso de saldo já
     falava do novo).
-  saldo_aviso_template — path de template incluído na coluna de quantidade,
-    no lugar do antigo aviso "Acima do saldo". Mesmo texto/ARIA nas duas
-    telas, então vive uma vez só em estoque/partials (dona do conceito de
-    saldo) e as duas o referenciam.
+  quantidade_extra_template — path de template incluído na coluna de
+    quantidade, no lugar do antigo aviso "Acima do saldo". Mesmo texto/ARIA
+    nas duas telas, então vive uma vez só em estoque/partials (dona do
+    conceito de saldo) e as duas o referenciam.
   borda_alerta — bool (opcional, default False): liga a borda/fundo âmbar do
     grupo. É só um flag de apresentação já resolvido pela tela chamadora
     (ex.: `saldo_item|saldo_insuficiente` em requisições) — o componente não
@@ -71,8 +71,8 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
     alimenta o `data-unidade` da linha, para telas cujo material já está
     escolhido num POST re-renderizado por erro (a recapitulação do modal lê
     dali, sem depender de evento nenhum disparar). Quando ausente, "" .
-  saldo_slot_template      — path de template (str, opcional) — ver acima.
-  saldo_aviso_template     — path de template (str, opcional) — ver acima.
+  material_extra_template  — path de template (str, opcional) — ver acima.
+  quantidade_extra_template — path de template (str, opcional) — ver acima.
   borda_alerta             — bool (opcional, default False) — ver acima.
   linha_alpine_factory     — nome da factory Alpine da linha (str, opcional,
     default "itemFormRow") — ver acima.
@@ -152,7 +152,7 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
     {% if material_id_field.errors %}
       {% include "components/field_error.html" with id=material_id_field.id_for_label|add:"-erro" erros=material_id_field.errors %}
     {% endif %}
-    {% if saldo_slot_template %}{% include saldo_slot_template %}{% endif %}
+    {% if material_extra_template %}{% include material_extra_template %}{% endif %}
   </div>
 
   {% comment %}
@@ -188,7 +188,7 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
     {% else %}
       {% include "components/form_field.html" with field=quantidade_field label_override=quantidade_label|default:"Quantidade" %}
     {% endif %}
-    {% if saldo_aviso_template %}{% include saldo_aviso_template %}{% endif %}
+    {% if quantidade_extra_template %}{% include quantidade_extra_template %}{% endif %}
   </div>
 
   {# Campo DELETE do formset (escondido — controlado por JS/botão) #}

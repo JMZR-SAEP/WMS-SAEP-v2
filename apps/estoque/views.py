@@ -396,8 +396,8 @@ def nova_linha_item_saida_excepcional_view(request):
             # linha nova perde o painel/aviso de saldo assim que a pessoa
             # escolher um material (issue #174).
             'linha_alpine_factory': 'saldoLinha',
-            'saldo_slot_template': 'estoque/partials/_item_saldo_painel.html',
-            'saldo_aviso_template': 'estoque/partials/_item_saldo_aviso.html',
+            'material_extra_template': 'estoque/partials/_item_saldo_painel.html',
+            'quantidade_extra_template': 'estoque/partials/_item_saldo_aviso.html',
         },
     )
 
