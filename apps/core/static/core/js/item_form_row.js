@@ -35,6 +35,11 @@
         this._aviso = this._raiz.querySelector('[data-formset-aviso]');
         this._timerAviso = null;
         this._timerRealce = null;
+        // Reativa (issue #198): o botão "Remover" de cada linha usa
+        // `x-show="totalVisiveis > 1"` pra se esconder sozinho quando resta
+        // só uma. `podeRemoverItem()` lê o mesmo número, então o clique
+        // bloqueado e o botão escondido nunca divergem.
+        this.totalVisiveis = this._linhasVisiveis().length;
       },
 
       _totalFormsInput() {
@@ -89,6 +94,7 @@
         // e o dropdown não abre. No quadro seguinte o escopo já existe.
         const linhaNova = this._linhasVisiveis().at(-1);
         if (!linhaNova) return;
+        this.totalVisiveis += 1;
         requestAnimationFrame(() => {
           linhaNova.querySelector('input[role="combobox"]')?.focus();
           this._anunciar(this._copy('avisoAdicionado', { item: this._rotuloDaLinha(linhaNova) }));
@@ -96,7 +102,7 @@
       },
 
       podeRemoverItem() {
-        return this._linhasVisiveis().length > 1;
+        return this.totalVisiveis > 1;
       },
 
       removerLinha(event) {
@@ -118,6 +124,7 @@
 
         const rotulo = this._rotuloDaLinha(row);
         row.style.display = 'none';
+        this.totalVisiveis -= 1;
         const deleteInput = row.querySelector('[name$="-DELETE"]');
         if (deleteInput) deleteInput.value = 'on';
         botaoFoco?.focus();

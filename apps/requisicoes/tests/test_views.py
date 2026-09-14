@@ -105,6 +105,28 @@ def test_nova_requisicao_get_com_login(client, solicitante):
 
 
 @pytest.mark.django_db
+def test_nova_requisicao_h1_e_title_usam_a_mesma_grafia(client, solicitante):
+    """`<title>` estava em Title Case ("Nova Requisição") e o H1 em sentence
+    case ("Nova requisição") — issue #198, item 4."""
+    _login(client, solicitante)
+    html = client.get(reverse('requisicoes:nova_requisicao')).content.decode()
+    assert '<title>Nova requisição — WMS-SAEP</title>' in html
+    assert '>Nova requisição</h1>' in html
+
+
+@pytest.mark.django_db
+def test_editar_rascunho_h1_e_title_usam_a_mesma_grafia(
+    client, solicitante, rascunho_solicitante
+):
+    """Mesma divergência de grafia do item acima, no modo de edição."""
+    _login(client, solicitante)
+    url = reverse('requisicoes:editar_rascunho', kwargs={'pk': rascunho_solicitante.pk})
+    html = client.get(url).content.decode()
+    assert '<title>Editar rascunho — WMS-SAEP</title>' in html
+    assert '>Editar rascunho</h1>' in html
+
+
+@pytest.mark.django_db
 def test_nova_requisicao_get_container_itens_usa_factory_alpine(client, solicitante):
     _login(client, solicitante)
     resp = client.get(reverse('requisicoes:nova_requisicao'))

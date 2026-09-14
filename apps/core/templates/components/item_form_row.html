@@ -180,6 +180,11 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
     (apps/core/static/core/js/item_form_row.js), registrada no container pai
     (ex. #itens-container) e não nesta linha, porque "pode remover" precisa
     contar linhas-irmãs visíveis.
+
+    `x-show="totalVisiveis > 1"` (issue #198): com uma linha só, o botão só
+    ia recusar o clique e avisar o mínimo — mostrá-lo pra isso era ruído.
+    `totalVisiveis` é a mesma contagem reativa que `podeRemoverItem()` lê, e
+    quem a mantém em dia é o próprio `item_form_row.js`.
   {% endcomment %}
   {% comment %}
     O botão desce uma altura de rótulo para alinhar com os campos ao lado, e
@@ -192,7 +197,7 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
     quebrar nada e sem avisar ninguém. O espaçador acompanha porque é a mesma
     classe.
   {% endcomment %}
-  <div class="shrink-0">
+  <div class="shrink-0" x-show="totalVisiveis > 1" x-cloak>
     <span class="rotulo-campo" aria-hidden="true">&nbsp;</span>
     <button
       type="button"

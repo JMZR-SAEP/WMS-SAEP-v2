@@ -35,7 +35,7 @@ def test_tela_login_exibe_identidade_e_campos_acessiveis(client):
     assert 'WMS SAEP' not in conteudo
     assert 'Sistema interno de gestão de materiais' in conteudo
     assert 'Acesse com sua matrícula e senha.' in conteudo
-    assert 'Acesso restrito a funcionários autorizados.' in conteudo
+    assert 'Acesso restrito a usuários autorizados da SAEP.' in conteudo
     assert 'for="id_username"' in conteudo
     assert 'for="id_password"' in conteudo
     assert 'autofocus' in conteudo
