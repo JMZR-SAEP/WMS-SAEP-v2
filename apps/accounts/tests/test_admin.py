@@ -473,3 +473,169 @@ def test_changeform_traduz_bloqueio_de_remanejamento_em_mensagem(
     ]
     lotado.refresh_from_db()
     assert lotado.setor_id == setor.pk
+
+
+# ---------------------------------------------------------------------------
+# UserAdmin — senha com hash na criação e troca de senha (issue #217)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_criar_usuario_pelo_admin_grava_hash_e_autentica(client, superusuario, setor):
+    """Reprodução da issue: o form do admin gravava o texto digitado cru."""
+    from django.contrib.auth.hashers import identify_hasher
+    from django.test import Client
+
+    nova_senha = 'SenhaForte@2026'
+    client.force_login(superusuario)
+
+    resposta = client.post(
+        reverse('admin:accounts_user_add'),
+        {
+            'matricula': 'NOVO1',
+            'nome': 'Usuário Novo',
+            'email': '',
+            'setor': str(setor.pk),
+            'password1': nova_senha,
+            'password2': nova_senha,
+        },
+    )
+
+    assert resposta.status_code == 302, (
+        resposta.context['adminform'].form.errors
+        if resposta.status_code == 200
+        else None
+    )
+    criado = User.objects.get(matricula='NOVO1')
+    identify_hasher(criado.password)  # não levanta -> hash reconhecido
+    assert criado.password != nova_senha
+    assert criado.check_password(nova_senha)
+
+    # cliente novo e sem sessão: o client acima está autenticado como
+    # superusuário, e `redirect_authenticated_user=True` na view de login
+    # pularia a autenticação de verdade.
+    resposta_login = Client().post(
+        reverse('accounts:login'),
+        {'username': 'NOVO1', 'password': nova_senha},
+    )
+    assert resposta_login.status_code == 302
+    assert resposta_login.wsgi_request.user.is_authenticated
+    assert resposta_login.wsgi_request.user.matricula == 'NOVO1'
+
+
+@pytest.mark.django_db
+def test_criar_usuario_pelo_admin_com_confirmacao_divergente_nao_salva(
+    client, superusuario
+):
+    client.force_login(superusuario)
+
+    resposta = client.post(
+        reverse('admin:accounts_user_add'),
+        {
+            'matricula': 'NOVO2',
+            'nome': 'Usuário Novo',
+            'email': '',
+            'setor': '',
+            'password1': 'SenhaForte@2026',
+            'password2': 'outra-coisa-qualquer',
+        },
+    )
+
+    assert resposta.status_code == 200
+    assert not User.objects.filter(matricula='NOVO2').exists()
+
+
+@pytest.mark.django_db
+def test_edicao_de_usuario_nao_oferece_input_de_texto_para_senha(
+    client, superusuario, lotado
+):
+    client.force_login(superusuario)
+
+    resposta = client.get(reverse('admin:accounts_user_change', args=[lotado.pk]))
+    conteudo = resposta.content.decode()
+
+    assert resposta.status_code == 200
+    assert 'name="password1"' not in conteudo
+    assert 'name="password2"' not in conteudo
+    assert '<input type="text" name="password"' not in conteudo
+    assert '<input type="password" name="password"' not in conteudo
+
+
+@pytest.mark.django_db
+def test_trocar_senha_pelo_admin_atualiza_hash_e_autentica(
+    client, superusuario, lotado
+):
+    from django.test import Client
+
+    client.force_login(superusuario)
+    nova_senha = 'OutraSenhaForte@2026'
+    url_troca_senha = reverse('admin:auth_user_password_change', args=[lotado.pk])
+
+    resposta_tela = client.get(url_troca_senha)
+    assert resposta_tela.status_code == 200
+    assert 'name="password1"' in resposta_tela.content.decode()
+
+    resposta = client.post(
+        url_troca_senha,
+        {'password1': nova_senha, 'password2': nova_senha},
+    )
+
+    assert resposta.status_code == 302
+    lotado.refresh_from_db()
+    assert lotado.check_password(nova_senha)
+    assert not lotado.check_password(SENHA)
+
+    cliente_novo = Client()
+    resposta_antiga = cliente_novo.post(
+        reverse('accounts:login'),
+        {'username': lotado.matricula, 'password': SENHA},
+    )
+    assert resposta_antiga.status_code == 200
+    assert not resposta_antiga.wsgi_request.user.is_authenticated
+
+    resposta_nova = cliente_novo.post(
+        reverse('accounts:login'),
+        {'username': lotado.matricula, 'password': nova_senha},
+    )
+    assert resposta_nova.status_code == 302
+    assert resposta_nova.wsgi_request.user.is_authenticated
+
+
+@pytest.mark.django_db
+def test_changeform_traduz_erro_operacional_na_criacao_em_mensagem(
+    monkeypatch, client, superusuario
+):
+    """A criação (`add_view`) também passa por `_changeform_com_captura_dominio`.
+
+    Sem isso, um `OperationalError` retentável durante `save_model` na
+    criação viraria HTTP 500 em vez de mensagem — o mesmo contrato já
+    coberto para edição em `test_changeform_traduz_deadlock_em_mensagem`.
+    """
+    from apps.accounts import admin as admin_module
+
+    def _explode(self, request, obj, form, change):
+        raise _operational_error('40P01')
+
+    monkeypatch.setattr(admin_module.UserAdmin, 'save_model', _explode)
+    client.force_login(superusuario)
+
+    resposta = client.post(
+        reverse('admin:accounts_user_add'),
+        {
+            'matricula': 'NOVO3',
+            'nome': 'Usuário Novo',
+            'email': '',
+            'setor': '',
+            'password1': 'SenhaForte@2026',
+            'password2': 'SenhaForte@2026',
+        },
+        follow=True,
+    )
+
+    assert resposta.redirect_chain[-1][1] == 302
+    erros = [str(m) for m in resposta.context['messages'] if m.level == messages.ERROR]
+    assert erros == [
+        'A operação não pôde ser concluída por concorrência com outra '
+        'alteração de cadastro. Tente novamente.'
+    ]
+    assert not User.objects.filter(matricula='NOVO3').exists()
