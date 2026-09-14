@@ -192,11 +192,21 @@ def test_icon_atencao_renderiza_path_original_variante_modal_warning():
 
 
 def test_icon_alerta_renderiza_path_original_variante_modal_danger():
-    """#136: `danger` deixou de ser a lixeira e passou a ser este glifo."""
+    """#136: `danger` deixou de ser a lixeira e passou a ser este glifo.
+
+    #172: a silhueta externa virou octógono — antes era o mesmo círculo de
+    `informacao.svg`, e a única diferença não-cromática entre perigo e
+    informação era o caractere interno (`!` vs `i`).
+    """
     html = _render('{% icon "alerta" class="h-5 w-5" %}')
     assert (
-        'd="M18 10A8 8 0 1 1 2 10a8 8 0 0 1 16 0Zm-7-4a1 1 0 1 0-2 0v4a1 1 0 1 0 2 0V6Zm-1 '
-        '8a1.2 1.2 0 1 1 0-2.4 1.2 1.2 0 0 1 0 2.4Z"' in html
+        'd="M17.391 11.592C17.391 13.061 17.391 13.061 16.352 14.101L14.101 16.352C13.061 '
+        '17.391 13.061 17.391 11.592 17.391L8.408 17.391C6.939 17.391 6.939 17.391 5.899 '
+        '16.352L3.648 14.101C2.609 13.061 2.609 13.061 2.609 11.592L2.609 8.408C2.609 6.939 '
+        '2.609 6.939 3.648 5.899L5.899 3.648C6.939 2.609 6.939 2.609 8.408 2.609L11.592 '
+        '2.609C13.061 2.609 13.061 2.609 14.101 3.648L16.352 5.899C17.391 6.939 17.391 6.939 '
+        '17.391 8.408ZM11 6a1 1 0 1 0-2 0v4a1 1 0 1 0 2 0V6Zm-1 8a1.2 1.2 0 1 1 0-2.4 1.2 1.2 '
+        '0 0 1 0 2.4Z"' in html
     )
     assert 'viewBox="0 0 20 20"' in html
 
