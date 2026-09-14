@@ -112,7 +112,7 @@ seed-dev: ## Carregar seed canônico do piloto
 # Cleaning
 # ------------------------------------------------------------------------------
 
-clean: resetpostgres ## Limpar artefatos locais e caches (sem afetar o banco)
+clean: resetpostgres ## Limpar artefatos locais e caches (recria o schema do banco)
 	-rm -rf $(EPHEMERAL_DIRS)
 	-rm -f $(PID_FILE)
 		-$(FIND) . -path "*/migrations/*.py" \
@@ -127,7 +127,19 @@ veryclean: clean ## Voltar o workspace para um estado "do zero".
 
 # Reset agressivo do PostgreSQL para simular o efeito de apagar um db.sqlite3
 # Requer DATABASE_URL disponível no ambiente/.env e o cliente psql instalado.
+#
+# Guarda por DJANGO_SETTINGS_MODULE (#218): o include .env acima faz uma
+# atribuição simples ganhar de uma variável de ambiente com o mesmo nome, então
+# um .env do piloto (DJANGO_SETTINGS_MODULE=config.settings.piloto) faria este
+# alvo apagar o schema do banco do piloto mesmo sem ninguém pedir isso
+# explicitamente. Lista permitida (não lista proibida): um settings novo já
+# nasce protegido. Só shell POSIX (case/test) porque isto também roda no bash
+# do Git for Windows (ver comentário no topo deste arquivo e PR #211).
 resetpostgres: ## Apagar schema public do PostgreSQL e recriá-lo do zero
+	@case "$(DJANGO_SETTINGS_MODULE)" in \
+		config.settings.dev|config.settings.test) ;; \
+		*) printf '%s\n' "resetpostgres: DJANGO_SETTINGS_MODULE=\"$(DJANGO_SETTINGS_MODULE)\" não está na lista permitida (config.settings.dev, config.settings.test); este alvo apaga o schema 'public' do banco em DATABASE_URL -- abortando." >&2; exit 1 ;; \
+	esac
 	@test -n "$$DATABASE_URL" || (echo "DATABASE_URL não definido em $(ENV_FILE) ou no ambiente" && exit 1)
 	@command -v $(PSQL) >/dev/null 2>&1 || (echo "psql não encontrado" && exit 1)
 	$(PSQL) -d "$$DATABASE_URL" -v ON_ERROR_STOP=1 -c "DROP SCHEMA IF EXISTS public CASCADE;"
