@@ -16,30 +16,25 @@ Conteúdo de domínio entra por dois pontos de extensão, resolvidos pela tela
 chamadora (mesmo idioma de `body_template`/`icon_template`/`item_template`
 já usado em alert.html/button.html/autocomplete.html — um path de template
 que este componente inclui sem interpretar):
-  material_extra_template — path de template incluído na coluna do material,
-    no lugar do antigo painel de saldo. Cada app é dono do seu. Os dois slots
-    são reativos, ligados ao escopo Alpine da linha (`saldoLinha`) — nenhum
-    lê `saldo_item` diretamente: requisições semeia o estado inicial do
-    Alpine a partir dele (via `linha_alpine_config`) quando o material já
-    chega vinculado, mas quem atualiza depois é sempre `registrarMaterial()`,
-    nunca mais o servidor (troca de material na mesma linha sem reload —
-    achado do CodeRabbit no PR #214, que pegou o painel de requisições ainda
-    estático mostrando o material anterior enquanto o aviso de saldo já
-    falava do novo).
+  material_extra_template — path de template incluído na coluna do material.
+    Cada app é dono do seu.
   quantidade_extra_template — path de template incluído na coluna de
-    quantidade, no lugar do antigo aviso "Acima do saldo". Mesmo texto/ARIA
-    nas duas telas, então vive uma vez só em estoque/partials (dona do
-    conceito de saldo) e as duas o referenciam.
-  A borda/fundo âmbar do grupo é presentation-only e 100% reativa, ligada ao
-    `alerta` do escopo Alpine da linha (`:class`, ver abaixo) — não é mais um
-    parâmetro de contexto (`borda_alerta`). Era um flag calculado uma vez no
-    render do servidor (`saldo_item|saldo_insuficiente`, em requisições),
-    preso ao material que a linha tinha naquele instante — mesma classe de
-    bug que o painel de saldo tinha antes do PR #214, só que na borda em vez
-    do texto. `itemFormRow` (genérico) expõe `alerta` sempre `false`;
-    `saldoLinha` sobrescreve com um getter ligado ao mesmo `motivo` que já
-    dirige o painel — o componente continua sem saber o que acende, só que
-    precisa acender.
+    quantidade, pelo mesmo princípio.
+  Os dois slots são reativos: o escopo Alpine que preenche o conteúdo deles
+    é o que a tela chamadora injetar via `linha_alpine_factory` (abaixo) — o
+    componente não sabe, nem precisa saber, o que esse escopo expõe além do
+    contrato genérico de material/unidade que ele mesmo define. Quando o
+    material já chega vinculado à linha (edição de um item existente, ou POST
+    re-renderizado por erro), o servidor semeia o estado inicial desse escopo
+    via `linha_alpine_config`; dali em diante quem atualiza é sempre a
+    factory da tela chamadora, nunca mais o servidor — é assim que a linha
+    sobrevive a uma troca de material no mesmo formulário, sem reload.
+  A borda/fundo âmbar do grupo segue a mesma lógica: é presentation-only,
+    100% reativa, ligada a um `alerta` (bool) exposto pelo mesmo escopo
+    Alpine que a tela chamadora injetou. A factory genérica (`itemFormRow`)
+    expõe `alerta` sempre `false`; uma factory de tela chamadora pode
+    sobrescrever com o que quiser — o componente só liga a borda a esse
+    bool, sem saber por que ele às vezes é `true`.
 
 O escopo Alpine da linha segue a mesma lógica: `itemFormRow` (genérico, em
 item_form_row.js) só sabe rastrear material/unidade e ajustar o passo do
@@ -106,14 +101,13 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
 <div class="item-form-row flex flex-wrap items-start gap-3 p-3 rounded-lg border"
      {% comment %}
        100% reativo, ligado ao `alerta` do escopo Alpine da própria linha
-       (genérico em `itemFormRow`, sobrescrito por getter em `saldoLinha` a
-       partir de `motivo`) — sem ramo estático condicional aqui. Um `{% if %}`
-       calculado uma vez no render ficava preso ao material que a linha tinha
-       naquele instante (mesma classe de bug que o painel de saldo tinha antes
-       do PR #214, só que na borda em vez do texto); e coexistir com este
-       `:class` seria pior ainda: o Alpine só remove classes que ele mesmo
-       adicionou, nunca as que já vieram estáticas no HTML — a classe estática
-       "vazava" e sobrevivia a qualquer troca de material.
+       (genérico em `itemFormRow`, sempre `false`; uma factory de tela
+       chamadora pode sobrescrever com um getter próprio) — sem ramo estático
+       condicional aqui. Um `{% if %}` calculado uma vez no render ficava
+       preso ao material que a linha tinha naquele instante, e coexistir com
+       este `:class` seria pior ainda: o Alpine só remove classes que ele
+       mesmo adicionou, nunca as que já vieram estáticas no HTML — a classe
+       estática "vazava" e sobrevivia a qualquer troca de material.
      {% endcomment %}
      :class="alerta ? 'border-warning-border-strong bg-warning-subtle/40' : 'border-border bg-surface'"
      role="group"
