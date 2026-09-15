@@ -18,6 +18,7 @@ from decimal import Decimal
 
 import pytest
 from django.urls import reverse
+from playwright.sync_api import expect
 
 from apps.core.tests.navegador import autenticar
 from apps.estoque.models import SaldoEstoque
@@ -357,9 +358,9 @@ def test_resumo_marca_linha_parcial_com_a_justificativa_e_o_retirante(
     # Entrega integral: nada de aviso de parcial.
     campo.fill(str(autorizada))
     abrir()
-    assert aviso.is_hidden(), (
-        'entrega integral não é parcial, e o resumo não pode sugerir que seja'
-    )
+    expect(
+        aviso, 'entrega integral não é parcial, e o resumo não pode sugerir que seja'
+    ).to_be_hidden()
     assert (
         'Carlos Andrade'
         in page.locator(
@@ -372,9 +373,9 @@ def test_resumo_marca_linha_parcial_com_a_justificativa_e_o_retirante(
     campo.fill(str(autorizada / 2))
     justificativa.fill('Faltou material no estoque físico.')
     abrir()
-    assert aviso.is_visible(), (
-        'entrega menor que a autorizada tem de aparecer como parcial'
-    )
+    expect(
+        aviso, 'entrega menor que a autorizada tem de aparecer como parcial'
+    ).to_be_visible()
     assert 'Faltou material no estoque físico.' in aviso.inner_text(), (
         'a justificativa é obrigatória exatamente nesta linha e some justamente '
         'no instante da confirmação'

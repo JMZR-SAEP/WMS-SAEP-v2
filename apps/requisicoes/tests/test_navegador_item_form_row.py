@@ -14,9 +14,11 @@ verdade — não uma asserção sobre o JSON inicial de `x-data` — pega a
 regressão.
 """
 
+import re
 from decimal import Decimal
 
 import pytest
+from playwright.sync_api import expect
 
 from apps.core.tests.navegador import autenticar
 from apps.requisicoes.services import criar_requisicao
@@ -36,7 +38,7 @@ def pagina_rascunho(live_server, context, page, solicitante):
 
 def test_remover_fica_escondido_com_uma_linha_so(pagina_rascunho):
     assert pagina_rascunho.locator(BOTAO_REMOVER).count() == 1
-    assert not pagina_rascunho.locator(BOTAO_REMOVER).first.is_visible()
+    expect(pagina_rascunho.locator(BOTAO_REMOVER).first).to_be_hidden()
 
 
 def test_remover_aparece_ao_adicionar_e_esconde_ao_voltar_pra_uma(pagina_rascunho):
@@ -45,20 +47,20 @@ def test_remover_aparece_ao_adicionar_e_esconde_ao_voltar_pra_uma(pagina_rascunh
 
     botoes = pagina_rascunho.locator(BOTAO_REMOVER)
     assert botoes.count() == 2
-    assert botoes.first.is_visible()
-    assert botoes.nth(1).is_visible()
+    # `expect`, e não `is_visible()`: a visibilidade do botão depende de o
+    # Alpine reagir a `totalVisiveis`, o que acontece depois do swap do HTMX
+    # que `wait_for_selector` já liberou. `is_visible()` lê o estado do
+    # instante e falhava nas rodadas mais rápidas; `expect` espera a condição.
+    expect(botoes.first).to_be_visible()
+    expect(botoes.nth(1)).to_be_visible()
 
     botoes.nth(1).click()
-    pagina_rascunho.wait_for_timeout(200)
 
-    assert not pagina_rascunho.locator(BOTAO_REMOVER).first.is_visible()
+    expect(pagina_rascunho.locator(BOTAO_REMOVER).first).to_be_hidden()
     # O botão que recebia o foco (issue #198) desaparece no mesmo instante em
     # que a linha 0 fica sozinha — sem o desvio pro combobox, o foco caía em
     # <body>.
-    assert (
-        pagina_rascunho.evaluate('document.activeElement.id')
-        == 'id_itens-0-material_label'
-    )
+    expect(pagina_rascunho.locator('#id_itens-0-material_label')).to_be_focused()
 
 
 # ── PR #214 (achado do João): o painel de saldo reativo precisa de prova de
@@ -118,7 +120,7 @@ def test_painel_de_saldo_acompanha_troca_de_material_no_autocomplete(
 
     # A linha já vem vinculada (server-side) a um material sem saldo — o
     # painel mostra o motivo de inelegibilidade desde a carga da página.
-    assert linha.get_by_text('Sem saldo disponível').is_visible()
+    expect(linha.get_by_text('Sem saldo disponível')).to_be_visible()
 
     campo = pagina_editar_rascunho.locator('#id_itens-0-material_label')
     campo.fill('Fita')
@@ -128,10 +130,10 @@ def test_painel_de_saldo_acompanha_troca_de_material_no_autocomplete(
 
     # O motivo do material anterior some — não fica preso ao que veio do
     # servidor — e o painel passa a mostrar o saldo do material novo.
-    assert not linha.get_by_text('Sem saldo disponível').is_visible()
-    assert linha.get_by_text(
-        f'Saldo disponível: 30 {material_disponivel_2.unidade}'
-    ).is_visible()
+    expect(linha.get_by_text('Sem saldo disponível')).to_be_hidden()
+    expect(
+        linha.get_by_text(f'Saldo disponível: 30 {material_disponivel_2.unidade}')
+    ).to_be_visible()
 
     # O aviso "Acima do saldo" lê o mesmo escopo Alpine (`saldoValor`) que o
     # painel — reage ao mesmo evento de seleção, sem um segundo estado que
@@ -140,8 +142,7 @@ def test_painel_de_saldo_acompanha_troca_de_material_no_autocomplete(
         '#id_itens-0-quantidade_solicitada'
     )
     campo_quantidade.fill('999')
-    pagina_editar_rascunho.wait_for_timeout(200)
-    assert linha.get_by_text('Acima do saldo').is_visible()
+    expect(linha.get_by_text('Acima do saldo')).to_be_visible()
 
 
 def test_borda_de_alerta_acompanha_troca_de_material_no_autocomplete(
@@ -156,8 +157,9 @@ def test_borda_de_alerta_acompanha_troca_de_material_no_autocomplete(
     linha = pagina_editar_rascunho.locator('.item-form-row').first
 
     # A linha já vem vinculada a um material sem saldo — a borda âmbar acende
-    # desde a carga da página.
-    assert 'border-warning-border-strong' in linha.get_attribute('class')
+    # desde a carga da página. A classe vem de um `:class` do Alpine, então a
+    # asserção precisa esperar (mesma corrida do botão "Remover").
+    expect(linha).to_have_class(re.compile('border-warning-border-strong'))
 
     campo = pagina_editar_rascunho.locator('#id_itens-0-material_label')
     campo.fill('Fita')
@@ -167,6 +169,5 @@ def test_borda_de_alerta_acompanha_troca_de_material_no_autocomplete(
 
     # O material novo é elegível — a borda não pode ficar presa ao material
     # anterior, o mesmo `motivo` que já limpa o painel de saldo.
-    classe = linha.get_attribute('class')
-    assert 'border-warning-border-strong' not in classe
-    assert 'border-border' in classe
+    expect(linha).not_to_have_class(re.compile('border-warning-border-strong'))
+    expect(linha).to_have_class(re.compile(r'\bborder-border\b'))
