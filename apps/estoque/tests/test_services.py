@@ -585,6 +585,23 @@ class TestConfirmarImportacaoScpi:
             linha_preview.unidade.casas_decimais,
         ) == (unidade.codigo, unidade.nome, unidade.casas_decimais)
 
+    def test_cabecalho_com_espacos_grava_a_unidade_e_o_nome_do_csv(
+        self, db, superuser, estoque_principal
+    ):
+        """Espaço em volta de `UNID1`/`DISC1` no cabeçalho não pode fazer o
+        material nascer `un` e com o CADPRO como nome sem ninguém perceber."""
+        from apps.estoque.models import Material
+
+        csv_bytes = '\n'.join(
+            ['CADPRO; DISC1 ; UNID1 ;QUAN3', '000.999.222;ARAME GALVANIZADO;KG;5']
+        ).encode('utf-8')
+
+        self._confirmar(superuser, estoque_principal, csv_bytes)
+
+        material = Material.objects.get(codigo='000.999.222')
+        assert material.unidade_id == 'kg'
+        assert material.nome.lower() == 'arame galvanizado'
+
     def test_cria_codigo_desconhecido_com_o_valor_do_csv_e_tres_casas(
         self, db, superuser, estoque_principal
     ):

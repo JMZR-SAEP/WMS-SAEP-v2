@@ -400,6 +400,24 @@ class TestUnidadeScpiNoPreview:
             conteudo_bytes=csv_bytes, estoque_id=estoque.pk
         )
 
+    def test_cabecalho_com_espacos_ainda_acha_unid1_e_disc1(
+        self, db, estoque_principal
+    ):
+        """Espaço em volta do nome da coluna não pode fazer `UNID1` sumir.
+
+        Sem a coluna, todo material novo cairia em `un` sem aviso nenhum — a
+        carga inteira perderia a unidade. `DISC1` tinha o mesmo defeito: o nome
+        do material virava o CADPRO.
+        """
+        csv_bytes = '\n'.join(
+            ['CADPRO; DISC1 ; UNID1 ;QUAN3', '000.999.050;ARAME GALVANIZADO;KG;5']
+        ).encode('utf-8')
+
+        (linha,) = self._preview(csv_bytes, estoque_principal)
+
+        assert linha.unidade.codigo == 'kg'
+        assert linha.denominacao_scpi == 'ARAME GALVANIZADO'
+
     @pytest.mark.parametrize(
         ('unid1', 'codigo'),
         [

@@ -196,11 +196,16 @@ def _parse_linhas_csv_scpi(conteudo: str) -> list[dict]:
         )
     col_qtd = colunas_quantidade[0]
     _COLUNAS_NOME = ('DISC1', 'DENOMINACAO')
+    # `strip()` no nome e não na chave: `row.get` precisa do nome como veio no
+    # cabeçalho. Sem ele, ` UNID1 ` passava por coluna ausente e todo material
+    # novo caía em `un` sem aviso; ` DISC1 `, por nome igual ao CADPRO.
     col_den = next(
-        (f for f in reader.fieldnames if f.upper() in _COLUNAS_NOME),
+        (f for f in reader.fieldnames if f.strip().upper() in _COLUNAS_NOME),
         None,
     )
-    col_unid = next((f for f in reader.fieldnames if f.upper() == 'UNID1'), None)
+    col_unid = next(
+        (f for f in reader.fieldnames if f.strip().upper() == 'UNID1'), None
+    )
     linhas = []
     for i, row in enumerate(reader, start=2):
         cadpro = (row.get('CADPRO') or '').strip()
