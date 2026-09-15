@@ -688,7 +688,12 @@ def confirmar_importacao_scpi(
     estoque_id: int,
     _pos_importacao_hook=None,
 ):
-    """Confirma importação SCPI: bloqueia reimportação, cria novos materiais e grava metadados."""
+    """Confirma importação SCPI: bloqueia reimportação, cria novos materiais e grava metadados.
+
+    O material novo nasce com a unidade que o preview anunciou a partir de
+    ``UNID1`` (#219). A unidade que ainda não existe é criada aqui, com o nome
+    e a precisão do anúncio; a já cadastrada nunca é sobrescrita.
+    """
     import hashlib
 
     from django.core.files.base import ContentFile
@@ -697,8 +702,6 @@ def confirmar_importacao_scpi(
     from apps.accounts.models import User
     from apps.core.exceptions import ConflitoDominio, DadosInvalidos
     from apps.estoque.models import (
-        UNIDADE_PADRAO_MATERIAL_SCPI,
-        UNIDADES_CONHECIDAS,
         Estoque,
         ImportacaoSCPI,
         LinhaDivergenteSCPI,
@@ -748,14 +751,22 @@ def confirmar_importacao_scpi(
             )
 
         # A unidade precisa existir antes do material que aponta para ela, e no
-        # banco recém-criado do piloto ninguém a cadastrou (ADR-0020): nasce
-        # aqui, com o nome e a precisão conhecidos. Unidade já cadastrada fica
-        # como está — ajuste feito no admin não é desfeito.
-        nome_padrao, casas_padrao = UNIDADES_CONHECIDAS[UNIDADE_PADRAO_MATERIAL_SCPI]
-        unidade_novos, _ = UnidadeMedida.objects.get_or_create(
-            codigo=UNIDADE_PADRAO_MATERIAL_SCPI,
-            defaults={'nome': nome_padrao, 'casas_decimais': casas_padrao},
-        )
+        # banco do piloto ninguém cadastrou as que o SCPI usa (ADR-0020). O
+        # preview já as resolveu: a cadastrada vem salva, a que falta vem como
+        # instância não salva com o nome e a precisão anunciados — são essas que
+        # nascem aqui, num INSERT só. `ignore_conflicts` (ON CONFLICT DO NOTHING)
+        # cobre a corrida com outra confirmação ou com o admin, que cadastre a
+        # mesma unidade depois do preview: a de lá fica como está, sem
+        # `IntegrityError` e sem sobrescrever ajuste nenhum.
+        unidades_a_criar = {
+            linha.unidade.codigo: linha.unidade
+            for linha in linhas
+            if linha.status == 'novo' and linha.unidade._state.adding
+        }
+        if unidades_a_criar:
+            UnidadeMedida.objects.bulk_create(
+                unidades_a_criar.values(), ignore_conflicts=True
+            )
 
         for linha in linhas:
             if linha.status != 'novo':
@@ -767,7 +778,7 @@ def confirmar_importacao_scpi(
                 # material em maiúsculas. O CSV segue fiel no registro da
                 # importação; só o catálogo é normalizado.
                 nome=capitalizar_frase(linha.denominacao_scpi or linha.cadpro),
-                unidade=unidade_novos,
+                unidade=linha.unidade,
                 ativo=True,
             )
             SaldoEstoque.objects.create(

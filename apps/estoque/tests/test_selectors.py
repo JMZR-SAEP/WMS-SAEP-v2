@@ -381,6 +381,183 @@ class TestDenominacaoScpiNoPreview:
             )
 
 
+class TestUnidadeScpiNoPreview:
+    """A unidade do material novo vem da coluna `UNID1` do CSV (#219, ADR-0020).
+
+    O preview é read-only: anuncia a unidade com que a confirmação vai criar o
+    material — a cadastrada, se já existe; senão uma instância não salva — sem
+    gravar nenhuma `UnidadeMedida`.
+    """
+
+    def _csv(self, *linhas: tuple[str, str]) -> bytes:
+        corpo = [f'{cadpro};MATERIAL {cadpro};{unid1};5' for cadpro, unid1 in linhas]
+        return '\n'.join(['CADPRO;DISC1;UNID1;QUAN3', *corpo]).encode('utf-8')
+
+    def _preview(self, csv_bytes, estoque):
+        from apps.estoque.selectors import gerar_preview_importacao_scpi
+
+        return gerar_preview_importacao_scpi(
+            conteudo_bytes=csv_bytes, estoque_id=estoque.pk
+        )
+
+    @pytest.mark.parametrize(
+        ('unid1', 'codigo'),
+        [
+            ('UND', 'un'),
+            ('PC', 'un'),
+            ('MT', 'm'),
+            ('MTS', 'm'),
+            ('L', 'l'),
+            ('M²', 'm2'),
+            ('RL', 'rolo'),
+            (' mt ', 'm'),
+            ('m²', 'm2'),
+        ],
+    )
+    def test_sinonimo_do_scpi_vira_a_unidade_do_wms(
+        self, db, estoque_principal, unid1, codigo
+    ):
+        from apps.estoque.models import UNIDADES_CONHECIDAS, UnidadeMedida
+
+        (linha,) = self._preview(self._csv(('000.999.001', unid1)), estoque_principal)
+
+        assert linha.status == 'novo'
+        assert (
+            linha.unidade.codigo,
+            linha.unidade.nome,
+            linha.unidade.casas_decimais,
+        ) == (
+            codigo,
+            *UNIDADES_CONHECIDAS[codigo],
+        )
+        assert not UnidadeMedida.objects.exists()
+
+    def test_unidade_sem_equivalente_conhecida_anuncia_nome_e_tres_casas(
+        self, db, estoque_principal
+    ):
+        from apps.estoque.models import UnidadeMedida
+
+        (linha,) = self._preview(self._csv(('000.999.002', 'BR')), estoque_principal)
+
+        assert (
+            linha.unidade.codigo,
+            linha.unidade.nome,
+            linha.unidade.casas_decimais,
+        ) == (
+            'br',
+            'Barra',
+            3,
+        )
+        assert not UnidadeMedida.objects.exists()
+
+    def test_codigo_desconhecido_anuncia_o_valor_do_csv_com_tres_casas(
+        self, db, estoque_principal
+    ):
+        """Unidade que o SCPI passar a usar no futuro não bloqueia a importação:
+        o código é o valor em minúsculas e o nome é o valor como veio."""
+        from apps.estoque.models import UnidadeMedida
+
+        (linha,) = self._preview(self._csv(('000.999.003', ' Bld ')), estoque_principal)
+
+        assert (
+            linha.unidade.codigo,
+            linha.unidade.nome,
+            linha.unidade.casas_decimais,
+        ) == (
+            'bld',
+            'Bld',
+            3,
+        )
+        assert linha.unidade._state.adding
+        assert not UnidadeMedida.objects.exists()
+
+    def test_unidade_ja_cadastrada_vale_sobre_a_conhecida(self, db, estoque_principal):
+        """Ajuste de nome e precisão feito no admin prevalece no preview."""
+        from apps.estoque.models import UnidadeMedida
+
+        UnidadeMedida.objects.create(codigo='br', nome='Barra de aço', casas_decimais=1)
+
+        (linha,) = self._preview(self._csv(('000.999.004', 'BR')), estoque_principal)
+
+        assert (linha.unidade.nome, linha.unidade.casas_decimais) == ('Barra de aço', 1)
+        assert not linha.unidade._state.adding
+
+    def test_material_existente_ignora_unid1(
+        self, db, estoque_principal, material_scpi
+    ):
+        """`UNID1` só vale para material novo; o existente segue com a dele."""
+        (linha,) = self._preview(
+            self._csv((material_scpi.codigo, 'KG')), estoque_principal
+        )
+
+        assert linha.status != 'novo'
+        assert linha.unidade.codigo == 'un'
+
+    @pytest.mark.parametrize('unid1', ['', '   '])
+    def test_unid1_vazio_cai_na_unidade_padrao(self, db, estoque_principal, unid1):
+        (linha,) = self._preview(self._csv(('000.999.005', unid1)), estoque_principal)
+
+        assert (linha.unidade.codigo, linha.unidade.casas_decimais) == ('un', 0)
+
+    def test_sem_coluna_unid1_cai_na_unidade_padrao(self, db, estoque_principal):
+        (linha,) = self._preview(
+            b'CADPRO;DENOMINACAO;QUAN3\n000.999.006;Rebite;5', estoque_principal
+        )
+
+        assert (linha.unidade.codigo, linha.unidade.casas_decimais) == ('un', 0)
+
+    def test_codigo_com_dez_caracteres_e_aceito(self, db, estoque_principal):
+        (linha,) = self._preview(
+            self._csv(('000.999.007', 'ABCDEFGHIJ')), estoque_principal
+        )
+
+        assert linha.unidade.codigo == 'abcdefghij'
+
+    def test_codigo_longo_demais_lanca_dados_invalidos(self, db, estoque_principal):
+        """`UnidadeMedida.codigo` tem 10 caracteres: sem a recusa cedo, o INSERT
+        da confirmação estouraria a coluna e derrubaria o lote inteiro."""
+        from apps.core.exceptions import DadosInvalidos
+
+        csv_bytes = self._csv(('000.999.001', 'UN'), ('000.999.008', 'ABCDEFGHIJK'))
+
+        with pytest.raises(DadosInvalidos, match=r'000\.999\.008 \(linha 3\)') as exc:
+            self._preview(csv_bytes, estoque_principal)
+        assert exc.value.code == 'csv_unidade_muito_longa'
+
+    def test_codigo_longo_em_material_existente_nao_bloqueia(
+        self, db, estoque_principal, material_scpi
+    ):
+        """A linha de material existente não grava unidade nenhuma."""
+        (linha,) = self._preview(
+            self._csv((material_scpi.codigo, 'ABCDEFGHIJK')), estoque_principal
+        )
+
+        assert linha.unidade.codigo == 'un'
+
+    def test_nao_consulta_unidade_por_linha(self, db, estoque_principal):
+        """Um export real tem centenas de materiais novos: a busca das unidades
+        já cadastradas é uma consulta só, não uma por linha."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from apps.estoque.tests.unidades import obter_unidade
+
+        obter_unidade('un')
+        obter_unidade('kg')
+        unid1 = ['UN', 'BR', 'KG', 'T', 'M²', 'XYZ', 'PC', 'MT', 'KIT', 'CX']
+
+        def contar_consultas(quantidade):
+            csv_bytes = self._csv(
+                *((f'000.998.{n:03d}', unid1[n]) for n in range(quantidade))
+            )
+            with CaptureQueriesContext(connection) as consultas:
+                linhas = self._preview(csv_bytes, estoque_principal)
+            assert len(linhas) == quantidade
+            return len(consultas)
+
+        assert contar_consultas(10) == contar_consultas(1)
+
+
 class TestEntregaLiquidaPorMaterial:
     @pytest.mark.django_db
     def test_sem_consumo_retorna_zero(
