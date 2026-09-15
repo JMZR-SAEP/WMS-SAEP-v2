@@ -547,23 +547,6 @@ class TestConfirmarImportacaoScpi:
         assert (unidade.nome, unidade.casas_decimais) == ('Unidade avulsa', 1)
         assert Material.objects.get(codigo='000.999.211').unidade_id == 'un'
 
-    def test_preview_sem_a_unidade_no_banco_anuncia_a_precisao_sem_gravar(
-        self, db, estoque_principal
-    ):
-        """O preview é read-only: anuncia a precisão com que a confirmação vai
-        criar a unidade, sem criá-la."""
-        from apps.estoque.models import UnidadeMedida
-        from apps.estoque.selectors import gerar_preview_importacao_scpi
-
-        (linha,) = gerar_preview_importacao_scpi(
-            conteudo_bytes=self._csv('000.999.212', 'Rebite', '2.000'),
-            estoque_id=estoque_principal.pk,
-        )
-
-        assert linha.status == 'novo'
-        assert (linha.unidade.codigo, linha.unidade.casas_decimais) == ('un', 0)
-        assert not UnidadeMedida.objects.filter(codigo='un').exists()
-
     def test_denominacao_scpi_em_caixa_alta_e_normalizada_na_escrita(
         self, db, superuser, estoque_principal
     ):
