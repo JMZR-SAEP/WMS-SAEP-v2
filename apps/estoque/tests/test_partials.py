@@ -218,8 +218,8 @@ def test_alerta_de_materiais_novos_diz_quem_confere_o_catalogo():
 
     `confirmar_importacao_scpi` cria o material com a unidade da coluna `UNID1`
     do SCPI, traduzida pelo mapeamento de sinônimos, e com o nome vindo da
-    denominação do arquivo; a unidade que ainda não existe no WMS nasce com três
-    casas decimais (#219). Existe conferência humana pendente de fato — de
+    denominação do arquivo; o código sem equivalente no WMS vira unidade nova
+    com três casas decimais (#219). Existe conferência humana pendente de fato — de
     unidade e de precisão — e ela é do mesmo dono que decide sobre a divergência.
     """
     html = _render_novos()

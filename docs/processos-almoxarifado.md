@@ -95,8 +95,9 @@ entre os dois é rotina recorrente, não etapa de migração com prazo.
   vazio, cai em `un`.
 - Unidade que ainda não existe no WMS é criada na confirmação: com o nome
   conhecido quando o sistema sabe qual é (`BR` vira Barra, `T` vira Tonelada) e,
-  quando não sabe, com o próprio valor do SCPI como nome. A unidade criada assim
-  nasce com três casas decimais. Unidade já cadastrada nunca é sobrescrita, e a
+  quando não sabe, com o próprio valor do SCPI como nome. A precisão é a
+  conhecida (`un` sem casa decimal, `kg`, `l` e `m` com uma); código sem
+  equivalente no WMS nasce com três casas decimais. Unidade já cadastrada nunca é sobrescrita, e a
   quantidade não é convertida — tonelada continua tonelada.
 - A `UNID1` só vale para material novo. Material que já existe fica com a
   unidade do WMS, e divergência de unidade entre WMS e SCPI não é apontada.
