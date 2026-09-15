@@ -501,6 +501,69 @@ class TestConfirmarImportacaoScpi:
         assert saldo.saldo_fisico == Decimal('42')
         assert saldo.saldo_reservado == Decimal('0')
 
+    def test_cria_a_unidade_dos_novos_quando_o_banco_nao_tem(
+        self, db, superuser, estoque_principal
+    ):
+        """No banco recém-criado do piloto ninguém cadastrou `un` (ADR-0020).
+
+        Sem a criação no ato, o primeiro material novo estouraria a FK e a
+        carga inteira cairia na transação única.
+        """
+        from apps.estoque.models import Material, UnidadeMedida
+        from apps.estoque.services import confirmar_importacao_scpi
+
+        assert not UnidadeMedida.objects.filter(codigo='un').exists()
+
+        confirmar_importacao_scpi(
+            ator_id=superuser.pk,
+            conteudo_bytes=self._csv('000.999.210', 'Arruela', '7.000'),
+            arquivo_nome='sem-unidade.csv',
+            estoque_id=estoque_principal.pk,
+        )
+
+        unidade = UnidadeMedida.objects.get(codigo='un')
+        assert (unidade.nome, unidade.casas_decimais) == ('Unidade', 0)
+        assert Material.objects.get(codigo='000.999.210').unidade_id == 'un'
+
+    def test_nao_sobrescreve_a_unidade_ja_ajustada_no_admin(
+        self, db, superuser, estoque_principal
+    ):
+        """A precisão conhecida vale só para criar; ajuste do admin fica."""
+        from apps.estoque.models import Material, UnidadeMedida
+        from apps.estoque.services import confirmar_importacao_scpi
+
+        UnidadeMedida.objects.create(
+            codigo='un', nome='Unidade avulsa', casas_decimais=1
+        )
+
+        confirmar_importacao_scpi(
+            ator_id=superuser.pk,
+            conteudo_bytes=self._csv('000.999.211', 'Porca', '3.000'),
+            arquivo_nome='unidade-ajustada.csv',
+            estoque_id=estoque_principal.pk,
+        )
+
+        unidade = UnidadeMedida.objects.get(codigo='un')
+        assert (unidade.nome, unidade.casas_decimais) == ('Unidade avulsa', 1)
+        assert Material.objects.get(codigo='000.999.211').unidade_id == 'un'
+
+    def test_preview_sem_a_unidade_no_banco_anuncia_a_precisao_sem_gravar(
+        self, db, estoque_principal
+    ):
+        """O preview é read-only: anuncia a precisão com que a confirmação vai
+        criar a unidade, sem criá-la."""
+        from apps.estoque.models import UnidadeMedida
+        from apps.estoque.selectors import gerar_preview_importacao_scpi
+
+        (linha,) = gerar_preview_importacao_scpi(
+            conteudo_bytes=self._csv('000.999.212', 'Rebite', '2.000'),
+            estoque_id=estoque_principal.pk,
+        )
+
+        assert linha.status == 'novo'
+        assert (linha.unidade.codigo, linha.unidade.casas_decimais) == ('un', 0)
+        assert not UnidadeMedida.objects.filter(codigo='un').exists()
+
     def test_denominacao_scpi_em_caixa_alta_e_normalizada_na_escrita(
         self, db, superuser, estoque_principal
     ):
