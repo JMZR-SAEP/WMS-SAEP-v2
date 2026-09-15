@@ -18,6 +18,7 @@ from decimal import Decimal
 
 import pytest
 from django.urls import reverse
+from playwright.sync_api import expect
 
 from apps.core.tests.navegador import autenticar
 from apps.estoque.models import SaldoEstoque
@@ -347,16 +348,31 @@ def test_resumo_marca_linha_parcial_com_a_justificativa_e_o_retirante(
         page.wait_for_function(
             "document.getElementById('confirmar-atender-retirada').matches(':modal')"
         )
+        # `:modal` diz que o `showModal()` rodou, não que o diálogo já foi
+        # desenhado: no top layer a caixa pode ter área zero por um quadro, e aí
+        # `is_visible()` lê falso e `is_hidden()` lê verdadeiro por acidente —
+        # a negativa abaixo passaria sem medir nada. Esperar a linha do resumo
+        # aparecer fixa o layout; daí as duas asserções valem imediatas.
+        expect(linha).to_be_visible()
 
     def fechar():
         page.keyboard.press('Escape')
         page.wait_for_function(
             "!document.getElementById('confirmar-atender-retirada').open"
         )
+        # `devolverFoco()` devevolve o foco ao gatilho DEPOIS que `open` cai, e
+        # `fill()` do Playwright foca o campo e só então insere o texto: com o
+        # foco sendo roubado no meio, a limpeza vira no-op silencioso e o
+        # formulário segue válido. Mediu-se 5 falhas em 14 rodadas por isso.
+        expect(gatilho).to_be_focused()
 
     # Entrega integral: nada de aviso de parcial.
     campo.fill(str(autorizada))
     abrir()
+    # Imediato, não `expect`: `modal.js` chama `sincronizarResumo()` ANTES do
+    # `showModal()` justamente para o resumo estar certo no primeiro quadro, e
+    # `abrir()` já esperou o `:modal`. Esperar aqui aceitaria o resumo exibir
+    # "parcial" numa entrega integral e se corrigir depois — que é o defeito.
     assert aviso.is_hidden(), (
         'entrega integral não é parcial, e o resumo não pode sugerir que seja'
     )

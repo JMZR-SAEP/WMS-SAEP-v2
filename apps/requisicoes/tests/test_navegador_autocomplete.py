@@ -13,6 +13,7 @@ correção.
 """
 
 import pytest
+from playwright.sync_api import expect
 
 from apps.core.tests.navegador import autenticar
 
@@ -114,9 +115,10 @@ def test_seta_para_baixo_com_popup_fechado_reabre_em_opcao_visivel(
     assert campo.get_attribute('aria-expanded') == 'true'
     alvo = campo.get_attribute('aria-activedescendant')
     assert alvo, 'a seta precisa marcar uma opção ao reabrir'
-    assert page.locator(f'#{alvo}').is_visible(), (
-        'aria-activedescendant não pode apontar para opção invisível'
-    )
+    expect(
+        page.locator(f'#{alvo}'),
+        'aria-activedescendant não pode apontar para opção invisível',
+    ).to_be_visible()
 
 
 def test_limpar_o_campo_nao_reabre_o_catalogo_inteiro(pagina_rascunho):
@@ -149,8 +151,12 @@ def test_falha_de_rede_mostra_erro_e_nao_finge_busca_vazia(pagina_rascunho):
     _buscar(pagina_rascunho, 'MAT')
 
     erro = pagina_rascunho.locator('p[data-erro-busca]')
-    assert erro.is_visible(), 'falha de busca precisa dizer que falhou'
+    expect(erro, 'falha de busca precisa dizer que falhou').to_be_visible()
     assert 'Não foi possível buscar' in erro.inner_text()
+    # Imediato, não `expect`: `mensagemVaziaVisivel()` (autocomplete.js) já
+    # exclui `erro` do próprio predicado — os dois avisos são incompatíveis por
+    # construção. Com o erro na tela, esperar o vazio sumir aceitaria a
+    # coexistência que o componente proíbe.
     vazio = pagina_rascunho.locator('p[role="status"]:not([data-erro-busca])').first
     assert not vazio.is_visible(), (
         'erro de rede não pode se passar por "nenhum resultado"'
@@ -161,13 +167,16 @@ def test_busca_boa_depois_do_erro_limpa_o_estado(pagina_rascunho):
     """O erro não pode grudar: a tentativa seguinte é a recuperação."""
     pagina_rascunho.route('**/materiais/busca/**', lambda rota: rota.abort())
     _buscar(pagina_rascunho, 'MAT')
-    assert pagina_rascunho.locator('p[data-erro-busca]').is_visible()
+    expect(pagina_rascunho.locator('p[data-erro-busca]')).to_be_visible()
 
     pagina_rascunho.unroute('**/materiais/busca/**')
     _buscar(pagina_rascunho, 'MAT0')
 
+    # A chegada dos resultados é o ponto de sincronia, e vem primeiro: o
+    # `buscarComDebounce()` limpa `erro` assim que a tecla cai, antes da
+    # resposta. Conferir o erro antes disso passaria com a busca ainda em voo.
+    expect(pagina_rascunho.locator('li[role="option"]').first).to_be_visible()
     assert not pagina_rascunho.locator('p[data-erro-busca]').is_visible()
-    assert pagina_rascunho.locator('li[role="option"]').count() > 0
 
 
 def test_opcao_respeita_o_piso_de_toque(pagina_rascunho):
@@ -225,7 +234,7 @@ def test_selecionar_material_mostra_marca_de_vinculado(pagina_rascunho):
     assert pagina_rascunho.locator(HIDDEN_MATERIAL).input_value() != ''
     assert 'campo--vinculado' in (campo.get_attribute('class') or '')
     marca = pagina_rascunho.locator('span[x-show="vinculado && !buscando"]').first
-    assert marca.is_visible(), 'marca de vinculado invisível após seleção'
+    expect(marca, 'marca de vinculado invisível após seleção').to_be_visible()
 
 
 def test_apagar_caractere_remove_a_marca_no_mesmo_gesto(pagina_rascunho):
@@ -267,7 +276,7 @@ def test_submit_com_texto_sem_vinculo_e_bloqueado_no_cliente(pagina_rascunho):
 
     assert pagina_rascunho.url.endswith('/requisicoes/nova/'), 'o envio não foi barrado'
     gate = pagina_rascunho.locator('p[data-erro-gate]').first
-    assert gate.is_visible()
+    expect(gate).to_be_visible()
     assert (
         pagina_rascunho.evaluate('document.activeElement.id')
         == 'id_itens-0-material_label'

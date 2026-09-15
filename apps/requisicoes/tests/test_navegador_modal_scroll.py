@@ -30,6 +30,7 @@ from decimal import Decimal
 
 import pytest
 from django.urls import reverse
+from playwright.sync_api import expect
 
 from apps.core.tests.navegador import autenticar
 from apps.requisicoes.models import EstadoRequisicao, ItemRequisicao, Requisicao
@@ -162,10 +163,11 @@ def test_dialogo_entregue_aberto_pelo_servidor_vira_modal_com_o_erro_a_vista(
     pagina.wait_for_url(f'{live_server.url}{acao}')
 
     dialogo = pagina.locator('dialog#confirmar-retornar')
-    assert dialogo.locator('[data-modal-erro]').is_visible(), (
+    expect(
+        dialogo.locator('[data-modal-erro]'),
         'A caixa de erro voltou dentro de um diálogo fechado: a recusa foi '
-        'rejeitada e a tela não diz nada.'
-    )
+        'rejeitada e a tela não diz nada.',
+    ).to_be_visible()
 
     pagina.wait_for_function(
         "document.getElementById('confirmar-retornar').matches(':modal')"
