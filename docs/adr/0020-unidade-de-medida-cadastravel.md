@@ -63,9 +63,9 @@ precisão em código obriga deploy para cada ajuste de exibição.
 - `get_unidade_display` deixa de existir; a forma por extenso é
   `material.unidade.nome`.
 - Teste que cria `Material` precisa criar a unidade antes (`obter_unidade`).
-- Unidade criada pela importação sem precisão conhecida nasce com 3 casas, que
-  nunca esconde fração; o ajuste fino é do admin, uma vez por unidade e não por
-  material.
+- Nesta etapa, a importação só cria a unidade padrão `un` (0 casas, de
+  `UNIDADES_CONHECIDAS`) quando ela falta. As unidades lidas de `UNID1` entram
+  na etapa que passar a ler essa coluna (#219).
 
 ## Trade-off
 
