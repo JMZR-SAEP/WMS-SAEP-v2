@@ -153,10 +153,14 @@ def test_falha_de_rede_mostra_erro_e_nao_finge_busca_vazia(pagina_rascunho):
     erro = pagina_rascunho.locator('p[data-erro-busca]')
     expect(erro, 'falha de busca precisa dizer que falhou').to_be_visible()
     assert 'Não foi possível buscar' in erro.inner_text()
+    # Imediato, não `expect`: `mensagemVaziaVisivel()` (autocomplete.js) já
+    # exclui `erro` do próprio predicado — os dois avisos são incompatíveis por
+    # construção. Com o erro na tela, esperar o vazio sumir aceitaria a
+    # coexistência que o componente proíbe.
     vazio = pagina_rascunho.locator('p[role="status"]:not([data-erro-busca])').first
-    expect(
-        vazio, 'erro de rede não pode se passar por "nenhum resultado"'
-    ).to_be_hidden()
+    assert not vazio.is_visible(), (
+        'erro de rede não pode se passar por "nenhum resultado"'
+    )
 
 
 def test_busca_boa_depois_do_erro_limpa_o_estado(pagina_rascunho):
@@ -168,8 +172,11 @@ def test_busca_boa_depois_do_erro_limpa_o_estado(pagina_rascunho):
     pagina_rascunho.unroute('**/materiais/busca/**')
     _buscar(pagina_rascunho, 'MAT0')
 
-    expect(pagina_rascunho.locator('p[data-erro-busca]')).to_be_hidden()
-    assert pagina_rascunho.locator('li[role="option"]').count() > 0
+    # A chegada dos resultados é o ponto de sincronia, e vem primeiro: o
+    # `buscarComDebounce()` limpa `erro` assim que a tecla cai, antes da
+    # resposta. Conferir o erro antes disso passaria com a busca ainda em voo.
+    expect(pagina_rascunho.locator('li[role="option"]').first).to_be_visible()
+    assert not pagina_rascunho.locator('p[data-erro-busca]').is_visible()
 
 
 def test_opcao_respeita_o_piso_de_toque(pagina_rascunho):

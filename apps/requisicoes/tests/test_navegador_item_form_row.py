@@ -28,6 +28,17 @@ pytestmark = pytest.mark.navegador
 BOTAO_REMOVER = 'button[data-remover-item]'
 
 
+def _classe(nome):
+    """Casa a classe como token inteiro do atributo `class`.
+
+    `to_have_class` com regex casa substring, e `\\b` não serve para nome de
+    classe do Tailwind: `-` é caractere não-word, então `\\bborder-border\\b`
+    casaria dentro de `border-border-strong`. Os delimitadores explícitos de
+    espaço/extremidade fecham isso.
+    """
+    return re.compile(rf'(?:^|\s){re.escape(nome)}(?:\s|$)')
+
+
 @pytest.fixture
 def pagina_rascunho(live_server, context, page, solicitante):
     autenticar(live_server, context, solicitante)
@@ -159,7 +170,7 @@ def test_borda_de_alerta_acompanha_troca_de_material_no_autocomplete(
     # A linha já vem vinculada a um material sem saldo — a borda âmbar acende
     # desde a carga da página. A classe vem de um `:class` do Alpine, então a
     # asserção precisa esperar (mesma corrida do botão "Remover").
-    expect(linha).to_have_class(re.compile('border-warning-border-strong'))
+    expect(linha).to_have_class(_classe('border-warning-border-strong'))
 
     campo = pagina_editar_rascunho.locator('#id_itens-0-material_label')
     campo.fill('Fita')
@@ -169,5 +180,5 @@ def test_borda_de_alerta_acompanha_troca_de_material_no_autocomplete(
 
     # O material novo é elegível — a borda não pode ficar presa ao material
     # anterior, o mesmo `motivo` que já limpa o painel de saldo.
-    expect(linha).not_to_have_class(re.compile('border-warning-border-strong'))
-    expect(linha).to_have_class(re.compile(r'\bborder-border\b'))
+    expect(linha).not_to_have_class(_classe('border-warning-border-strong'))
+    expect(linha).to_have_class(_classe('border-border'))
