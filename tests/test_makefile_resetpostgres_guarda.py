@@ -1,8 +1,8 @@
 """Testes da guarda de `DJANGO_SETTINGS_MODULE` no alvo `resetpostgres` (#218).
 
 O alvo `resetpostgres` roda `DROP SCHEMA IF EXISTS public CASCADE` contra
-`DATABASE_URL`. Ele é pré-requisito de `clean`/`veryclean`/`init`/`setup`/
-`resetdb`. Sem guarda, um `.env` do piloto (`DJANGO_SETTINGS_MODULE=
+`DATABASE_URL`. Ele é pré-requisito de `clean`/`veryclean`/`setup`/`resetdb`
+(`init` saiu da cadeia em #225). Sem guarda, um `.env` do piloto (`DJANGO_SETTINGS_MODULE=
 config.settings.piloto`) faz qualquer um desses comandos apagar os dados do
 piloto.
 

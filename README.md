@@ -43,7 +43,7 @@ cd WMS-SAEP-v2
 make init
 ```
 
-`make init` também materializa o arquivo `.env` a partir de `.env.example`, caso ainda não exista.
+`make init` também materializa o arquivo `.env` a partir de `.env.example`, caso ainda não exista. Ele **não toca o banco**: não exige `.env` configurado, PostgreSQL acessível nem `psql`, e nunca chama `resetpostgres`. O schema só é recriado depois, no `make setup`, com o `.env` já revisado (ver [Configuração](#configuração)).
 
 Instale as dependências de front-end (Tailwind CSS v4, HTMX, Alpine.js):
 
@@ -91,7 +91,7 @@ O HSTS começa curto de propósito: `PILOTO_HSTS_SECONDS` tem default de 1 hora.
 
 O piloto também envia a diretiva `preload`. Ela não inscreve o domínio na lista dos navegadores por si só — isso exige submissão manual, e os navegadores só a consideram a partir de `max-age` de 1 ano — mas declara essa intenção, então confirme o domínio antes de expor o piloto.
 
-O servidor do piloto **não usa o `Makefile`**. Os alvos de limpeza (`clean`, `veryclean`, `init`, `setup`, `resetdb`) dependem de `resetpostgres`, que apaga e recria o schema `public` do banco em `DATABASE_URL` — por isso `resetpostgres` tem uma guarda que só deixa passar `DJANGO_SETTINGS_MODULE=config.settings.dev` ou `config.settings.test`; qualquer outro valor (incluindo `config.settings.piloto`) aborta antes de chamar `psql`.
+O servidor do piloto **não usa o `Makefile`**. Os alvos de limpeza (`clean`, `veryclean`, `setup`, `resetdb`) dependem de `resetpostgres`, que apaga e recria o schema `public` do banco em `DATABASE_URL` — por isso `resetpostgres` tem uma guarda que só deixa passar `DJANGO_SETTINGS_MODULE=config.settings.dev` ou `config.settings.test`; qualquer outro valor (incluindo `config.settings.piloto`) aborta antes de chamar `psql`.
 
 Antes de publicar, valide a configuração:
 
@@ -122,6 +122,7 @@ Rotinas individuais úteis no dia a dia:
 make seed-dev   # recarrega apenas o seed canônico de desenvolvimento
 make css-dev    # compila o Tailwind em modo watch
 make clean      # limpa caches e migrations locais (recria o schema do banco; guardado por DJANGO_SETTINGS_MODULE)
+make clean-python  # remove .venv e bytecode Python, sem tocar o banco
 make help       # lista todas as rotinas disponíveis
 ```
 

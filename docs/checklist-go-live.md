@@ -7,7 +7,7 @@ Cada item registra o que conferir, como conferir e o que fazer quando a
 conferência falha.
 
 > O servidor do piloto **não usa o `Makefile`** (#218). Os alvos de limpeza
-> (`clean`, `veryclean`, `init`, `setup`, `resetdb`) apagam e recriam o schema
+> (`clean`, `veryclean`, `setup`, `resetdb`) apagam e recriam o schema
 > `public` do banco via `resetpostgres`, guardado por `DJANGO_SETTINGS_MODULE`
 > (só `config.settings.dev`/`config.settings.test` passam).
 

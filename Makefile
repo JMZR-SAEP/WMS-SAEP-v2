@@ -80,7 +80,12 @@ help: ## Mostrar rotinas disponíveis
 prepare: ## Materializar .env a partir do exemplo
 	@test -f $(ENV_FILE) || cp $(ENV_EXAMPLE_FILE) $(ENV_FILE)
 
-init: veryclean prepare ## Recriar ambiente Python e instalar dependências
+# Bootstrap sem banco (#225): init não depende de clean/veryclean, porque os
+# dois passam por resetpostgres. Num clone novo não há .env (resetpostgres
+# falharia por falta de DATABASE_URL), e o .env recém-copiado do exemplo ainda
+# não foi revisado — apagar schema com a DATABASE_URL de exemplo não pode ser
+# efeito colateral de instalar dependências. Resetar o banco é papel de setup.
+init: clean-python prepare ## Recriar ambiente Python e instalar dependências (não toca o banco)
 	$(UV) sync
 
 compile:: ## Treat file generation
@@ -120,9 +125,15 @@ clean: resetpostgres ## Limpar artefatos locais e caches (recria o schema do ban
 		-not -path "./$(VENV_DIR)/*" \
 		-delete
 
-veryclean: clean ## Voltar o workspace para um estado "do zero".
+# clean-python fica na receita, não na lista de pré-requisitos: como irmão de
+# clean ele roda em paralelo sob `make -jN` e apagaria a .venv antes de a
+# guarda do resetpostgres recusar um settings fora de dev/test. Na receita, só
+# roda depois de clean ter terminado com sucesso.
+veryclean: clean ## Voltar o workspace para um estado "do zero" (recria o schema do banco)
+	$(MAKE) clean-python
+
+clean-python: ## Remover .venv e bytecode Python (não toca o banco)
 	-rm -rf $(VENV_DIR)
-	$(FIND) . -iname "*.pyc" -iname "*.pyo" -delete
 	$(FIND) . -type f \( -name "*.pyc" -o -name "*.pyo" \) -delete
 
 # Reset agressivo do PostgreSQL para simular o efeito de apagar um db.sqlite3
@@ -170,5 +181,5 @@ test-navegador: ## Rodar a camada Navegador em Chromium (ADR-0019)
 	uv run playwright install chromium
 	uv run pytest -q -ra --tb=short --strict-markers --disable-warnings -m navegador
 
-.PHONY: help prepare init setup clean veryclean test test-navegador seed-dev resetdb run resetpostgres css-build css-dev
+.PHONY: help prepare init setup clean clean-python veryclean test test-navegador seed-dev resetdb run resetpostgres css-build css-dev
 .EXPORT_ALL_VARIABLES:
