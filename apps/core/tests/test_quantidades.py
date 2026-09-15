@@ -5,6 +5,7 @@ from decimal import Decimal
 import pytest
 
 from apps.core.quantidades import casas_decimais, formatar, normalizar, step
+from apps.estoque.models import UnidadeMedida, unidade_conhecida
 
 
 @pytest.mark.parametrize(
@@ -12,7 +13,9 @@ from apps.core.quantidades import casas_decimais, formatar, normalizar, step
     [('un', 0), ('kg', 1), ('l', 1), ('m', 1), ('cx', 3), ('', 3)],
 )
 def test_casas_por_unidade(unidade, esperado):
-    assert casas_decimais(unidade) == esperado
+    assert (
+        casas_decimais(unidade_conhecida(unidade) if unidade else unidade) == esperado
+    )
 
 
 @pytest.mark.parametrize(
@@ -20,7 +23,32 @@ def test_casas_por_unidade(unidade, esperado):
     [('un', '1'), ('kg', '0.1'), ('cx', '0.001')],
 )
 def test_step_acompanha_as_casas_da_unidade(unidade, esperado):
-    assert step(unidade) == esperado
+    assert step(unidade_conhecida(unidade)) == esperado
+
+
+def test_codigo_em_texto_e_recusado():
+    """Depois da #219 o código sozinho não diz a precisão.
+
+    Aceitar `'kg'` em silêncio exibiria quilo com três casas sem ninguém notar.
+    """
+    with pytest.raises(TypeError):
+        formatar(Decimal('1.000'), 'kg')
+    with pytest.raises(TypeError):
+        step('un')
+
+
+@pytest.mark.parametrize('vazio', [None, ''])
+def test_sem_unidade_degrada_para_casa_significativa(vazio):
+    assert casas_decimais(vazio) == 3
+    assert formatar(Decimal('2.500'), vazio) == '2,5'
+
+
+def test_precisao_intermediaria_vem_da_unidade():
+    """Duas casas não existia na tabela de códigos; como dado, basta cadastrar."""
+    barra = UnidadeMedida(codigo='br', nome='Barra', casas_decimais=2)
+    assert formatar(Decimal('6.000'), barra) == '6,00'
+    assert formatar(Decimal('6.125'), barra) == '6,12'
+    assert step(barra) == '0.01'
 
 
 @pytest.mark.parametrize(
@@ -79,7 +107,7 @@ def test_normalizar_ignora_lixo():
 )
 def test_formatar_para_exibicao(qtd, unidade, esperado):
     """Unidade fracionária guarda a casa mesmo inteira: ali ela comunica precisão."""
-    assert formatar(qtd, unidade) == esperado
+    assert formatar(qtd, unidade_conhecida(unidade)) == esperado
 
 
 @pytest.mark.parametrize(
@@ -96,8 +124,8 @@ def test_formatar_usa_virgula_e_nao_agrupa_milhar(qtd, unidade, esperado):
     `1.0`. Agrupar milhar traria o ponto de volta como separador na mesma tela em
     que ele já foi lido como decimal — e daria um caractere de largura variável à
     coluna `font-mono` do livro-razão."""
-    assert formatar(qtd, unidade) == esperado
-    assert '.' not in formatar(qtd, unidade)
+    assert formatar(qtd, unidade_conhecida(unidade)) == esperado
+    assert '.' not in formatar(qtd, unidade_conhecida(unidade))
 
 
 def test_normalizar_segue_com_ponto_porque_e_valor_de_input():

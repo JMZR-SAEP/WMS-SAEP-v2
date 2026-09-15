@@ -5821,11 +5821,13 @@ def test_sumario_de_erros_lista_campos_invalidos(client, solicitante):
 def test_step_por_unidade_espelha_a_precisao_de_formatar_quantidade():
     """Se a tela formata 'un' como inteiro, o campo não pode aceitar 0,001 un."""
     from apps.core.templatetags.core_tags import formatar_quantidade, step_por_unidade
+    from apps.estoque.models import unidade_conhecida
 
-    assert step_por_unidade('un') == '1'
-    assert formatar_quantidade(Decimal('3.000'), 'un') == '3'
-    assert step_por_unidade('kg') == '0.1'
-    assert step_por_unidade('cx') == '0.001'
+    un, kg, cx = (unidade_conhecida(c) for c in ('un', 'kg', 'cx'))
+    assert step_por_unidade(un) == '1'
+    assert formatar_quantidade(Decimal('3.000'), un) == '3'
+    assert step_por_unidade(kg) == '0.1'
+    assert step_por_unidade(cx) == '0.001'
 
 
 # ---------------------------------------------------------------------------
@@ -7161,12 +7163,13 @@ class TestBuscaNasListasDeTrabalho:
 @pytest.fixture
 def material_em_metros(db, estoque_principal):
     """Material medido em metros — unidade fracionária de uma casa."""
-    from apps.estoque.models import Material, SaldoEstoque, UnidadeMedida
+    from apps.estoque.models import Material, SaldoEstoque
+    from apps.estoque.tests.unidades import obter_unidade
 
     m = Material.objects.create(
         codigo='MAT900',
         nome='Cabo flexível 2,5mm',
-        unidade=UnidadeMedida.METRO,
+        unidade=obter_unidade('m'),
         ativo=True,
     )
     SaldoEstoque.objects.create(

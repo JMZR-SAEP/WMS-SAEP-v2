@@ -26,12 +26,13 @@ componente.
 
 Parâmetros:
   valor          (obrigatório) Decimal ou None. `None` renderiza o travessão.
-  unidade        (obrigatório) o **código** da unidade (`un`, `kg`, `m2`) — é
-                 ele que escolhe a precisão via `formatar_quantidade`. String
-                 vazia degrada para casa significativa, que é o caso do SCPI
-                 (o CSV não informa unidade).
+  unidade        (obrigatório) a `UnidadeMedida` do material (`material.unidade`).
+                 A `casas_decimais` dela escolhe a precisão via
+                 `formatar_quantidade`, e o código (`un`, `kg`) é o texto
+                 impresso. `None` ou vazio degrada para casa significativa.
+                 Código em texto (`'un'`) é recusado desde a #219.
   unidade_label  (opcional) o texto visível da unidade. Default: o próprio
-                 código. Passe `material.get_unidade_display` quando a tela
+                 código. Passe `material.unidade.nome` quando a tela
                  quiser a forma por extenso.
   referencia     (opcional) linha abaixo, em `text-xs`: `de 150 autorizada`.
   destaque       (opcional, bool) número em 16px semibold em vez de 14px medium.
@@ -48,7 +49,7 @@ Parâmetros:
 
 Uso:
   {% include "components/quantidade.html" with valor=saldo.saldo_fisico unidade=saldo.material.unidade %}
-  {% include "components/quantidade.html" with valor=item.quantidade_entregue unidade=item.material.unidade unidade_label=item.material.get_unidade_display referencia=ref destaque=True %}
+  {% include "components/quantidade.html" with valor=item.quantidade_entregue unidade=item.material.unidade unidade_label=item.material.unidade.nome referencia=ref destaque=True %}
 {% endcomment %}
 {% load core_tags %}
 <span

@@ -1,7 +1,7 @@
 {% load core_tags %}
 {% comment %}
 Célula de delta assinado — o átomo do livro-razão (issue #163). Recebe `valor`
-(Decimal) e `unidade` (código da unidade de medida do material). É a mesma
+(Decimal) e `unidade` (a `UnidadeMedida` do material). É a mesma
 marcação no histórico de movimentações, no preview do SCPI e na lista de
 divergências gravadas: uma grafia só para a mesma grandeza.
 
@@ -37,9 +37,9 @@ escrito `+1,000` — que no galpão se lê *mil*. É o mesmo erro que
 `apps/core/quantidades.py` foi criado para matar em `atender_retirada`, e a
 política dele é a única fonte de precisão por unidade no sistema.
 
-A unidade vem do chamador porque a precisão é dela, não do delta: `un` não
-admite casa decimal, `kg`/`l`/`m` admitem uma, o resto vai por casa
-significativa.
+A unidade vem do chamador porque a precisão é dela, não do delta: são as
+`casas_decimais` da `UnidadeMedida` (ADR-0020) — `un` sem casa decimal,
+`kg`/`l`/`m` com uma, o resto por casa significativa.
 
 O `{% templatetag openblock %} with u=unidade|default:'' {% templatetag closeblock %}`
 não é adorno: argumento de filtro tem resolução estrita, e um chamador que
@@ -47,8 +47,8 @@ esquecesse `unidade` derrubaria a página inteira com `VariableDoesNotExist` em
 vez de imprimir um número. Com o `with`, a variável ausente cai em
 `string_if_invalid` e o filtro degrada para casa significativa — o número
 certo, nunca o `1,000` que a Regra existe para impedir. É por esse caminho que
-a lista de divergências do SCPI, que não tem unidade, ainda imprime o número
-certo.
+uma divergência do SCPI gravada sem unidade (`LinhaDivergenteSCPI.unidade`
+nula) ainda imprime o número certo.
 
 ── `mostrar_unidade`, opt-in (#187) ──────────────────────────────────────────
 

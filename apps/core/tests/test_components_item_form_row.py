@@ -21,10 +21,15 @@ def _linha_alpine_config(saldo_item):
     real esquecesse um campo que `saldoLinha` espera."""
     if not saldo_item:
         return '{}'
+    from apps.estoque.models import unidade_conhecida
+
+    # O selector entrega a `UnidadeMedida`; o template formata com ela e põe só
+    # o código no JSON (`saldo_item.unidade.codigo`). Aqui o dict leva o código.
     return json.dumps(
         {
             'saldoTexto': formatar_quantidade(
-                saldo_item['saldo_disponivel'], saldo_item['unidade']
+                saldo_item['saldo_disponivel'],
+                unidade_conhecida(saldo_item['unidade']),
             ),
             'saldoValor': str(saldo_item['saldo_disponivel']),
             'unidade': saldo_item['unidade'],

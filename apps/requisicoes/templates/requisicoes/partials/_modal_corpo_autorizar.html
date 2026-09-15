@@ -19,9 +19,9 @@
       <dt class="min-w-0 font-medium text-text-primary">{{ item.material.nome }}</dt>
       <dd>
         {% if item.saldo_insuficiente %}
-          {% include "components/quantidade.html" with valor=item.saldo_disponivel_exibido unidade=item.material.unidade unidade_label=item.material.get_unidade_display tom="warning" referencia=item.saldo_motivo|default:"não cobre o solicitado" %}
+          {% include "components/quantidade.html" with valor=item.saldo_disponivel_exibido unidade=item.material.unidade unidade_label=item.material.unidade.nome tom="warning" referencia=item.saldo_motivo|default:"não cobre o solicitado" %}
         {% else %}
-          {% include "components/quantidade.html" with valor=item.quantidade_solicitada unidade=item.material.unidade unidade_label=item.material.get_unidade_display %}
+          {% include "components/quantidade.html" with valor=item.quantidade_solicitada unidade=item.material.unidade unidade_label=item.material.unidade.nome %}
         {% endif %}
       </dd>
     </div>

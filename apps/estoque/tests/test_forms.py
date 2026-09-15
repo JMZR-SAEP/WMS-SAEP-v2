@@ -87,10 +87,11 @@ def test_formset_sem_linhas_validas_levanta_erro():
 
 @pytest.mark.django_db
 def test_formset_material_inativo_gera_erro_de_elegibilidade(estoque_principal):
-    from apps.estoque.models import Material, SaldoEstoque, UnidadeMedida
+    from apps.estoque.models import Material, SaldoEstoque
+    from apps.estoque.tests.unidades import obter_unidade
 
     material = Material.objects.create(
-        codigo='MAT099', nome='Furadeira', unidade=UnidadeMedida.UNIDADE, ativo=False
+        codigo='MAT099', nome='Furadeira', unidade=obter_unidade('un'), ativo=False
     )
     SaldoEstoque.objects.create(
         estoque=estoque_principal, material=material, saldo_fisico=10
@@ -109,10 +110,11 @@ def test_formset_material_inativo_gera_erro_de_elegibilidade(estoque_principal):
 
 @pytest.mark.django_db
 def test_formset_material_sem_saldo_gera_erro_de_elegibilidade(estoque_principal):
-    from apps.estoque.models import Material, SaldoEstoque, UnidadeMedida
+    from apps.estoque.models import Material, SaldoEstoque
+    from apps.estoque.tests.unidades import obter_unidade
 
     material = Material.objects.create(
-        codigo='MAT098', nome='Serra', unidade=UnidadeMedida.UNIDADE, ativo=True
+        codigo='MAT098', nome='Serra', unidade=obter_unidade('un'), ativo=True
     )
     SaldoEstoque.objects.create(
         estoque=estoque_principal, material=material, saldo_fisico=0
@@ -135,11 +137,12 @@ def test_formset_material_com_saldo_em_outro_estoque_gera_erro_de_elegibilidade(
 ):
     """Material elegível globalmente, mas sem saldo no estoque desta saída
     especificamente — deve ser rejeitado (escopo por estoque_id)."""
-    from apps.estoque.models import Estoque, Material, SaldoEstoque, UnidadeMedida
+    from apps.estoque.models import Estoque, Material, SaldoEstoque
+    from apps.estoque.tests.unidades import obter_unidade
 
     outro_estoque = Estoque.objects.create(codigo='EST02', nome='Estoque Secundário')
     material = Material.objects.create(
-        codigo='MAT096', nome='Marreta', unidade=UnidadeMedida.UNIDADE, ativo=True
+        codigo='MAT096', nome='Marreta', unidade=obter_unidade('un'), ativo=True
     )
     SaldoEstoque.objects.create(
         estoque=outro_estoque, material=material, saldo_fisico=10

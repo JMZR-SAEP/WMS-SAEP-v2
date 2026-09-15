@@ -19,8 +19,16 @@ from apps.estoque.admin import (
     MaterialAdmin,
     MovimentacaoEstoqueAdmin,
     SaldoEstoqueAdmin,
+    UnidadeMedidaAdmin,
 )
-from apps.estoque.models import Estoque, Material, MovimentacaoEstoque, SaldoEstoque
+from apps.estoque.models import (
+    Estoque,
+    Material,
+    MovimentacaoEstoque,
+    SaldoEstoque,
+    UnidadeMedida,
+)
+from apps.estoque.tests.unidades import obter_unidade
 
 
 @pytest.fixture
@@ -122,6 +130,9 @@ def test_material_criado_pelo_admin_ganha_saldo_zerado(
     o mesmo par."""
     from apps.estoque.models import Material, SaldoEstoque
 
+    from apps.estoque.tests.unidades import obter_unidade
+
+    obter_unidade('un')
     client.force_login(superuser)
     resposta = client.post(
         reverse('admin:estoque_material_add'),
@@ -147,6 +158,9 @@ def test_material_sem_estoque_ativo_nao_e_criado(client, superuser, db):
     de review da #180."""
     from apps.estoque.models import Material
 
+    from apps.estoque.tests.unidades import obter_unidade
+
+    obter_unidade('un')
     client.force_login(superuser)
     resposta = client.post(
         reverse('admin:estoque_material_add'),
@@ -173,6 +187,9 @@ def test_material_com_estoque_inativo_nao_e_criado(
     estoque_principal.ativo = False
     estoque_principal.save(update_fields=['ativo'])
 
+    from apps.estoque.tests.unidades import obter_unidade
+
+    obter_unidade('un')
     client.force_login(superuser)
     resposta = client.post(
         reverse('admin:estoque_material_add'),
@@ -819,3 +836,175 @@ def test_changelist_de_importacao_permanece_legivel(
     resposta = client.get(reverse('admin:estoque_importacaoscpi_changelist'))
 
     assert resposta.status_code == 200
+
+
+def test_inline_de_divergencias_nao_consulta_unidade_por_linha(
+    client, superuser, importacao_scpi
+):
+    """`LinhaDivergenteSCPI.unidade` é FK desde a #219 (ADR-0020).
+
+    O inline lista a unidade de cada divergência; sem o JOIN no queryset, cada
+    linha busca a própria `UnidadeMedida` e a página cresce com o arquivo — uma
+    importação real tem centenas de divergências.
+    """
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    from apps.estoque.models import LinhaDivergenteSCPI
+
+    unidade = obter_unidade('un')
+    url = reverse('admin:estoque_importacaoscpi_change', args=[importacao_scpi.pk])
+    client.force_login(superuser)
+
+    def adicionar(inicio, fim):
+        for n in range(inicio, fim):
+            LinhaDivergenteSCPI.objects.create(
+                importacao=importacao_scpi,
+                cadpro=f'000.000.{n:03d}',
+                unidade=unidade,
+                saldo_wms=10,
+                saldo_scpi=12,
+                delta=2,
+            )
+
+    def contar_consultas():
+        with CaptureQueriesContext(connection) as consultas:
+            resposta = client.get(url)
+        assert resposta.status_code == 200
+        return len(consultas)
+
+    adicionar(0, 1)
+    client.get(url)  # aquece sessão e caches de permissão fora da medição
+    com_uma_linha = contar_consultas()
+    adicionar(1, 10)
+
+    assert contar_consultas() == com_uma_linha
+
+
+# ─── UnidadeMedidaAdmin (#219, ADR-0020) ─────────────────────────────────────
+
+
+@pytest.fixture
+def unidade_admin():
+    return UnidadeMedidaAdmin(UnidadeMedida, AdminSite())
+
+
+def test_unidade_admin_autoriza_superusuario(unidade_admin, request_de, superuser):
+    requisicao = request_de(superuser)
+    assert unidade_admin.has_add_permission(requisicao) is True
+    assert unidade_admin.has_change_permission(requisicao) is True
+    assert unidade_admin.has_delete_permission(requisicao) is True
+
+
+def test_unidade_admin_nega_quem_nao_e_superusuario(
+    unidade_admin, request_de, chefe_almoxarifado
+):
+    """Mesmo gate do `MaterialAdmin`: a unidade decide a precisão de toda
+    quantidade do catálogo, e o chefe gere o catálogo pela UI de produto."""
+    requisicao = request_de(chefe_almoxarifado)
+    assert unidade_admin.has_add_permission(requisicao) is False
+    assert unidade_admin.has_change_permission(requisicao) is False
+    assert unidade_admin.has_delete_permission(requisicao) is False
+
+
+@pytest.fixture
+def staff_de_unidade(db, setor_obras):
+    """Staff não superusuário com as permissões Django de `UnidadeMedida`.
+
+    O Django sozinho autorizaria; o 403 só pode vir de `_pode_gerir`.
+    """
+    usuario = User.objects.create_user(
+        matricula='905',
+        nome='Staff Unidade',
+        password='senha',
+        setor=setor_obras,
+        is_staff=True,
+    )
+    usuario.user_permissions.set(
+        Permission.objects.filter(
+            content_type=ContentType.objects.get_for_model(UnidadeMedida),
+            codename__in=(
+                'add_unidademedida',
+                'change_unidademedida',
+                'delete_unidademedida',
+                'view_unidademedida',
+            ),
+        )
+    )
+    return usuario
+
+
+def test_add_de_unidade_nega_staff_sem_autorizacao(client, staff_de_unidade):
+    client.force_login(staff_de_unidade)
+
+    resposta = client.get(reverse('admin:estoque_unidademedida_add'))
+
+    assert resposta.status_code == 403
+
+
+def test_codigo_da_unidade_so_e_editavel_na_criacao(
+    unidade_admin, request_de, superuser, db
+):
+    unidade = obter_unidade('kg')
+
+    assert unidade_admin.get_readonly_fields(request_de(superuser)) == ()
+    assert unidade_admin.get_readonly_fields(request_de(superuser), unidade) == (
+        'codigo',
+    )
+
+
+def test_post_no_admin_nao_troca_o_codigo_da_unidade(client, superuser, db):
+    """`codigo` é a chave primária: aceitar a troca gravaria uma segunda unidade
+    e deixaria os materiais apontando para a original."""
+    obter_unidade('kg')
+    client.force_login(superuser)
+
+    resposta = client.post(
+        reverse('admin:estoque_unidademedida_change', args=['kg']),
+        {'codigo': 'kgx', 'nome': 'Quilo', 'casas_decimais': '1'},
+    )
+
+    assert resposta.status_code == 302
+    assert not UnidadeMedida.objects.filter(codigo='kgx').exists()
+    assert UnidadeMedida.objects.get(codigo='kg').nome == 'Quilo'
+
+
+def test_admin_recusa_unidade_com_mais_casas_que_o_banco_guarda(client, superuser, db):
+    """Saldo é `DecimalField(decimal_places=3)`: 4 casas prometeriam uma
+    precisão que o banco não tem."""
+    client.force_login(superuser)
+
+    resposta = client.post(
+        reverse('admin:estoque_unidademedida_add'),
+        {'codigo': 'br', 'nome': 'Barra', 'casas_decimais': '4'},
+    )
+
+    assert resposta.status_code == 200
+    assert not UnidadeMedida.objects.filter(codigo='br').exists()
+
+
+def test_unidade_em_uso_nao_e_apagada(client, superuser, material_disponivel):
+    """`PROTECT`: o admin lista quem cita a unidade em vez de apagar."""
+    client.force_login(superuser)
+
+    resposta = client.post(
+        reverse('admin:estoque_unidademedida_delete', args=['un']),
+        {'post': 'yes'},
+    )
+
+    assert resposta.status_code == 200
+    assert UnidadeMedida.objects.filter(codigo='un').exists()
+
+
+def test_unidade_sem_uso_pode_ser_apagada(client, superuser, db):
+    """Unidade cadastrada por engano, ainda sem material, sai pelo admin."""
+    obter_unidade('cx')
+    client.force_login(superuser)
+
+    resposta = client.post(
+        reverse('admin:estoque_unidademedida_delete', args=['cx']),
+        {'post': 'yes'},
+    )
+
+    assert resposta.status_code == 302
+    assert not UnidadeMedida.objects.filter(codigo='cx').exists()

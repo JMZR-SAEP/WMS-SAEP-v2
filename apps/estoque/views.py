@@ -433,7 +433,7 @@ def buscar_materiais_saida_excepcional_view(request):
             'id': m.pk,
             'codigo': m.codigo,
             'nome': m.nome,
-            'unidade': m.unidade,
+            'unidade': m.unidade_id,
             # O passo do campo numérico sai do servidor porque a política de
             # precisão por unidade vive em `apps.core.quantidades` e não pode
             # ter uma segunda cópia em JavaScript. O cliente aplica, não
@@ -933,7 +933,7 @@ def baixar_divergencias_importacao_scpi_view(request, pk: int):
             [
                 linha.cadpro,
                 linha.denominacao,
-                linha.unidade,
+                linha.unidade_id or '',
                 linha.saldo_wms,
                 linha.saldo_scpi,
                 linha.delta,

@@ -45,6 +45,7 @@ Entidades canônicas usam `update_or_create` com chave natural estável:
 
 - `Setor` → `codigo`
 - `User` → `matricula`
+- `UnidadeMedida` → `codigo` — as de `UNIDADES_CONHECIDAS` (ADR-0020)
 - `Material` → `codigo`
 - `Estoque` → `codigo`
 - `SaldoEstoque` → `(estoque, material)` — **exceção de bootstrap** (ver abaixo)
@@ -63,10 +64,11 @@ Antes de aplicar setores, o seed verifica conflito semântico da constraint `uni
 2. Usuários (vinculados a setores)
 3. Chefias (Setor.chefe = usuário)
 4. Vínculos auxiliares (VinculoAuxiliar)
-5. Materiais
-6. Estoque
-7. Saldos iniciais (bootstrap exception)
-8. SequenciaRequisicao do ano corrente (get_or_create)
+5. Unidades de medida (antes dos materiais: `Material.unidade` é FK)
+6. Materiais
+7. Estoque
+8. Saldos iniciais (bootstrap exception)
+9. SequenciaRequisicao do ano corrente (get_or_create)
 ```
 
 `Setor.chefe` nunca é atribuído durante `_seed_setores()`. Chefia é fase 3.
