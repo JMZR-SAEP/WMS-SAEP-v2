@@ -8,7 +8,8 @@ from django.utils import timezone
 
 from apps.accounts.models import User
 from apps.accounts.papeis import PapelEfetivo
-from apps.estoque.models import Material, SaldoEstoque, UnidadeMedida
+from apps.estoque.models import Material, SaldoEstoque
+from apps.estoque.tests.unidades import obter_unidade
 from apps.requisicoes.models import (
     EstadoRequisicao,
     ItemRequisicao,
@@ -1147,7 +1148,7 @@ def test_separacao_bloqueada_por_requisicoes_fisico_igual_reservado_igual_autori
     material = Material.objects.create(
         codigo='MAT-TR015-OK',
         nome='Material com reserva própria exata',
-        unidade=UnidadeMedida.UNIDADE,
+        unidade=obter_unidade('un'),
         ativo=True,
     )
     SaldoEstoque.objects.create(
@@ -1211,7 +1212,7 @@ def test_separacao_bloqueada_por_requisicoes_marca_fisico_abaixo_do_autorizado(
     material = Material.objects.create(
         codigo='MAT-TR015-FISICO-BAIXO',
         nome='Material com físico abaixo do autorizado',
-        unidade=UnidadeMedida.UNIDADE,
+        unidade=obter_unidade('un'),
         ativo=True,
     )
     SaldoEstoque.objects.create(

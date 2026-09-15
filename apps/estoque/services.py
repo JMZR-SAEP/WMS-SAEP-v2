@@ -203,6 +203,11 @@ def reservar_saldos_para_autorizacao(
             # por ele que se acha o material no catálogo e no SCPI.
             from apps.core.quantidades import formatar as _formatar
 
+            # `material.unidade` custa uma consulta aqui, e é de propósito: o
+            # `select_for_update()` acima sem `of=` trava toda tabela do JOIN, e
+            # juntar `material__unidade` serializaria reservas de materiais
+            # diferentes só por dividirem a unidade (ADR-0020). Só o caminho
+            # de erro paga a consulta.
             material = saldo_existente.material
             pedido = _formatar(quantidade, material.unidade)
             disponivel = _formatar(saldo_existente.saldo_disponivel, material.unidade)
@@ -693,12 +698,14 @@ def confirmar_importacao_scpi(
     from apps.core.exceptions import ConflitoDominio, DadosInvalidos
     from apps.estoque.models import (
         UNIDADE_PADRAO_MATERIAL_SCPI,
+        UNIDADES_CONHECIDAS,
         Estoque,
         ImportacaoSCPI,
         LinhaDivergenteSCPI,
         Material,
         SaldoEstoque,
         StatusImportacaoSCPI,
+        UnidadeMedida,
     )
     from apps.estoque.policies import exigir_pode_confirmar_importacao_scpi
     from apps.estoque.selectors import gerar_preview_importacao_scpi
@@ -740,6 +747,16 @@ def confirmar_importacao_scpi(
                 code='reimportacao_bloqueada',
             )
 
+        # A unidade precisa existir antes do material que aponta para ela, e no
+        # banco recém-criado do piloto ninguém a cadastrou (ADR-0020): nasce
+        # aqui, com o nome e a precisão conhecidos. Unidade já cadastrada fica
+        # como está — ajuste feito no admin não é desfeito.
+        nome_padrao, casas_padrao = UNIDADES_CONHECIDAS[UNIDADE_PADRAO_MATERIAL_SCPI]
+        unidade_novos, _ = UnidadeMedida.objects.get_or_create(
+            codigo=UNIDADE_PADRAO_MATERIAL_SCPI,
+            defaults={'nome': nome_padrao, 'casas_decimais': casas_padrao},
+        )
+
         for linha in linhas:
             if linha.status != 'novo':
                 continue
@@ -750,7 +767,7 @@ def confirmar_importacao_scpi(
                 # material em maiúsculas. O CSV segue fiel no registro da
                 # importação; só o catálogo é normalizado.
                 nome=capitalizar_frase(linha.denominacao_scpi or linha.cadpro),
-                unidade=UNIDADE_PADRAO_MATERIAL_SCPI,
+                unidade=unidade_novos,
                 ativo=True,
             )
             SaldoEstoque.objects.create(

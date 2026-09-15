@@ -154,6 +154,7 @@ def materiais_para_requisicao(q: str = '', limite: int = 20) -> QuerySet:
     """
     qs = (
         Material.objects.filter(ativo=True)
+        .select_related('unidade')
         .filter(saldos__saldo_fisico__gt=F('saldos__saldo_reservado'))
         .exclude(saldos__saldo_fisico__lt=F('saldos__saldo_reservado'))
         .distinct()
@@ -399,7 +400,11 @@ def saldos_por_materiais(material_ids: list[int]) -> dict[int, dict]:
     """
     from apps.estoque.models import Material
 
-    materiais = Material.objects.filter(pk__in=material_ids).prefetch_related('saldos')
+    materiais = (
+        Material.objects.filter(pk__in=material_ids)
+        .select_related('unidade')
+        .prefetch_related('saldos')
+    )
     resultado: dict[int, dict] = {}
     for material in materiais:
         saldos = list(material.saldos.all())

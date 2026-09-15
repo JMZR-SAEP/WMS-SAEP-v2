@@ -65,7 +65,7 @@
             data-resumo-entregue-de="{{ form.quantidade_entregue.auto_id }}"
             class="text-base font-semibold text-text-primary"
           >—</span>
-          <span class="text-text-tertiary">{{ item.material.get_unidade_display }}</span>
+          <span class="text-text-tertiary">{{ item.material.unidade.nome }}</span>
           <span class="block text-xs text-text-tertiary">
             de {{ item.quantidade_autorizada|formatar_quantidade:item.material.unidade }} autorizada
           </span>

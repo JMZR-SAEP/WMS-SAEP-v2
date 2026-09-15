@@ -3602,8 +3602,14 @@ class TestComponenteQuantidade:
 
         from django.template.loader import render_to_string
 
+        from apps.estoque.models import unidade_conhecida
+
         base = {'valor': Decimal('820.000'), 'unidade': 'un'}
         base.update(contexto)
+        # Os testes nomeiam a unidade pelo código; o componente recebe a
+        # `UnidadeMedida`, que é de onde sai a precisão (ADR-0020).
+        if base['unidade']:
+            base['unidade'] = unidade_conhecida(base['unidade'])
         return render_to_string('components/quantidade.html', base)
 
     def _linha_de(self, html, texto):

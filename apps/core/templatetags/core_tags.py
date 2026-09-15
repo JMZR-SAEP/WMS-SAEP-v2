@@ -108,12 +108,12 @@ def icon(name: str, size: int = 20, **kwargs: str) -> str:
 
 
 @register.filter
-def formatar_quantidade(qtd, unidade: str) -> str:
-    """Formata quantidade conforme a unidade de medida do material.
+def formatar_quantidade(qtd, unidade) -> str:
+    """Formata quantidade conforme a `UnidadeMedida` do material.
 
-    - 'un' → inteiro
-    - 'kg', 'l', 'm' → 1 casa decimal
-    - demais → strip trailing zeros (casas significativas)
+    A precisão é `unidade.casas_decimais` (#219): 0 → inteiro; menos que 3 →
+    essa quantidade de casas, mesmo com valor inteiro; 3 → casas significativas.
+    Recebe a unidade, não o código — `'un'` em texto é recusado.
 
     A regra em si vive em `apps.core.quantidades`, junto do `step` do campo e do
     valor inicial que o preenche: são três faces da mesma política, e views
@@ -539,8 +539,8 @@ def como_json(**kwargs: Any) -> str:
 
 
 @register.filter
-def step_por_unidade(unidade: str) -> str:
-    """Passo do <input type="number"> conforme a unidade de medida.
+def step_por_unidade(unidade) -> str:
+    """Passo do <input type="number"> conforme a `UnidadeMedida`.
 
     Espelha a política de precisão de `formatar_quantidade`: se a tela formata
     'un' como inteiro, o campo não pode aceitar 0,001 unidade. Antes as duas

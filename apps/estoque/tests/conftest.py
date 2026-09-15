@@ -146,10 +146,11 @@ def estoque_principal(db):
 
 @pytest.fixture
 def material_disponivel(db, estoque_principal):
-    from apps.estoque.models import Material, SaldoEstoque, UnidadeMedida
+    from apps.estoque.models import Material, SaldoEstoque
+    from apps.estoque.tests.unidades import obter_unidade
 
     m = Material.objects.create(
-        codigo='MAT001', nome='Parafuso M6', unidade=UnidadeMedida.UNIDADE, ativo=True
+        codigo='MAT001', nome='Parafuso M6', unidade=obter_unidade('un'), ativo=True
     )
     SaldoEstoque.objects.create(
         estoque=estoque_principal, material=m, saldo_fisico=100, saldo_reservado=10
@@ -173,12 +174,13 @@ def saida_registrada(db, chefe_almoxarifado, estoque_principal, material_disponi
 @pytest.fixture
 def material_scpi(db, estoque_principal):
     """Material com código no formato real SCPI (000.000.000) para testes de preview."""
-    from apps.estoque.models import Material, SaldoEstoque, UnidadeMedida
+    from apps.estoque.models import Material, SaldoEstoque
+    from apps.estoque.tests.unidades import obter_unidade
 
     m = Material.objects.create(
         codigo='000.000.001',
         nome='Parafuso M6',
-        unidade=UnidadeMedida.UNIDADE,
+        unidade=obter_unidade('un'),
         ativo=True,
     )
     SaldoEstoque.objects.create(
@@ -190,12 +192,13 @@ def material_scpi(db, estoque_principal):
 @pytest.fixture
 def material_scpi_critico(db, estoque_principal):
     """Material com código SCPI e divergência crítica (físico < reservado)."""
-    from apps.estoque.models import Material, SaldoEstoque, UnidadeMedida
+    from apps.estoque.models import Material, SaldoEstoque
+    from apps.estoque.tests.unidades import obter_unidade
 
     m = Material.objects.create(
         codigo='000.000.002',
         nome='Tinta Branca 18L',
-        unidade=UnidadeMedida.LITRO,
+        unidade=obter_unidade('l'),
         ativo=True,
     )
     SaldoEstoque.objects.create(

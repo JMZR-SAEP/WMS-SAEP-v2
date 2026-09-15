@@ -260,13 +260,14 @@ class TestNormalizacaoCsvScpiMultilinha:
         assert linhas[1].cadpro == '000.000.002'
 
     def test_cadpro_formato_pontilhado_resolvido(self, db, estoque_principal):
-        from apps.estoque.models import Material, SaldoEstoque, UnidadeMedida
+        from apps.estoque.models import Material, SaldoEstoque
+        from apps.estoque.tests.unidades import obter_unidade
         from apps.estoque.selectors import gerar_preview_importacao_scpi
 
         m = Material.objects.create(
             codigo='000.000.003',
             nome='Rebite',
-            unidade=UnidadeMedida.UNIDADE,
+            unidade=obter_unidade('un'),
             ativo=True,
         )
         SaldoEstoque.objects.create(

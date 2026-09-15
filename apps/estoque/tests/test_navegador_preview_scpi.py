@@ -29,14 +29,15 @@ def _codigo(indice: int) -> str:
 @pytest.fixture
 def arquivo_de_300_linhas(db, estoque_principal, tmp_path):
     """CSV do tamanho do achado: 300 linhas, quase todas sem nada a pedir."""
-    from apps.estoque.models import Material, SaldoEstoque, UnidadeMedida
+    from apps.estoque.models import Material, SaldoEstoque
+    from apps.estoque.tests.unidades import obter_unidade
 
     conhecidos = LINHAS_OK + LINHAS_DIVERGENTES
     materiais = Material.objects.bulk_create(
         Material(
             codigo=_codigo(indice),
             nome=f'Material {indice}',
-            unidade=UnidadeMedida.UNIDADE,
+            unidade=obter_unidade('un'),
             ativo=True,
         )
         for indice in range(conhecidos)

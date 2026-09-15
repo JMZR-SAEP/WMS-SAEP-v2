@@ -10,12 +10,45 @@ from apps.estoque.models import (
     ImportacaoSCPI,
     LinhaDivergenteSCPI,
     MovimentacaoEstoque,
+    UnidadeMedida,
 )
+
+
+@admin.register(UnidadeMedida)
+class UnidadeMedidaAdmin(admin.ModelAdmin):
+    list_display = ('codigo', 'nome', 'casas_decimais')
+    search_fields = ('codigo', 'nome')
+    ordering = ('codigo',)
+
+    def _pode_gerir(self, request):
+        """Mesmo gate do `MaterialAdmin` (#219): superusuário apenas."""
+        from apps.accounts.papeis import papel_efetivo
+
+        papel = papel_efetivo(request.user)
+        return papel.ativo and papel.eh_superusuario
+
+    def has_add_permission(self, request):
+        return self._pode_gerir(request)
+
+    def has_change_permission(self, request, obj=None):
+        return self._pode_gerir(request)
+
+    def has_delete_permission(self, request, obj=None):
+        # Unidade citada por material ou por divergência gravada é `PROTECT`, e
+        # o admin recusa a exclusão listando quem a cita. Sobra apagar unidade
+        # cadastrada por engano e ainda sem uso.
+        return self._pode_gerir(request)
+
+    def get_readonly_fields(self, request, obj=None):
+        # `codigo` é a chave primária: trocá-lo no admin não renomeia, grava
+        # uma segunda unidade e deixa a original para trás com os materiais.
+        return ('codigo',) if obj is not None else ()
 
 
 @admin.register(Material)
 class MaterialAdmin(admin.ModelAdmin):
     list_display = ('codigo', 'nome', 'unidade', 'ativo')
+    list_select_related = ('unidade',)
     list_filter = ('unidade', 'ativo')
     search_fields = ('codigo', 'nome')
     ordering = ('nome',)

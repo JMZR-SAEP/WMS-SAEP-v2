@@ -15,22 +15,41 @@ isso não pode morar em nenhum dos dois.
 from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation
+from typing import Protocol
 
-UNIDADE_INTEIRA = 'un'
-UNIDADES_UMA_DECIMAL = ('kg', 'l', 'm')
 CASAS_PADRAO = 3
 
 
-def casas_decimais(unidade: str) -> int:
-    """Casas significativas que a unidade admite."""
-    if unidade == UNIDADE_INTEIRA:
-        return 0
-    if unidade in UNIDADES_UMA_DECIMAL:
-        return 1
-    return CASAS_PADRAO
+class Unidade(Protocol):
+    """O que a política precisa saber de uma unidade: quantas casas ela admite.
+
+    `UnidadeMedida` (`apps/estoque/models.py`) satisfaz o protocolo. A precisão
+    era uma tabela de códigos neste módulo (`'un'` inteiro, `kg`/`l`/`m` com uma
+    casa); desde a #219 é dado da própria unidade, cadastrável sem deploy, e o
+    módulo segue sem importar Django.
+    """
+
+    casas_decimais: int
 
 
-def step(unidade: str) -> str:
+def casas_decimais(unidade: Unidade | str | None) -> int:
+    """Casas significativas que a unidade admite.
+
+    Sem unidade — `None`, ou a string vazia que o `default:''` dos templates
+    produz — degrada para `CASAS_PADRAO`, que nunca esconde casa decimal.
+
+    Código em texto (`'un'`) é recusado com erro, e não degradado: depois da
+    #219 o código sozinho não diz a precisão, e aceitá-lo em silêncio voltaria a
+    exibir `kg` com três casas sem ninguém perceber.
+    """
+    if unidade is None or unidade == '':
+        return CASAS_PADRAO
+    if isinstance(unidade, str):
+        raise TypeError(f'Precisão exige a UnidadeMedida, não o código {unidade!r}.')
+    return unidade.casas_decimais
+
+
+def step(unidade: Unidade | str | None) -> str:
     """Valor do atributo `step` de um `<input type="number">` para a unidade."""
     casas = casas_decimais(unidade)
     if casas == 0:
@@ -67,7 +86,7 @@ def normalizar(qtd: object) -> Decimal | None:
     return normalizado
 
 
-def formatar(qtd: object, unidade: str) -> str:
+def formatar(qtd: object, unidade: Unidade | str | None) -> str:
     """Texto de exibição da quantidade, em notação pt-BR.
 
     Difere de `normalizar` em dois pontos de propósito.
@@ -96,10 +115,11 @@ def formatar(qtd: object, unidade: str) -> str:
     except (InvalidOperation, TypeError, ValueError):
         return str(qtd)
 
-    if unidade == UNIDADE_INTEIRA:
+    casas = casas_decimais(unidade)
+    if casas == 0:
         return str(int(d))
-    if unidade in UNIDADES_UMA_DECIMAL:
-        return _com_virgula(format(d.quantize(Decimal('0.1')), 'f'))
+    if casas < CASAS_PADRAO:
+        return _com_virgula(format(d.quantize(Decimal(1).scaleb(-casas)), 'f'))
 
     normalizado = d.normalize()
     if normalizado == normalizado.to_integral_value():

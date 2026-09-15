@@ -122,6 +122,9 @@ def test_material_criado_pelo_admin_ganha_saldo_zerado(
     o mesmo par."""
     from apps.estoque.models import Material, SaldoEstoque
 
+    from apps.estoque.tests.unidades import obter_unidade
+
+    obter_unidade('un')
     client.force_login(superuser)
     resposta = client.post(
         reverse('admin:estoque_material_add'),
@@ -147,6 +150,9 @@ def test_material_sem_estoque_ativo_nao_e_criado(client, superuser, db):
     de review da #180."""
     from apps.estoque.models import Material
 
+    from apps.estoque.tests.unidades import obter_unidade
+
+    obter_unidade('un')
     client.force_login(superuser)
     resposta = client.post(
         reverse('admin:estoque_material_add'),
@@ -173,6 +179,9 @@ def test_material_com_estoque_inativo_nao_e_criado(
     estoque_principal.ativo = False
     estoque_principal.save(update_fields=['ativo'])
 
+    from apps.estoque.tests.unidades import obter_unidade
+
+    obter_unidade('un')
     client.force_login(superuser)
     resposta = client.post(
         reverse('admin:estoque_material_add'),

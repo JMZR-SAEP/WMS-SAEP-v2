@@ -131,7 +131,9 @@ def test_compoe_aria_describedby_do_widget_com_ajuda_e_erro():
     ],
 )
 def test_formatar_quantidade(qtd, unidade, esperado):
-    assert formatar_quantidade(qtd, unidade) == esperado
+    from apps.estoque.models import unidade_conhecida
+
+    assert formatar_quantidade(qtd, unidade_conhecida(unidade)) == esperado
 
 
 class TestMinutosTotais:

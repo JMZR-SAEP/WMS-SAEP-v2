@@ -38,7 +38,7 @@
             <span class="text-base font-semibold text-text-primary">
               {{ item.entregue_liquida|formatar_quantidade:item.material.unidade }}
             </span>
-            <span class="text-text-tertiary">{{ item.material.get_unidade_display }}</span>
+            <span class="text-text-tertiary">{{ item.material.unidade.nome }}</span>
           </dd>
         </div>
       {% endfor %}

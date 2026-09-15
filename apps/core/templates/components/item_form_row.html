@@ -68,8 +68,9 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
   form_index              — índice numérico da linha (int)
   quantidade_label         — rótulo do campo de quantidade (str, opcional, default "Quantidade")
   delete_field             — BoundField do campo DELETE do formset (opcional)
-  unidade_item             — unidade do material vinculado (str, opcional). Só
-    alimenta o `data-unidade` da linha, para telas cujo material já está
+  unidade_item             — `UnidadeMedida` do material vinculado (opcional).
+    Dá o `step`/`min` do campo e imprime o código no `data-unidade` da linha,
+    para telas cujo material já está
     escolhido num POST re-renderizado por erro (a recapitulação do modal lê
     dali, sem depender de evento nenhum disparar). Quando ausente, "" .
   material_extra_template  — path de template (str, opcional) — ver acima.
@@ -191,10 +192,13 @@ Parâmetros de contexto (todos BoundField, exceto indicado):
       campo voltaria com o passo genérico e recusaria a própria quantidade que
       o banco guarda. Sem unidade conhecida, `step_por_unidade` devolve o passo
       mais fino — na dúvida não estreitar o que o domínio aceita.
+
+      Sem `{% templatetag openblock %} firstof ... as {% templatetag closeblock %}`: ele renderiza a
+      `UnidadeMedida` para texto, e a precisão sai do objeto, não do código
+      (ADR-0020).
     {% endcomment %}
-    {% firstof unidade_item '' as unidade_efetiva %}
-    {% if unidade_efetiva %}
-      {% attrs_widget step=unidade_efetiva|step_por_unidade min=unidade_efetiva|step_por_unidade as attrs_quantidade %}
+    {% if unidade_item %}
+      {% attrs_widget step=unidade_item|step_por_unidade min=unidade_item|step_por_unidade as attrs_quantidade %}
       {% include "components/form_field.html" with field=quantidade_field label_override=quantidade_label|default:"Quantidade" attrs_extra=attrs_quantidade %}
     {% else %}
       {% include "components/form_field.html" with field=quantidade_field label_override=quantidade_label|default:"Quantidade" %}

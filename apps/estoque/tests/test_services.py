@@ -2,6 +2,7 @@
 
 import pytest
 
+from apps.estoque.tests.unidades import obter_unidade
 from apps.estoque.models import (
     EstadoSaidaExcepcional,
     SaidaExcepcional,
@@ -91,14 +92,15 @@ class TestRegistrarSaidaExcepcional:
     def test_sequencia_incrementa(
         self, chefe_almoxarifado, estoque_principal, material_disponivel
     ):
-        from apps.estoque.models import Material, SaldoEstoque, UnidadeMedida
+        from apps.estoque.models import Material, SaldoEstoque
+        from apps.estoque.tests.unidades import obter_unidade
         from apps.estoque.services import registrar_saida_excepcional
         from django.utils import timezone
 
         m2 = Material.objects.create(
             codigo='MAT002',
             nome='Parafuso M8',
-            unidade=UnidadeMedida.UNIDADE,
+            unidade=obter_unidade('un'),
             ativo=True,
         )
         SaldoEstoque.objects.create(
@@ -161,11 +163,12 @@ class TestRegistrarSaidaExcepcional:
         self, chefe_almoxarifado, estoque_principal
     ):
         from apps.core.exceptions import ConflitoDominio
-        from apps.estoque.models import Material, UnidadeMedida
+        from apps.estoque.models import Material
+        from apps.estoque.tests.unidades import obter_unidade
         from apps.estoque.services import registrar_saida_excepcional
 
         m = Material.objects.create(
-            codigo='MAT999', nome='Sem Saldo', unidade=UnidadeMedida.UNIDADE, ativo=True
+            codigo='MAT999', nome='Sem Saldo', unidade=obter_unidade('un'), ativo=True
         )
 
         with pytest.raises(ConflitoDominio, match='Saldo não encontrado'):
@@ -561,17 +564,17 @@ class TestConfirmarImportacaoScpi:
         Sem isso, um material em litro cairia na precisão de `un` no preview e
         `12,5 l` viraria `12` — no lugar onde a conferência com o SCPI acontece.
         """
-        from apps.estoque.models import UnidadeMedida
+        from apps.estoque.tests.unidades import obter_unidade
         from apps.estoque.selectors import gerar_preview_importacao_scpi
 
-        material_scpi.unidade = UnidadeMedida.LITRO
+        material_scpi.unidade = obter_unidade('l')
         material_scpi.save(update_fields=['unidade'])
 
         csv_bytes = self._csv(material_scpi.codigo, material_scpi.nome, '9.500')
         linha = gerar_preview_importacao_scpi(
             conteudo_bytes=csv_bytes, estoque_id=estoque_principal.pk
         )[0]
-        assert linha.unidade == UnidadeMedida.LITRO
+        assert linha.unidade.codigo == 'l'
 
     def test_material_existente_nao_tem_saldo_alterado(
         self, db, superuser, estoque_principal, material_scpi
@@ -750,7 +753,7 @@ class TestConfirmarImportacaoScpiDivergenciasPersistidas:
         entre o preview e a gravação, então o registro durável e exportável
         ficava menos preciso que a tela efêmera que o originou.
         """
-        from apps.estoque.models import LinhaDivergenteSCPI, UnidadeMedida
+        from apps.estoque.models import LinhaDivergenteSCPI
         from apps.estoque.services import confirmar_importacao_scpi
 
         csv_bytes = self._csv(material_scpi_critico.codigo, 'Tinta', '9.000')
@@ -762,7 +765,7 @@ class TestConfirmarImportacaoScpiDivergenciasPersistidas:
         )
 
         (linha,) = LinhaDivergenteSCPI.objects.filter(importacao=importacao)
-        assert linha.unidade == UnidadeMedida.LITRO
+        assert linha.unidade_id == 'l'
 
     def test_importacao_sem_divergencia_nao_grava_linha(
         self, db, superuser, estoque_principal, material_scpi
@@ -926,7 +929,8 @@ class TestConfirmarImportacaoScpiTimelineRequisicoes:
         """Material divergente (SCPI != WMS) mas não crítico: sem evento."""
         from decimal import Decimal
 
-        from apps.estoque.models import Material, SaldoEstoque, UnidadeMedida
+        from apps.estoque.models import Material, SaldoEstoque
+        from apps.estoque.tests.unidades import obter_unidade
         from apps.estoque.services import confirmar_importacao_scpi
         from apps.requisicoes.models import (
             EstadoRequisicao,
@@ -939,7 +943,7 @@ class TestConfirmarImportacaoScpiTimelineRequisicoes:
         m = Material.objects.create(
             codigo='000.000.010',
             nome='Parafuso M8',
-            unidade=UnidadeMedida.UNIDADE,
+            unidade=obter_unidade('un'),
             ativo=True,
         )
         SaldoEstoque.objects.create(
@@ -1008,7 +1012,8 @@ class TestConfirmarImportacaoScpiTimelineRequisicoes:
         """Dois materiais críticos na mesma requisição: um evento com lista agregada."""
         from decimal import Decimal
 
-        from apps.estoque.models import Material, SaldoEstoque, UnidadeMedida
+        from apps.estoque.models import Material, SaldoEstoque
+        from apps.estoque.tests.unidades import obter_unidade
         from apps.estoque.services import confirmar_importacao_scpi
         from apps.requisicoes.models import (
             EstadoRequisicao,
@@ -1021,13 +1026,13 @@ class TestConfirmarImportacaoScpiTimelineRequisicoes:
         m1 = Material.objects.create(
             codigo='000.000.011',
             nome='Material A',
-            unidade=UnidadeMedida.UNIDADE,
+            unidade=obter_unidade('un'),
             ativo=True,
         )
         m2 = Material.objects.create(
             codigo='000.000.012',
             nome='Material B',
-            unidade=UnidadeMedida.UNIDADE,
+            unidade=obter_unidade('un'),
             ativo=True,
         )
         SaldoEstoque.objects.create(
@@ -1450,12 +1455,13 @@ class TestLedgerConcorrenciaEST06:
 @pytest.mark.django_db
 class TestDesativarMaterial:
     def _cria_material_com_saldo(self, estoque_principal, fisico, reservado):
-        from apps.estoque.models import Material, SaldoEstoque, UnidadeMedida
+        from apps.estoque.models import Material, SaldoEstoque
+        from apps.estoque.tests.unidades import obter_unidade
 
         m = Material.objects.create(
             codigo='DESATMAT001',
             nome='Material Desativável',
-            unidade=UnidadeMedida.UNIDADE,
+            unidade=obter_unidade('un'),
             ativo=True,
         )
         SaldoEstoque.objects.create(
@@ -1507,12 +1513,13 @@ class TestDesativarMaterial:
 
 class TestReativarMaterial:
     def _cria_material_inativo(self):
-        from apps.estoque.models import Material, UnidadeMedida
+        from apps.estoque.models import Material
+        from apps.estoque.tests.unidades import obter_unidade
 
         return Material.objects.create(
             codigo='REATMAT001',
             nome='Material Reativável',
-            unidade=UnidadeMedida.UNIDADE,
+            unidade=obter_unidade('un'),
             ativo=False,
         )
 
@@ -2350,7 +2357,8 @@ class TestSaidaExcepcionalDivergenciaTimeline:
         """Um evento por requisição, agregando os dois materiais afetados."""
         from decimal import Decimal
 
-        from apps.estoque.models import Material, SaldoEstoque, UnidadeMedida
+        from apps.estoque.models import Material, SaldoEstoque
+        from apps.estoque.tests.unidades import obter_unidade
         from apps.estoque.services import registrar_saida_excepcional
         from apps.requisicoes.models import (
             EstadoRequisicao,
@@ -2365,7 +2373,7 @@ class TestSaidaExcepcionalDivergenciaTimeline:
             material = Material.objects.create(
                 codigo=f'AGG00{indice}',
                 nome=f'Material agregado {indice}',
-                unidade=UnidadeMedida.UNIDADE,
+                unidade=obter_unidade('un'),
                 ativo=True,
             )
             SaldoEstoque.objects.create(
@@ -2502,14 +2510,14 @@ class TestSaidaExcepcionalDivergenciaTimeline:
             MovimentacaoEstoque,
             SaldoEstoque,
             TipoMovimentacaoEstoque,
-            UnidadeMedida,
         )
+        from apps.estoque.tests.unidades import obter_unidade
         from apps.requisicoes.models import EventoTimeline, TimelineRequisicao
 
         material = Material.objects.create(
             codigo='SEMRESERVA',
             nome='Material sem reserva',
-            unidade=UnidadeMedida.UNIDADE,
+            unidade=obter_unidade('un'),
             ativo=True,
         )
         SaldoEstoque.objects.create(
@@ -2740,7 +2748,7 @@ class TestMensagemDeSaldoInsuficiente:
         )
 
         material = Material.objects.create(
-            codigo='MAT-777', nome='Parafuso sextavado', unidade='un'
+            codigo='MAT-777', nome='Parafuso sextavado', unidade=obter_unidade('un')
         )
         SaldoEstoque.objects.create(
             material=material,

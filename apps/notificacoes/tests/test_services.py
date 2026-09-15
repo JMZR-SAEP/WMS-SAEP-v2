@@ -329,13 +329,13 @@ def _criar_material_critico(estoque):
     from apps.estoque.models import (
         Material,
         SaldoEstoque,
-        UnidadeMedida,
     )
+    from apps.estoque.tests.unidades import obter_unidade
 
     m = Material.objects.create(
         codigo='000.001.001',
         nome='Material Crítico Teste',
-        unidade=UnidadeMedida.UNIDADE,
+        unidade=obter_unidade('un'),
         ativo=True,
     )
     SaldoEstoque.objects.create(
@@ -875,12 +875,13 @@ def test_falha_ao_notificar_separacao_nao_desfaz_transicao(
 
 def _material_com_reserva(estoque, *, codigo, fisico, reservado):
     """Material com saldo controlado, para forçar (ou não) divergência na baixa."""
-    from apps.estoque.models import Material, SaldoEstoque, UnidadeMedida
+    from apps.estoque.models import Material, SaldoEstoque
+    from apps.estoque.tests.unidades import obter_unidade
 
     m = Material.objects.create(
         codigo=codigo,
         nome='Material Saída Excepcional',
-        unidade=UnidadeMedida.UNIDADE,
+        unidade=obter_unidade('un'),
         ativo=True,
     )
     SaldoEstoque.objects.create(

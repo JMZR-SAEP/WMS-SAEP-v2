@@ -7,7 +7,8 @@ Cada fixture cria apenas o necessário para os seus testes.
 import pytest
 
 from apps.accounts.models import Setor, SetorClassificacao, User, VinculoAuxiliar
-from apps.estoque.models import Estoque, Material, SaldoEstoque, UnidadeMedida
+from apps.estoque.models import Estoque, Material, SaldoEstoque
+from apps.estoque.tests.unidades import obter_unidade
 from apps.requisicoes.models import EstadoRequisicao, Requisicao
 
 
@@ -180,7 +181,7 @@ def material_disponivel(db, estoque_principal):
     m = Material.objects.create(
         codigo='MAT001',
         nome='Parafuso M6',
-        unidade=UnidadeMedida.UNIDADE,
+        unidade=obter_unidade('un'),
         ativo=True,
     )
     SaldoEstoque.objects.create(
@@ -198,7 +199,7 @@ def material_sem_saldo(db, estoque_principal):
     m = Material.objects.create(
         codigo='MAT002',
         nome='Prego 17x27',
-        unidade=UnidadeMedida.UNIDADE,
+        unidade=obter_unidade('un'),
         ativo=True,
     )
     SaldoEstoque.objects.create(
@@ -216,7 +217,7 @@ def material_divergente(db, estoque_principal):
     m = Material.objects.create(
         codigo='MAT003',
         nome='Tinta Branca 18L',
-        unidade=UnidadeMedida.LITRO,
+        unidade=obter_unidade('l'),
         ativo=True,
     )
     SaldoEstoque.objects.create(
@@ -234,7 +235,7 @@ def material_inativo(db, estoque_principal):
     m = Material.objects.create(
         codigo='MAT004',
         nome='Material Descontinuado',
-        unidade=UnidadeMedida.UNIDADE,
+        unidade=obter_unidade('un'),
         ativo=False,
     )
     SaldoEstoque.objects.create(
@@ -252,7 +253,7 @@ def material_disponivel_2(db, estoque_principal):
     m = Material.objects.create(
         codigo='MAT005',
         nome='Fita Isolante',
-        unidade=UnidadeMedida.ROLO,
+        unidade=obter_unidade('rolo'),
         ativo=True,
     )
     SaldoEstoque.objects.create(

@@ -19,7 +19,7 @@
     <span id="modal-devolver-quantidade-{{ item.pk }}-ajuda">
       Entregue líquida disponível:
       <span class="font-semibold tabular-nums">{{ entregue_liquida|formatar_quantidade:item.material.unidade }}</span>
-      {{ item.material.get_unidade_display }}
+      {{ item.material.unidade.nome }}
     </span>
   </p>
 

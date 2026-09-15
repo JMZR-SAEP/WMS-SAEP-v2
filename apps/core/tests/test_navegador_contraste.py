@@ -27,8 +27,8 @@ from apps.estoque.models import (
     MovimentacaoEstoque,
     SaldoEstoque,
     TipoMovimentacaoEstoque,
-    UnidadeMedida,
 )
+from apps.estoque.tests.unidades import obter_unidade
 from apps.estoque.services import registrar_saida_excepcional
 from apps.notificacoes.models import Notificacao, TipoNotificacao
 from apps.requisicoes.models import EstadoRequisicao, ItemRequisicao, Requisicao
@@ -66,10 +66,10 @@ def cenario(db, setor_comum, setor_almoxarifado, chefe_comum, chefe_almox, solic
     """
     estoque = Estoque.objects.create(codigo='EST01', nome='Estoque Principal')
     material = Material.objects.create(
-        codigo='MAT001', nome='Parafuso sextavado M6', unidade=UnidadeMedida.UNIDADE
+        codigo='MAT001', nome='Parafuso sextavado M6', unidade=obter_unidade('un')
     )
     material_metro = Material.objects.create(
-        codigo='MAT002', nome='Cabo flexível 2,5 mm²', unidade=UnidadeMedida.METRO
+        codigo='MAT002', nome='Cabo flexível 2,5 mm²', unidade=obter_unidade('m')
     )
     SaldoEstoque.objects.create(
         estoque=estoque, material=material, saldo_fisico=500, saldo_reservado=10

@@ -3,7 +3,8 @@
 import pytest
 
 from apps.accounts.models import Setor, SetorClassificacao, User
-from apps.estoque.models import Estoque, Material, SaldoEstoque, UnidadeMedida
+from apps.estoque.models import Estoque, Material, SaldoEstoque
+from apps.estoque.tests.unidades import obter_unidade
 from apps.notificacoes.models import Notificacao, TipoNotificacao
 
 
@@ -86,7 +87,7 @@ def material_disponivel(db, estoque_principal):
     m = Material.objects.create(
         codigo='000.000.001',
         nome='Parafuso M6',
-        unidade=UnidadeMedida.UNIDADE,
+        unidade=obter_unidade('un'),
         ativo=True,
     )
     SaldoEstoque.objects.create(

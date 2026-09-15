@@ -9,6 +9,7 @@ fazem com que um modal novo não consiga nascer fora do contrato.
 import pytest
 from django.urls import reverse
 
+from apps.estoque.tests.unidades import obter_unidade
 from apps.core.tests.contrato_modal import (
     REGISTRO_CONTRATO_MODAL,
     CenarioModal,
@@ -68,7 +69,7 @@ def _cenario_inativar_material(request) -> CenarioModal:
     material = Material.objects.create(
         codigo='MAT-MODAL-INAT',
         nome='Material contrato modal',
-        unidade='un',
+        unidade=obter_unidade('un'),
         ativo=True,
     )
     SaldoEstoque.objects.create(estoque=estoque, material=material, saldo_fisico=5)
@@ -97,7 +98,7 @@ def _cenario_reativar_material(request) -> CenarioModal:
     material = Material.objects.create(
         codigo='MAT-MODAL-REAT',
         nome='Material contrato modal',
-        unidade='un',
+        unidade=obter_unidade('un'),
         ativo=False,
     )
 
