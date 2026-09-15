@@ -9,7 +9,13 @@ from django.core.management.base import CommandError
 from django.utils import timezone
 
 from apps.accounts.models import Setor, SetorClassificacao, VinculoAuxiliar
-from apps.estoque.models import Estoque, Material, SaldoEstoque, UnidadeMedida
+from apps.estoque.models import (
+    UNIDADES_CONHECIDAS,
+    Estoque,
+    Material,
+    SaldoEstoque,
+    UnidadeMedida,
+)
 from apps.requisicoes.models import SequenciaRequisicao
 
 
@@ -39,8 +45,16 @@ def test_seed_dev_cria_elenco_canonico_e_converge(settings, monkeypatch, rf):
     ano_atual = timezone.localdate().year
     Material.objects.filter(codigo='MAT-001').update(nome='Papel alterado')
     SequenciaRequisicao.objects.filter(ano=ano_atual).update(ultimo_numero=7)
+    UnidadeMedida.objects.filter(codigo='kg').update(casas_decimais=3)
 
     call_command('seed_dev')
+
+    # Unidade é entidade canônica (ADR-0009/ADR-0020): todas as conhecidas, e
+    # a precisão alterada à mão converge de volta.
+    assert set(UnidadeMedida.objects.values_list('codigo', flat=True)) == set(
+        UNIDADES_CONHECIDAS
+    )
+    assert UnidadeMedida.objects.get(codigo='kg').casas_decimais == 1
 
     assert Setor.objects.count() == 2
     almox = Setor.objects.get(codigo='ALMOX')
@@ -60,8 +74,8 @@ def test_seed_dev_cria_elenco_canonico_e_converge(settings, monkeypatch, rf):
 
     assert Material.objects.count() == 3
     assert Material.objects.get(codigo='MAT-001').nome == 'Papel A4'
-    assert Material.objects.get(codigo='MAT-001').unidade == UnidadeMedida.UNIDADE
-    assert Material.objects.get(codigo='MAT-003').unidade == UnidadeMedida.ROLO
+    assert Material.objects.get(codigo='MAT-001').unidade_id == 'un'
+    assert Material.objects.get(codigo='MAT-003').unidade_id == 'rolo'
     estoque = Estoque.objects.get(codigo='EST-PRINCIPAL')
     assert SaldoEstoque.objects.count() == 3
     assert SaldoEstoque.objects.get(

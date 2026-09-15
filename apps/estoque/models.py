@@ -6,33 +6,89 @@ ordem determinística (EST-06). Nenhum outro app escreve saldo diretamente.
 """
 
 from django.conf import settings
+from django.core.validators import MaxValueValidator
 from django.db import models
 
-
-class UnidadeMedida(models.TextChoices):
-    """Unidade de medida de um material."""
-
-    UNIDADE = 'un', 'Unidade'
-    CAIXA = 'cx', 'Caixa'
-    PACOTE = 'pct', 'Pacote'
-    PAR = 'par', 'Par'
-    ROLO = 'rolo', 'Rolo'
-    METRO = 'm', 'Metro'
-    METRO_QUADRADO = 'm2', 'Metro quadrado'
-    QUILOGRAMA = 'kg', 'Quilograma'
-    LITRO = 'l', 'Litro'
+from apps.core.quantidades import CASAS_PADRAO
 
 
-#: Unidade com que nasce um material criado pela importação SCPI.
+class UnidadeMedida(models.Model):
+    """Unidade de medida de um material, cadastrável (#219, ADR-0020).
+
+    Era um ``TextChoices`` fixo de nove valores. O export real do SCPI traz 22
+    códigos distintos em ``UNID1``, e parte deles não tem equivalente (barra,
+    tonelada, galão…). Como tabela, unidade nova entra sem deploy — pelo admin
+    ou pela importação SCPI — e a precisão de exibição deixa de ser uma tupla
+    de códigos em ``apps.core.quantidades`` para ser dado da própria unidade.
+
+    ``codigo`` é a chave primária de propósito: ``material.unidade_id`` segue
+    sendo o texto curto (``un``, ``kg``) que o template imprime, que o JS lê de
+    ``data-unidade`` e que o CSV exporta, sem consulta extra. Por isso
+    ``__str__`` devolve o código, e o código não é editável depois de criado.
+    """
+
+    codigo = models.CharField('código', max_length=10, primary_key=True)
+    nome = models.CharField('nome', max_length=50)
+    casas_decimais = models.PositiveSmallIntegerField(
+        'casas decimais',
+        validators=[MaxValueValidator(CASAS_PADRAO)],
+        help_text=(
+            'Casas que a quantidade admite: 0 para contagem, 1 para kg/l/m, até 3.'
+        ),
+    )
+
+    class Meta:
+        verbose_name = 'unidade de medida'
+        verbose_name_plural = 'unidades de medida'
+        ordering = ('codigo',)
+        constraints = [
+            # Saldo e quantidade são `DecimalField(decimal_places=3)`: uma
+            # unidade com 4 casas prometeria uma precisão que o banco não guarda.
+            models.CheckConstraint(
+                condition=models.Q(casas_decimais__lte=CASAS_PADRAO),
+                name='unidade_casas_decimais_ate_padrao',
+            ),
+        ]
+
+    def __str__(self):
+        return self.codigo
+
+
+#: Unidades que o sistema sabe nomear e medir sem ninguém cadastrá-las antes.
 #:
-#: O SCPI não informa unidade de medida no CSV, então a importação precisa
-#: arbitrar uma. Fonte única de propósito: quem **grava** o material
+#: Não é lista fechada — a tabela aceita qualquer unidade. É a fonte do nome e
+#: da precisão com que estas nascem quando alguém precisa delas: o
+#: ``seed_dev``, as fixtures de teste e a importação SCPI. A precisão é a que
+#: ``apps.core.quantidades`` aplicava por código antes de a unidade virar
+#: tabela, para que a troca não mude nenhuma exibição.
+UNIDADES_CONHECIDAS: dict[str, tuple[str, int]] = {
+    'un': ('Unidade', 0),
+    'cx': ('Caixa', 3),
+    'pct': ('Pacote', 3),
+    'par': ('Par', 3),
+    'rolo': ('Rolo', 3),
+    'm': ('Metro', 1),
+    'm2': ('Metro quadrado', 3),
+    'kg': ('Quilograma', 1),
+    'l': ('Litro', 1),
+}
+
+
+def unidade_conhecida(codigo: str) -> UnidadeMedida:
+    """Instância **não salva** de uma unidade de ``UNIDADES_CONHECIDAS``."""
+    nome, casas = UNIDADES_CONHECIDAS[codigo]
+    return UnidadeMedida(codigo=codigo, nome=nome, casas_decimais=casas)
+
+
+#: Código da unidade com que nasce um material criado pela importação SCPI.
+#:
+#: Fonte única de propósito: quem **grava** o material
 #: (``services.confirmar_importacao_scpi``) e quem **mostra o preview** dele
 #: (``selectors.gerar_preview_importacao_scpi``, para decidir a precisão de
 #: exibição da quantidade) têm de concordar — senão o preview promete uma
 #: precisão diferente da que a criação aplica, e a divergência aparece só
 #: depois de gravar.
-UNIDADE_PADRAO_MATERIAL_SCPI = UnidadeMedida.UNIDADE
+UNIDADE_PADRAO_MATERIAL_SCPI = 'un'
 
 
 class Material(models.Model):
@@ -43,10 +99,11 @@ class Material(models.Model):
 
     codigo = models.CharField('código', max_length=30, unique=True)
     nome = models.CharField('nome', max_length=200)
-    unidade = models.CharField(
-        'unidade de medida',
-        max_length=10,
-        choices=UnidadeMedida.choices,
+    unidade = models.ForeignKey(
+        UnidadeMedida,
+        on_delete=models.PROTECT,
+        related_name='materiais',
+        verbose_name='unidade de medida',
     )
     observacao_interna = models.TextField('observação interna', blank=True)
     ativo = models.BooleanField('ativo', default=True)
@@ -376,9 +433,15 @@ class LinhaDivergenteSCPI(models.Model):
 
     É um instantâneo de auditoria, não uma projeção: os valores são gravados
     como estavam no instante da confirmação e não acompanham renomeação de
-    material nem movimentação posterior de saldo. Por isso `denominacao` e
-    `unidade` são texto copiado e não FK — o registro tem de continuar legível
-    mesmo que o catálogo mude depois.
+    material nem movimentação posterior de saldo. Por isso `denominacao` é
+    texto copiado e não FK — o registro tem de continuar legível mesmo que o
+    catálogo mude depois.
+
+    `unidade` é FK com `PROTECT` desde a #219, e não contradiz isso: o código é
+    a chave primária da unidade e não muda, e `PROTECT` impede apagar unidade
+    que um registro ainda cita. O que acompanha o catálogo é só a precisão de
+    exibição — política de leitura, não dado auditado; o saldo gravado segue
+    com as mesmas três casas.
 
     `unidade` acompanha os três saldos pelo mesmo motivo que a denominação
     acompanha o CADPRO: quantidade sem unidade não é informação. Sem ela, a tela
@@ -401,12 +464,14 @@ class LinhaDivergenteSCPI(models.Model):
     )
     cadpro = models.CharField('CADPRO', max_length=32)
     denominacao = models.CharField('denominação', max_length=255, blank=True)
-    unidade = models.CharField(
-        'unidade',
-        max_length=10,
-        choices=UnidadeMedida.choices,
+    unidade = models.ForeignKey(
+        UnidadeMedida,
+        on_delete=models.PROTECT,
+        null=True,
         blank=True,
-        help_text='unidade do material no WMS, copiada no instante da confirmação.',
+        related_name='+',
+        verbose_name='unidade',
+        help_text='unidade do material no WMS no instante da confirmação.',
     )
     saldo_wms = models.DecimalField(
         'saldo no WMS',

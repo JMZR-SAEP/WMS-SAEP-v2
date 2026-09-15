@@ -244,7 +244,7 @@
               template), daí o guard.
             {% endcomment %}
             {% if saldo_item %}
-              {% como_json saldoTexto=saldo_item.saldo_disponivel|formatar_quantidade:saldo_item.unidade saldoValor=saldo_item.saldo_bruto unidade=saldo_item.unidade motivo=saldo_item.motivo as linha_alpine_config %}
+              {% como_json saldoTexto=saldo_item.saldo_disponivel|formatar_quantidade:saldo_item.unidade saldoValor=saldo_item.saldo_bruto unidade=saldo_item.unidade.codigo motivo=saldo_item.motivo as linha_alpine_config %}
             {% else %}
               {% como_json as linha_alpine_config %}
             {% endif %}

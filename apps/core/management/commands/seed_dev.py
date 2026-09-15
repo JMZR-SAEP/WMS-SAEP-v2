@@ -10,7 +10,13 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.accounts.models import Setor, SetorClassificacao, VinculoAuxiliar
-from apps.estoque.models import Estoque, Material, SaldoEstoque, UnidadeMedida
+from apps.estoque.models import (
+    UNIDADES_CONHECIDAS,
+    Estoque,
+    Material,
+    SaldoEstoque,
+    UnidadeMedida,
+)
 from apps.notificacoes.models import Notificacao, TipoNotificacao
 from apps.requisicoes.models import SequenciaRequisicao
 
@@ -86,17 +92,17 @@ VINCULOS_AUXILIARES = {
 MATERIAIS = {
     'MAT-001': {
         'nome': 'Papel A4',
-        'unidade': UnidadeMedida.UNIDADE,
+        'unidade': 'un',
         'saldo_fisico': Decimal('50.000'),
     },
     'MAT-002': {
         'nome': 'Caneta esferográfica',
-        'unidade': UnidadeMedida.UNIDADE,
+        'unidade': 'un',
         'saldo_fisico': Decimal('10.000'),
     },
     'MAT-003': {
         'nome': 'Fita crepe',
-        'unidade': UnidadeMedida.ROLO,
+        'unidade': 'rolo',
         'saldo_fisico': Decimal('0.000'),
     },
 }
@@ -121,6 +127,7 @@ class Command(BaseCommand):
             usuarios = _seed_usuarios(setores)
             _seed_chefias(setores, usuarios)
             _seed_vinculos_auxiliares(setores, usuarios)
+            _seed_unidades()
             materiais = _seed_materiais()
             estoque = _seed_estoque()
             _seed_saldos_iniciais_bootstrap_exception(estoque, materiais)
@@ -208,6 +215,17 @@ def _seed_vinculos_auxiliares(setores, usuarios):
         )
 
 
+def _seed_unidades():
+    # Antes dos materiais: `Material.unidade` é FK (ADR-0020). Todas as
+    # conhecidas, e não só as que os materiais do seed usam, para que o admin
+    # de dev mostre o catálogo de unidades que a importação SCPI também cria.
+    for codigo, (nome, casas) in UNIDADES_CONHECIDAS.items():
+        UnidadeMedida.objects.update_or_create(
+            codigo=codigo,
+            defaults={'nome': nome, 'casas_decimais': casas},
+        )
+
+
 def _seed_materiais():
     materiais = {}
     for codigo, dados in MATERIAIS.items():
@@ -215,7 +233,7 @@ def _seed_materiais():
             codigo=codigo,
             defaults={
                 'nome': dados['nome'],
-                'unidade': dados['unidade'],
+                'unidade_id': dados['unidade'],
                 'observacao_interna': '',
                 'ativo': True,
             },

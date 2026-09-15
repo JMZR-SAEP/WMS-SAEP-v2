@@ -222,7 +222,7 @@ class BaseItemRequisicaoFormSet(BaseFormSet):
         deixou de ser possível.
         """
         from apps.core.quantidades import casas_decimais
-        from apps.estoque.models import Material, UnidadeMedida
+        from apps.estoque.models import Material
 
         por_material: dict[int, tuple[str, Decimal]] = {}
         for form in self.forms:
@@ -238,9 +238,12 @@ class BaseItemRequisicaoFormSet(BaseFormSet):
         if not por_material:
             return
 
-        unidades = dict(
-            Material.objects.filter(pk__in=por_material).values_list('pk', 'unidade')
-        )
+        unidades = {
+            m.pk: m.unidade
+            for m in Material.objects.filter(pk__in=por_material).select_related(
+                'unidade'
+            )
+        }
         for material_id, (form, quantidade) in por_material.items():
             unidade = unidades.get(material_id)
             if unidade is None:
@@ -248,7 +251,7 @@ class BaseItemRequisicaoFormSet(BaseFormSet):
             permitidas = casas_decimais(unidade)
             if _casas_decimais_usadas(quantidade) <= permitidas:
                 continue
-            rotulo = UnidadeMedida(unidade).label
+            rotulo = unidade.nome
             if permitidas == 0:
                 texto = f'{rotulo} não admite fração. Informe um número inteiro.'
             else:

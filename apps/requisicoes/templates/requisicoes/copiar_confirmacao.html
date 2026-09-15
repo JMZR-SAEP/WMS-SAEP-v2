@@ -43,7 +43,7 @@
             </p>
             <p class="shrink-0 text-sm tabular-nums text-text-secondary">
               {{ item.quantidade_solicitada|formatar_quantidade:item.material.unidade }}
-              {{ item.material.get_unidade_display }}
+              {{ item.material.unidade.nome }}
             </p>
           </li>
         {% endfor %}

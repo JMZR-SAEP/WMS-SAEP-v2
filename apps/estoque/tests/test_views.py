@@ -6,6 +6,7 @@ from pathlib import Path
 
 from django.urls import reverse
 
+from apps.estoque.tests.unidades import obter_unidade
 from apps.core.tests.documento import (
     assert_dialogo_nomeado_pelo_proprio_titulo,
     assert_html_balanceado,
@@ -489,10 +490,11 @@ class TestNovaSaidaExcepcionalView:
     def test_post_material_inelegivel_retorna_erro_na_linha(
         self, client, chefe_almoxarifado, estoque_principal
     ):
-        from apps.estoque.models import Material, SaldoEstoque, UnidadeMedida
+        from apps.estoque.models import Material, SaldoEstoque
+        from apps.estoque.tests.unidades import obter_unidade
 
         material_inativo = Material.objects.create(
-            codigo='MAT097', nome='Serrote', unidade=UnidadeMedida.UNIDADE, ativo=False
+            codigo='MAT097', nome='Serrote', unidade=obter_unidade('un'), ativo=False
         )
         SaldoEstoque.objects.create(
             estoque=estoque_principal, material=material_inativo, saldo_fisico=10
@@ -2080,7 +2082,7 @@ class TestConfirmarImportacaoScpiView:
 
         for i, cadpro in enumerate(('000.777.001', '000.777.002'), start=1):
             material = Material.objects.create(
-                codigo=cadpro, nome=f'Material {i}', unidade='un'
+                codigo=cadpro, nome=f'Material {i}', unidade=obter_unidade('un')
             )
             SaldoEstoque.objects.create(
                 material=material,
@@ -2107,7 +2109,7 @@ class TestConfirmarImportacaoScpiView:
         from apps.estoque.models import Material, SaldoEstoque
 
         material = Material.objects.create(
-            codigo='000.777.010', nome='Eletroduto', unidade='un'
+            codigo='000.777.010', nome='Eletroduto', unidade=obter_unidade('un')
         )
         SaldoEstoque.objects.create(
             material=material,
@@ -2684,8 +2686,8 @@ class _BaseImportacaoComDivergencias:
             ImportacaoSCPI,
             LinhaDivergenteSCPI,
             StatusImportacaoSCPI,
-            UnidadeMedida,
         )
+        from apps.estoque.tests.unidades import obter_unidade
 
         importacao = ImportacaoSCPI.objects.create(
             arquivo_nome='saldo_scpi.csv',
@@ -2707,7 +2709,7 @@ class _BaseImportacaoComDivergencias:
                 cadpro=f'000.777.{i:03d}',
                 denominacao=f'Parafuso sextavado {i}',
                 # A unidade acompanha o instantâneo, como o service a grava.
-                unidade=UnidadeMedida.UNIDADE,
+                unidade=obter_unidade('un'),
                 saldo_wms=10,
                 saldo_scpi=13,
                 delta=3,
@@ -2869,7 +2871,9 @@ class TestListaMateriaisView:
             ('MAT-100', 'Zinco em pó'),
             ('MAT-500', 'Cimento Portland'),
         ):
-            material = Material.objects.create(codigo=codigo, nome=nome, unidade='un')
+            material = Material.objects.create(
+                codigo=codigo, nome=nome, unidade=obter_unidade('un')
+            )
             SaldoEstoque.objects.create(
                 material=material,
                 estoque=estoque_principal,
@@ -2891,7 +2895,10 @@ class TestListaMateriaisView:
         from apps.estoque.models import Material, SaldoEstoque
 
         material = Material.objects.create(
-            codigo='MAT-800', nome='Lâmpada descontinuada', unidade='un', ativo=False
+            codigo='MAT-800',
+            nome='Lâmpada descontinuada',
+            unidade=obter_unidade('un'),
+            ativo=False,
         )
         SaldoEstoque.objects.create(
             material=material,
@@ -3116,7 +3123,8 @@ class TestListaMateriaisView:
         inteiro — ~1,2 KB de HTML e 14 nós de DOM por cartão — numa página que o
         almoxarifado abre do celular, em pé no galpão.
         """
-        from apps.estoque.models import Material, SaldoEstoque, UnidadeMedida
+        from apps.estoque.models import Material, SaldoEstoque
+        from apps.estoque.tests.unidades import obter_unidade
         from apps.estoque.views import PAGINA_MATERIAIS_TAMANHO
 
         total = PAGINA_MATERIAIS_TAMANHO + 3
@@ -3124,7 +3132,7 @@ class TestListaMateriaisView:
             material = Material.objects.create(
                 codigo=f'900.000.{i:03d}',
                 nome=f'Material {i}',
-                unidade=UnidadeMedida.UNIDADE,
+                unidade=obter_unidade('un'),
                 ativo=True,
             )
             SaldoEstoque.objects.create(
@@ -3144,14 +3152,15 @@ class TestListaMateriaisView:
     ):
         """Sem `querystring_filtros`, ir para a página 2 caía no catálogo
         inteiro — perdendo exatamente o recorte que o usuário acabou de pedir."""
-        from apps.estoque.models import Material, SaldoEstoque, UnidadeMedida
+        from apps.estoque.models import Material, SaldoEstoque
+        from apps.estoque.tests.unidades import obter_unidade
         from apps.estoque.views import PAGINA_MATERIAIS_TAMANHO
 
         for i in range(PAGINA_MATERIAIS_TAMANHO + 1):
             material = Material.objects.create(
                 codigo=f'901.000.{i:03d}',
                 nome=f'Tinta {i}',
-                unidade=UnidadeMedida.UNIDADE,
+                unidade=obter_unidade('un'),
                 ativo=True,
             )
             SaldoEstoque.objects.create(
@@ -3190,7 +3199,10 @@ class TestListaMateriaisView:
         from apps.estoque.models import Material, SaldoEstoque
 
         material = Material.objects.create(
-            codigo='MAT-777', nome='Material inativo', unidade='un', ativo=False
+            codigo='MAT-777',
+            nome='Material inativo',
+            unidade=obter_unidade('un'),
+            ativo=False,
         )
         SaldoEstoque.objects.create(material=material, estoque=estoque_principal)
 
@@ -3222,7 +3234,10 @@ class TestInativarMaterialView:
         from apps.estoque.models import Material
 
         return Material.objects.create(
-            codigo='MAT-INAT', nome='Material sem saldo', unidade='un', ativo=True
+            codigo='MAT-INAT',
+            nome='Material sem saldo',
+            unidade=obter_unidade('un'),
+            ativo=True,
         )
 
     def test_chefe_inativa_e_redireciona(self, client, chefe_almoxarifado):
@@ -3288,7 +3303,10 @@ class TestReativarMaterialView:
         from apps.estoque.models import Material
 
         return Material.objects.create(
-            codigo='MAT-REAT', nome='Material inativo', unidade='un', ativo=False
+            codigo='MAT-REAT',
+            nome='Material inativo',
+            unidade=obter_unidade('un'),
+            ativo=False,
         )
 
     def test_chefe_reativa_e_redireciona(self, client, chefe_almoxarifado):

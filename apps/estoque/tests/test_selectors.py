@@ -176,6 +176,23 @@ class TestGerarPreviewImportacaoScpiCasos:
         assert linhas[0].material_id is None
         assert linhas[0].saldo_wms == 0
 
+    def test_preview_sem_a_unidade_no_banco_anuncia_a_precisao_sem_gravar(
+        self, db, estoque_principal
+    ):
+        """O preview é read-only: anuncia a precisão com que a confirmação vai
+        criar a unidade, sem criá-la."""
+        from apps.estoque.models import UnidadeMedida
+        from apps.estoque.selectors import gerar_preview_importacao_scpi
+
+        (linha,) = gerar_preview_importacao_scpi(
+            conteudo_bytes=self._csv(['000.999.212;Rebite;2.000']),
+            estoque_id=estoque_principal.pk,
+        )
+
+        assert linha.status == 'novo'
+        assert (linha.unidade.codigo, linha.unidade.casas_decimais) == ('un', 0)
+        assert not UnidadeMedida.objects.filter(codigo='un').exists()
+
     def test_csv_com_bom_parseia_corretamente(
         self, db, estoque_principal, material_scpi
     ):
@@ -260,13 +277,14 @@ class TestNormalizacaoCsvScpiMultilinha:
         assert linhas[1].cadpro == '000.000.002'
 
     def test_cadpro_formato_pontilhado_resolvido(self, db, estoque_principal):
-        from apps.estoque.models import Material, SaldoEstoque, UnidadeMedida
+        from apps.estoque.models import Material, SaldoEstoque
+        from apps.estoque.tests.unidades import obter_unidade
         from apps.estoque.selectors import gerar_preview_importacao_scpi
 
         m = Material.objects.create(
             codigo='000.000.003',
             nome='Rebite',
-            unidade=UnidadeMedida.UNIDADE,
+            unidade=obter_unidade('un'),
             ativo=True,
         )
         SaldoEstoque.objects.create(

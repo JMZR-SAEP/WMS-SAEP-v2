@@ -204,7 +204,7 @@ def _detalhe_context(
 
     papel = papel_efetivo(request.user)
     acoes = acoes_disponiveis(papel, requisicao)
-    itens = list(requisicao.itens.select_related('material').all())
+    itens = list(requisicao.itens.select_related('material__unidade').all())
     itens_devolviveis: list[ItemRequisicao] = []
     # A entregue líquida serve às duas operações e é uma consulta só: a
     # devolução para dizer quanto ainda dá para devolver, o estorno para nomear
@@ -233,7 +233,7 @@ def _detalhe_context(
                 devolvido = bruto - item.entregue_liquida
                 item.rotulo_devolucao = (
                     f'{formatar_quantidade(devolvido, item.material.unidade)} '
-                    f'{item.material.get_unidade_display()} de volta ao estoque'
+                    f'{item.material.unidade.nome} de volta ao estoque'
                 )
             if item.entregue_liquida > 0 and Operacao.REGISTRAR_DEVOLUCAO in acoes:
                 itens_devolviveis.append(item)
@@ -265,7 +265,7 @@ def _detalhe_context(
         if material is not None and quantidade is not None:
             evento.detalhe_quantidade = (
                 f'{formatar_quantidade(quantidade, material.unidade)} '
-                f'{material.get_unidade_display()} de {material.nome}'
+                f'{material.unidade.nome} de {material.nome}'
             )
     enviada_em = None
     if requisicao.estado != EstadoRequisicao.RASCUNHO:
@@ -576,7 +576,7 @@ def editar_rascunho_view(request, pk: int):
         )
 
     # GET — preencher com itens existentes
-    itens_existentes = list(requisicao.itens.select_related('material').all())
+    itens_existentes = list(requisicao.itens.select_related('material__unidade').all())
     material_ids = [item.material_id for item in itens_existentes]
     saldo_info = saldos_por_materiais(material_ids)
     tem_item_inelegivel = any(not v['elegivel'] for v in saldo_info.values())
@@ -696,7 +696,7 @@ def buscar_materiais(request):
             'id': m.pk,
             'codigo': m.codigo,
             'nome': m.nome,
-            'unidade': m.unidade,
+            'unidade': m.unidade_id,
             # O passo do campo numérico sai do servidor porque a política de
             # precisão por unidade vive em `apps.core.quantidades` e não pode
             # ter uma segunda cópia em JavaScript. O cliente aplica, não
@@ -965,7 +965,9 @@ def autorizar_requisicao_view(request, pk: int):
         # atualizado, em vez de reload inteiro + flash. Sem JS não há fragment
         # para trocar: cai no fallback de sempre.
         if request.htmx:
-            itens = list(requisicao_atual.itens.select_related('material').all())
+            itens = list(
+                requisicao_atual.itens.select_related('material__unidade').all()
+            )
             _anotar_saldo_para_autorizar(itens)
             return render_modal_erro(
                 request,
@@ -1118,7 +1120,7 @@ def registrar_atendimento_view(request, pk: int):
         )
 
     itens_autorizados = list(
-        requisicao.itens.select_related('material')
+        requisicao.itens.select_related('material__unidade')
         .filter(quantidade_autorizada__gt=0)
         .order_by('id')
     )
@@ -1450,7 +1452,9 @@ def copiar_requisicao_view(request, pk: int):
             'requisicoes/copiar_confirmacao.html',
             {
                 'requisicao': requisicao,
-                'itens': list(requisicao.itens.select_related('material').all()),
+                'itens': list(
+                    requisicao.itens.select_related('material__unidade').all()
+                ),
             },
         )
 
@@ -1494,7 +1498,9 @@ def registrar_devolucao_view(request, pk: int, item_pk: int) -> HttpResponse:
             # a página de erro dentro do diálogo. O item obsoleto cai no mesmo
             # 422, dizendo a mesma frase que o service diria.
             item = (
-                requisicao.itens.select_related('material').filter(pk=item_pk).first()
+                requisicao.itens.select_related('material__unidade')
+                .filter(pk=item_pk)
+                .first()
             )
             copy = MODAL_COPY['devolucao']
             if item is None:
@@ -1573,7 +1579,7 @@ def estornar_requisicao_view(request, pk: int) -> HttpResponse:
             # cálculo de `_detalhe_context`.
             entregues = entregue_liquida_por_requisicao(requisicao_id=pk)
             itens_a_estornar = []
-            for item in requisicao.itens.select_related('material').all():
+            for item in requisicao.itens.select_related('material__unidade').all():
                 item.entregue_liquida = entregues.get(item.material_id, Decimal('0'))
                 if item.entregue_liquida > 0:
                     itens_a_estornar.append(item)

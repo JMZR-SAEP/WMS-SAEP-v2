@@ -424,9 +424,14 @@ def test_item_de_material_respeita_o_piso_de_cor_da_opcao():
 
 
 def _render_delta(valor, unidade='un'):
+    from apps.estoque.models import unidade_conhecida
+
     return render_to_string(
         'estoque/partials/_delta_movimentacao.html',
-        {'valor': Decimal(valor), 'unidade': unidade},
+        {
+            'valor': Decimal(valor),
+            'unidade': unidade_conhecida(unidade) if unidade else unidade,
+        },
     )
 
 
@@ -566,10 +571,12 @@ def _render_cartoes_divergencias(saldo_wms, saldo_scpi, delta, unidade=''):
     O partial espera um iterável de `LinhaDivergenteSCPI`; um objeto simples com
     os mesmos atributos basta e evita tocar o banco.
     """
+    from apps.estoque.models import unidade_conhecida
+
     linha = SimpleNamespace(
         cadpro='001.001.001',
         denominacao='ELETRODUTO RIGIDO ROSCAVEL 3/4',
-        unidade=unidade,
+        unidade=unidade_conhecida(unidade) if unidade else None,
         saldo_wms=Decimal(saldo_wms),
         saldo_scpi=Decimal(saldo_scpi),
         delta=Decimal(delta),

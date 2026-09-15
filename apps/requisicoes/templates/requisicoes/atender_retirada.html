@@ -155,7 +155,7 @@
             {% endcomment %}
             <div class="min-w-24 shrink-0 text-sm text-text-secondary lg:text-right">
               <span class="rotulo-campo lg:sr-only">Autorizada</span>
-              {% include "components/quantidade.html" with valor=item.quantidade_autorizada unidade=item.material.unidade unidade_label=item.material.get_unidade_display %}
+              {% include "components/quantidade.html" with valor=item.quantidade_autorizada unidade=item.material.unidade unidade_label=item.material.unidade.nome %}
             </div>
             {% comment %}
               Campos pelo componente: é ele que injeta aria-invalid e compõe o

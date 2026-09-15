@@ -132,13 +132,13 @@
             <dl class="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
               <div>
                 <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Solicitada</dt>
-                <dd class="mt-0.5">{% include "components/quantidade.html" with valor=item.quantidade_solicitada unidade=item.material.unidade unidade_label=item.material.get_unidade_display esquerda=True %}</dd>
+                <dd class="mt-0.5">{% include "components/quantidade.html" with valor=item.quantidade_solicitada unidade=item.material.unidade unidade_label=item.material.unidade.nome esquerda=True %}</dd>
               </div>
               {% if mostrar_quantidade_autorizada %}
                 {% if item.quantidade_autorizada is not None %}
                   <div>
                     <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Autorizada</dt>
-                    <dd class="mt-0.5">{% include "components/quantidade.html" with valor=item.quantidade_autorizada unidade=item.material.unidade unidade_label=item.material.get_unidade_display esquerda=True %}</dd>
+                    <dd class="mt-0.5">{% include "components/quantidade.html" with valor=item.quantidade_autorizada unidade=item.material.unidade unidade_label=item.material.unidade.nome esquerda=True %}</dd>
                   </div>
                 {% endif %}
               {% endif %}
@@ -148,9 +148,9 @@
                     <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Entregue</dt>
                     <dd class="mt-0.5">
                       {% if item.quantidade_entregue < item.quantidade_autorizada %}
-                        {% include "components/quantidade.html" with valor=item.quantidade_entregue unidade=item.material.unidade unidade_label=item.material.get_unidade_display esquerda=True tom="warning" referencia=item.justificativa_entrega %}
+                        {% include "components/quantidade.html" with valor=item.quantidade_entregue unidade=item.material.unidade unidade_label=item.material.unidade.nome esquerda=True tom="warning" referencia=item.justificativa_entrega %}
                       {% else %}
-                        {% include "components/quantidade.html" with valor=item.quantidade_entregue unidade=item.material.unidade unidade_label=item.material.get_unidade_display esquerda=True %}
+                        {% include "components/quantidade.html" with valor=item.quantidade_entregue unidade=item.material.unidade unidade_label=item.material.unidade.nome esquerda=True %}
                       {% endif %}
                     </dd>
                   </div>
@@ -168,9 +168,9 @@
                   <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Disponível</dt>
                   <dd class="mt-0.5">
                     {% if item.saldo_insuficiente %}
-                      {% include "components/quantidade.html" with valor=item.saldo_disponivel_exibido unidade=item.material.unidade unidade_label=item.material.get_unidade_display esquerda=True tom="warning" referencia=item.saldo_motivo|default:"não cobre o solicitado" %}
+                      {% include "components/quantidade.html" with valor=item.saldo_disponivel_exibido unidade=item.material.unidade unidade_label=item.material.unidade.nome esquerda=True tom="warning" referencia=item.saldo_motivo|default:"não cobre o solicitado" %}
                     {% else %}
-                      {% include "components/quantidade.html" with valor=item.saldo_disponivel_exibido unidade=item.material.unidade unidade_label=item.material.get_unidade_display esquerda=True %}
+                      {% include "components/quantidade.html" with valor=item.saldo_disponivel_exibido unidade=item.material.unidade unidade_label=item.material.unidade.nome esquerda=True %}
                     {% endif %}
                   </dd>
                 </div>
@@ -185,7 +185,7 @@
                 {% endcomment %}
                 <div>
                   <dt class="text-xs font-medium uppercase tracking-wide text-text-tertiary">Líquida</dt>
-                  <dd class="mt-0.5">{% include "components/quantidade.html" with valor=item.entregue_liquida_exibida unidade=item.material.unidade unidade_label=item.material.get_unidade_display esquerda=True referencia=item.rotulo_devolucao %}</dd>
+                  <dd class="mt-0.5">{% include "components/quantidade.html" with valor=item.entregue_liquida_exibida unidade=item.material.unidade unidade_label=item.material.unidade.nome esquerda=True referencia=item.rotulo_devolucao %}</dd>
                 </div>
               {% endif %}
             </dl>
@@ -226,7 +226,7 @@
               <p class="mt-0.5 text-sm text-return-text">
                 Entregue líquida:
                 <span class="tabular-nums">{{ item.entregue_liquida|formatar_quantidade:item.material.unidade }}</span>
-                {{ item.material.get_unidade_display }}
+                {{ item.material.unidade.nome }}
               </p>
             </div>
             <div class="shrink-0" x-data="modalController({ id: '{{ item.modal_devolver_id }}' })">

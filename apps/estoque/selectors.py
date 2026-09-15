@@ -15,6 +15,7 @@ from apps.estoque.models import (
     MovimentacaoEstoque,
     SaidaExcepcional,
     TipoMovimentacaoEstoque,
+    UnidadeMedida,
 )
 
 
@@ -37,14 +38,18 @@ def buscar_materiais_saida_excepcional(q: str = '', limite: int = 20):
 
     from apps.estoque.models import Material
 
-    qs = Material.objects.filter(ativo=True, saldos__saldo_fisico__gt=0).distinct()
+    qs = (
+        Material.objects.filter(ativo=True, saldos__saldo_fisico__gt=0)
+        .select_related('unidade')
+        .distinct()
+    )
     if q:
         qs = qs.filter(Q(codigo__icontains=q) | Q(nome__icontains=q))
     return qs.order_by('nome')[:limite]
 
 
-def unidades_por_materiais(material_ids: list) -> dict[str, str]:
-    """Retorna dict {material_id como string: unidade} para os ids informados.
+def unidades_por_materiais(material_ids: list) -> dict[str, UnidadeMedida]:
+    """Retorna dict {material_id como string: UnidadeMedida} para os ids informados.
 
     Existe para o formulário de saída excepcional re-renderizado por erro: as
     linhas voltam com o material vinculado, mas nenhum evento de seleção
@@ -69,10 +74,8 @@ def unidades_por_materiais(material_ids: list) -> dict[str, str]:
     if not ids:
         return {}
     return {
-        str(pk): unidade
-        for pk, unidade in Material.objects.filter(pk__in=ids).values_list(
-            'pk', 'unidade'
-        )
+        str(material.pk): material.unidade
+        for material in Material.objects.filter(pk__in=ids).select_related('unidade')
     }
 
 
@@ -83,7 +86,7 @@ def buscar_detalhe_saida_excepcional(saida_id: int) -> SaidaExcepcional | None:
             SaidaExcepcional.objects.select_related(
                 'registrado_por', 'estoque', 'estornado_por'
             )
-            .prefetch_related('itens__material')
+            .prefetch_related('itens__material__unidade')
             .get(pk=saida_id)
         )
     except SaidaExcepcional.DoesNotExist:
@@ -100,7 +103,7 @@ class LinhaPreviewSCPI:
     saldo_scpi: Decimal
     delta: Decimal
     status: str  # 'ok' | 'divergente' | 'novo'
-    unidade: str
+    unidade: UnidadeMedida
 
 
 def _normalizar_csv_scpi(conteudo_bytes: bytes) -> str:
@@ -236,6 +239,7 @@ def gerar_preview_importacao_scpi(
         UNIDADE_PADRAO_MATERIAL_SCPI,
         Material,
         SaldoEstoque,
+        unidade_conhecida,
     )
 
     conteudo = _normalizar_csv_scpi(conteudo_bytes)
@@ -247,9 +251,7 @@ def gerar_preview_importacao_scpi(
     cadpros = [row['cadpro'] for row in linhas_raw]
     materiais = {
         m.codigo: m
-        for m in Material.objects.filter(codigo__in=cadpros).only(
-            'id', 'codigo', 'nome', 'unidade'
-        )
+        for m in Material.objects.filter(codigo__in=cadpros).select_related('unidade')
     }
     material_ids = [m.id for m in materiais.values()]
     saldos = {
@@ -260,6 +262,13 @@ def gerar_preview_importacao_scpi(
     }
 
     resultado: list[LinhaPreviewSCPI] = []
+    # Mesma unidade que `confirmar_importacao_scpi` grava nos novos: o preview
+    # não pode prometer uma precisão diferente da que a criação aplica. Num
+    # banco em que ninguém a cadastrou ainda, vale a precisão conhecida — é com
+    # ela que a confirmação vai criá-la.
+    unidade_novos = UnidadeMedida.objects.filter(
+        pk=UNIDADE_PADRAO_MATERIAL_SCPI
+    ).first() or unidade_conhecida(UNIDADE_PADRAO_MATERIAL_SCPI)
     for linha in linhas_raw:
         cadpro = linha['cadpro']
         saldo_scpi = linha['quantidade']
@@ -277,10 +286,7 @@ def gerar_preview_importacao_scpi(
                     saldo_scpi=saldo_scpi,
                     delta=saldo_scpi,
                     status='novo',
-                    # Mesma constante que `confirmar_importacao_scpi` grava
-                    # neste material: o preview não pode prometer uma precisão
-                    # diferente da que a criação aplica.
-                    unidade=UNIDADE_PADRAO_MATERIAL_SCPI,
+                    unidade=unidade_novos,
                 )
             )
             continue
@@ -335,8 +341,10 @@ def listar_divergencias_importacao_scpi(*, importacao_id: int):
     """
     from apps.estoque.models import LinhaDivergenteSCPI
 
-    return LinhaDivergenteSCPI.objects.filter(importacao_id=importacao_id).order_by(
-        'cadpro', 'id'
+    return (
+        LinhaDivergenteSCPI.objects.filter(importacao_id=importacao_id)
+        .select_related('unidade')
+        .order_by('cadpro', 'id')
     )
 
 
@@ -387,7 +395,7 @@ def listar_materiais_com_saldo(*, papel: PapelEfetivo, busca: str = ''):
     )
 
     qs = (
-        SaldoEstoque.objects.select_related('material', 'estoque')
+        SaldoEstoque.objects.select_related('material__unidade', 'estoque')
         .annotate(
             saldo_disponivel_calculado=ExpressionWrapper(
                 F('saldo_fisico') - F('saldo_reservado'),
@@ -547,7 +555,7 @@ def movimentacoes_visiveis_para(ator_id: int) -> QuerySet[MovimentacaoEstoque]:
 
     base_qs = (
         MovimentacaoEstoque.objects.select_related(
-            'material',
+            'material__unidade',
             'estoque',
             'ator',
             'requisicao',
