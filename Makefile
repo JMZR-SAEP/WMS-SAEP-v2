@@ -125,7 +125,12 @@ clean: resetpostgres ## Limpar artefatos locais e caches (recria o schema do ban
 		-not -path "./$(VENV_DIR)/*" \
 		-delete
 
-veryclean: clean clean-python ## Voltar o workspace para um estado "do zero" (recria o schema do banco)
+# clean-python fica na receita, não na lista de pré-requisitos: como irmão de
+# clean ele roda em paralelo sob `make -jN` e apagaria a .venv antes de a
+# guarda do resetpostgres recusar um settings fora de dev/test. Na receita, só
+# roda depois de clean ter terminado com sucesso.
+veryclean: clean ## Voltar o workspace para um estado "do zero" (recria o schema do banco)
+	$(MAKE) clean-python
 
 clean-python: ## Remover .venv e bytecode Python (não toca o banco)
 	-rm -rf $(VENV_DIR)

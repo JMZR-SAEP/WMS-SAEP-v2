@@ -137,7 +137,8 @@ def test_init_nao_tem_resetpostgres_na_cadeia_de_dependencias(tmp_path):
     assert 'lista permitida' not in saida
 
 
-def test_veryclean_segue_recriando_o_schema_em_dev(tmp_path):
+@pytest.mark.parametrize('paralelismo', [[], ['-j2']])
+def test_veryclean_segue_recriando_o_schema_em_dev(tmp_path, paralelismo):
     """Contrato de `veryclean` preservado: limpa banco e `.venv`."""
     _preparar_clone(tmp_path)
     (tmp_path / '.env').write_text(
@@ -146,14 +147,22 @@ def test_veryclean_segue_recriando_o_schema_em_dev(tmp_path):
     )
     venv = _criar_venv_antigo(tmp_path)
 
-    resultado = _rodar_make(tmp_path, 'veryclean')
+    resultado = _rodar_make(tmp_path, *paralelismo, 'veryclean')
 
     assert resultado.returncode == 0, _saida(resultado)
     assert (tmp_path / 'psql_chamado.marker').exists()
     assert not venv.exists()
 
 
-def test_veryclean_com_settings_do_piloto_aborta_sem_apagar_venv(tmp_path):
+@pytest.mark.parametrize('paralelismo', [[], ['-j2']])
+def test_veryclean_com_settings_do_piloto_aborta_sem_apagar_venv(tmp_path, paralelismo):
+    """A guarda vem antes da limpeza do Python, inclusive sob `make -jN`.
+
+    Com `clean-python` como pré-requisito irmão de `clean`, o make paralelo
+    apagaria a `.venv` enquanto o `resetpostgres` ainda estivesse decidindo se
+    recusa o settings. Por isso ele roda na receita de `veryclean`, depois de
+    `clean` ter passado.
+    """
     _preparar_clone(tmp_path)
     (tmp_path / '.env').write_text(
         'DJANGO_SETTINGS_MODULE=config.settings.piloto\n'
@@ -161,7 +170,7 @@ def test_veryclean_com_settings_do_piloto_aborta_sem_apagar_venv(tmp_path):
     )
     venv = _criar_venv_antigo(tmp_path)
 
-    resultado = _rodar_make(tmp_path, 'veryclean')
+    resultado = _rodar_make(tmp_path, *paralelismo, 'veryclean')
 
     assert resultado.returncode != 0
     assert not (tmp_path / 'psql_chamado.marker').exists()
