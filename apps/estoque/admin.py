@@ -283,6 +283,11 @@ class LinhaDivergenteSCPIInline(admin.TabularInline):
     readonly_fields = fields
     can_delete = False
 
+    def get_queryset(self, request):
+        # `unidade` é FK (ADR-0020): sem o JOIN, cada divergência listada busca a
+        # própria unidade, e a página cresce com o tamanho do arquivo.
+        return super().get_queryset(request).select_related('unidade')
+
     def has_add_permission(self, request, obj=None):
         return False
 
