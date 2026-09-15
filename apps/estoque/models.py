@@ -58,9 +58,9 @@ class UnidadeMedida(models.Model):
 #:
 #: Não é lista fechada — a tabela aceita qualquer unidade. É a fonte do nome e
 #: da precisão com que estas nascem quando alguém precisa delas: o
-#: ``seed_dev``, as fixtures de teste e a importação SCPI. A precisão é a que
-#: ``apps.core.quantidades`` aplicava por código antes de a unidade virar
-#: tabela, para que a troca não mude nenhuma exibição.
+#: ``seed_dev``, as fixtures de teste e a importação SCPI. A precisão das nove
+#: primeiras é a que ``apps.core.quantidades`` aplicava por código antes de a
+#: unidade virar tabela, para que a troca não mude nenhuma exibição.
 UNIDADES_CONHECIDAS: dict[str, tuple[str, int]] = {
     'un': ('Unidade', 0),
     'cx': ('Caixa', 3),
@@ -71,6 +71,20 @@ UNIDADES_CONHECIDAS: dict[str, tuple[str, int]] = {
     'm2': ('Metro quadrado', 3),
     'kg': ('Quilograma', 1),
     'l': ('Litro', 1),
+    # Códigos do SCPI sem equivalente acima (#219). Três casas porque ninguém
+    # mediu ainda a precisão que cada um usa — `BR` e `MC` já chegam com
+    # quantidade fracionada no export —, e o chefe de almoxarifado reduz no
+    # admin. Sem conversão: `t` não vira `kg` nem `ml` vira `l`, senão a
+    # quantidade deixaria de bater com a do SCPI na importação seguinte.
+    'br': ('Barra', 3),
+    't': ('Tonelada', 3),
+    'kit': ('Kit', 3),
+    'sc': ('Saco', 3),
+    'gl': ('Galão', 3),
+    'ml': ('Mililitro', 3),
+    'fl': ('Folha', 3),
+    'mc': ('Maço', 3),
+    'rm': ('Resma', 3),
 }
 
 
@@ -80,14 +94,37 @@ def unidade_conhecida(codigo: str) -> UnidadeMedida:
     return UnidadeMedida(codigo=codigo, nome=nome, casas_decimais=casas)
 
 
-#: Código da unidade com que nasce um material criado pela importação SCPI.
+#: Código da coluna ``UNID1`` do SCPI → código da unidade no WMS (#219).
 #:
-#: Fonte única de propósito: quem **grava** o material
-#: (``services.confirmar_importacao_scpi``) e quem **mostra o preview** dele
-#: (``selectors.gerar_preview_importacao_scpi``, para decidir a precisão de
-#: exibição da quantidade) têm de concordar — senão o preview promete uma
-#: precisão diferente da que a criação aplica, e a divergência aparece só
-#: depois de gravar.
+#: A chave é o valor já normalizado (sem espaços nas pontas, em maiúsculas).
+#: Mapeamento aprovado pelo chefe de almoxarifado: o SCPI cadastra a mesma
+#: unidade com grafias diferentes (`UN`, `UND`, `PC`). Código fora deste
+#: dicionário entra em minúsculas — `BR` vira `br`, de ``UNIDADES_CONHECIDAS``,
+#: e um código que ninguém conhece ainda é criado na confirmação da importação.
+SINONIMOS_UNIDADE_SCPI: dict[str, str] = {
+    'UN': 'un',
+    'UND': 'un',
+    'PC': 'un',
+    'M': 'm',
+    'MT': 'm',
+    'MTS': 'm',
+    'LT': 'l',
+    'L': 'l',
+    'M²': 'm2',
+    'RL': 'rolo',
+    'PCT': 'pct',
+    'CX': 'cx',
+    'KG': 'kg',
+}
+
+
+#: Unidade do material novo quando o CSV do SCPI não traz ``UNID1``.
+#:
+#: O export real sempre traz a coluna preenchida; o padrão cobre arquivo sem a
+#: coluna ou com o valor vazio, que antes da #219 era o caso de todo material
+#: novo. É ``un`` porque é a unidade da maioria do catálogo, e a conferência
+#: humana no catálogo depois da importação continua sendo do chefe de
+#: almoxarifado.
 UNIDADE_PADRAO_MATERIAL_SCPI = 'un'
 
 

@@ -38,8 +38,9 @@ Quem chama fecha o container: </div>
         em pt-BR se lê *oitocentos e vinte mil*. É o bug que
         `apps/core/quantidades.py` existe para matar, na tela cuja função
         inteira é comparar dois saldos. A unidade vem de `LinhaDivergenteSCPI`,
-        copiada do material na confirmação: o CSV do SCPI de fato não a informa,
-        mas o WMS a conhece, e era o registro durável que ficava sem ela
+        copiada do material na confirmação: a linha divergente é de material que
+        já existe, cuja unidade o WMS conhece (a `UNID1` do CSV só vale para
+        material novo), e era o registro durável que ficava sem ela
         enquanto a pré-visualização efêmera a exibia. Linha antiga, gravada
         antes do campo existir, tem unidade vazia e degrada para casa
         significativa — o comportamento anterior, agora só na ausência do dado.

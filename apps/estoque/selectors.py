@@ -8,14 +8,19 @@ from django.db.models import Count, Exists, OuterRef, Q, QuerySet
 
 from apps.accounts.models import User
 from apps.accounts.papeis import PapelEfetivo, papel_efetivo
+from apps.core.quantidades import CASAS_PADRAO
 from apps.core.texto import capitalizar_frase
 from apps.requisicoes.models import EstadoRequisicao
 from apps.estoque.models import (
+    SINONIMOS_UNIDADE_SCPI,
+    UNIDADE_PADRAO_MATERIAL_SCPI,
+    UNIDADES_CONHECIDAS,
     Material,
     MovimentacaoEstoque,
     SaidaExcepcional,
     TipoMovimentacaoEstoque,
     UnidadeMedida,
+    unidade_conhecida,
 )
 
 
@@ -191,9 +196,15 @@ def _parse_linhas_csv_scpi(conteudo: str) -> list[dict]:
         )
     col_qtd = colunas_quantidade[0]
     _COLUNAS_NOME = ('DISC1', 'DENOMINACAO')
+    # `strip()` no nome e não na chave: `row.get` precisa do nome como veio no
+    # cabeçalho. Sem ele, ` UNID1 ` passava por coluna ausente e todo material
+    # novo caía em `un` sem aviso; ` DISC1 `, por nome igual ao CADPRO.
     col_den = next(
-        (f for f in reader.fieldnames if f.upper() in _COLUNAS_NOME),
+        (f for f in reader.fieldnames if f.strip().upper() in _COLUNAS_NOME),
         None,
+    )
+    col_unid = next(
+        (f for f in reader.fieldnames if f.strip().upper() == 'UNID1'), None
     )
     linhas = []
     for i, row in enumerate(reader, start=2):
@@ -221,10 +232,82 @@ def _parse_linhas_csv_scpi(conteudo: str) -> list[dict]:
                 f'{limite_denominacao}.',
                 code='csv_denominacao_muito_longa',
             )
+        unidade_scpi = (row.get(col_unid) or '').strip() if col_unid else ''
         linhas.append(
-            {'cadpro': cadpro, 'quantidade': quantidade, 'denominacao': denominacao}
+            {
+                'cadpro': cadpro,
+                'quantidade': quantidade,
+                'denominacao': denominacao,
+                'unidade_scpi': unidade_scpi,
+                'unidade_codigo': _codigo_unidade_scpi(unidade_scpi),
+                'numero_linha': i,
+            }
         )
     return linhas
+
+
+def _codigo_unidade_scpi(unidade_scpi: str) -> str:
+    """Código da unidade no WMS para o valor de ``UNID1`` do CSV (#219).
+
+    Normaliza (sem espaços nas pontas, maiúsculas) e passa pelo dicionário de
+    sinônimos; o que não está nele vira o próprio valor em minúsculas. Valor
+    vazio — ou coluna ausente — cai na unidade padrão.
+    """
+    normalizado = unidade_scpi.strip().upper()
+    if not normalizado:
+        return UNIDADE_PADRAO_MATERIAL_SCPI
+    return SINONIMOS_UNIDADE_SCPI.get(normalizado, normalizado.lower())
+
+
+def _validar_unidades_dos_novos(linhas_novas: list[dict]) -> None:
+    """Recusa cedo o código de unidade que não cabe em ``UnidadeMedida.codigo``.
+
+    Só a linha de material novo grava unidade: a de material existente ignora
+    ``UNID1``, então um código longo nela não bloqueia o arquivo. Sem esta
+    checagem, o INSERT da confirmação estouraria a coluna e o
+    ``transaction.atomic`` derrubaria o lote inteiro.
+    """
+    from apps.core.exceptions import DadosInvalidos
+
+    limite = UnidadeMedida._meta.get_field('codigo').max_length
+    # `CharField` com `max_length` fixo no model; só o stub do Django é opcional.
+    assert limite is not None
+    for linha in linhas_novas:
+        codigo = linha['unidade_codigo']
+        if len(codigo) > limite:
+            raise DadosInvalidos(
+                f'Unidade muito longa no produto {linha["cadpro"]} '
+                f'(linha {linha["numero_linha"]}): "{linha["unidade_scpi"]}" tem '
+                f'{len(codigo)} caracteres, máximo {limite}.',
+                code='csv_unidade_muito_longa',
+            )
+
+
+def _unidades_dos_novos(linhas_novas: list[dict]) -> dict[str, UnidadeMedida]:
+    """Unidade com que cada código de ``UNID1`` dos novos será gravado.
+
+    Numa consulta só, e não uma por linha. A cadastrada vale sobre qualquer
+    outra fonte — ajuste feito no admin prevalece. A que falta vem como
+    instância **não salva**: de ``UNIDADES_CONHECIDAS`` quando o sistema a
+    conhece; senão com o valor do CSV como nome e três casas.
+    ``confirmar_importacao_scpi`` cria exatamente essas, então o preview
+    anuncia a precisão que a gravação aplica.
+    """
+    codigos = {linha['unidade_codigo'] for linha in linhas_novas}
+    unidades = {u.codigo: u for u in UnidadeMedida.objects.filter(codigo__in=codigos)}
+    for linha in linhas_novas:
+        codigo = linha['unidade_codigo']
+        if codigo in unidades:
+            continue
+        if codigo in UNIDADES_CONHECIDAS:
+            unidades[codigo] = unidade_conhecida(codigo)
+        else:
+            unidades[codigo] = UnidadeMedida(
+                codigo=codigo,
+                nome=linha['unidade_scpi'],
+                casas_decimais=CASAS_PADRAO,
+            )
+    return unidades
 
 
 def gerar_preview_importacao_scpi(
@@ -233,14 +316,11 @@ def gerar_preview_importacao_scpi(
     """Gera pré-visualização read-only da importação SCPI.
 
     Compara CADPRO → Material.codigo contra saldo_fisico do estoque indicado.
-    Não persiste nenhuma alteração.
+    O material novo traz a unidade lida de ``UNID1`` (#219); o existente, a
+    que já tem no WMS. Não persiste nenhuma alteração — nem a unidade que a
+    confirmação vai criar.
     """
-    from apps.estoque.models import (
-        UNIDADE_PADRAO_MATERIAL_SCPI,
-        Material,
-        SaldoEstoque,
-        unidade_conhecida,
-    )
+    from apps.estoque.models import Material, SaldoEstoque
 
     conteudo = _normalizar_csv_scpi(conteudo_bytes)
     linhas_raw = _parse_linhas_csv_scpi(conteudo)
@@ -261,14 +341,11 @@ def gerar_preview_importacao_scpi(
         ).only('material_id', 'saldo_fisico')
     }
 
+    linhas_novas = [row for row in linhas_raw if row['cadpro'] not in materiais]
+    _validar_unidades_dos_novos(linhas_novas)
+    unidades_novos = _unidades_dos_novos(linhas_novas)
+
     resultado: list[LinhaPreviewSCPI] = []
-    # Mesma unidade que `confirmar_importacao_scpi` grava nos novos: o preview
-    # não pode prometer uma precisão diferente da que a criação aplica. Num
-    # banco em que ninguém a cadastrou ainda, vale a precisão conhecida — é com
-    # ela que a confirmação vai criá-la.
-    unidade_novos = UnidadeMedida.objects.filter(
-        pk=UNIDADE_PADRAO_MATERIAL_SCPI
-    ).first() or unidade_conhecida(UNIDADE_PADRAO_MATERIAL_SCPI)
     for linha in linhas_raw:
         cadpro = linha['cadpro']
         saldo_scpi = linha['quantidade']
@@ -286,7 +363,7 @@ def gerar_preview_importacao_scpi(
                     saldo_scpi=saldo_scpi,
                     delta=saldo_scpi,
                     status='novo',
-                    unidade=unidade_novos,
+                    unidade=unidades_novos[linha['unidade_codigo']],
                 )
             )
             continue

@@ -88,9 +88,21 @@ entre os dois é rotina recorrente, não etapa de migração com prazo.
 - Por isso a divergência é apresentada em âmbar, o tom de "a decisão está com
   alguém", e não em vermelho: nada falhou. A copy do preview nomeia esse dono e
   a próxima ação, para que quem opera não leia o alerta como erro do sistema.
-- O material criado pela importação nasce com a denominação do arquivo e com
-  unidade padrão, porque o CSV do SCPI não informa unidade. Conferir a unidade
-  no catálogo depois da importação também cabe ao chefe de almoxarifado.
+- O material criado pela importação nasce com a denominação do arquivo e com a
+  unidade da coluna `UNID1` do SCPI, traduzida por um mapeamento de sinônimos
+  aprovado pelo chefe de almoxarifado (`UND` e `PC` são `un`, `MT` e `MTS` são
+  `m`, `LT` é `l`, e assim por diante). Arquivo sem a coluna, ou com o valor
+  vazio, cai em `un`.
+- Unidade que ainda não existe no WMS é criada na confirmação: com o nome
+  conhecido quando o sistema sabe qual é (`BR` vira Barra, `T` vira Tonelada) e,
+  quando não sabe, com o próprio valor do SCPI como nome. A precisão é a
+  conhecida (`un` sem casa decimal, `kg`, `l` e `m` com uma); código sem
+  equivalente no WMS nasce com três casas decimais. Unidade já cadastrada nunca é sobrescrita, e a
+  quantidade não é convertida — tonelada continua tonelada.
+- A `UNID1` só vale para material novo. Material que já existe fica com a
+  unidade do WMS, e divergência de unidade entre WMS e SCPI não é apontada.
+- Conferir a unidade no catálogo depois da importação, e ajustar nome e precisão
+  no admin, continua cabendo ao chefe de almoxarifado.
 - O preview é sempre read-only e a gravação exige confirmação explícita.
 
 ## 1.5 Fluxos alternativos e exceções

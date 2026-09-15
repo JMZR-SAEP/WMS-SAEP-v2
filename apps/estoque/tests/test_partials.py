@@ -214,12 +214,13 @@ def _render_novos(novos=2):
 
 
 def test_alerta_de_materiais_novos_diz_quem_confere_o_catalogo():
-    """O material novo entra no catálogo com uma unidade que ninguém escolheu.
+    """O material novo entra no catálogo com uma unidade que ninguém conferiu.
 
-    `confirmar_importacao_scpi` cria o material com `unidade=UNIDADE` fixa,
-    porque o CSV do SCPI não informa unidade, e com o nome vindo da denominação
-    do arquivo. Existe conferência humana pendente de fato — e ela é do mesmo
-    dono que decide sobre a divergência.
+    `confirmar_importacao_scpi` cria o material com a unidade da coluna `UNID1`
+    do SCPI, traduzida pelo mapeamento de sinônimos, e com o nome vindo da
+    denominação do arquivo; o código sem equivalente no WMS vira unidade nova
+    com três casas decimais (#219). Existe conferência humana pendente de fato — de
+    unidade e de precisão — e ela é do mesmo dono que decide sobre a divergência.
     """
     html = _render_novos()
     assert 'unidade' in html

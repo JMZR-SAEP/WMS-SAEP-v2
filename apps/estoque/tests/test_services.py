@@ -547,6 +547,215 @@ class TestConfirmarImportacaoScpi:
         assert (unidade.nome, unidade.casas_decimais) == ('Unidade avulsa', 1)
         assert Material.objects.get(codigo='000.999.211').unidade_id == 'un'
 
+    def _csv_unid1(self, *linhas: tuple[str, str]) -> bytes:
+        corpo = [f'{cadpro};MATERIAL {cadpro};{unid1};5' for cadpro, unid1 in linhas]
+        return '\n'.join(['CADPRO;DISC1;UNID1;QUAN3', *corpo]).encode('utf-8')
+
+    def _confirmar(self, ator, estoque, csv_bytes, arquivo_nome='unid1.csv'):
+        from apps.estoque.services import confirmar_importacao_scpi
+
+        return confirmar_importacao_scpi(
+            ator_id=ator.pk,
+            conteudo_bytes=csv_bytes,
+            arquivo_nome=arquivo_nome,
+            estoque_id=estoque.pk,
+        )
+
+    def test_cria_unidade_sem_equivalente_com_o_nome_conhecido_e_tres_casas(
+        self, db, superuser, estoque_principal
+    ):
+        """`BR` não tem equivalente no WMS: nasce `br`, Barra, com 3 casas, e o
+        preview anuncia exatamente a unidade que a confirmação grava (#219)."""
+        from apps.estoque.models import Material, UnidadeMedida
+        from apps.estoque.selectors import gerar_preview_importacao_scpi
+
+        csv_bytes = self._csv_unid1(('000.999.220', 'BR'))
+        (linha_preview,) = gerar_preview_importacao_scpi(
+            conteudo_bytes=csv_bytes, estoque_id=estoque_principal.pk
+        )
+
+        self._confirmar(superuser, estoque_principal, csv_bytes)
+
+        unidade = UnidadeMedida.objects.get(codigo='br')
+        assert (unidade.nome, unidade.casas_decimais) == ('Barra', 3)
+        assert Material.objects.get(codigo='000.999.220').unidade_id == 'br'
+        assert (
+            linha_preview.unidade.codigo,
+            linha_preview.unidade.nome,
+            linha_preview.unidade.casas_decimais,
+        ) == (unidade.codigo, unidade.nome, unidade.casas_decimais)
+
+    def test_cabecalho_com_espacos_grava_a_unidade_e_o_nome_do_csv(
+        self, db, superuser, estoque_principal
+    ):
+        """Espaço em volta de `UNID1`/`DISC1` no cabeçalho não pode fazer o
+        material nascer `un` e com o CADPRO como nome sem ninguém perceber."""
+        from apps.estoque.models import Material
+
+        csv_bytes = '\n'.join(
+            ['CADPRO; DISC1 ; UNID1 ;QUAN3', '000.999.222;ARAME GALVANIZADO;KG;5']
+        ).encode('utf-8')
+
+        self._confirmar(superuser, estoque_principal, csv_bytes)
+
+        material = Material.objects.get(codigo='000.999.222')
+        assert material.unidade_id == 'kg'
+        assert material.nome.lower() == 'arame galvanizado'
+
+    def test_cria_codigo_desconhecido_com_o_valor_do_csv_e_tres_casas(
+        self, db, superuser, estoque_principal
+    ):
+        from apps.estoque.models import Material, UnidadeMedida
+
+        self._confirmar(
+            superuser, estoque_principal, self._csv_unid1(('000.999.221', ' Bld '))
+        )
+
+        unidade = UnidadeMedida.objects.get(codigo='bld')
+        assert (unidade.nome, unidade.casas_decimais) == ('Bld', 3)
+        assert Material.objects.get(codigo='000.999.221').unidade_id == 'bld'
+
+    def test_sinonimos_do_scpi_gravam_a_unidade_do_wms(
+        self, db, superuser, estoque_principal
+    ):
+        """`UND` e `PC` são `un`; `MT` é `m` — uma unidade só por código do WMS."""
+        from apps.estoque.models import Material, UnidadeMedida
+
+        self._confirmar(
+            superuser,
+            estoque_principal,
+            self._csv_unid1(
+                ('000.999.222', 'UND'), ('000.999.223', 'PC'), ('000.999.224', 'MT')
+            ),
+        )
+
+        assert dict(
+            Material.objects.filter(codigo__startswith='000.999.22').values_list(
+                'codigo', 'unidade_id'
+            )
+        ) == {'000.999.222': 'un', '000.999.223': 'un', '000.999.224': 'm'}
+        assert set(
+            UnidadeMedida.objects.values_list('codigo', 'nome', 'casas_decimais')
+        ) == {('un', 'Unidade', 0), ('m', 'Metro', 1)}
+
+    def test_nao_sobrescreve_unidade_do_scpi_ja_cadastrada(
+        self, db, superuser, estoque_principal
+    ):
+        """Precisão e nome ajustados no admin valem sobre os conhecidos."""
+        from apps.estoque.models import Material, UnidadeMedida
+
+        UnidadeMedida.objects.create(codigo='br', nome='Barra de aço', casas_decimais=1)
+
+        self._confirmar(
+            superuser, estoque_principal, self._csv_unid1(('000.999.225', 'BR'))
+        )
+
+        unidade = UnidadeMedida.objects.get(codigo='br')
+        assert (unidade.nome, unidade.casas_decimais) == ('Barra de aço', 1)
+        assert Material.objects.get(codigo='000.999.225').unidade_id == 'br'
+
+    def test_unidade_cadastrada_entre_o_preview_e_a_gravacao_fica_como_esta(
+        self, db, monkeypatch, superuser, estoque_principal
+    ):
+        """Corrida: outra confirmação (ou o admin) cria a unidade depois que o
+        preview interno a viu faltando. A gravação não quebra com a chave
+        duplicada nem sobrescreve o que foi cadastrado."""
+        from apps.estoque import selectors
+        from apps.estoque.models import Material, UnidadeMedida
+
+        preview_original = selectors.gerar_preview_importacao_scpi
+
+        def preview_e_cadastro_concorrente(**kwargs):
+            linhas = preview_original(**kwargs)
+            UnidadeMedida.objects.create(
+                codigo='br', nome='Barra concorrente', casas_decimais=2
+            )
+            return linhas
+
+        monkeypatch.setattr(
+            selectors, 'gerar_preview_importacao_scpi', preview_e_cadastro_concorrente
+        )
+
+        self._confirmar(
+            superuser, estoque_principal, self._csv_unid1(('000.999.226', 'BR'))
+        )
+
+        unidade = UnidadeMedida.objects.get(codigo='br')
+        assert (unidade.nome, unidade.casas_decimais) == ('Barra concorrente', 2)
+        assert Material.objects.get(codigo='000.999.226').unidade_id == 'br'
+
+    def test_material_existente_ignora_unid1(
+        self, db, superuser, estoque_principal, material_scpi
+    ):
+        """`UNID1` só vale para material novo, e divergência de unidade entre
+        WMS e SCPI está fora do escopo: nada muda, nada é criado."""
+        from apps.estoque.models import UnidadeMedida
+
+        self._confirmar(
+            superuser, estoque_principal, self._csv_unid1((material_scpi.codigo, 'KG'))
+        )
+
+        material_scpi.refresh_from_db()
+        assert material_scpi.unidade_id == 'un'
+        assert not UnidadeMedida.objects.filter(codigo='kg').exists()
+
+    def test_codigo_de_unidade_longo_demais_nao_grava_nada(
+        self, db, superuser, estoque_principal
+    ):
+        import pytest
+
+        from apps.core.exceptions import DadosInvalidos
+        from apps.estoque.models import ImportacaoSCPI, Material, UnidadeMedida
+
+        with pytest.raises(DadosInvalidos):
+            self._confirmar(
+                superuser,
+                estoque_principal,
+                self._csv_unid1(('000.999.227', 'UN'), ('000.999.228', 'ABCDEFGHIJK')),
+                arquivo_nome='unidade-longa.csv',
+            )
+
+        assert not Material.objects.filter(codigo__startswith='000.999.22').exists()
+        assert not UnidadeMedida.objects.exists()
+        assert not ImportacaoSCPI.objects.filter(
+            arquivo_nome='unidade-longa.csv'
+        ).exists()
+
+    def test_nao_consulta_nem_cria_unidade_por_linha(
+        self, db, superuser, estoque_principal
+    ):
+        """Centenas de materiais novos, uma leitura e uma escrita de unidade.
+
+        Material e saldo seguem com um INSERT por linha (fora desta mudança);
+        a guarda conta só as consultas à tabela de unidades.
+        """
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from apps.estoque.tests.unidades import obter_unidade
+
+        obter_unidade('kg')
+        unid1 = ['UN', 'BR', 'KG', 'T', 'M²', 'XYZ', 'PC', 'MT', 'KIT', 'CX']
+
+        def consultas_de_unidade(inicio, quantidade):
+            csv_bytes = self._csv_unid1(
+                *((f'000.998.{inicio + n:03d}', unid1[n]) for n in range(quantidade))
+            )
+            with CaptureQueriesContext(connection) as consultas:
+                self._confirmar(
+                    superuser, estoque_principal, csv_bytes, f'lote-{inicio}.csv'
+                )
+            return sum(
+                '"estoque_unidademedida"' in consulta['sql']
+                for consulta in consultas.captured_queries
+            )
+
+        # As duas medições leem as unidades e criam as que faltam: na segunda,
+        # `un` e `kg` já existem, mas as outras oito ainda não.
+        com_uma_linha = consultas_de_unidade(0, 1)
+
+        assert consultas_de_unidade(100, 10) == com_uma_linha
+
     def test_denominacao_scpi_em_caixa_alta_e_normalizada_na_escrita(
         self, db, superuser, estoque_principal
     ):
@@ -577,9 +786,9 @@ class TestConfirmarImportacaoScpi:
 
         Se ela divergisse da que o service grava, o número mostrado antes de
         confirmar teria precisão diferente do número mostrado depois — a
-        divergência apareceria só com o material já criado. Hoje as duas pontas
-        leem `UNIDADE_PADRAO_MATERIAL_SCPI`; este teste é o que falha se alguém
-        reintroduzir um literal em qualquer uma delas.
+        divergência apareceria só com o material já criado. Desde a #219 a
+        confirmação grava a própria unidade que o preview anunciou; este teste é
+        o que falha se alguém voltar a decidir a unidade em cada ponta.
         """
         from apps.estoque.models import Material
         from apps.estoque.selectors import gerar_preview_importacao_scpi
@@ -794,8 +1003,8 @@ class TestConfirmarImportacaoScpiDivergenciasPersistidas:
     ):
         """Quantidade sem unidade não é informação.
 
-        O CSV do SCPI não informa unidade, mas o WMS conhece a do material — e
-        a pré-visualização já a exibia. A unidade era descartada na fronteira
+        A linha divergente é de material que já existe, cuja unidade o WMS
+        conhece — e a pré-visualização já a exibia. A unidade era descartada na fronteira
         entre o preview e a gravação, então o registro durável e exportável
         ficava menos preciso que a tela efêmera que o originou.
         """

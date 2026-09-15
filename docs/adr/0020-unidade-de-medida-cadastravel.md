@@ -63,9 +63,19 @@ precisão em código obriga deploy para cada ajuste de exibição.
 - `get_unidade_display` deixa de existir; a forma por extenso é
   `material.unidade.nome`.
 - Teste que cria `Material` precisa criar a unidade antes (`obter_unidade`).
-- Nesta etapa, a importação só cria a unidade padrão `un` (0 casas, de
-  `UNIDADES_CONHECIDAS`) quando ela falta. As unidades lidas de `UNID1` entram
-  na etapa que passar a ler essa coluna (#219).
+- A importação lê a coluna `UNID1` só para material novo; o existente fica com
+  a unidade do WMS, sem alerta de divergência de unidade. O valor normalizado
+  (sem espaços nas pontas, maiúsculas) passa por `SINONIMOS_UNIDADE_SCPI`
+  (`apps/estoque/models.py`) e, fora dele, vira o próprio valor em minúsculas;
+  coluna ausente ou valor vazio cai em `un`. O preview resolve a unidade de
+  cada código numa consulta só — a cadastrada, senão a de
+  `UNIDADES_CONHECIDAS`, senão uma nova com o valor do CSV como nome e 3 casas
+  — e anuncia a que falta como instância não salva. A confirmação cria
+  exatamente essas num `bulk_create(ignore_conflicts=True)`: unidade já
+  cadastrada, inclusive por outra confirmação concorrente, não é sobrescrita.
+  Não há conversão de quantidade. Código normalizado acima de 10 caracteres é
+  recusado no preview (`csv_unidade_muito_longa`), antes de qualquer escrita
+  (#219).
 
 ## Trade-off
 
